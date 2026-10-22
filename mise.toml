@@ -1,0 +1,4 @@
+# Shared toolchain: `mise install`. Research-only tools (e.g. Node for
+# research/hook/*.mjs) go in the git-ignored mise.local.toml.
+[tools]
+rust = { version = "1.99", components = ["clippy", "rustfmt"] }

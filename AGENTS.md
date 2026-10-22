@@ -90,4 +90,5 @@ The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`
 
 ## Commands
 
-None yet; the Rust workspace starts in Phase 5. Once it exists, write the exact build, test, lint and format commands here and run them before every commit. Planned: `cargo build`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`.
+- **Toolchain**: `mise install` sets up the Rust version pinned in `mise.toml`, with clippy and rustfmt. Research-only tools, such as Node for `research/hook/*.mjs`, go in the git-ignored `mise.local.toml`.
+- **Build, test, lint, format**: none yet; the Rust workspace starts in Phase 5. Once it exists, write the exact commands here and run them before every commit. Planned: `cargo build`, `cargo test`, `cargo clippy --all-targets -- -D warnings`, `cargo fmt --check`.

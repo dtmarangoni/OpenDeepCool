@@ -40,6 +40,12 @@ Every file, rule, module and service the finished app adds will be listed here b
 
 ## Development
 
+Install the toolchain once per clone with [mise](https://github.com/jdx/mise). It sets up the Rust version pinned in `mise.toml`, with clippy and rustfmt:
+
+```sh
+mise install
+```
+
 Enable the commit guard once per clone. It rejects vendor files, DeepCreative code and large binaries:
 
 ```sh

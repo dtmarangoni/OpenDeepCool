@@ -31,6 +31,10 @@
 CLAUDE.local.md
 .claude/settings.local.json
 
+# Local, per-user mise overrides (e.g. Node for the research scripts)
+mise.local.toml
+mise.*.local.toml
+
 # Editors and OS files
 .idea/
 .vscode/
