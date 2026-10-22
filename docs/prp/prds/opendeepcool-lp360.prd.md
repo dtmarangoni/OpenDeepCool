@@ -467,6 +467,10 @@ Other projects (philling-dev/deepcool-digital-linux, RahnRazamai/deepcool_digita
   - a fan-control helper using PawnIO, which sets motherboard and hub fan speeds according to the developer notes shipped inside the app
   - a display service
   - nssm, a Windows service manager
+- **Sensor path** (strings and logs, 2026-10-22):
+  - the sensor bridge serves readings to the app over a local named pipe and polls its HWiNFO worker every 1000 ms;
+  - the main process receives them as sensor-snapshot events, and its strings include normalized metric names such as CPU Temperature, CPU Usage, CPU Power, Gpu temperature, Gpu usage, Gpu power, Memory Load and Memory Used;
+  - the bridge has a built-in fake backend (its readings unverified), and the main process has a `SENSOR_THRESHOLDS` entry (purpose unverified).
 
 **Hardware & system**
 
