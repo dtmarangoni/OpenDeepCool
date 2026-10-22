@@ -1,0 +1,38 @@
+# Vendor documents: copyrighted, kept on this machine only.
+# Our own notes about them live in docs/hardware/ (see docs/reference/README.md).
+/docs/reference/vendor/
+
+# Facts about the owner's own PC (hardware, OS, login setup, serials, paths).
+# Never published; see docs/local/machine.md on the owner's machine.
+/docs/local/
+
+# DeepCool/DeepCreative software and research artefacts must never be committed:
+# installers, extracted app files, bytecode, native modules, archives, USB captures.
+*.exe
+*.dll
+*.asar
+*.jsc
+*.node
+*.pak
+*.7z
+*.pcap
+*.pcapng
+/research/
+/captures/
+
+# PRP store bookkeeping (holds an absolute local path)
+/docs/prp/project.json
+
+# Rust build output
+/target/
+**/*.rs.bk
+
+# Local, per-user agent settings
+CLAUDE.local.md
+.claude/settings.local.json
+
+# Editors and OS files
+.idea/
+.vscode/
+*.swp
+.DS_Store
