@@ -44,7 +44,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - integration tests with fakes (fake sysfs trees, fake HID transport);
    - e2e tests on the real device, which run with the owner.
 6. **Never put DeepCool material in the repository.**
-   - This covers the installer and its extracted files, their code (including decompiled code or bytecode), fonts, images, preset artwork, and raw USB captures of DeepCreative.
+   - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.
    - Describe protocol facts in our own words in the spec.
 7. **No undocumented system changes.** Ask before any `sudo` or system-level change. List every file, package, rule, module or service the app installs or creates in the README's "Installed on your system" section and in the PRD's System Footprint.

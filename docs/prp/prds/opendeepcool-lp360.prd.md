@@ -44,7 +44,7 @@ We'll know we're right when two things are true:
 - **Support for other hardware, other DeepCool devices, other distributions or other operating systems.** The owner can only test this machine.
 - **DeepCreative features outside the LP360 page:** the fan-control page, firmware updates, online auto-update, screen casting and LCD-device features.
 - **Compatibility with DeepCreative's import/export file format, and a user-facing command-line tool.** Owner decision.
-- **Any DeepCool code, fonts, images or preset artwork in the repository.** The repository is public.
+- **Any DeepCool code, installer files or raw USB captures in the repository.** The repository is public.
 
 ## Success Metrics
 
@@ -65,7 +65,6 @@ We'll know we're right when two things are true:
 - [ ] *After v1 (owner decision, 2026-10-22):* what the hidden settings `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` do, and what the device reports DeepCreative doesn't use are for.
 - [ ] On the owner's board, which fan input is the pump and which is the CPU fan? Readings and candidates are in `docs/local/machine.md`.
 - [ ] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere?
-- [ ] How should DeepCreative's preset artwork (emoji animations, icons) be reproduced in a public repo? Options: our own designs with the same behaviour, or the originals loaded at runtime from the owner's own DeepCreative installer and never committed.
 - [ ] Music Mode: which audio output is analysed, and how does DeepCreative turn audio into the spectrum (bands, scaling, frame rate)?
 - [ ] What should the display show when the service is stopped or the PC is idle?
 - [ ] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled?
@@ -184,7 +183,6 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 | Wine can't reach the LP360 over USB | M | Log frames with a hook inside the app; present a virtual HID device (Linux `uhid`) with the LP360's IDs; use `usbmon` to confirm |
 | Main-process logic is compiled V8 bytecode | H (certain) | Capture at runtime under Wine; decompile only if needed |
 | DeepCreative tries to update itself or the firmware | L | Network blocked during the Wine run; decline any prompt |
-| Exact copies of preset artwork raise copyright issues in a public repo | M | Open question; default to our own designs and keep captures local |
 | Wrong fan input chosen as pump or CPU fan | L | Inputs are selectable, as in DeepCreative; the owner confirms the defaults |
 | CPU power file becomes root-only after a reboot or kernel update | M | Detect at runtime; add a documented udev rule if needed |
 | hwmon/DRM index changes between boots | H | Look up by name or driver, never by index |
@@ -275,7 +273,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - agent instructions:
     - `AGENTS.md` holds the rules for every coding agent, plus the start-of-session checklist
     - `CLAUDE.md` imports it with `@AGENTS.md` and adds Claude Code specifics
-  - a git pre-commit guard that rejects DeepCool material (installer, extracted app files, fonts, captures) and oversized files (proposed; it gains build/test/lint checks in Phase 5)
+  - a git pre-commit guard that rejects DeepCool material (installer, extracted app files, captures) and oversized files (proposed; it gains build/test/lint checks in Phase 5)
   - this PRD and the research notes under `docs/`
   - create the public GitHub repository and push
 - **Success signal**: The repository is visible on GitHub with the docs, and nothing from DeepCool is committed.
@@ -289,7 +287,6 @@ This project spans many sessions and possibly several coding agents, so the way 
   - the sensor source for each metric
   - the fan input mapping on this board, confirmed with the board's manual and a check by the owner
   - the parity checklist, with each item validated by the owner on the device
-  - a decision on preset artwork
 - **Success signal**: The owner signs off the parity checklist as complete and correct.
 
 **Phase 4: Implementation plans**

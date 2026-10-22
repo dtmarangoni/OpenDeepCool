@@ -73,4 +73,3 @@ Mode numbers are DeepCreative's internal values (`lpStore.mode.value`).
 - What exactly is the scroll and transition behaviour (buffer contents, speed, wrap)? To specify from captures in Phase 3.
 - What do `gyroStatus`, `screenBrightness`, `screenStatus`, `noLoadScreen` and `rgbOptical` do for the LP360, if anything?
 - How is the audio spectrum computed (bands, scaling, peak behaviour)?
-- How should DeepCreative's preset emoji art be reproduced in a public repo (copyright)?
