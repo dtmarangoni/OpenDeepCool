@@ -404,7 +404,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 |---|---|---|
 | Rust toolchain | mise (already installed) | Build only |
 | Wine 11.17, winetricks | Already installed | Phases 2–3 |
-| Wine prefix for DeepCreative | e.g. `~/.local/share/opendeepcool-research/wine` | Deleted after Phase 3 |
+| Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Deleted after Phase 3 |
 | Extracted DeepCreative files and captures | Outside the repository | Never committed |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Done 2026-10-22 |
 

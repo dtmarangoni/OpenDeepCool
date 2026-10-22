@@ -3,7 +3,7 @@
 **Date:** 2026-10-22
 **Verdict:** **PROVEN.** DeepCreative 1.2.14 runs under Wine on this PC, drives the real LP360, and every byte it sends can be recorded. On 2026-10-22 the owner confirmed on the physical display what the walkthrough showed: scrolling power values, music faces and spectrum, the custom test image, and rotation.
 
-All observations below were made on this PC. Raw captures, screenshots and DeepCool files stay local in `~/.local/share/opendeepcool-research/` and are never committed. This report describes facts in our own words.
+All observations below were made on this PC. Raw captures, screenshots and DeepCool files stay local in the git-ignored `research/` folder and are never committed. This report describes facts in our own words.
 
 ## Setup
 
@@ -65,7 +65,7 @@ Mode numbers are DeepCreative's internal values (`lpStore.mode.value`).
 
 - **Readings**: CPU usage and RAM usage come through. Temperatures, power and fan speeds read 0, because HWiNFO needs a Windows kernel driver. Layouts and animations are unaffected.
 - **Mode switches**: after a switch, the previous content keeps scrolling out for about 1 s. The exact transition behaviour still needs to be specified.
-- **Audio**: capture works under Wine. With Spotify playing, Music Mode showed a live spectrum (every frame different).
+- **Audio**: capture works under Wine. With music playing, Music Mode showed a live spectrum (every frame different).
 
 ## Open questions carried forward
 
