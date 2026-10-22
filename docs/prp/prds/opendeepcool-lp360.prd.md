@@ -66,7 +66,7 @@ We'll know we're right when two things are true:
 - [ ] *After v1 (owner decision, 2026-10-22):* what the hidden settings `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` do, and what the device reports DeepCreative doesn't use are for.
 - [ ] On the owner's board, which fan input is the pump and which is the CPU fan? Readings and candidates are in `docs/local/machine.md`.
 - [ ] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere?
-- [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool uses its own Winamp-style analysis and keeps DeepCreative's layout ([display and music specs](../../spec/)).
+- [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
 - [ ] What should the display show when the service is stopped or the PC is idle?
 - [ ] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled?
 - [ ] Does `energy_uj` (CPU power) stay readable without root across reboots and kernel updates? It is readable now, but no rule was found that sets this.
@@ -163,7 +163,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 
   Look devices up by name or driver, never by hwmon/DRM index, because indexes change between boots.
 - **Service model**: a systemd **user** service that starts with the owner's desktop session. On the owner's PC that session starts automatically at boot (see `docs/local/machine.md`). Running inside the owner's session also gives Music Mode access to audio through PipeWire. The service restarts on failure and reconnects if the USB device disappears.
-- **Music Mode**: capture the monitor of the default audio output through PipeWire and compute an FFT (crates chosen in the plan). The spectrum analysis is our own, Winamp-style (bands across the audible range, quick rise, gradual fall), tuned with the owner in Phase 9; the bars' size and position follow DeepCreative's layout.
+- **Music Mode**: capture the monitor of the default audio output through PipeWire and compute an FFT (crates chosen in the plan). The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. How its bars and peaks fall is unverified and gets tuned with the owner in Phase 9. The bars' size and position follow DeepCreative's layout.
 - **Settings app ↔ service**: local IPC within the session, either D-Bus or a Unix socket in `$XDG_RUNTIME_DIR` (chosen in the plan).
 - **Theme**:
   - Ship an Omarchy template, `~/.config/omarchy/themed/opendeepcool.css.tpl`, using placeholders such as `{{ accent }}`.
@@ -428,7 +428,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Creative Mode animations | Not in v1 | In v1 | DeepCreative 1.2.14's editor has no frames or timing (LP page code; Phase 1 saw static images only); owner decision 2026-10-22: possible later |
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
-| Music Mode spectrum | Own Winamp-style analysis; DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
+| Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
 | Testing | Unit + integration + e2e for each phase, where applicable | — | Owner requirement |
 | PRP documents | Kept in the repository under `docs/prp/` (the PRP store under `~/.prp/` links there) | PRP default store outside the repo | Owner wants the PRP documents in git |
 | DeepCool material | Never committed; captures stay local | — | Copyright; the repository is public |
