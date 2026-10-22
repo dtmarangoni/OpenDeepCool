@@ -15,6 +15,7 @@ This file holds facts this project needs, summarised in our own words. The full 
 | Product | LP360 (the manual also covers LP240, LP240 WH, LP360 WH) | Manual cover |
 | Display | Dot-matrix display on the pump ("Matrix Display" in DeepCool's product page title) | DeepCool product page URL/title |
 | USB | HID device `3633:000c`, product string "DeepCool LP-Series" | lsusb and sysfs, *observed* |
+| HID reports | Vendor-defined (usage page `0xFF00`). Declares reports 2, 3 and 4 (output and feature, 63 bytes each), 5 (input and feature, 63 one-bit values) and 16 (output and input, 63 bytes). DeepCreative 1.2.14 used only output report 16: the Phase 1 log holds writes only. The rest are kept for after v1 and never sent | sysfs `report_descriptor` of the owner's unit (firmware revision in `docs/local/`), *observed* 2026-10-22 |
 | Serial number | Reported over USB and used by DeepCreative as the device ID (value omitted here) | DeepCreative log under Wine, *observed* 2026-10-22 |
 
 ## Supported sockets (manual contents page)

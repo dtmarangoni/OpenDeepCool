@@ -50,6 +50,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 7. **No undocumented system changes.** Ask before any `sudo` or system-level change. List every file, package, rule, module or service the app installs or creates in the README's "Installed on your system" section and in the PRD's System Footprint.
 8. **Out of scope for v1:**
    - fan or pump speed control: never write to hwmon `pwm*` files;
+   - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
    - ARGB lighting: OpenRGB handles it;
    - other devices or hardware.
 9. **Device safety.**
