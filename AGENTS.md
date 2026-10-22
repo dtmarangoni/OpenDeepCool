@@ -77,7 +77,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | Path | Contents |
 |---|---|
 | `docs/prp/prds/` | PRD: scope, decisions, phase status |
-| `docs/prp/plans/` | One plan per phase (from Phase 4) |
+| `docs/prp/plans/` | One plan per phase (from Phase 3), with its HTML companion |
 | `docs/prp/reports/` | Implementation reports |
 | `docs/spec/` | Functionality and protocol spec (from Phase 3) |
 | `docs/research/` | Spike and research reports (e.g. `phase1-wine-spike.md`) |

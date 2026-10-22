@@ -240,7 +240,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 |---|-------|-------------|--------|----------|---------|------|--------|----|
 | 1 | Wine reference spike | Run DeepCreative under Wine with the real LP360 and log what it sends; the result may change this plan | complete | - | - | - | [report](../../research/phase1-wine-spike.md) | - |
 | 2 | Repository bootstrap | git, README, MIT license, .gitignore, agent instructions (AGENTS.md, CLAUDE.md), commit guard, PRD and research docs, public GitHub repo | complete | - | 1 | - | - | - |
-| 3 | Functionality & protocol spec | Full spec of LP360 + DeepCreative + board sensors; parity checklist validated by the owner | pending | - | 1, 2 | - | - | - |
+| 3 | Functionality & protocol spec | Full spec of LP360 + DeepCreative + board sensors; parity checklist validated by the owner | in-progress | - | 1, 2 | [plan](../plans/phase-3-functionality-protocol-spec.plan.md) | - | - |
 | 4 | Implementation plans | One PRP plan per implementation phase (5–12) | pending | - | 3 | - | - | - |
 | 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer, udev rule, test patterns | pending | with 6 | 4 | - | - | - |
 | 6 | Sensors | All metrics plus fan input selection, tested against fake sysfs trees | pending | with 5 | 4 | - | - | - |

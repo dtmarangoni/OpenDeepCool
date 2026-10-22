@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Phase 3 plan companion</title>
+<style>
+/* prp-companion default theme. Always pasted first; $PRP_DIR/companion.css, when present,
+   follows it and overrides any of these custom properties. */
+:root {
+  color-scheme: light dark;
+  --surface: #fafafa; --raised: #f0f1f3; --text: #1d2125; --muted: #5a616b; --faint: #868d96;
+  --border: #dde0e4; --accent: #2f7d6d; --attention: #a15c00; --danger: #c42b3c;
+  --font-body: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --surface: #1b1d20; --raised: #25282c; --text: #e4e6e8; --muted: #9ba1a8; --faint: #6f757c;
+    --border: #33373c; --accent: #5cbfa9; --attention: #e0a03a; --danger: #f2596b;
+  }
+}
+</style>
+<style>
+body { background: var(--surface); color: var(--text); font: 15px/1.5 var(--font-body); margin: 0; padding: 24px 16px; }
+main { max-width: 60rem; margin: 0 auto; }
+h1 { font-size: 1.4rem; margin: 0 0 4px; }
+.sub { color: var(--muted); font-family: var(--font-mono); font-size: 0.85rem; }
+h2 { font-variant: small-caps; color: var(--faint); font-size: 0.95rem; letter-spacing: 0.04em; margin: 28px 0 10px; font-weight: 600; }
+.card { background: var(--raised); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin: 0 0 10px; overflow-wrap: anywhere; }
+.mono, code { font-family: var(--font-mono); font-size: 0.85em; }
+.steps { display: grid; grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr)); gap: 10px; }
+.steps .card { margin: 0; }
+.num { color: var(--accent); font-weight: 700; margin-right: 6px; }
+.files { color: var(--muted); margin-top: 6px; }
+.flag { display: inline-block; border: 1px solid var(--attention); color: var(--attention); border-radius: 10px; padding: 0 8px; font-size: 0.75rem; margin-top: 6px; }
+dl { margin: 0; display: grid; grid-template-columns: 11rem 1fr; gap: 4px 12px; }
+dt { color: var(--faint); font-variant: small-caps; }
+dd { margin: 0; }
+.quiet { color: var(--muted); font-size: 0.9rem; }
+.legend { color: var(--muted); font-size: 0.85rem; margin: 6px 0 0; }
+svg { width: 100%; height: auto; }
+svg text { fill: var(--text); font: 13px var(--font-body); }
+svg .node rect { fill: var(--raised); stroke-width: 2; }
+svg .new rect { stroke: var(--accent); }
+svg .changed rect { stroke: var(--attention); }
+svg .same rect { stroke: var(--border); }
+svg path.edge { fill: none; stroke: var(--muted); stroke-width: 1.4; marker-end: url(#arrow); }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; border-bottom: 1px solid var(--border); padding: 6px 8px; vertical-align: top; overflow-wrap: anywhere; }
+th { color: var(--faint); font-variant: small-caps; font-weight: 600; }
+.ac { font-size: 0.92rem; }
+footer { color: var(--faint); font-size: 0.85rem; margin-top: 32px; border-top: 1px solid var(--border); padding-top: 10px; }
+</style>
+</head>
+<body>
+<main>
+<h1>Phase 3: a verified spec of everything DeepCreative shows on the LP360</h1>
+<div class="sub">phase-3-functionality-protocol-spec · no source issue</div>
+
+<h2>What changes</h2>
+<div class="card">
+<svg viewBox="0 0 900 400" role="img" aria-label="Research rig and outputs">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" style="fill: var(--muted)"/>
+    </marker>
+  </defs>
+  <path class="edge" d="M210,43 H235 V125 H258"/>
+  <path class="edge" d="M210,113 H235 V130 H258"/>
+  <path class="edge" d="M210,183 H235 V140 H258"/>
+  <path class="edge" d="M210,253 H235 V145 H258"/>
+  <path class="edge" d="M440,135 H468"/>
+  <path class="edge" d="M650,125 H670 V53 H688"/>
+  <path class="edge" d="M650,145 H670 V153 H688"/>
+  <path class="edge" d="M790,176 V228"/>
+  <path class="edge" d="M760,276 V300 H560 V328"/>
+  <path class="edge" d="M820,276 V328"/>
+  <path class="edge" d="M440,353 H468"/>
+
+  <g id="C-inject" class="node new"><rect x="10" y="20" width="200" height="46" rx="6"/>
+    <text x="22" y="39">Chosen sensor values</text><text x="22" y="56">inject-sensors.mjs</text></g>
+  <g id="C-walkthrough" class="node same"><rect x="10" y="90" width="200" height="46" rx="6"/>
+    <text x="22" y="109">Walkthrough scripts</text><text x="22" y="126">DevTools socket</text></g>
+  <g id="C-tones" class="node new"><rect x="10" y="160" width="200" height="46" rx="6"/>
+    <text x="22" y="179">Test tones</text><text x="22" y="196">tones.py + pw-play</text></g>
+  <g id="C-bridge" class="node same"><rect x="10" y="230" width="200" height="46" rx="6"/>
+    <text x="22" y="249">Sensor bridge (Wine)</text><text x="22" y="266">sandbox, network blocked</text></g>
+  <g id="C-deepcreative" class="node same"><rect x="260" y="110" width="180" height="50" rx="6"/>
+    <text x="272" y="131">DeepCreative 1.2.14</text><text x="272" y="149">(Wine)</text></g>
+  <g id="C-logger" class="node same"><rect x="470" y="110" width="180" height="50" rx="6"/>
+    <text x="482" y="131">USB logger</text><text x="482" y="149">LD_PRELOAD</text></g>
+  <g id="C-lp360" class="node same"><rect x="690" y="30" width="200" height="46" rx="6"/>
+    <text x="702" y="58">LP360 display</text></g>
+  <g id="C-captures" class="node same"><rect x="690" y="130" width="200" height="46" rx="6"/>
+    <text x="702" y="149">Captures</text><text x="702" y="166">research/logs, local only</text></g>
+  <g id="C-analysis" class="node changed"><rect x="690" y="230" width="200" height="46" rx="6"/>
+    <text x="702" y="249">Decoders and analysis</text><text x="702" y="266">+ render-check.py</text></g>
+  <g id="C-owner" class="node same"><rect x="260" y="330" width="180" height="46" rx="6"/>
+    <text x="272" y="349">Owner checks</text><text x="272" y="366">on the cooler</text></g>
+  <g id="C-spec" class="node new"><rect x="470" y="330" width="180" height="46" rx="6"/>
+    <text x="482" y="349">docs/spec/</text><text x="482" y="366">committed</text></g>
+  <g id="C-local" class="node changed"><rect x="690" y="330" width="200" height="46" rx="6"/>
+    <text x="702" y="349">docs/local/machine.md</text><text x="702" y="366">machine facts, local only</text></g>
+</svg>
+<p class="legend">Outline: green = new, amber = changed, grey = unchanged from Phase 1.</p>
+</div>
+<div class="card"><strong>Approach.</strong> Reuse the Phase 1 research rig as it is. Add two controlled inputs: chosen sensor values, injected where DeepCreative's main process receives its readings, and test tones played through PipeWire. Analyse old and new captures with the existing decoders. Use static analysis only where running the app can't answer. Write one spec document per concern; the owner checks each one and it's committed on its own.</div>
+
+<h2>The steps</h2>
+<div class="steps">
+  <div class="card" id="S1"><span class="num">1</span>The research rig runs again, with temporary device access
+    <div class="files mono">launch-deepcreative.sh, launch-sensor-bridge.sh, opendeepcool-lp360.prd.md</div></div>
+  <div class="card" id="S2"><span class="num">2</span>Protocol spec and the spec's conventions
+    <div class="files mono">docs/spec/README.md, docs/spec/protocol.md</div></div>
+  <div class="card" id="S3"><span class="num">3</span>DeepCreative draws chosen sensor values
+    <div class="files mono">inject-sensors.mjs</div></div>
+  <div class="card" id="S4"><span class="num">4</span>Display spec: Load Mode, Temperature Guardian, Power Guardian, Creative Mode and rotation
+    <div class="files mono">docs/spec/display.md, render-check.py</div></div>
+  <div class="card" id="S5"><span class="num">5</span>Music spec: modes 13–22
+    <div class="files mono">docs/spec/music.md, tones.py</div></div>
+  <div class="card" id="S6"><span class="num">6</span>Sensors spec: what each metric means and where Linux has it
+    <div class="files mono">docs/spec/sensors.md, docs/local/machine.md</div></div>
+  <div class="card" id="S7"><span class="num">7</span>Settings spec
+    <div class="files mono">docs/spec/settings.md</div></div>
+  <div class="card" id="S8"><span class="num">8</span>Parity checklist, sign-off and records
+    <div class="files mono">docs/spec/parity-checklist.md, opendeepcool-lp360.prd.md, README.md, AGENTS.md</div></div>
+</div>
+
+<h2>Risks and decisions</h2>
+<div class="card" id="K1"><dl>
+  <dt>Decision or risk</dt><dd>Injecting values may not work, because the main process is bytecode</dd>
+  <dt>Recommendation</dt><dd>Try the inspector hook first, then the fake backend, then stop and ask</dd>
+  <dt>Evidence / mitigation</dt><dd>Task 3's fallbacks</dd>
+  <dt>Consequence if different</dt><dd>Value-dependent behaviour is inferred, and marked so</dd></dl></div>
+<div class="card" id="K2"><dl>
+  <dt>Decision or risk</dt><dd>The rig may have broken in the move to <code>research/</code> or the Wine update to 11.20</dd>
+  <dt>Recommendation</dt><dd>Smoke test first (Task 1); fix paths only</dd>
+  <dt>Evidence / mitigation</dt><dd>Phase 1 ran from the old location with Wine 11.17</dd>
+  <dt>Consequence if different</dt><dd>Phase 3 can't start until the rig runs</dd></dl></div>
+<div class="card" id="K3"><dl>
+  <dt>Decision or risk</dt><dd>Creative Mode animations may not exist in DeepCreative 1.2.14</dd>
+  <dt>Recommendation</dt><dd>Check in Task 4; if absent, the owner decides whether they become an after-v1 item</dd>
+  <dt>Evidence / mitigation</dt><dd>PRD line 105 against Phase 1 report line 51</dd>
+  <dt>Consequence if different</dt><dd>The PRD's Must list changes, with the owner's OK</dd></dl></div>
+<div class="card" id="K4"><dl>
+  <dt>Decision or risk</dt><dd><code>03 08</code> may stay unexplained</dd>
+  <dt>Recommendation</dt><dd>Send it once at start-up, exactly as DeepCreative does</dd>
+  <dt>Evidence / mitigation</dt><dd>Rule 9 allows documented messages</dd>
+  <dt>Consequence if different</dt><dd>Phase 5 would need another experiment</dd></dl></div>
+<div class="card" id="K5"><dl>
+  <dt>Decision or risk</dt><dd>CPU power is root-only after a reboot</dd>
+  <dt>Recommendation</dt><dd>Record it in the sensors spec; Phase 6 chooses the install-time rule</dd>
+  <dt>Evidence / mitigation</dt><dd>Observed 2026-10-22</dd>
+  <dt>Consequence if different</dt><dd>Power Guardian (modes 10–12) can't read CPU power without it</dd></dl></div>
+<div class="card" id="K6"><dl>
+  <dt>Decision or risk</dt><dd>Owner time for checks</dd>
+  <dt>Recommendation</dt><dd>Batch checks by mode family, and reuse Phase 1's confirmations where they cover an item</dd>
+  <dt>Evidence / mitigation</dt><dd>—</dd>
+  <dt>Consequence if different</dt><dd>A longer sign-off session</dd></dl></div>
+<div class="card" id="K7"><dl>
+  <dt>Decision or risk</dt><dd>Test tones are audible</dd>
+  <dt>Recommendation</dt><dd>Warn the owner first and keep the volume low</dd>
+  <dt>Evidence / mitigation</dt><dd>—</dd>
+  <dt>Consequence if different</dt><dd>—</dd></dl></div>
+<p class="quiet">Not building: hidden settings and unused device reports · fan or pump speed control · OpenDeepCool code, its udev rule or its package · messages from our own tools to the LP360 · a permanent access rule for research · decompiling the main-process bytecode, unless the owner approves it as Task 3's last fallback.</p>
+
+<h2>Acceptance</h2>
+<div class="card ac" id="AC1"><strong>AC1 — Protocol:</strong> <code>docs/spec/protocol.md</code> specifies every message DeepCreative 1.2.14 sent in any capture (format, checksum, frame bit layout, start-up command, timing), what it sends at start-up and exit, and what the display does when frames stop. Declared reports other than output report 16 are listed as never sent.</div>
+<div class="card ac" id="AC2"><strong>AC2 — Display:</strong> from <code>docs/spec/display.md</code> alone, every captured frame of modes 1–12 and Creative Mode, in every rotation and in both °C and °F, can be drawn pixel for pixel (Task 4's render check).</div>
+<div class="card ac" id="AC3"><strong>AC3 — Music:</strong> <code>docs/spec/music.md</code> specifies modes 13–22: the audio source; the spectrum's columns, scaling, rise and fall, and update rate, enough to predict the test-tone captures; and each emoji animation's frames and timing.</div>
+<div class="card ac" id="AC4"><strong>AC4 — Sensors:</strong> <code>docs/spec/sensors.md</code> defines each metric DeepCreative shows (meaning, unit, rounding, refresh) and the Linux source the owner's account can read. The owner's devices and fan mapping are only in <code>docs/local/machine.md</code>.</div>
+<div class="card ac" id="AC5"><strong>AC5 — Settings:</strong> <code>docs/spec/settings.md</code> lists every LP-page and global setting that affects the cooler, with its values, default and what's restored at start-up.</div>
+<div class="card ac" id="AC6"><strong>AC6 — Parity checklist:</strong> <code>docs/spec/parity-checklist.md</code> covers every item of AC1–AC5, each linked to its spec section and evidence and checked by the owner on the cooler, and the owner has signed it off.</div>
+<div class="card ac" id="AC7"><strong>AC7 — Safety and privacy:</strong> during Phase 3 only DeepCreative, in its network-blocked prefix, sent messages to the LP360. Every system change was temporary and is listed in the PRD footprint. The commit guard passed on every commit.</div>
+<div class="card ac" id="AC8"><strong>AC8 — Records:</strong> the PRD's open questions are answered or marked after v1, its capabilities match the spec with the owner's OK, and the README and AGENTS.md reflect Phase 3's outputs.</div>
+
+<h2>Validation</h2>
+<div class="card">
+<table>
+  <tr><th>Gate</th><th>Proves</th></tr>
+  <tr><td>Commit guard</td><td>AC7: no vendor files, no sensitive values, the right identity</td></tr>
+  <tr><td>Message classification</td><td>AC1</td></tr>
+  <tr><td>Render check</td><td>AC2</td></tr>
+  <tr><td>Tone predictions</td><td>AC3</td></tr>
+  <tr><td>Mode coverage</td><td>AC6 completeness</td></tr>
+  <tr><td>Evidence labels</td><td>Invariant</td></tr>
+  <tr><td>Owner checks and sign-off</td><td>AC2–AC6, success signal</td></tr>
+</table>
+</div>
+
+<footer>Companion of <span class="mono">phase-3-functionality-protocol-spec.plan.md</span>. Evidence, commands and file lists are in the markdown.</footer>
+</main>
+</body>
+</html>
