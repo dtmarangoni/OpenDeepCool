@@ -167,13 +167,14 @@ footer { color: var(--faint); font-size: 0.85rem; margin-top: 32px; border-top: 
 
 <h2>Acceptance</h2>
 <div class="card ac" id="AC1"><strong>AC1 — Protocol:</strong> <code>docs/spec/protocol.md</code> specifies every message DeepCreative 1.2.14 sent in any capture (format, checksum, frame bit layout, start-up command, timing), what it sends at start-up and exit, and what the display does when frames stop. Declared reports other than output report 16 are listed as never sent.</div>
-<div class="card ac" id="AC2"><strong>AC2 — Display:</strong> from <code>docs/spec/display.md</code> alone, every captured frame of modes 1–12 and Creative Mode, in every rotation and in both °C and °F, can be drawn pixel for pixel (Task 4's render check).</div>
-<div class="card ac" id="AC3"><strong>AC3 — Music:</strong> <code>docs/spec/music.md</code> specifies modes 13–22: the audio source; the spectrum's columns, scaling, rise and fall, and update rate, enough to predict the test-tone captures; and each emoji animation's frames and timing.</div>
+<div class="card ac" id="AC2"><strong>AC2 — Display:</strong> from <code>docs/spec/display.md</code> alone, every captured frame of modes 1–12 and Creative Mode can be drawn pixel for pixel, for <strong>every case of the test matrix</strong>: each mode in all four rotations, in both °C and °F where it shows a temperature, scrolling included (Task 4's render check).</div>
+<div class="card ac" id="AC3"><strong>AC3 — Music:</strong> <code>docs/spec/music.md</code> specifies modes 13–22: the audio source; the spectrum's layout; each emoji animation's frames and timing; and the value area. The Music Mode render check passes for every case of the test matrix.</div>
 <div class="card ac" id="AC4"><strong>AC4 — Sensors:</strong> <code>docs/spec/sensors.md</code> defines each metric DeepCreative shows (meaning, unit, rounding, refresh) and the Linux source the owner's account can read. The owner's devices and fan mapping are only in <code>docs/local/machine.md</code>.</div>
 <div class="card ac" id="AC5"><strong>AC5 — Settings:</strong> <code>docs/spec/settings.md</code> lists every LP-page and global setting that affects the cooler, with its values, default and what's restored at start-up.</div>
 <div class="card ac" id="AC6"><strong>AC6 — Parity checklist:</strong> <code>docs/spec/parity-checklist.md</code> covers every item of AC1–AC5, each linked to its spec section and evidence and checked by the owner on the cooler, and the owner has signed it off.</div>
 <div class="card ac" id="AC7"><strong>AC7 — Safety and privacy:</strong> during Phase 3 only DeepCreative, in its network-blocked prefix, sent messages to the LP360. Every system change was temporary and is listed in the PRD footprint. The commit guard passed on every commit.</div>
 <div class="card ac" id="AC8"><strong>AC8 — Records:</strong> the PRD's open questions are answered or marked after v1, its capabilities match the spec with the owner's OK, and the README and AGENTS.md reflect Phase 3's outputs.</div>
+<div class="card ac" id="AC9"><strong>AC9 — Expected frames:</strong> <code>docs/spec/frames/</code> holds the expected frame of every test-matrix case, generated from the spec's rules and matching DeepCreative's captures. The Rust tests use it from Phase 5 on.</div>
 
 <h2>Validation</h2>
 <div class="card">
@@ -181,7 +182,8 @@ footer { color: var(--faint); font-size: 0.85rem; margin-top: 32px; border-top: 
   <tr><th>Gate</th><th>Proves</th></tr>
   <tr><td>Commit guard</td><td>AC7: no vendor files, no sensitive values, the right identity</td></tr>
   <tr><td>Message classification</td><td>AC1</td></tr>
-  <tr><td>Render check</td><td>AC2</td></tr>
+  <tr><td>Render check</td><td>AC2, AC3</td></tr>
+  <tr><td>Matrix coverage (every case of the test matrix has a passing step)</td><td>AC2, AC3, AC9</td></tr>
   <tr><td>Tone predictions</td><td>AC3</td></tr>
   <tr><td>Mode coverage</td><td>AC6 completeness</td></tr>
   <tr><td>Evidence labels</td><td>Invariant</td></tr>

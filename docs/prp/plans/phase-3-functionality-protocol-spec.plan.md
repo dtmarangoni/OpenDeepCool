@@ -231,14 +231,16 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
   - the layout of each of modes 1–12;
   - Creative Mode: the blank canvas (100), saved images (100 + index), the image format, and how saved images are listed.
 - Creative Mode animations: the PRD lists them (line 105), but Phase 1 saw only static images. Check the LP page code and the editor. If DeepCreative 1.2.14 has none, tell the owner; by the owner's rule for features beyond DeepCreative, they become an after-v1 item, and Task 8 updates the PRD with the owner's OK.
+- **Full matrix** (owner's requirement, 2026-10-22): one unattended sweep (`research/hook/sweep.mjs`) covers every combination of the [test matrix](#test-matrix), not samples. The first sweeps tested rotation on modes 1, 4, 7 (°F) and 10 only, which doesn't prove that rotation turns the finished frame in every mode.
+- **Expected frames:** `render-check.py` writes, from the spec's rules alone, the expected frame of every matrix case to `docs/spec/frames/` as text pictures: one file per mode; a static case is one picture, a scrolling case its 21-column cycle. They're our own renderings, not captures (rule 6), and become the oracle for the Rust tests (PRD, Testing Strategy).
 
 **Checks**
-- `render-check.py` reproduces every captured frame of the sweeps and of Creative Mode with no differing pixels. For scrolling modes, the whole sequence matches.
+- `render-check.py` reproduces every captured frame of the full matrix and of Creative Mode with no differing pixels. For scrolling modes, the whole sequence matches.
 - Owner check per mode family, with numbered steps that say what the cooler should show.
 
 **Validation**
-- `python3 -I research/hook/render-check.py <timeline> research/logs/lp360-hidraw.log` — 0 differing pixels in every step.
-- Commit `docs/spec/display.md` after the owner checks (`docs:`).
+- `python3 -I research/hook/render-check.py <timeline> research/logs/lp360-hidraw.log` — 0 differing pixels in every step, and every matrix case for modes 1–12 and Creative Mode has a passing step.
+- Commit `docs/spec/display.md` after the owner checks (`docs:`), then `docs/spec/frames/` for modes 1–12 and Creative Mode as its own commit (`test:`).
 
 ### 5. Music spec: modes 13–22
 
@@ -257,14 +259,17 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
 - Which audio DeepCreative listens to (the default output or another source): from the LP page code and the main-process strings, confirmed by playing with and without output.
 - Emoji modes 14–17: each animation's frames and timing, and whether they react to the music (compare silence with music).
 - Split modes 18–22: the value area and the spectrum area, and °F scrolling in modes 18 and 19 (Phase 1 extras).
+- **Full matrix:** modes 13–22 in every rotation, and modes 18 and 19 in both units, in the same sweep as Task 4, with tones playing.
+- **Render check for Music Mode:** `render-check.py` undoes the rotation, then checks that the top area (value or emoji picture) equals the spec exactly, and that the spectrum area follows the layout rules: solid bars from the bottom, the bottom row lit, no bar above its maximum height. The bars themselves depend on the sound, so they aren't compared pixel by pixel. Expected frames for the top areas go to `docs/spec/frames/` as in Task 4.
 
 **Checks**
 - For each tone, the spec predicts which column rises, and the capture agrees.
 - The emoji frame sequences in the spec match the captures frame for frame.
+- The Music Mode render check passes for every matrix case.
 - Owner check: a song, then silence, in modes 13, 14 and 20, with what the cooler should show for each.
 
 **Validation**
-- Commit `docs/spec/music.md` after the owner checks (`docs:`).
+- Commit `docs/spec/music.md` after the owner checks (`docs:`), then `docs/spec/frames/` for modes 13–22 as its own commit (`test:`).
 
 ### 6. Sensors spec: what each metric means and where Linux has it
 
@@ -332,13 +337,14 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
 ## Acceptance
 
 1. **AC1 — Protocol:** `docs/spec/protocol.md` specifies every message DeepCreative 1.2.14 sent in any capture (format, checksum, frame bit layout, start-up command, timing), what it sends at start-up and exit, and what the display does when frames stop. Declared reports other than output report 16 are listed as never sent.
-2. **AC2 — Display:** from `docs/spec/display.md` alone, every captured frame of modes 1–12 and Creative Mode, in every rotation and in both °C and °F, can be drawn pixel for pixel (Task 4's render check).
-3. **AC3 — Music:** `docs/spec/music.md` specifies modes 13–22: the audio source; the spectrum's columns, scaling, rise and fall, and update rate, enough to predict the test-tone captures; and each emoji animation's frames and timing.
+2. **AC2 — Display:** from `docs/spec/display.md` alone, every captured frame of modes 1–12 and Creative Mode can be drawn pixel for pixel, for **every case of the test matrix**: each mode in all four rotations, in both °C and °F where it shows a temperature, scrolling included (Task 4's render check).
+3. **AC3 — Music:** `docs/spec/music.md` specifies modes 13–22: the audio source; the spectrum's layout; each emoji animation's frames and timing; and the value area. The Music Mode render check passes for every case of the test matrix.
 4. **AC4 — Sensors:** `docs/spec/sensors.md` defines each metric DeepCreative shows (meaning, unit, rounding, refresh) and the Linux source the owner's account can read. The owner's devices and fan mapping are only in `docs/local/machine.md`.
 5. **AC5 — Settings:** `docs/spec/settings.md` lists every LP-page and global setting that affects the cooler, with its values, default and what's restored at start-up.
 6. **AC6 — Parity checklist:** `docs/spec/parity-checklist.md` covers every item of AC1–AC5, each linked to its spec section and evidence and checked by the owner on the cooler, and the owner has signed it off.
 7. **AC7 — Safety and privacy:** during Phase 3 only DeepCreative, in its network-blocked prefix, sent messages to the LP360. Every system change was temporary and is listed in the PRD footprint. The commit guard passed on every commit.
 8. **AC8 — Records:** the PRD's open questions are answered or marked after v1, its capabilities match the spec with the owner's OK, and the README and AGENTS.md reflect Phase 3's outputs.
+9. **AC9 — Expected frames:** `docs/spec/frames/` holds the expected frame of every test-matrix case, generated from the spec's rules and matching DeepCreative's captures. The Rust tests use it from Phase 5 on.
 
 ## Validation
 
@@ -346,11 +352,29 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
 |---|---|---|
 | Commit guard | Every `git commit` runs `.githooks/pre-commit` and `.githooks/commit-msg` | AC7: no vendor files, no sensitive values, the right identity |
 | Message classification | `python3 -I research/hook/decode-frames.py research/logs/lp360-hidraw.log` | AC1 |
-| Render check | `python3 -I research/hook/render-check.py <timeline> research/logs/lp360-hidraw.log`, for every sweep | AC2 |
+| Render check | `python3 -I research/hook/render-check.py <timeline> research/logs/lp360-hidraw.log`, for every sweep | AC2, AC3 |
+| Matrix coverage | `render-check.py` lists every [test matrix](#test-matrix) case without a passing step; the list is empty | AC2, AC3, AC9 |
 | Tone predictions | Task 5: predicted columns compared with captured columns | AC3 |
 | Mode coverage | The command below prints nothing | AC6 completeness |
 | Evidence labels | Review: every statement in `docs/spec/` has an evidence label or says "unverified" | Invariant |
 | Owner checks and sign-off | Numbered steps in each task, then the final session in Task 8 | AC2–AC6, success signal |
+
+### Test matrix
+
+Every combination below is one case. The sweep captures each case from DeepCreative, the render check compares it, and `docs/spec/frames/` stores its expected frame.
+
+| Modes | Rotations | Units | Values per case |
+|---|---|---|---|
+| 1–6, 10–12 | 0, 1, 2, 3 | — | one-, two- and three-digit values where the metric allows them, and the clamped maximum |
+| 7, 8, 9 | 0, 1, 2, 3 | °C, °F | as above, plus three-digit °F |
+| 13–17 | 0, 1, 2, 3 | — | the emoji loop or spectrum, with tones |
+| 18, 19 | 0, 1, 2, 3 | °C, °F | as for 7 and 8, with tones |
+| 20, 21, 22 | 0, 1, 2, 3 | — | as for 1–3, with tones |
+| 100, 100 + n | 0, 1, 2, 3 | — | the blank canvas and one lopsided saved image |
+
+That makes 116 mode, rotation and unit combinations. Scrolling cases record at least one full 21-column cycle.
+
+**Distinct values rule:** in every case, every metric DeepCreative reads gets its own injected value, different from all the others and from 0 (Wine's reading). Then a mode that draws the wrong metric, or a metric that isn't injected, shows up as a wrong number. Found 2026-10-22: in mode 18 with °F, DeepCreative drew the GPU temperature (capture: music sweep step `MusicLoud 18`, unit 1, and the owner's check 7).
 
 Mode coverage command (the Mode column is the checklist's second column):
 

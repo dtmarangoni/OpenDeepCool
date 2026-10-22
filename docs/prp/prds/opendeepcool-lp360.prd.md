@@ -177,6 +177,31 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - `usbmon` and `strace` serve as cross-checks.
   - Raw captures stay local, outside the repository.
 
+**Testing Strategy** (owner's requirement, 2026-10-22: every combination is tested automatically, not by hand)
+
+The LP360 only shows the 14×14 picture each message carries; mode, metric, unit, rotation and scrolling are all computed on the PC. So every combination can be checked automatically by comparing frames. The owner's eyes are needed only to prove, once, that a frame's bytes show the intended picture.
+
+- **Test matrix:** every mode × the four rotations × °C/°F where a temperature is shown, scrolling included: 116 combinations, each with several values (Phase 3 plan, Test matrix). In every case each metric gets its own distinct, non-zero value, so a mode that draws the wrong metric fails.
+- **Expected frames:** `docs/spec/frames/` holds the expected frame of every matrix case as a text picture. Phase 3 generates it from the spec's rules and confirms it against DeepCreative's captures. It's the oracle for the layers below, so Rust output is never compared with Rust output.
+- **Layer 1, unit (CI):** drawing is one pure function of mode, readings, unit, rotation and scroll tick. Tests run every matrix case against the expected frames; a failure prints both pictures. Property tests add random inputs for these rules:
+  - four quarter turns give back the original;
+  - drawing with a rotation equals rotating the finished frame;
+  - each scroll tick shifts the picture one column;
+  - each value rule matches the spec's table.
+
+  Crates are chosen in the Phase 5 plan.
+- **Layer 2, differential (local):** replays every captured DeepCreative sweep step from `research/` through the Rust renderer and expects 0 differing pixels. The captures are git-ignored, so this runs on the owner's PC before each mode's commit, not in CI.
+- **Layer 3, integration (CI):** the service runs against a fake device, a fake clock, fake sensor files and a fake audio source. Decoding what it sent checks:
+  - message format and checksum;
+  - frame timing and the 100 ms scroll tick;
+  - mode switches, and settings such as rotation changed while it runs;
+  - reconnecting after the device disappears.
+- **Layer 4, end to end on the real LP360:**
+  - **automated:** the service drives the real cooler through the whole matrix, records every report it actually wrote, and compares them with the expected frames. Unattended.
+  - **owner check (rule 3), short and fixed:** lopsided test patterns in each rotation, which prove bytes → picture and orientation, plus one sample per mode family. Because the automated run proves the bytes of every case, the owner doesn't look at every combination.
+- **Music Mode spectrum:** OpenDeepCool's own analysis, so it isn't compared with DeepCreative. Synthetic tones must light the columns the Phase 9 design predicts, and every spectrum frame must follow the layout rules (solid bars from the bottom, bottom row lit, height limits) in every rotation.
+- **When they run:** layers 1 and 3 on every push (GitHub Actions) and in the pre-commit guard from Phase 5; layers 2 and 4 (automated) before each mode's commit; the owner check before the commit as well (rule 4).
+
 **Technical Risks**
 
 | Risk | Likelihood | Mitigation |
@@ -189,7 +214,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 | CPU power file becomes root-only after a reboot or kernel update | M | Detect at runtime; add a documented udev rule if needed |
 | hwmon/DRM index changes between boots | H | Look up by name or driver, never by index |
 | Omarchy changes its template mechanism | L | Fall back to `colors.toml`; take light/dark from its `mode` key |
-| Automated e2e tests need hardware or root (`/dev/uhid` is root-only) | M | Fake transport for automated tests; real-device e2e runs with the owner |
+| Automated e2e tests need hardware or root (`/dev/uhid` is root-only) | M | Fake transport in CI; the automated real-device run (Testing Strategy, layer 4) uses the udev rule, so it needs no root; the owner's check covers only test patterns and samples |
 
 ---
 
@@ -293,16 +318,17 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 4: Implementation plans**
 - **Goal**: An implementation-ready plan for each of phases 5–12 (owner's workflow step 9).
-- **Scope**: `/prp-plan` for each phase. Each plan includes its unit, integration and e2e tests and the owner's validation steps.
+- **Scope**: `/prp-plan` for each phase. Each plan includes its tests in the four layers of the Testing Strategy, with the matrix cases it covers, and the owner's validation steps.
 - **Success signal**: Plans committed; each one lists files, tests and acceptance checks.
 
 **Phase 5: Device & protocol core**
 - **Goal**: Reliable frames to the LP360 without root.
 - **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects; the udev rule; a developer test-pattern binary (not a user feature).
 - **Tests**:
-  - unit: encoding, checksum, rotation
+  - unit: encoding, checksum, rotation (property tests); the expected-frame loader and picture diff the later phases reuse
   - integration: fake transport, optionally a virtual `uhid` device
-  - e2e: the owner confirms the test patterns on the pump
+  - e2e: the recording of reports actually written, for the automated layer 4 run; the owner confirms the lopsided test patterns in all four rotations on the pump
+  - CI: GitHub Actions and the pre-commit guard run layers 1 and 3
 - **Success signal**: Test patterns appear correctly and all tests pass.
 
 **Phase 6: Sensors**
@@ -326,36 +352,39 @@ This project spans many sessions and possibly several coding agents, so the way 
   - Load Mode layouts as defined in the spec: Full or Split Screen, Combined or Separate display; CPU and GPU temperature and usage; RAM
   - refresh timing matching DeepCreative
 - **Tests**:
-  - unit: renderers compared against spec frames
+  - unit: renderers against the expected frames for every Load Mode matrix case
+  - differential: DeepCreative's Load Mode captures, 0 differing pixels
   - integration: service → fake device
-  - e2e: cold boot → configured mode, checked by the owner
+  - e2e: the automated matrix run on the cooler; cold boot → configured mode, checked by the owner
 - **Success signal**: After cold boots, the configured mode appears with no action.
 
 **Phase 8: Guardian modes**
 - **Goal**: Temperature Guardian and Power Guardian as defined in the spec.
 - **Scope**: renderers, thresholds and timing from the spec.
 - **Tests**:
-  - unit: renderers at and around thresholds
+  - unit: renderers against the expected frames for every Guardian matrix case, at and around thresholds
+  - differential: DeepCreative's Guardian captures, 0 differing pixels
   - integration: service with simulated sensor values
-  - e2e: check by the owner
+  - e2e: the automated matrix run on the cooler; check by the owner
 - **Success signal**: These modes' checklist items pass.
 
 **Phase 9: Music Mode**
 - **Goal**: The three Music Mode variants.
 - **Scope**: PipeWire capture, FFT, renderers.
 - **Tests**:
-  - unit: spectrum from synthetic signals
+  - unit: spectrum from synthetic signals; emoji and value areas against the expected frames in every rotation and unit; spectrum layout rules
+  - differential: DeepCreative's Music Mode captures, top areas only
   - integration: audio file → frames
-  - e2e: the owner plays music
+  - e2e: the automated matrix run on the cooler; the owner plays music
 - **Success signal**: These modes' checklist items pass, and the owner accepts the latency.
 
 **Phase 10: Creative Mode**
 - **Goal**: Pixel art and animations.
 - **Scope**: frame and animation model, storage, playback timing, import/export in our own format.
 - **Tests**:
-  - unit: model and timing
+  - unit: model; saved images against the expected frames in every rotation
   - integration: save and load
-  - e2e: the owner draws and plays an animation
+  - e2e: the automated matrix run on the cooler; the owner draws an image
 - **Success signal**: These modes' checklist items pass.
 
 **Phase 11: Settings app**
@@ -429,7 +458,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
 | Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
-| Testing | Unit + integration + e2e for each phase, where applicable | — | Owner requirement |
+| Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); the owner checks only test patterns and samples on the cooler (Testing Strategy) | Owner checks every combination by hand | Owner requirement, 2026-10-22: by hand would mean hundreds of checks, repeated after every change |
 | PRP documents | Kept in the repository under `docs/prp/` (the PRP store under `~/.prp/` links there) | PRP default store outside the repo | Owner wants the PRP documents in git |
 | DeepCool material | Never committed; captures stay local | — | Copyright; the repository is public |
 | Agent instructions | `AGENTS.md` is the single source; `CLAUDE.md` imports it (`@AGENTS.md`) and adds Claude-only notes; critical rules also enforced by a git pre-commit guard | `CLAUDE.md` only; two separate copies | Works for any coding agent, avoids drift between two copies, and follows Claude Code's documented import pattern. Instruction files are context, not enforcement, so the guard backs up the critical rules |

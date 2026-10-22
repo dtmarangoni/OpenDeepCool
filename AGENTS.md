@@ -39,10 +39,12 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - Never batch several modes, combinations or unrelated changes into one commit.
    - Use Conventional Commits style (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`).
    - Never commit failing tests or a broken build.
-5. **Tests with every step**, where they apply:
-   - unit tests for pure logic;
-   - integration tests with fakes (fake sysfs trees, fake HID transport);
-   - e2e tests on the real device, which run with the owner.
+5. **Tests with every step, every combination automated** (details: PRD, Testing Strategy):
+   - cover the whole test matrix (every mode × rotation × unit, scrolling included), never samples; give every metric its own distinct, non-zero value in each case;
+   - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
+   - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
+   - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
+   - e2e: an automated run on the real device compares every written report with the expected frames; the owner then checks test patterns and samples on the cooler.
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.
