@@ -146,7 +146,7 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
   ```sh
   h=$(grep -l 'HID_ID=0003:00003633:0000000C' /sys/class/hidraw/hidraw*/device/uevent | head -1)
   n=/dev/$(basename "$(dirname "$(dirname "$h")")")
-  sudo setfacl -m "u:$USER:rw" "$n" && getfacl -p "$n"
+  sudo setfacl -m "u:${USER}:rw" "$n" && getfacl -p "$n"   # braces: zsh reads $USER:r as a modifier
   ```
 - Start the rig as in Phase 1 (`docs/local/machine.md`, Local paths): the app, then the sensor bridge, then `socat` bridges for the DevTools socket and the inspector socket (`research/run/node-inspector.sock` to `127.0.0.1:9229`).
 - Note the DeepCreative and Wine versions the captures come from; Task 2 writes them into `docs/spec/README.md`.

@@ -402,10 +402,11 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Item | Where | Notes |
 |---|---|---|
 | Rust toolchain | mise (already installed) | Build only |
-| Wine 11.17, winetricks | Already installed | Phases 2–3 |
+| Wine 11.20 (11.17 in Phase 1), winetricks | Already installed | Phases 1–3 |
 | Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Deleted after Phase 3 |
 | Extracted DeepCreative files and captures | Outside the repository | Never committed |
-| Board sensor driver loaded by hand | Kernel, until the next reboot | Done 2026-10-22 |
+| Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
+| Temporary access to the LP360 device node | ACL granted by the owner with `sudo setfacl` for a research session | Gone at reboot or re-plug; first granted 2026-10-22 |
 
 ---
 
