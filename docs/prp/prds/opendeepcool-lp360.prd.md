@@ -39,6 +39,7 @@ We'll know we're right when two things are true:
 ## What We're NOT Building
 
 - **Fan or pump speed control in v1.** v1 only reads speeds. DeepCreative has a separate fan-control page, and this may come after v1. It would need a driver that can write (the in-kernel driver for the board's sensor chip is read-only), and a bug could slow or stop the pump.
+- **Creative Mode animations in v1.** DeepCreative 1.2.14's Creative Mode shows static 14×14 images only; its editor has no frames or timing. Animations may come after v1 (owner decision, 2026-10-22).
 - **Hidden display settings and unused device reports in v1.** DeepCreative 1.2.14 stores `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` for the LP360, but its LP page has no control for them, and Phase 1 saw no USB message for them. The LP360 also declares HID reports that DeepCreative never sent in Phase 1 ([LP360 notes](../../hardware/deepcool-lp360.md)). Supporting them may come after v1 (owner decision, 2026-10-22). It would first need research into what each one does; until then OpenDeepCool never sends them.
 - **ARGB lighting.** The LP360's lighting cable plugs into the motherboard's 5V ARGB header (manual p. 16). OpenRGB, already installed, handles it.
 - **Support for other hardware, other DeepCool devices, other distributions or other operating systems.** The owner can only test this machine.
@@ -102,7 +103,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Load Mode: Full Screen and Split Screen layouts (Combined / Separate display) with CPU temperature, CPU usage, GPU temperature, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
 | Must | Temperature Guardian and Power Guardian | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
-| Must | Creative Mode: draw pixel art and animations; save, import and export them (own file format) | DeepCreative LP360 mode |
+| Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
 | Must | Display settings on DeepCreative's LP page: screen rotation, rotating screen, plus any others the spec finds there | DeepCreative LP360 settings. Hidden settings such as brightness come after v1 |
 | Must | CPU fan and pump speed readings, with the fan inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | GTK4 settings app that follows the Omarchy theme, including live theme changes | Owner requirement |
@@ -112,6 +113,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Should | Live preview of the 14×14 display in the app | Mode choice and Creative Mode work without looking at the pump |
 | Should | CI build and test on GitHub | Keeps the public repo's main branch passing |
 | Could | Fan and pump speed control, after v1 | Owner: possible later |
+| Could | Creative Mode animations (several frames played in sequence), after v1 | DeepCreative 1.2.14 shows only static images; owner: possible later (2026-10-22) |
 | Could | Hidden display settings (brightness, screen on/off, no-load screen, `rgbOptical`, gyro) and the device reports DeepCreative doesn't use, after v1 | Owner: possible later (2026-10-22) |
 | Won't | Lighting, other devices, DeepCreative file compatibility, user-facing CLI | See [What We're NOT Building](#what-were-not-building) |
 
@@ -423,6 +425,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Service model | systemd user service, started with the owner's desktop session | System service running as root | No root needed; Music Mode needs the owner's audio session; on the owner's PC the session starts automatically at boot |
 | Fan and pump readings | In-kernel hwmon driver for the board's sensor chip (read-only), loaded at boot | Out-of-tree DKMS driver | Verified working on the owner's PC on 2026-10-22; nothing to build |
 | Fan control | Not in v1 | In v1 | Owner decision; needs a driver that can write |
+| Creative Mode animations | Not in v1 | In v1 | DeepCreative 1.2.14's editor has no frames or timing (LP page code; Phase 1 saw static images only); owner decision 2026-10-22: possible later |
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
 | Testing | Unit + integration + e2e for each phase, where applicable | — | Owner requirement |
