@@ -31,6 +31,25 @@ Evidence:
 - **Linux sources:** system: each one was read on the owner's PC on 2026-10-22, found by name or driver, and agreed with `sensors` and `/proc`.
 - **Unverified equivalences:** HWiNFO's definitions and the Linux files are measured by different software. That the Linux GPU busy percentage and board power equal HWiNFO's "GPU Utilization" and "Total Graphics Power" is **inferred** from their names, not compared side by side; Windows isn't available.
 
+## Driver rules
+
+The built-in rules the sensor registry matches (PRD, Sensor architecture). They target the owner's drivers only, and are found by name or driver, never by index. Driver and label names are allowed here by the AGENTS.md rule 10 exception.
+
+| Metric | Where | Match | File and unit |
+|---|---|---|---|
+| CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C |
+| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy share = 1 − (idle + iowait) ÷ total, over the interval |
+| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = difference ÷ time; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) |
+| Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C |
+| Gpu usage | DRM | the card whose device driver is `amdgpu` | `device/gpu_busy_percent`, percent |
+| Gpu power | hwmon | `name` is `amdgpu`; the channel whose `powerN_label` is `PPT` | `powerN_average`, microwatts. This driver has no `powerN_input` here |
+| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal |
+| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device | RPM |
+
+- **Boot:** the board's fan sensors need the kernel module `nct6683`, which isn't autoloaded on the owner's PC. The install loads it at every boot (PRD, System Footprint).
+- **Evidence:** system: every rule matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org, hwmon sysfs interface.
+- **Unverified:** the CPU usage formula is the common definition of "busy". It's checked against `top` in Phase 6.
+
 ## Updates and rounding
 
 - **Refresh:** OpenDeepCool reads every metric once per second, as DeepCreative does. Usage and power are averages over that second.

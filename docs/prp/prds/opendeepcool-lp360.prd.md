@@ -162,6 +162,20 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - Fan and pump RPM: the hwmon driver for the motherboard's sensor chip (which one, on the owner's PC: `docs/local/machine.md`). It must be loaded at every boot.
 
   Look devices up by name or driver, never by hwmon/DRM index, because indexes change between boots.
+- **Sensor architecture: ports and adapters** (owner, 2026-10-22). The display logic never touches files or drivers, so a driver change or new hardware means a new rule row, not new display code.
+  - **Display logic** (modes, renderers, scheduler) asks for one set of readings per second and sends frames. It depends only on two ports: a readings port and a display port.
+  - **Sensor registry:** scans hwmon, DRM, powercap and `/proc`, matches the driver rules, and binds one source per metric. It finds devices by name or driver on every scan and rescans when a read fails.
+    - A metric with no matching source is reported as unavailable and logged, never drawn as a wrong number.
+    - A `doctor` command prints which source each metric is bound to.
+  - **Adapters**, each small and tested against fake sysfs trees:
+    - one generic hwmon adapter for every hwmon driver (the kernel standardises hwmon file names: docs.kernel.org, hwmon sysfs interface);
+    - procfs (CPU usage, memory);
+    - powercap (CPU power);
+    - DRM (GPU busy percentage);
+    - on the display side, the LP360 hidraw adapter and a fake device.
+  - **Driver rules** are data, built into the program, with no user override file. They target the owner's drivers only ([sensors.md](../../spec/sensors.md#driver-rules)). The kernel standardises file names but not which input means what, so a rule names a driver and its label.
+  - **Fan inputs** need no rule: the user picks from every hwmon fan input, as in DeepCreative.
+  - **Writes:** in v1 only the LP360 is written, through the display port. Fan control after v1 would be one more port.
 - **Service model**: a systemd **user** service that starts with the owner's desktop session. On the owner's PC that session starts automatically at boot (see `docs/local/machine.md`). Running inside the owner's session also gives Music Mode access to audio through PipeWire. The service restarts on failure and reconnects if the USB device disappears.
 - **Music Mode**: capture the monitor of the default audio output through PipeWire and compute an FFT (crates chosen in the plan). The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. How its bars and peaks fall is unverified and gets tuned with the owner in Phase 9. The bars' size and position follow DeepCreative's layout.
 - **Settings app ↔ service**: local IPC within the session, either D-Bus or a Unix socket in `$XDG_RUNTIME_DIR` (chosen in the plan).
@@ -458,6 +472,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
 | Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
+| Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
+| Driver names in the repository | Allowed for the owner's drivers (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Supporting every alternative driver to hide which ones the owner has | Owner decision 2026-10-22: the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |
 | Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); the owner checks only test patterns and samples on the cooler (Testing Strategy) | Owner checks every combination by hand | Owner requirement, 2026-10-22: by hand would mean hundreds of checks, repeated after every change |
 | PRP documents | Kept in the repository under `docs/prp/` (the PRP store under `~/.prp/` links there) | PRP default store outside the repo | Owner wants the PRP documents in git |

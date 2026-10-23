@@ -66,6 +66,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
       - how the owner's PC logs in or encrypts its disk.
     - Put such facts in `docs/local/` (git-ignored) and refer to them only as "see `docs/local/`".
     - Commit with the repository's configured identity (GitHub no-reply email). Never change it.
+    - **Exception** (owner, 2026-10-22): the kernel driver and module names and sensor labels that the sensor rules need may appear in code, tests, packaging and the spec. Part models, serials and all other machine facts still may not; test fixtures use made-up chip names.
 11. **Every metric shows itself.** A CPU reading is shown as the CPU, a GPU reading as the GPU, and so on, everywhere: renderers, settings, the app, tests. Never swap or mix metrics, even where DeepCreative does (owner, 2026-10-22). The spec marks each such DeepCreative quirk and what OpenDeepCool does instead.
 
 ## Verified facts (details in the PRD Research Summary)
