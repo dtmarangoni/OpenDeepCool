@@ -116,10 +116,29 @@ Power scrolls at every value, even one digit (`7W`). Temperature scrolls only in
 
 | Switch into | What the display does | Evidence |
 |---|---|---|
-| A static mode (Load Mode, °C temperature, Creative Mode), from any mode | The new picture replaces the old one in a single frame, 135–460 ms after the switch | capture: 2026-10-22, transition steps |
-| A scrolling mode (°F temperature, power) | The old picture scrolls out to the left, and the new text follows it in from the right, one column per tick; steady cycling within about 3 s | capture: 2026-10-22, transition steps |
+| A static mode (Load Mode, °C temperature, Creative Mode), from any mode | The new picture replaces the old one in a single frame. A scrolling old picture keeps scrolling until then | capture: 2026-10-22, transition steps; 2026-10-23, transition probe |
+| A scrolling mode (°F temperature, power), from a scrolling mode | The old text finishes its 21-column cycle, then the new text follows | capture: 2026-10-23, transition probe |
+| A scrolling mode, from a static mode | The old picture scrolls out to the left. Behind it, DeepCreative replays the **paused text of the last scrolling mode**, then the new text follows (see the quirk below) | capture: 2026-10-23, transition probe; owner: 2026-10-23 |
 
-The 135–460 ms is DeepCreative's own delay between the switch in its window and the next frame. OpenDeepCool can switch on the next frame.
+DeepCreative applies a switch only on its next sensor snapshot, about once a second. The new static picture appeared 35 ms to 1.9 s after the switch in its window (capture: transition probe, 22 switches). OpenDeepCool switches on the next frame.
+
+**DeepCreative quirk, not reproduced: the paused text comes back.** When a static picture takes over from a scrolling mode, DeepCreative's scrolling text stops where it is and keeps its readings. At the next switch into any scrolling mode, after the old picture has scrolled out:
+
+1. The paused text resumes from the column after the last one shown, even after 30 s in the static mode, and even when it belongs to another mode.
+2. It keeps the readings it was drawn with, even if they have changed since.
+3. It runs to the end of its 21-column cycle. When it resumed at column 16 or later (5 columns or fewer left), it ran one more full cycle.
+4. Then the new text starts its cycle, with current readings.
+
+So the stale text enters wherever it stopped, often in the middle of a digit, glued to the outgoing picture. To the eye it's a fragment of an old value: the owner saw `999W` over `34W` come back between `42%` and `65W`, and a fast `150W` between `52%` and `96°F` and between `52%` and `65W`, which looked "on top of" the outgoing `52%`.
+
+- **Every case fits:** all 22 switches from a static mode into a scrolling mode in two probe runs. In 17 the stale piece is visible, resuming exactly one column after where it stopped. In the other 5 it had stopped after column 12–14 of `150W` or `65W`. All that was left of it was the end of its `W` and blank columns, the same columns the new text (`65W`, `88W`) has at that point of its cycle.
+- **Stale readings:** `150W` came back after GPU power had changed to 210 W. `345W` over `34W` came back after mode 12 had already been redrawn as `65W` over `150W` (first probe run, `two-statics`). Which of the readings the paused text keeps is unverified beyond these two cases.
+- **Why it was missed on 2026-10-22:** the last scrolling text before the switch into mode 10 was that mode's own `345W`, so the replay looked like the new text.
+- **Evidence:** capture: manual switches of 2026-10-23 at 19:04, 19:08 and 19:13, and two runs of the transition probe at 19:20 and 19:34 (`research/hook/transition-probe.mjs` and `transition-analyze.py`, local). The probe records the time of every input and lines it up with every frame sent, with no one watching. Owner: 2026-10-23, on the cooler during the switches and the second probe run.
+
+**OpenDeepCool:** no scrolling state survives a mode switch. When switching into a scrolling mode, the old picture scrolls out to the left, and the very next column is the first column of the new text's cycle, drawn with current readings. Nothing else appears in between.
+
+**Test (Phases 7–8):** the transition tests switch between every pair of kinds (static to scrolling, scrolling to static, scrolling to scrolling, static to static), with a different reading for every metric, and also pass through a static mode between two different scrolling modes. A test fails if any column after the switch belongs to a text other than the outgoing picture or the new one. This is the check `transition-analyze.py` makes on DeepCreative's captures.
 
 ## Rotation
 
