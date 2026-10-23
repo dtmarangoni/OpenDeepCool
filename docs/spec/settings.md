@@ -34,11 +34,13 @@ Evidence:
 
 - DeepCreative keeps them in its own data folder, under the Wine user's application data. Each change on the LP page is saved at once through its main process (code: LP page).
 - Mode, rotation and unit are stored in the app's database. The per-device file kept its date while they changed, so it isn't where they live; it is probably the encrypted store of saved images. Both points are inferred from file dates and strings, unverified.
-- **OpenDeepCool:** keeps its own settings file (PRD) and never reads DeepCreative's files.
+- **OpenDeepCool:** keeps one settings file for the whole PC, in the display service's state directory, the same for every user (PRD, Service model; owner, 2026-10-23). It never reads DeepCreative's files.
 
 ## OpenDeepCool's defaults
 
 The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inputs chosen, no saved images.
+
+GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([sensors.md](sensors.md#gpu-choice)).
 
 ## DeepCreative interface quirks, not reproduced
 

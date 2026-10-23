@@ -4,9 +4,9 @@ Instructions for any coding agent (Claude Code, Codex, Cursor, …) working in t
 
 ## What this project is
 
-OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Linux). It is written in Rust and targets only the owner's DeepCool LP360 AIO cooler on this one PC.
+OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Linux). It is written in Rust and supports only the DeepCool LP360 AIO cooler, on any PC running Omarchy (owner, 2026-10-23). Real-hardware tests run on the owner's PC.
 
-- A background service drives the LP360's 14×14 dot-matrix display from boot.
+- A system service drives the LP360's 14×14 dot-matrix display from boot, the same for every user.
 - A GTK4 app changes the settings and follows the Omarchy theme.
 
 It is a personal project in a public repository, MIT-licensed, and not affiliated with DeepCool.
@@ -54,7 +54,8 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - fan or pump speed control: never write to hwmon `pwm*` files;
    - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
    - ARGB lighting: OpenRGB handles it;
-   - other devices or hardware.
+   - other devices (sensors, though, must work on any PC: rule 12);
+   - GPU monitoring beyond the GPU metrics the display shows.
 9. **Device safety.**
    - Send the LP360 only messages documented in the spec.
    - Run DeepCreative for research only in its dedicated Wine prefix, with the network blocked.
@@ -68,11 +69,15 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
     - Commit with the repository's configured identity (GitHub no-reply email). Never change it.
     - **Exception** (owner, 2026-10-22): the kernel driver and module names and sensor labels that the sensor rules need may appear in code, tests, packaging and the spec. Part models, serials and all other machine facts still may not; test fixtures use made-up chip names.
 11. **Every metric shows itself.** A CPU reading is shown as the CPU, a GPU reading as the GPU, and so on, everywhere: renderers, settings, the app, tests. Never swap or mix metrics, even where DeepCreative does (owner, 2026-10-22). The spec marks each such DeepCreative quirk and what OpenDeepCool does instead.
+12. **Never rely on the owner's PC** (owner, 2026-10-23). The code must work on any PC with an LP360.
+    - Find devices, drivers and sensors at runtime, from rules taken from primary documentation.
+    - Where the hardware can't tell (which fan input is the pump), the user chooses.
+    - Facts about the owner's PC serve only for testing on it.
 
 ## Verified facts (details in the PRD Research Summary)
 
 - **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. The USB message format and the full list of display modes are in `docs/research/phase1-wine-spike.md`.
-- **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files.
+- **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files, and never make the code depend on it (rule 12).
 - **Device lookup**: find hwmon and DRM devices by name or driver, never by index, because indexes change between boots.
 - **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`, and app templates in `~/.config/omarchy/themed/*.tpl`.
 

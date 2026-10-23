@@ -18,9 +18,9 @@ Which driver and label provide each reading on the owner's PC, and which board f
 | CPU Temperature | the CPU package temperature | "CPU Package" (Intel); "CPU (Tctl/Tdie)", "CPU (Tdie)" (AMD) | °C | the CPU temperature driver's package reading (hwmon) |
 | CPU Usage | total CPU load across all logical CPUs | "Total CPU Usage", "Total CPU Utility" | % | `/proc/stat`: the busy share of the aggregate `cpu` line over the last interval |
 | CPU Power | power drawn by the CPU package | "CPU Package Power" | W | the package energy counter (powercap RAPL `energy_uj`), as energy difference ÷ time. **Root-only**: see [CPU power](#cpu-power) |
-| Gpu temperature | the GPU's main temperature, **not** its hot spot or memory | "GPU Temperature", "GPU Core Temperature", "GPU Global Temperature"; for integrated graphics "CPU GT Cores (Graphics)", "CPU (Tdie)" | °C | the GPU driver's main GPU temperature (hwmon), not a hot-spot or memory temperature |
-| Gpu usage | how busy the GPU is | "GPU Total Usage", "GPU Utilization", "GPU Core Load"; for integrated graphics "GPU D3D Usage" | % | the GPU driver's busy-percent file of the DRM device |
-| Gpu power | power drawn by the graphics card | "GPU Power", "Total GPU Power", "GPU Power (Total)", "Total Graphics Power (TGP)", "GPU ASIC Power", "Total GPU Power (TGP)" | W | the GPU driver's board power reading (hwmon) |
+| Gpu temperature | the GPU's main temperature, **not** its hot spot or memory | "GPU Temperature", "GPU Core Temperature", "GPU Global Temperature"; for integrated graphics "CPU GT Cores (Graphics)", "CPU (Tdie)" | °C | the chosen GPU's main temperature from its driver ([GPU choice](#gpu-choice)), not a hot-spot or memory temperature |
+| Gpu usage | how busy the GPU is | "GPU Total Usage", "GPU Utilization", "GPU Core Load"; for integrated graphics "GPU D3D Usage" | % | the chosen GPU's busy percentage from its driver |
+| Gpu power | power drawn by the graphics card | "GPU Power", "Total GPU Power", "GPU Power (Total)", "Total Graphics Power (TGP)", "GPU ASIC Power", "Total GPU Power (TGP)" | W | the chosen GPU's board power from its driver |
 | Memory Load | share of physical memory in use | "Physical Memory Load" | % | `/proc/meminfo`: (MemTotal − MemAvailable) ÷ MemTotal |
 
 Evidence:
@@ -30,24 +30,37 @@ Evidence:
   - Its Physical Memory Load (65.5 %) equals used ÷ (used + available) (41,246 ÷ 62,932 MB).
 - **Linux sources:** system: each one was read on the owner's PC on 2026-10-22, found by name or driver, and agreed with `sensors` and `/proc`.
 - **Unverified equivalences:** HWiNFO's definitions and the Linux files are measured by different software. That the Linux GPU busy percentage and board power equal HWiNFO's "GPU Utilization" and "Total Graphics Power" is **inferred** from their names, not compared side by side; Windows isn't available.
+- **Quirk, not reproduced (AGENTS.md rule 11):** for integrated graphics, DeepCreative also accepts "CPU (Tdie)" as the GPU temperature, which is the CPU die's temperature. OpenDeepCool never shows a CPU reading as the GPU's: it reads the integrated GPU's own sensor, or shows the metric as unavailable. Evidence: code: the helper's label list and mapping function (static analysis, 2026-10-22 and 2026-10-23).
 
 ## Driver rules
 
-The built-in rules the sensor registry matches (PRD, Sensor architecture). They target the owner's drivers only, and are found by name or driver, never by index. Driver and label names are allowed here by the AGENTS.md rule 10 exception.
+The built-in rules the sensor registry matches (PRD, Sensor architecture). They cover the common drivers on any PC (owner, 2026-10-23), each taken from its kernel documentation, and match by name or driver, never by index.
 
-| Metric | Where | Match | File and unit |
-|---|---|---|---|
-| CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C |
-| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy share = 1 − (idle + iowait) ÷ total, over the interval |
-| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = difference ÷ time; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) |
-| Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C |
-| Gpu usage | DRM | the card whose device driver is `amdgpu` | `device/gpu_busy_percent`, percent |
-| Gpu power | hwmon | `name` is `amdgpu`; the channel whose `powerN_label` is `PPT` | `powerN_average`, microwatts. This driver has no `powerN_input` here |
-| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal |
-| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device | RPM |
+- Rules marked **owner's PC** were checked on real hardware. The others are **not tested on hardware**, only against fake sysfs trees built from the documentation.
+- A metric with no matching rule is unavailable, never drawn as a wrong number.
+- Driver and label names are allowed here by the AGENTS.md rule 10 exception.
 
-- **Boot:** the board's fan sensors need the kernel module `nct6683`, which isn't autoloaded on the owner's PC. The install loads it at every boot (PRD, System Footprint).
-- **Evidence:** system: every rule matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org, hwmon sysfs interface.
+| Metric | Where | Match | File and unit | Checked |
+|---|---|---|---|---|
+| CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C | owner's PC |
+| CPU Temperature | hwmon | `name` is `k10temp`; the channel labelled `Tdie` if there is one, else `Tctl` | `tempN_input`, millidegrees C | kernel docs: `Tdie` is the real die temperature where it differs from `Tctl`. On CPUs older than family 17h, `Tctl` isn't a physical temperature, so the metric is unavailable there |
+| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy share = 1 − (idle + iowait) ÷ total, over the interval | owner's PC |
+| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = difference ÷ time; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) | owner's PC (Intel). AMD: the same zone since kernel 5.8 (5.11 for family 19h) according to Scaphandre's documentation; **unverified** until Phase 6 checks the kernel source |
+| Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C | owner's PC |
+| Gpu usage | DRM | the chosen GPU's card, device driver `amdgpu` | `device/gpu_busy_percent`, percent | owner's PC |
+| Gpu power | hwmon | `name` is `amdgpu`: `power1_average` (labelled `PPT` on the owner's PC), else `power1_input` | microwatts | owner's PC for `power1_average`; `power1_input` (instantaneous power) from the amdgpu docs. On integrated AMD graphics this reading includes the CPU (amdgpu docs), so Gpu power is unavailable there (rule 11) |
+| Gpu temperature, usage, power | NVML | NVIDIA GPUs | NVIDIA's library | **unverified**: NVIDIA's driver has no hwmon interface (a pull request to add one exists, NVIDIA open-gpu-kernel-modules #1169, status unverified). Phase 6 chooses the NVML calls from NVIDIA's documentation |
+| Gpu metrics | — | other GPU drivers, such as Intel `i915` and `xe`, or `nouveau` | — | no rule yet: Phase 6 researches what their documentation offers; until then unavailable |
+| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal | owner's PC |
+| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
+
+- **Board sensor driver:** a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
+  - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
+  - `sensors-detect` probes the board's sensor chips, writes that file, then enables and starts `lm_sensors.service`, which loads the listed drivers at every boot.
+  - An existing configuration is never overwritten.
+  - lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems"; by default it skips that probing when a Super I/O chip already provides voltages, fans and temperatures, except on ASUS, Tyan and Supermicro boards. When it finds no sensors, it writes nothing; the once-per-motherboard record stops it from running again at every boot.
+  - Evidence: system: the `sensors-detect` script of lm_sensors 3.6.2, read 2026-10-23 (its chip table maps the owner's sensor chip to `nct6683`); Arch Wiki, lm_sensors.
+- **Evidence:** system: every rule marked owner's PC matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org (hwmon sysfs interface, coretemp, k10temp, amdgpu thermal, powercap).
 - **Unverified:** the CPU usage formula is the common definition of "busy". It's checked against `top` in Phase 6.
 
 ## Updates and rounding
@@ -58,13 +71,25 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 
 ## GPU choice
 
-DeepCreative picks one "current GPU" and reads its group. With integrated graphics it can also take GPU readings from the CPU group (the integrated-graphics labels above). Code: the helper's GPU selection and label list. OpenDeepCool v1 reads the owner's only GPU (`docs/local/`). Choosing among several GPUs is outside v1 (PRD, What We're NOT Building).
+OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage and power. It doesn't monitor GPUs otherwise (owner, 2026-10-23: this is a CPU cooler).
+
+- **Kinds:** each GPU in the PC is either **dedicated** (a graphics card) or **integrated** (part of the CPU). Phase 6 verifies, from primary sources, which signal tells them apart for each driver; until then that is **unverified**. If a driver has no reliable signal, the owner decides.
+- **Rules** (owner, 2026-10-23):
+  1. With one GPU, of either kind, OpenDeepCool reads it, and the settings app shows no GPU choice.
+  2. With more than one, a dedicated GPU comes before an integrated one.
+  3. With more than one, the settings app shows a dropdown to switch between them. On the first run it's set to the dedicated GPU.
+  4. The user's choice is saved with the other settings and kept across reboots.
+- **Details** (owner, 2026-10-23):
+  - The choice is saved by the GPU's PCI address, because DRM card numbers can change between boots. That the PCI address stays the same while the hardware stays the same is **unverified**; Phase 6 checks it.
+  - If the saved GPU is missing at start-up, rules 1–2 pick one, and the saved choice is kept for when it's back.
+  - Two GPUs of the same kind are ordered by PCI address.
+- **DeepCreative** picks one "current GPU" and reads its group. With integrated graphics it can also take GPU readings from the CPU group (the integrated-graphics labels above). It also has its own GPU list and default-GPU setting (main-process strings `app/get-gpu-list`, `app/set-default-gpu`). How it picks by default wasn't traced, and OpenDeepCool follows the rules above instead. Code: the helper's GPU selection and label list.
 
 ## CPU power
 
 - Since a kernel security fix, the RAPL energy counters are readable by root only. Reading them lets any local user mount the "Platypus" power side-channel attack (CVE-2020-8694; Intel advisory INTEL-SA-00389, which names `/sys/class/powercap/intel-rapl*/*/energy_uj`). System: on the owner's PC the counter is root-only (2026-10-22).
-- So the owner's account can't read CPU power without an install-time change. Making the file readable by **every** user would reopen that attack for all local accounts. Options for Phase 6:
-  - a rule that lets **only** the owner's account read it;
+- So the display service, which runs as an unprivileged system user (PRD, Service model), can't read CPU power without an install-time change. Making the file readable by **every** user would reopen that attack for all local accounts. Options for Phase 6:
+  - a rule that lets **only** the display service's account read it;
   - a small privileged helper that serves only the power value.
 
   Phase 6 decides, with the owner. The PRD's open question "is CPU power readable without root?" is answered: **no**.
@@ -72,9 +97,18 @@ DeepCreative picks one "current GPU" and reads its group. With integrated graphi
 ## Fan and pump speed
 
 - DeepCreative never sends fan or pump speeds to the LP360. It shows them on its own device card, from the board fan inputs the user picks as **CPU Fan I/O** and **Pump Fan I/O**, out of the board's fan list. Evidence: code: LP page settings and the helper's fan list; Phase 1 report.
-- OpenDeepCool does the same:
-  - the user picks one board fan input for each, from the board sensor driver's fan inputs (hwmon);
-  - the settings app shows their RPM;
-  - nothing reaches the display.
-- The board sensor driver isn't loaded at boot on the owner's PC. Loading it at boot is part of the install (PRD, System Footprint).
-- Which input is the CPU fan and which is the pump on the owner's board: `docs/local/` (inferred from a load test, 2026-10-22; not yet confirmed in the BIOS).
+- **How DeepCreative builds the fan list** (static analysis, 2026-10-23):
+  - The helper puts every fan-speed reading that HWiNFO reports for the motherboard's sensor chip into a "Fan list", which maps a name to an RPM. That's the HWiNFO sensor group that also holds the board's +3.3 V, +5 V and +12 V readings. Fan readings from other groups, such as a graphics card's own fan, are left out. Evidence: code: the helper's metric-mapping function (SensorWorker.exe).
+  - Each name is HWiNFO's own label for that reading. DeepCreative adds no names and doesn't match any name. Where HWiNFO knows the board, its labels name the board's headers: the HWiNFO sample DeepCool ships labels its board fans "System 2" to "System 4". How HWiNFO picks its labels is closed and **unverified**.
+  - Both dropdowns show "N/A" first, which is the default (no input), then the names from the list. Nothing is chosen automatically. Evidence: code: the LP page's I/O settings component and its store defaults; system: the first-start store held no fan inputs ([settings.md](settings.md#settings)).
+  - The saved choice is the name. With each snapshot, the device card shows the RPM stored under that name. Evidence: code: the LP page's sensor handler.
+  - The main process passes the list's names to the page (IPC `app/get-fan-interface`). The main process is V8 bytecode, so this is **inferred** from the page looking up each chosen name in the same list.
+  - The list is keyed by name, so two readings with the same label would share one entry: **inferred**, not observed.
+  - Under Wine the list is empty: HWiNFO needs its Windows kernel driver to read the sensor chip (Phase 1 report).
+- OpenDeepCool does the same, on any PC:
+  - the settings app lists every hwmon fan input from every sensor chip, with the chip's name, the driver's label (`fanN_label`) when it has one, and the live RPM;
+  - the user picks one input for the CPU fan and one for the pump. None is chosen by default, as in DeepCreative. No rule could choose: the kernel's hwmon documentation says "There is no standard that ensures, for example, that … the second fan is on the CPU";
+  - the choice is saved as the chip's name, its device path and the input number, never as an hwmon index, which changes between boots. If that input is missing, the app shows it as not found, never another input's RPM;
+  - the settings app shows their RPM, and nothing reaches the display.
+- lm-sensors finds and loads the board's sensor driver ([Driver rules](#driver-rules), Board sensor driver).
+- Which input is the CPU fan and which is the pump on the owner's board: `docs/local/`. Confirmed on 2026-10-23 by a load test, the driver's register layout and the board's BIOS hardware monitor, which all agree. Evidence: owner check (BIOS). It's only for checks on the owner's PC: the program never relies on it.
