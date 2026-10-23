@@ -58,4 +58,5 @@
 
 ## Left for the owner
 
-- The PRD footprint says the Wine prefix is deleted after Phase 3. The research rig is still running, the LP360 device access ACL is still granted, and the board sensor driver is loaded. All three go away at the next reboot, except the prefix itself (`research/wine/`), which needs the owner's decision.
+- The research rig was left running, with the LP360 device access ACL granted and the board sensor driver loaded; the ACL and the driver go away at the next reboot.
+- The Wine prefix and all other DeepCreative material stay until v1 is finished, then Phase 12 deletes them (owner, 2026-10-23).
