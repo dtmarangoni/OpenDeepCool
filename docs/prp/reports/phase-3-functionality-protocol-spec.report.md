@@ -3,7 +3,7 @@
 **Plan:** [phase-3-functionality-protocol-spec.plan.md](../plans/phase-3-functionality-protocol-spec.plan.md)
 **PRD phase:** 3 — Functionality & protocol spec
 **Branch:** `phase-3-spec`
-**Status:** implemented, 2026-10-23: the owner signed off the [parity checklist](../../spec/parity-checklist.md). The phase is complete in the PRD once its pull request is merged.
+**Status:** complete, 2026-10-23: the owner signed off the [parity checklist](../../spec/parity-checklist.md), and the branch was merged into `main` directly (no pull request, owner's decision).
 
 ## Outcome
 
@@ -59,4 +59,3 @@
 ## Left for the owner
 
 - The PRD footprint says the Wine prefix is deleted after Phase 3. The research rig is still running, the LP360 device access ACL is still granted, and the board sensor driver is loaded. All three go away at the next reboot, except the prefix itself (`research/wine/`), which needs the owner's decision.
-- The branch `phase-3-spec` is ready for a pull request to `main`.

@@ -26,6 +26,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 - After a context compaction or a long pause, re-read the current plan step before continuing.
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
+- When a phase is done and signed off, merge its branch straight into `main` (fast-forward) and push; no pull requests (owner, 2026-10-23). Its PRD row then becomes `complete`, with `-` in the PR column. Revisit once GitHub CI exists.
 - Write what you learn about the hardware or DeepCreative into the spec (`docs/spec/`, from Phase 3), not only into code or chat.
 - When a rule or command changes, update this file in the same commit.
 
