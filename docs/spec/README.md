@@ -9,7 +9,7 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 | [protocol.md](protocol.md) | The USB messages, their timing, and what the display does without them | Phase 5 |
 | `sensors.md` (to come) | What each metric means and where Linux has it | Phase 6 |
 | [display.md](display.md) | Load Mode, Temperature Guardian, Power Guardian, Creative Mode, rotation | Phases 7, 8, 10 |
-| `music.md` (to come) | Music Mode | Phase 9 |
+| [music.md](music.md) | Music Mode | Phase 9 |
 | `settings.md` (to come) | Settings that change what the cooler shows | Phases 7, 11 |
 | `parity-checklist.md` (to come) | Every item above, checked by the owner on the cooler | Every phase; Phase 12 |
 
