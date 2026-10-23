@@ -7,7 +7,7 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 | Document | Covers | Used by |
 |---|---|---|
 | [protocol.md](protocol.md) | The USB messages, their timing, and what the display does without them | Phase 5 |
-| `sensors.md` (to come) | What each metric means and where Linux has it | Phase 6 |
+| [sensors.md](sensors.md) | What each metric means and where Linux has it | Phase 6 |
 | [display.md](display.md) | Load Mode, Temperature Guardian, Power Guardian, Creative Mode, rotation | Phases 7, 8, 10 |
 | [music.md](music.md) | Music Mode | Phase 9 |
 | [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–12 |
@@ -28,6 +28,7 @@ Every fact carries one of these labels, or says **unverified**:
 | `capture: <log> <step>` | Seen in a USB capture of DeepCreative; `<step>` names the walkthrough step or session |
 | `code: <path:line>` or `code: <string>` | Read in DeepCreative's own files (described, never copied) |
 | `owner: <date>` | Checked by the owner on the physical cooler |
+| `system: <date>` | Read on the owner's PC by an agent (files, logs, `sensors`); machine-specific values stay in `docs/local/` |
 | `unverified` | Not yet checked; must not be relied on |
 
 Captures, screenshots and DeepCreative's files stay in the git-ignored `research/` folder and are never committed. Facts about the owner's own PC are in `docs/local/` (also git-ignored).
