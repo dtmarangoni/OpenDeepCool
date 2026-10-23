@@ -17,7 +17,7 @@ The owner moved this PC from Windows to Omarchy (Arch Linux), and the 14×14 dot
 Build OpenDeepCool in Rust, in two parts:
 
 - **A background service** that starts at boot as a system service, before anyone logs in and the same for every user, and keeps the LP360 showing the configured mode with live data. It finds the PC's sensors itself, so it works on any PC with an LP360 (owner, 2026-10-23).
-- **A GTK4 settings app** that follows the active Omarchy theme and offers every LP360 mode, option and effect in DeepCreative 1.2.14.
+- **A GTK4 settings app** that follows the active Omarchy theme live, uses its own default theme where there is none, and offers every LP360 mode, option and effect in DeepCreative 1.2.14.
 
 What each mode draws comes from DeepCreative itself:
 
@@ -42,7 +42,8 @@ We'll know we're right when two things are true:
 - **Creative Mode animations in v1.** DeepCreative 1.2.14's Creative Mode shows static 14×14 images only; its editor has no frames or timing. Animations may come after v1 (owner decision, 2026-10-22).
 - **Hidden display settings and unused device reports in v1.** DeepCreative 1.2.14 stores `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` for the LP360, but its LP page has no control for them, and Phase 1 saw no USB message for them. The LP360 also declares HID reports that DeepCreative never sent in Phase 1 ([LP360 notes](../../hardware/deepcool-lp360.md)). Supporting them may come after v1 (owner decision, 2026-10-22). It would first need research into what each one does; until then OpenDeepCool never sends them.
 - **ARGB lighting.** The LP360's lighting cable plugs into the motherboard's 5V ARGB header (manual p. 16). OpenRGB, already installed, handles it.
-- **Other DeepCool devices, other distributions or other operating systems.** OpenDeepCool supports only the LP360, on Omarchy. Its sensors aren't tied to the owner's PC (owner, 2026-10-23): it finds the CPU, GPU and board fan sensors of any PC. Only the owner's PC is tested on real hardware; the rules for other drivers are tested against fake sysfs trees built from their kernel documentation.
+- **Other DeepCool devices, other distributions or other operating systems.** OpenDeepCool supports only the LP360, on Arch Linux: Omarchy comes first, but any desktop works (owner, 2026-10-23). Its sensors aren't tied to the owner's PC (owner, 2026-10-23): it finds the CPU, GPU and board fan sensors of any PC. Only the owner's PC is tested on real hardware; the rules for other drivers are tested against fake sysfs trees built from their kernel documentation.
+- **Following other desktops' themes in v1.** On a desktop other than Omarchy, the app uses OpenDeepCool's own default theme. Discovering other desktops' themes (for example Plasma, Pop!_OS, Ubuntu, and Hyprland setups such as HyDE, Caelestia or ML4W), and a setting that points the app at a theme's files, may come after v1 (owner, 2026-10-23).
 - **GPU monitoring.** OpenDeepCool reads only the GPU temperature, usage and power that the display's modes show. Its one GPU setting chooses which GPU, and appears only when the PC has more than one (owner, 2026-10-23: this is a CPU cooler).
 - **DeepCreative features outside the LP360 page:** the fan-control page, firmware updates, online auto-update, screen casting and LCD-device features.
 - **Compatibility with DeepCreative's import/export file format, and a user-facing command-line tool.** Owner decision.
@@ -67,6 +68,7 @@ We'll know we're right when two things are true:
 - [ ] *After v1 (owner decision, 2026-10-22):* what the hidden settings `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` do, and what the device reports DeepCreative doesn't use are for.
 - [x] On the owner's board, which fan input is the pump and which is the CPU fan? **Answered** (2026-10-23): a load test, the driver's register layout and the owner's BIOS check agree. The mapping is in `docs/local/machine.md`. It serves only the owner's hardware checks: the program lets the user pick the inputs on any PC.
 - [ ] Which signal tells a dedicated GPU from an integrated one, for each GPU driver? Phase 6 verifies it from primary sources; if a driver has none, the owner decides.
+- [x] Theme: should the app install an Omarchy template in each user's `~/.config/omarchy/themed/`? **No** (2026-10-23): it reads the current theme's `colors.toml` directly, so nothing is installed per user, and uses its own default theme elsewhere (owner's theme requirements, Technical Approach → Theme).
 - [ ] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere?
 - [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
 - [ ] What should the display show when the service is stopped or the PC is idle?
@@ -110,7 +112,8 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Display settings on DeepCreative's LP page: screen rotation, rotating screen, plus any others the spec finds there | DeepCreative LP360 settings. Hidden settings such as brightness come after v1 |
 | Must | CPU fan and pump speed readings, with the fan inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | GPU choice: a dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated GPU at first; the choice kept across reboots | Owner, 2026-10-23 |
-| Must | GTK4 settings app that follows the Omarchy theme, including live theme changes | Owner requirement |
+| Must | GTK4 settings app that follows the current Omarchy theme, including live theme changes, and uses its own default theme where it finds none | Owner requirement; default theme and other desktops: owner, 2026-10-23 |
+| Could | Follow other desktops' themes, discovered automatically or from a theme folder the user sets, after v1 | Owner, 2026-10-23 |
 | Must | Settings kept across reboots, one set for the whole PC | Owner requirement; the same for every user: owner, 2026-10-23 |
 | Must | Clean install and uninstall, with every installed piece documented | Owner requirement |
 | Must | Unit, integration and e2e tests for each phase, where applicable | Owner requirement |
@@ -195,10 +198,15 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 - **Settings app ↔ service**: IPC to the system service, either the D-Bus system bus or a Unix socket under `/run` (chosen in the plan).
   - polkit authorizes changes. A user in an active local session changes settings without a password; remote and inactive sessions may only read them (polkit `allow_active`; owner, 2026-10-23).
   - Settings live in the service's state directory: one set for the whole PC.
-- **Theme**:
-  - Ship an Omarchy template, `~/.config/omarchy/themed/opendeepcool.css.tpl`, using placeholders such as `{{ accent }}`.
-  - On every theme change, Omarchy renders it to `~/.local/state/omarchy/current/theme/opendeepcool.css`. Omarchy already does this for `hyprland-preview-share-picker`, a Rust GTK4 app.
-  - The app watches that file and reloads its CSS live. If the file is missing, it reads `colors.toml` directly.
+- **Theme** (owner, 2026-10-23: follow the current system theme; work on other desktops; no per-user setup):
+  - **Omarchy:** the app takes its colours from the current theme's `~/.local/state/omarchy/current/theme/colors.toml`, which holds the semantic colours and the light/dark `mode`. It installs no template, so nothing goes into users' home folders.
+  - **Live changes:** a theme switch builds the new theme in a staging folder, then moves it over `current/theme` (Omarchy's `omarchy-theme-set` script, read 2026-10-23). So the app watches the `current` folder, not a single file, and reloads its colours when the theme folder is replaced.
+  - **Opacity and blur** (owner, 2026-10-23: the app takes the theme's opacity, blur and so on):
+    - Hyprland applies them to every window: Omarchy's `default/hypr/windows.lua` tags all windows for a default opacity (0.985 active, 0.96 inactive when read), and `default/hypr/looknfeel.lua` sets the blur. The app gets both by being an ordinary window, so it never sets its own window opacity, and users' own window rules still apply.
+    - For its own surfaces, the app takes the alpha values of the current theme's `shell.toml`: background, and the hover, focus, selected and pressed fill and border alphas that Omarchy's shell uses.
+    - Evidence: system: Omarchy's Hyprland defaults and the current theme folder, read 2026-10-23. Which `shell.toml` keys map to which widget is decided in the Phase 11 design.
+  - **Elsewhere**, or when that file is missing or unreadable, the app uses OpenDeepCool's own default theme, designed with the screens in Phase 11.
+  - **After v1, other desktops:** the XDG Desktop Portal's Settings interface gives a desktop's light/dark preference (`color-scheme`) and accent colour (`accent-color`), with a `SettingChanged` signal, on desktops that implement it. Setups without a standard need a theme folder that the user picks.
 - **Build and run**: `cargo build --release` produces native binaries, so running them needs no Rust toolchain. They link to the system GTK4, which Omarchy already ships.
 - **Packaging**: a local PKGBUILD, so pacman tracks every installed file and `pacman -R` removes them all (proposed; decided in the Phase 12 plan).
 - **Reverse-engineering environment** (development only, never shipped):
@@ -246,7 +254,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 | A driver behaves differently from its documentation on hardware we can't test | M | Rules come from kernel docs and are tested with fake trees; a reading that fails shows as unavailable, never as a wrong number; the spec marks such rules "not tested on hardware" |
 | No reliable way to tell a dedicated GPU from an integrated one for some driver | M | Phase 6 verifies a signal per driver from primary sources; where none exists, the owner decides |
 | hwmon/DRM index changes between boots | H | Look up by name or driver, never by index |
-| Omarchy changes its template mechanism | L | Fall back to `colors.toml`; take light/dark from its `mode` key |
+| Omarchy changes where or how it stores the current theme | L | The app falls back to its default theme and logs why; the spec records which files it reads |
 | Automated e2e tests need hardware or root (`/dev/uhid` is root-only) | M | Fake transport in CI; the automated real-device run (Testing Strategy, layer 4) uses the udev rule's group, so it needs no root; the owner's check covers only test patterns and samples |
 
 ---
@@ -308,7 +316,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 8 | Guardian modes | Temperature Guardian, Power Guardian | pending | with 9, 10, 11 | 7 | - | - | - |
 | 9 | Music Mode | Audio capture, spectrum, the three Music Mode variants | pending | with 8, 10, 11 | 7 | - | - | - |
 | 10 | Creative Mode | Pixel art and animation engine, storage, import/export | pending | with 8, 9, 11 | 7 | - | - | - |
-| 11 | Settings app | GTK4 app, Omarchy theme template, all settings screens, preview, pixel editor | pending | with 8, 9, 10 | 7 | - | - | - |
+| 11 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview, pixel editor | pending | with 8, 9, 10 | 7 | - | - | - |
 | 12 | Packaging & final validation | Install/uninstall, footprint docs, release build, full parity run with the owner | pending | - | 8, 9, 10, 11 | - | - | - |
 
 ### Phase Details
@@ -436,14 +444,14 @@ This project spans many sessions and possibly several coding agents, so the way 
 - **Success signal**: These modes' checklist items pass.
 
 **Phase 11: Settings app**
-- **Goal**: A GTK4 app, themed by Omarchy, that exposes every option.
-- **Scope**: screens for all modes and settings; preview; pixel editor; theme template with live reload; IPC client.
+- **Goal**: A GTK4 app that follows the Omarchy theme, with its own default theme elsewhere, and exposes every option.
+- **Scope**: screens for all modes and settings, including the GPU dropdown (only when the PC has more than one GPU) and the fan input pickers with live RPM; sensor and service status; preview; pixel editor; the Omarchy theme with live reload, and the default theme; IPC client with polkit authorization ([settings.md](../../spec/settings.md#what-the-settings-app-must-offer)).
 - **Design** (owner, 2026-10-22): feature parity with DeepCreative, not interface parity. The `ui-ux-designer` agent (`.claude/agents/ui-ux-designer.md`) designs the screens and mockups before the plan is written: modern, minimalist, clean, fast. DeepCreative's tabs and its Combined/Separate split aren't required; every mode must stay reachable.
 - **Tests**:
   - unit: view models
   - integration: app ↔ service IPC
-  - e2e: the owner switches themes and modes
-- **Success signal**: The app follows `omarchy-theme-set` live, and every setting is reachable.
+  - e2e: the owner switches themes and modes, and starts the app with no Omarchy theme
+- **Success signal**: The app follows `omarchy-theme-set` live, shows the default theme when it finds no Omarchy theme, and every setting is reachable.
 
 **Phase 12: Packaging & final validation**
 - **Goal**: Clean install and uninstall, plus full parity sign-off.
@@ -477,9 +485,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Audio helper | `/usr/lib/systemd/user/opendeepcool-audio.service`, enabled for all users (`systemctl --global enable`) | Music Mode audio from the active session | `systemctl --global disable` + `pacman -R` |
 | polkit policy | `/usr/share/polkit-1/actions/` (file name set in the plan) | Lets users at the PC change settings | `pacman -R` |
 | D-Bus policy, if the plan picks D-Bus | `/usr/share/dbus-1/system.d/` | Lets the settings app reach the service | `pacman -R` |
-| Desktop entry and icon | `/usr/share/applications/`, `/usr/share/icons/` | Launch from the Omarchy menu | `pacman -R` |
-| Omarchy theme template | `~/.config/omarchy/themed/opendeepcool.css.tpl` | Follow the theme | Uninstall step |
-| Generated theme CSS | `~/.local/state/omarchy/current/theme/opendeepcool.css` | Written by Omarchy | Omarchy, on the next theme change |
+| Desktop entry and icon | `/usr/share/applications/`, `/usr/share/icons/` | Launch from the app menu, on Omarchy or any desktop | `pacman -R` |
 | Settings and Creative Mode files | `/var/lib/opendeepcool/`, the service's state directory | One set of choices for the whole PC | Uninstall step (optionally kept) |
 | Detection record | the same state directory | Which motherboard the sensor detection last ran for | Uninstall step |
 | Logs | System journal | Diagnostics | journald rotation |
@@ -506,7 +512,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Wine or Proton | Plain Wine 11.17 (installed) | Proton / protontricks | Proton targets Steam games; kept as a fallback |
 | Existing Linux projects | Learn the protocol from them; write our own code | Fork Nortank12/deepcool-digital-linux | They cover a small part, and copying their code brings GPL with it |
 | License | MIT | GPL-3.0 | Owner decision |
-| GUI toolkit | GTK4 (gtk4-rs), themed by an Omarchy template | Iced, Slint, egui, libadwaita | Omarchy already themes a Rust GTK4 app this way |
+| GUI toolkit | GTK4 (gtk4-rs) | Iced, Slint, egui, libadwaita | Omarchy already ships GTK4 and themes a Rust GTK4 app |
+| Theme | Omarchy's current `colors.toml` read directly and followed live; OpenDeepCool's own default theme elsewhere; other desktops after v1 | An Omarchy template in each user's `~/.config` (the 2026-10-22 plan) | Owner, 2026-10-23: follow the system theme, run on other desktops, no per-user setup |
 | Service model | systemd system service as a dedicated unprivileged user, sandboxed; a root one-shot unit only for sensor detection; an audio helper enabled for every user | User service in each desktop session (the 2026-10-22 choice); system service running as root | Owner, 2026-10-23: the hardware doesn't depend on who logs in, and per-user setup would be bad. A sandboxed unprivileged service has fewer rights than a user account, which is best practice; root only where the detection needs it |
 | Fan and pump readings | Any hwmon fan input, picked by the user; the board's driver found by `sensors-detect`, run automatically when the PC has no lm-sensors configuration | A fixed module for the owner's board (the 2026-10-22 choice); out-of-tree DKMS drivers | Owner, 2026-10-23: must work on any PC. The kernel documents that no standard ties an input to a header, so the user picks, as in DeepCreative |
 | Fan control | Not in v1 | In v1 | Owner decision; needs a driver that can write |
@@ -516,7 +523,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
 | Settings app design | Our own design by a senior UI/UX designer agent; every DeepCreative feature reachable, its layout not copied | Mirror DeepCreative's pages, tabs and Combined/Separate options | Owner decision 2026-10-22: a modern, minimalist, fast app; DeepCreative's structure has unnecessary steps |
 | Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
-| Hardware coverage | Any PC with an LP360 on Omarchy: rules for the common CPU, GPU and board-sensor drivers; a driver without a rule leaves its metric unavailable | Only the owner's PC | Owner, 2026-10-23 |
+| Hardware coverage | Any PC with an LP360 on Arch Linux, Omarchy first: rules for the common CPU, GPU and board-sensor drivers; a driver without a rule leaves its metric unavailable | Only the owner's PC | Owner, 2026-10-23 |
 | GPU | Only the GPU metrics the display shows. A dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated one at first; the choice kept across reboots | DeepCreative's GPU list on every PC; wider GPU monitoring | Owner, 2026-10-23: a CPU cooler needs no GPU monitoring beyond its display |
 | Who may change settings | Users in an active local session, without a password (polkit `allow_active`); remote and inactive sessions only read | Any local user; an admin password for every change | Owner, 2026-10-23: best practice for settings shared by the whole PC |
 | Driver names in the repository | Allowed for every driver the rules cover (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Naming only the owner's drivers | Owner decisions 2026-10-22 (the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception) and 2026-10-23 (sensors work on any PC) |

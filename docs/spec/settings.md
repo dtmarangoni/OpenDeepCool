@@ -42,6 +42,30 @@ The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inpu
 
 GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([sensors.md](sensors.md#gpu-choice)).
 
+## What the settings app must offer
+
+The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` agent designs from this list; the app has its own design, not DeepCreative's ([below](#deepcreative-interface-quirks-not-reproduced)).
+
+- **Every setting above:** mode, rotation, temperature unit, the CPU fan and pump inputs, saved Creative images.
+- **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
+  - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
+  - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run;
+  - the user's choice is kept across reboots;
+  - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
+- **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
+  - one picker for the CPU fan and one for the pump. Each lists every fan input in the PC, with its chip's name, its label when the driver has one, and its live RPM;
+  - "none" is the default;
+  - a saved input that's missing shows as not found;
+  - the app shows the chosen inputs' RPM, as DeepCreative's device card shows CPU temperature, CPU fan and pump speed. Fan speeds never reach the cooler.
+- **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
+- **Status:**
+  - whether the cooler is connected and whether the service is running;
+  - for each metric, its source, or why it's unavailable: no rule for the driver, the CPU power counter not readable, no board fan sensors found;
+  - the board sensor detection: not needed, done, or done without finding sensors.
+- **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. There's no theme setting in v1; choosing another desktop's theme comes after v1.
+- **Opacity and blur** (owner, 2026-10-23: the app takes the theme's opacity, blur and so on): on Omarchy, Hyprland applies window opacity and blur to every window by its own rules, so the app must not override them. Its own surfaces use the alpha values of the current theme's `shell.toml`: background, and the hover, focus, selected and pressed fills (PRD, Theme).
+- **Music Mode audio** comes from the session of the user at the PC. Before anyone logs in, the spectrum shows silence.
+
 ## DeepCreative interface quirks, not reproduced
 
 - **Separate options hidden:** Load Mode's Separate options (modes 1–3) sit below the visible part of the options box, and under Wine there's no scrollbar, so only scrolling reveals them. Code: LP page; owner: found by scrolling, 2026-10-22.

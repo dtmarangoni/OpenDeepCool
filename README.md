@@ -16,10 +16,10 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 
 ## Scope
 
-- **Hardware**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Omarchy. It finds the PC's CPU, GPU and board fan sensors itself. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
+- **Hardware**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Arch Linux, with Omarchy first. It finds the PC's CPU, GPU and board fan sensors itself. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
 - **Planned**:
   - a system service that starts at boot, the same for every user;
-  - a GTK4 settings app that follows the Omarchy theme;
+  - a GTK4 settings app that follows the current Omarchy theme live, with its own default theme on other desktops;
   - every LP360 display mode from DeepCreative 1.2.14: Load Mode, Temperature Guardian, Power Guardian, Music Mode, Creative Mode and screen rotation;
   - CPU fan and pump speed readings.
 - **Not in v1**: fan/pump speed control, display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.

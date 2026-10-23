@@ -4,10 +4,10 @@ Instructions for any coding agent (Claude Code, Codex, Cursor, …) working in t
 
 ## What this project is
 
-OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Linux). It is written in Rust and supports only the DeepCool LP360 AIO cooler, on any PC running Omarchy (owner, 2026-10-23). Real-hardware tests run on the owner's PC.
+OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Linux). It is written in Rust and supports only the DeepCool LP360 AIO cooler, on any PC running Arch Linux, with Omarchy first (owner, 2026-10-23). Real-hardware tests run on the owner's PC.
 
 - A system service drives the LP360's 14×14 dot-matrix display from boot, the same for every user.
-- A GTK4 app changes the settings and follows the Omarchy theme.
+- A GTK4 app changes the settings. It follows the current Omarchy theme live, and uses its own default theme on other desktops.
 
 It is a personal project in a public repository, MIT-licensed, and not affiliated with DeepCool.
 
@@ -55,7 +55,8 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
    - ARGB lighting: OpenRGB handles it;
    - other devices (sensors, though, must work on any PC: rule 12);
-   - GPU monitoring beyond the GPU metrics the display shows.
+   - GPU monitoring beyond the GPU metrics the display shows;
+   - following other desktops' themes: v1 uses its default theme there.
 9. **Device safety.**
    - Send the LP360 only messages documented in the spec.
    - Run DeepCreative for research only in its dedicated Wine prefix, with the network blocked.
@@ -79,7 +80,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 - **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. The USB message format and the full list of display modes are in `docs/research/phase1-wine-spike.md`.
 - **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files, and never make the code depend on it (rule 12).
 - **Device lookup**: find hwmon and DRM devices by name or driver, never by index, because indexes change between boots.
-- **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`, and app templates in `~/.config/omarchy/themed/*.tpl`.
+- **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`. App templates live in each user's `~/.config/omarchy/themed/*.tpl` and in Omarchy's own `$OMARCHY_PATH/default/themed/` (its `omarchy-theme-set-templates` script, read 2026-10-23).
 
 ## Repository layout
 
