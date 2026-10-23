@@ -11,7 +11,7 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 | [display.md](display.md) | Load Mode, Temperature Guardian, Power Guardian, Creative Mode, rotation | Phases 7, 8, 10 |
 | [music.md](music.md) | Music Mode | Phase 9 |
 | [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–12 |
-| `settings.md` (to come) | Settings that change what the cooler shows | Phases 7, 11 |
+| [settings.md](settings.md) | Settings that change what the cooler shows | Phases 7, 11 |
 | `parity-checklist.md` (to come) | Every item above, checked by the owner on the cooler | Every phase; Phase 12 |
 
 ## What the spec describes
