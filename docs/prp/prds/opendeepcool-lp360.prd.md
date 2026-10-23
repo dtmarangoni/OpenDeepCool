@@ -69,7 +69,7 @@ We'll know we're right when two things are true:
 ## Open Questions
 
 - [x] Does DeepCreative 1.2.14 run under Wine, and can it reach the LP360 over USB through Wine? **Yes** (Phase 1 report, 2026-10-22). It needs Wine Mono and its sensor helper in console mode.
-- [ ] Which USB messages does DeepCreative send for the LP page's features besides "draw a 14×14 frame"? Phase 1 saw only a start-up command `03 08`, meaning unknown; rotation is drawn by the PC.
+- [x] Which USB messages does DeepCreative send for the LP page's features besides "draw a 14×14 frame"? **Only the start-up command `03 08`** (2026-10-23): across all 8 captured app starts (106,075 messages), every message is output report 16, either `03 08` once at start-up or a frame. Rotation is drawn by the PC. What `03 08` means is unverified; OpenDeepCool sends it exactly as DeepCreative does ([protocol spec](../../spec/protocol.md)).
 - [x] Is each pixel only on/off? **Yes**: a frame carries one bit per pixel (Phase 1 report). Brightness levels and colour are after v1, with the hidden settings.
 - [ ] *After v1 (owner decision, 2026-10-22):* what the hidden settings `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` do, and what the device reports DeepCreative doesn't use are for.
 - [x] On the owner's board, which fan input is the pump and which is the CPU fan? **Answered** (2026-10-23): a load test, the driver's register layout and the owner's BIOS check agree. The mapping is in `docs/local/machine.md`. It serves only the owner's hardware checks: the program lets the user pick the inputs on any PC.
@@ -77,9 +77,9 @@ We'll know we're right when two things are true:
 - [x] Theme: should the app install an Omarchy template in each user's `~/.config/omarchy/themed/`? **No** (2026-10-23): it reads the current theme's `colors.toml` directly, so nothing is installed per user, and uses its own default theme elsewhere (owner's theme requirements, Technical Approach → Theme).
 - [x] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere? **Answered** (2026-10-23): `display.md` and `music.md` map every mode. Power Guardian shows CPU Power and Gpu power; no mode shows the CPU clock, so OpenDeepCool doesn't read it.
 - [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
-- [ ] What should the display show when the service is stopped or the PC is idle?
-- [ ] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled?
-- [ ] Does `energy_uj` (CPU power) stay readable without root across reboots and kernel updates? It is readable now, but no rule was found that sets this.
+- [x] What should the display show when the service is stopped or the PC is idle? **Answered** (owner, 2026-10-23): when the service stops, it just stops sending, and the cooler goes blank on its own after about 10 s (parity checklist P8); no extra message is sent. While the PC is idle, the display keeps showing live values, as DeepCreative does.
+- [x] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled? **Not needed** (2026-10-23): Wine worked (Phase 1), and watching DeepCreative's output with chosen inputs answered every Phase 3 question.
+- [ ] How does the display service read CPU power? `energy_uj` became root-only after a reboot on 2026-10-22, and no rule was found that had made it readable before. Phase 6 decides how the service reads it ([sensors spec](../../spec/sensors.md#cpu-power), parity checklist S4).
 
 ---
 
@@ -115,7 +115,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Temperature Guardian and Power Guardian | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
-| Must | Display settings on DeepCreative's LP page: screen rotation, rotating screen, plus any others the spec finds there | DeepCreative LP360 settings. Hidden settings such as brightness come after v1 |
+| Must | Display settings: Rotate Screen (one button, four quarter turns clockwise) and the global temperature unit (°C/°F) | What the spec found on DeepCreative's LP page and in its global settings ([settings spec](../../spec/settings.md)). Hidden settings such as brightness come after v1 |
 | Must | The cooler's fan and pump speed readings, with the inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | GPU choice: a dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated GPU at first; the choice kept across reboots | Owner, 2026-10-23 |
 | Must | GTK4 settings app that follows the current Omarchy theme, including live theme changes, and uses its own default theme where it finds none | Owner requirement; default theme and other desktops: owner, 2026-10-23 |
@@ -218,7 +218,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 - **Build and run**: `cargo build --release` produces native binaries, so running them needs no Rust toolchain. They link to the system GTK4, which Omarchy already ships.
 - **Packaging**: a local PKGBUILD, so pacman tracks every installed file and `pacman -R` removes them all (proposed; decided in the Phase 12 plan).
 - **Reverse-engineering environment** (development only, never shipped):
-  - DeepCreative 1.2.14 is extracted from the owner's installer and run under Wine 11.17 in its own prefix, with networking blocked.
+  - DeepCreative 1.2.14 is extracted from the owner's installer and run under Wine (11.17 in Phase 1, 11.20 in Phase 3) in its own prefix, with networking blocked.
   - Its Electron build honours Node inspector arguments (fuse `EnableNodeCliInspectArguments`), so a small hook can log every USB write for each mode.
   - `usbmon` and `strace` serve as cross-checks.
   - Raw captures stay local, outside the repository.
@@ -364,20 +364,10 @@ This project spans many sessions and possibly several coding agents, so the way 
   - the fan input mapping on this board, confirmed with the board's manual and a check by the owner
   - the parity checklist, with each item validated by the owner on the device
 - **Success signal**: The owner signs off the parity checklist as complete and correct.
-- **Progress, end of 2026-10-22**: plan Tasks 1–7 are done and committed: protocol, display (full test matrix), Music Mode, expected frames, sensors, settings.
-  - **Next: Task 8**:
-    - write `docs/spec/parity-checklist.md` from the spec documents, carrying today's owner checks;
-    - run an owner session for rows without a check;
-    - get the owner's sign-off;
-    - update the records (open questions, README, AGENTS.md line on plans, Phase 3 report, this table).
-  - **Done 2026-10-23:**
-    - the fan input mapping is confirmed in the BIOS by the owner (`docs/local/`);
-    - DeepCreative's fan list traced in its sensor helper (sensors spec);
-    - owner decisions: sensors work on any PC, a sandboxed system service, automatic sensor detection, the GPU choice rules (this PRD, sensors and settings specs);
-    - owner decision: OpenDeepCool covers only the cooler, with no monitoring or control of other hardware (this PRD, AGENTS.md, specs, README).
-  - **Still open:**
-    - `03 08`'s meaning is unverified (sent as DeepCreative does).
-  - **After a reboot:** the research rig needs the owner's temporary device access again (plan Task 1), and the board sensor driver must be loaded by hand again.
+- **Done 2026-10-23**: the owner signed off the [parity checklist](../../spec/parity-checklist.md) (73 rows). Outputs are in [`docs/spec/`](../../spec/): protocol, display (full test matrix), Music Mode, sensors, settings, expected frames, checklist.
+  - Found in the final checks: after a static mode, DeepCreative replays the paused text of the last scrolling mode, with stale readings, before the new text. OpenDeepCool never does, and the transition tests of Phases 7–8 check it ([display spec](../../spec/display.md#mode-switches)).
+  - Owner decisions on 2026-10-23: sensors work on any PC, a sandboxed system service, automatic sensor detection, the GPU choice rules, the cooler-only scope, and the display going blank on its own when the service stops.
+  - Still open: `03 08`'s meaning is unverified (sent as DeepCreative does).
 
 **Phase 4: Implementation plans**
 - **Goal**: An implementation-ready plan for each of phases 5–12 (owner's workflow step 9).
