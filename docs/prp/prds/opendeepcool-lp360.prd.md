@@ -329,6 +329,16 @@ This project spans many sessions and possibly several coding agents, so the way 
   - the fan input mapping on this board, confirmed with the board's manual and a check by the owner
   - the parity checklist, with each item validated by the owner on the device
 - **Success signal**: The owner signs off the parity checklist as complete and correct.
+- **Progress, end of 2026-10-22**: plan Tasks 1–7 are done and committed: protocol, display (full test matrix), Music Mode, expected frames, sensors, settings.
+  - **Next: Task 8**:
+    - write `docs/spec/parity-checklist.md` from the spec documents, carrying today's owner checks;
+    - run an owner session for rows without a check;
+    - get the owner's sign-off;
+    - update the records (open questions, README, AGENTS.md line on plans, Phase 3 report, this table).
+  - **Still open:**
+    - the fan input mapping is inferred from a load test, not yet confirmed in the BIOS (`docs/local/`);
+    - `03 08`'s meaning is unverified (sent as DeepCreative does).
+  - **After a reboot:** the research rig needs the owner's temporary device access again (plan Task 1), and the board sensor driver must be loaded by hand again.
 
 **Phase 4: Implementation plans**
 - **Goal**: An implementation-ready plan for each of phases 5–12 (owner's workflow step 9).
@@ -404,6 +414,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 **Phase 11: Settings app**
 - **Goal**: A GTK4 app, themed by Omarchy, that exposes every option.
 - **Scope**: screens for all modes and settings; preview; pixel editor; theme template with live reload; IPC client.
+- **Design** (owner, 2026-10-22): feature parity with DeepCreative, not interface parity. The `ui-ux-designer` agent (`.claude/agents/ui-ux-designer.md`) designs the screens and mockups before the plan is written: modern, minimalist, clean, fast. DeepCreative's tabs and its Combined/Separate split aren't required; every mode must stay reachable.
 - **Tests**:
   - unit: view models
   - integration: app ↔ service IPC
@@ -472,6 +483,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
 | Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
+| Settings app design | Our own design by a senior UI/UX designer agent; every DeepCreative feature reachable, its layout not copied | Mirror DeepCreative's pages, tabs and Combined/Separate options | Owner decision 2026-10-22: a modern, minimalist, fast app; DeepCreative's structure has unnecessary steps |
 | Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
 | Driver names in the repository | Allowed for the owner's drivers (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Supporting every alternative driver to hide which ones the owner has | Owner decision 2026-10-22: the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |

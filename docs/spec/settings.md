@@ -44,7 +44,7 @@ The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inpu
 
 - **Separate options hidden:** Load Mode's Separate options (modes 1–3) sit below the visible part of the options box, and under Wine there's no scrollbar, so only scrolling reveals them. Code: LP page; owner: found by scrolling, 2026-10-22.
 - **Wrong tab on start:** when the saved mode is 7 (Temperature Guardian → CPU), DeepCreative's window opens on the Load Mode tab, because its check treats modes up to 7 as Load Mode. The cooler still shows mode 7. Code: LP page.
-- **Proposed for OpenDeepCool's settings app** (Phase 11, the owner to confirm): show every option without hidden scrolling, and open on the page of the saved mode.
+- **OpenDeepCool's settings app** has its own design, not DeepCreative's pages and tabs (owner, 2026-10-22; PRD, Phase 11). These quirks don't carry over.
 
 ## Not covered
 
