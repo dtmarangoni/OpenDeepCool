@@ -4,6 +4,8 @@ The readings behind every number DeepCreative 1.2.14 shows: which reading it tak
 
 Which driver and label provide each reading on the owner's PC, and which board fan input is the CPU fan or the pump, are machine facts: see `docs/local/`.
 
+**Scope** (owner, 2026-10-23): OpenDeepCool reads only the seven values the display shows ([Metrics](#metrics)) and the speeds of the cooler's own fans and pump ([Fan and pump speed](#fan-and-pump-speed)). It reads nothing else, such as clocks, voltages or other fans, and never writes to any device but the LP360.
+
 ## How DeepCreative gets its readings
 
 - A helper program reads the PC's sensors through HWiNFO's library and passes them to a small service. DeepCreative's main process asks that service for a snapshot about **once per second**. Evidence: system: the service's log of 2026-10-22 polls its helper every 1000 ms; code: the service's configuration.
@@ -52,7 +54,7 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 | Gpu temperature, usage, power | NVML | NVIDIA GPUs | NVIDIA's library | **unverified**: NVIDIA's driver has no hwmon interface (a pull request to add one exists, NVIDIA open-gpu-kernel-modules #1169, status unverified). Phase 6 chooses the NVML calls from NVIDIA's documentation |
 | Gpu metrics | — | other GPU drivers, such as Intel `i915` and `xe`, or `nouveau` | — | no rule yet: Phase 6 researches what their documentation offers; until then unavailable |
 | Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal | owner's PC |
-| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
+| Cooler fans (CPU Fan I/O), pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
 
 - **Board sensor driver:** a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
   - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
@@ -72,7 +74,7 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 
 ## GPU choice
 
-OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage and power. It doesn't monitor GPUs otherwise (owner, 2026-10-23: this is a CPU cooler).
+OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage and power. It doesn't monitor GPUs otherwise (owner, 2026-10-23: OpenDeepCool covers only the cooler).
 
 - **Kinds:** each GPU in the PC is either **dedicated** (a graphics card) or **integrated** (part of the CPU). Phase 6 verifies, from primary sources, which signal tells them apart for each driver; until then that is **unverified**. If a driver has no reliable signal, the owner decides.
 - **Rules** (owner, 2026-10-23):
@@ -109,7 +111,7 @@ OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage 
 - OpenDeepCool does the same, on any PC:
   - the settings app lists every hwmon fan input from every sensor chip, with the chip's name, the driver's label (`fanN_label`) when it has one, and the live RPM;
   - it leaves out a graphics card's own fans, as DeepCreative does (owner, 2026-10-23): a pump or radiator fan never connects to a GPU. The rule: skip an hwmon device whose `device` is a PCI display controller, PCI base class `0x03` (kernel `pci_ids.h`: `PCI_BASE_CLASS_DISPLAY`). System: on the owner's PC the `amdgpu` fan's device has class `0x030000`, while the board chip's is a platform device, 2026-10-23;
-  - the user picks one input for the CPU fan and one for the pump. None is chosen by default, as in DeepCreative. No rule could choose: the kernel's hwmon documentation says "There is no standard that ensures, for example, that … the second fan is on the CPU";
+  - the user picks one input for the cooler's fans (DeepCreative's CPU Fan I/O: the radiator fans sit on the board's CPU fan header) and one for its pump. None is chosen by default, as in DeepCreative. No rule could choose: the kernel's hwmon documentation says "There is no standard that ensures, for example, that … the second fan is on the CPU";
   - the choice is saved as the chip's name, its device path and the input number, never as an hwmon index, which changes between boots. If that input is missing, the app shows it as not found, never another input's RPM;
   - the settings app shows their RPM, and nothing reaches the display.
 - lm-sensors finds and loads the board's sensor driver ([Driver rules](#driver-rules), Board sensor driver).

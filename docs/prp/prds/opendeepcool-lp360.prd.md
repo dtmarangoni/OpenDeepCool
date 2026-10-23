@@ -19,6 +19,8 @@ Build OpenDeepCool in Rust, in two parts:
 - **A background service** that starts at boot as a system service, before anyone logs in and the same for every user, and keeps the LP360 showing the configured mode with live data. It finds the PC's sensors itself, so it works on any PC with an LP360 (owner, 2026-10-23).
 - **A GTK4 settings app** that follows the active Omarchy theme live, uses its own default theme where there is none, and offers every LP360 mode, option and effect in DeepCreative 1.2.14.
 
+OpenDeepCool covers only the DeepCool cooler (owner, 2026-10-23): its display, and its fans and pump. It reads the CPU, GPU and RAM only for the values the display shows, and controls no other hardware. Users who want to monitor or control the CPU, GPU, other fans or power use dedicated software, as OpenRGB handles lighting.
+
 What each mode draws comes from DeepCreative itself:
 
 - its readable UI code;
@@ -38,13 +40,17 @@ We'll know we're right when two things are true:
 
 ## What We're NOT Building
 
-- **Fan or pump speed control in v1.** v1 only reads speeds. DeepCreative has a separate fan-control page, and this may come after v1. It would need a driver that can write (the in-kernel driver for the board's sensor chip is read-only), and a bug could slow or stop the pump.
+- **Speed control of the cooler's fans and pump in v1.** v1 only reads their speeds. They're DeepCool hardware, so controlling them may come after v1 (owner, 2026-10-23). It would need a driver that can write (the in-kernel driver for the board's sensor chip is read-only), and a bug could slow or stop the pump. Other fans stay out (see "Monitoring or controlling any hardware other than the cooler" below).
 - **Creative Mode animations in v1.** DeepCreative 1.2.14's Creative Mode shows static 14×14 images only; its editor has no frames or timing. Animations may come after v1 (owner decision, 2026-10-22).
 - **Hidden display settings and unused device reports in v1.** DeepCreative 1.2.14 stores `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` for the LP360, but its LP page has no control for them, and Phase 1 saw no USB message for them. The LP360 also declares HID reports that DeepCreative never sent in Phase 1 ([LP360 notes](../../hardware/deepcool-lp360.md)). Supporting them may come after v1 (owner decision, 2026-10-22). It would first need research into what each one does; until then OpenDeepCool never sends them.
 - **ARGB lighting.** The LP360's lighting cable plugs into the motherboard's 5V ARGB header (manual p. 16). OpenRGB, already installed, handles it.
 - **Other DeepCool devices, other distributions or other operating systems.** OpenDeepCool supports only the LP360, on Arch Linux: Omarchy comes first, but any desktop works (owner, 2026-10-23). Its sensors aren't tied to the owner's PC (owner, 2026-10-23): it finds the CPU, GPU and board fan sensors of any PC. Only the owner's PC is tested on real hardware; the rules for other drivers are tested against fake sysfs trees built from their kernel documentation.
 - **Following other desktops' themes in v1.** On a desktop other than Omarchy, the app uses OpenDeepCool's own default theme. Discovering other desktops' themes (for example Plasma, Pop!_OS, Ubuntu, and Hyprland setups such as HyDE, Caelestia or ML4W), and a setting that points the app at a theme's files, may come after v1 (owner, 2026-10-23).
-- **GPU monitoring.** OpenDeepCool reads only the GPU temperature, usage and power that the display's modes show. Its one GPU setting chooses which GPU, and appears only when the PC has more than one (owner, 2026-10-23: this is a CPU cooler).
+- **Monitoring or controlling any hardware other than the cooler** (owner, 2026-10-23).
+  - OpenDeepCool reads the CPU, GPU and RAM only for the values the display shows: usage, temperature, power and Memory Load. It shows no other readings, such as clocks, voltages or other fans.
+  - It never changes a CPU, GPU, fan or power setting: no fan control except the cooler's own, after v1, and no power limits.
+  - Users who want that use dedicated software, as OpenRGB handles lighting.
+  - The one GPU setting chooses which GPU feeds the display, and appears only when the PC has more than one.
 - **DeepCreative features outside the LP360 page:** the fan-control page, firmware updates, online auto-update, screen casting and LCD-device features.
 - **Compatibility with DeepCreative's import/export file format, and a user-facing command-line tool.** Owner decision.
 - **Any DeepCool code, installer files or raw USB captures in the repository.** The repository is public.
@@ -69,7 +75,7 @@ We'll know we're right when two things are true:
 - [x] On the owner's board, which fan input is the pump and which is the CPU fan? **Answered** (2026-10-23): a load test, the driver's register layout and the owner's BIOS check agree. The mapping is in `docs/local/machine.md`. It serves only the owner's hardware checks: the program lets the user pick the inputs on any PC.
 - [ ] Which signal tells a dedicated GPU from an integrated one, for each GPU driver? Phase 6 verifies it from primary sources; if a driver has none, the owner decides.
 - [x] Theme: should the app install an Omarchy template in each user's `~/.config/omarchy/themed/`? **No** (2026-10-23): it reads the current theme's `colors.toml` directly, so nothing is installed per user, and uses its own default theme elsewhere (owner's theme requirements, Technical Approach → Theme).
-- [ ] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere?
+- [x] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere? **Answered** (2026-10-23): `display.md` and `music.md` map every mode. Power Guardian shows CPU Power and Gpu power; no mode shows the CPU clock, so OpenDeepCool doesn't read it.
 - [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
 - [ ] What should the display show when the service is stopped or the PC is idle?
 - [ ] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled?
@@ -104,13 +110,13 @@ These can't be tested here, so the project doesn't target them: owners of other 
 |---|---|---|
 | Must | Starts at boot and shows the configured mode with live data, before anyone logs in and for every user | Owner requirement: keeps working after every restart; a system service: owner, 2026-10-23 |
 | Must | Talks to the LP360 over USB without root | The service runs as its own unprivileged system user |
-| Must | Works on any PC: finds the CPU, GPU and board fan sensors itself, and runs the board's sensor detection when the PC has none configured | Owner, 2026-10-23 |
-| Must | Load Mode: Full Screen and Split Screen layouts (Combined / Separate display) with CPU temperature, CPU usage, GPU temperature, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
+| Must | Works on any PC: finds the sensors behind the display's values and the cooler's fan and pump inputs itself, and runs the board's sensor detection when the PC has none configured | Owner, 2026-10-23 |
+| Must | Load Mode: Combined and Separate display with CPU usage, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
 | Must | Temperature Guardian and Power Guardian | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
 | Must | Display settings on DeepCreative's LP page: screen rotation, rotating screen, plus any others the spec finds there | DeepCreative LP360 settings. Hidden settings such as brightness come after v1 |
-| Must | CPU fan and pump speed readings, with the fan inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
+| Must | The cooler's fan and pump speed readings, with the inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | GPU choice: a dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated GPU at first; the choice kept across reboots | Owner, 2026-10-23 |
 | Must | GTK4 settings app that follows the current Omarchy theme, including live theme changes, and uses its own default theme where it finds none | Owner requirement; default theme and other desktops: owner, 2026-10-23 |
 | Could | Follow other desktops' themes, discovered automatically or from a theme folder the user sets, after v1 | Owner, 2026-10-23 |
@@ -119,10 +125,10 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Unit, integration and e2e tests for each phase, where applicable | Owner requirement |
 | Should | Live preview of the 14×14 display in the app | Mode choice and Creative Mode work without looking at the pump |
 | Should | CI build and test on GitHub | Keeps the public repo's main branch passing |
-| Could | Fan and pump speed control, after v1 | Owner: possible later |
+| Could | Speed control of the cooler's own fans and pump, after v1 | Owner: possible later; only DeepCool hardware (2026-10-23) |
 | Could | Creative Mode animations (several frames played in sequence), after v1 | DeepCreative 1.2.14 shows only static images; owner: possible later (2026-10-22) |
 | Could | Hidden display settings (brightness, screen on/off, no-load screen, `rgbOptical`, gyro) and the device reports DeepCreative doesn't use, after v1 | Owner: possible later (2026-10-22) |
-| Won't | Lighting, other devices, DeepCreative file compatibility, user-facing CLI | See [What We're NOT Building](#what-were-not-building) |
+| Won't | Lighting, other devices, monitoring or control of any hardware other than the cooler, DeepCreative file compatibility, user-facing CLI | See [What We're NOT Building](#what-were-not-building) |
 
 ### MVP Scope
 
@@ -162,11 +168,12 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 - **Sensors**, on any PC (owner, 2026-10-23; the rules per driver are in [sensors.md](../../spec/sensors.md#driver-rules)):
   - CPU temperature: the CPU's hwmon driver (`coretemp` on Intel, `k10temp` on AMD)
   - CPU usage: `/proc/stat`
-  - CPU clock: cpufreq `scaling_cur_freq`
   - CPU power: the powercap RAPL package energy counter (`energy_uj`). It's root-only, so an install-time change lets only the display service's account read it (Phase 6 decides how)
   - GPU temperature, usage and power: the chosen GPU's driver. `amdgpu` through hwmon and its DRM busy-percent file; NVIDIA through NVML, because its driver has no hwmon; other drivers where their documentation gives the reading
   - RAM: `/proc/meminfo`
-  - Fan and pump RPM: any hwmon fan input. lm-sensors' `sensors-detect` finds the driver for the board's sensor chip, and `lm_sensors.service` loads it at every boot (Service model)
+  - The cooler's fan and pump RPM: the hwmon fan inputs the user assigns to them. lm-sensors' `sensors-detect` finds the driver for the board's sensor chip, and `lm_sensors.service` loads it at every boot (Service model)
+
+  Nothing else is read: these are the display's seven values and the cooler's two speeds (owner, 2026-10-23).
 
   Look devices up by name or driver, never by hwmon/DRM index, because indexes change between boots.
 - **Sensor architecture: ports and adapters** (owner, 2026-10-22). The display logic never touches files or drivers, so a driver change or new hardware means a new rule row, not new display code.
@@ -183,10 +190,11 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - **Driver rules** are data, built into the program, with no user override file. They cover the common drivers, each taken from its kernel documentation ([sensors.md](../../spec/sensors.md#driver-rules)). The kernel standardises file names but not which input means what, so a rule names a driver and its label. A driver without a rule leaves its metric unavailable.
   - **GPU choice:** the registry lists the PC's GPUs, ranks a dedicated GPU before an integrated one, and binds the chosen one ([sensors.md](../../spec/sensors.md#gpu-choice)).
   - **Fan inputs** need no rule: the user picks from every hwmon fan input, as in DeepCreative. The kernel documents that no standard ties an input to a board header.
-  - **Writes:** in v1 only the LP360 is written, through the display port. Fan control after v1 would be one more port.
+  - **Writes:** only the LP360 is written, through the display port. Every other device is read-only: OpenDeepCool never changes a CPU, GPU, fan or power setting (owner, 2026-10-23). Speed control of the cooler's own fans and pump, after v1, would be one more port.
 - **Service model** (owner, 2026-10-23: the hardware doesn't depend on who logs in, setting OpenDeepCool up for each user would be bad, and it must follow best security practice):
   - **Display service:** a systemd **system** service that starts at boot, before anyone logs in.
     - It runs as a dedicated unprivileged system user, never as root, sandboxed by systemd: for example a read-only system (`ProtectSystem=strict`), no access to home folders (`ProtectHome=`), `NoNewPrivileges=`, no capabilities, and a closed device policy that allows only the LP360's hidraw node and the GPU devices it reads. The Phase 12 plan sets the exact settings.
+    - `ProtectKernelTunables=` makes `/sys` read-only for the service (systemd.exec), so it can't change any hardware setting, even by mistake.
     - That leaves it fewer rights than any user account. A user service would run with all the rights of whoever logged in.
     - It restarts on failure and reconnects if the USB device disappears.
   - **Sensor detection:** a separate one-shot unit, the only part that runs as root.
@@ -248,7 +256,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 | Wine can't reach the LP360 over USB | M | Log frames with a hook inside the app; present a virtual HID device (Linux `uhid`) with the LP360's IDs; use `usbmon` to confirm |
 | Main-process logic is compiled V8 bytecode | H (certain) | Capture at runtime under Wine; decompile only if needed |
 | DeepCreative tries to update itself or the firmware | L | Network blocked during the Wine run; decline any prompt |
-| Wrong fan input chosen as pump or CPU fan | L | No default: the user picks both inputs, as in DeepCreative, and the settings app shows each input's live RPM |
+| Wrong fan input chosen as the cooler's pump or fans | L | No default: the user picks both inputs, as in DeepCreative, and the settings app shows each input's live RPM |
 | CPU power counter is root-only (kernel fix for CVE-2020-8694) | H (certain) | An install-time change lets only the display service's account read it; Phase 6 decides how |
 | `sensors-detect` probes hardware; lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems" | L | Runs only when the PC has no lm-sensors configuration, once per motherboard; never overwrites a configuration; its output goes to the journal |
 | A driver behaves differently from its documentation on hardware we can't test | M | Rules come from kernel docs and are tested with fake trees; a reading that fails shows as unavailable, never as a wrong number; the spec marks such rules "not tested on hardware" |
@@ -365,7 +373,8 @@ This project spans many sessions and possibly several coding agents, so the way 
   - **Done 2026-10-23:**
     - the fan input mapping is confirmed in the BIOS by the owner (`docs/local/`);
     - DeepCreative's fan list traced in its sensor helper (sensors spec);
-    - owner decisions: sensors work on any PC, a sandboxed system service, automatic sensor detection, the GPU choice rules (this PRD, sensors and settings specs).
+    - owner decisions: sensors work on any PC, a sandboxed system service, automatic sensor detection, the GPU choice rules (this PRD, sensors and settings specs);
+    - owner decision: OpenDeepCool covers only the cooler, with no monitoring or control of other hardware (this PRD, AGENTS.md, specs, README).
   - **Still open:**
     - `03 08`'s meaning is unverified (sent as DeepCreative does).
   - **After a reboot:** the research rig needs the owner's temporary device access again (plan Task 1), and the board sensor driver must be loaded by hand again.
@@ -388,11 +397,11 @@ This project spans many sessions and possibly several coding agents, so the way 
 **Phase 6: Sensors**
 - **Goal**: Read every metric the display shows, correctly, on any PC, as the display service's unprivileged account.
 - **Scope**:
-  - CPU temperature, usage, clock and power, on Intel and AMD
+  - CPU temperature, usage and power, on Intel and AMD
   - GPU temperature, usage and power of the chosen GPU: `amdgpu`, NVIDIA through NVML, and other drivers where their documentation gives the reading
   - the GPU choice: telling dedicated from integrated GPUs (verified per driver), the priority rule, the saved choice
   - RAM
-  - fan and pump RPM from any hwmon fan input, with selectable inputs
+  - the cooler's fan and pump RPM, from the hwmon fan inputs the user assigns
   - the sensor detection unit (`sensors-detect` when the PC has no lm-sensors configuration)
   - the install-time change that lets the service's account read the CPU power counter
 - **Tests**:
@@ -445,8 +454,8 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 11: Settings app**
 - **Goal**: A GTK4 app that follows the Omarchy theme, with its own default theme elsewhere, and exposes every option.
-- **Scope**: screens for all modes and settings, including the GPU dropdown (only when the PC has more than one GPU) and the fan input pickers with live RPM; sensor and service status; preview; pixel editor; the Omarchy theme with live reload, and the default theme; IPC client with polkit authorization ([settings.md](../../spec/settings.md#what-the-settings-app-must-offer)).
-- **Design** (owner, 2026-10-22): feature parity with DeepCreative, not interface parity. The `ui-ux-designer` agent (`.claude/agents/ui-ux-designer.md`) designs the screens and mockups before the plan is written: modern, minimalist, clean, fast. DeepCreative's tabs and its Combined/Separate split aren't required; every mode must stay reachable.
+- **Scope**: screens for all modes and settings, including the GPU dropdown (only when the PC has more than one GPU) and the cooler's fan and pump pickers with live RPM; cooler and service status; preview; pixel editor; the Omarchy theme with live reload, and the default theme; IPC client with polkit authorization ([settings.md](../../spec/settings.md#what-the-settings-app-must-offer)).
+- **Design** (owner, 2026-10-22): feature parity with DeepCreative, not interface parity. The `ui-ux-designer` agent (`.claude/agents/ui-ux-designer.md`) designs the screens and mockups before the plan is written: modern, minimalist, clean, fast. DeepCreative's tabs and its Combined/Separate split aren't required; every mode must stay reachable. The app covers only the cooler, which keeps it small (owner, 2026-10-23).
 - **Tests**:
   - unit: view models
   - integration: app ↔ service IPC
@@ -516,7 +525,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Theme | Omarchy's current `colors.toml` read directly and followed live; OpenDeepCool's own default theme elsewhere; other desktops after v1 | An Omarchy template in each user's `~/.config` (the 2026-10-22 plan) | Owner, 2026-10-23: follow the system theme, run on other desktops, no per-user setup |
 | Service model | systemd system service as a dedicated unprivileged user, sandboxed; a root one-shot unit only for sensor detection; an audio helper enabled for every user | User service in each desktop session (the 2026-10-22 choice); system service running as root | Owner, 2026-10-23: the hardware doesn't depend on who logs in, and per-user setup would be bad. A sandboxed unprivileged service has fewer rights than a user account, which is best practice; root only where the detection needs it |
 | Fan and pump readings | Any hwmon fan input, picked by the user; the board's driver found by `sensors-detect`, run automatically when the PC has no lm-sensors configuration | A fixed module for the owner's board (the 2026-10-22 choice); out-of-tree DKMS drivers | Owner, 2026-10-23: must work on any PC. The kernel documents that no standard ties an input to a header, so the user picks, as in DeepCreative |
-| Fan control | Not in v1 | In v1 | Owner decision; needs a driver that can write |
+| Product scope | Only the DeepCool cooler: its display, and its fans and pump in the app. CPU, GPU and RAM are read only for the display's values; no other hardware is monitored or controlled | A general hardware monitor or control tool | Owner, 2026-10-23: keeps OpenDeepCool and its app small; dedicated tools exist, as OpenRGB for lighting |
+| Fan control | Not in v1; after v1 only for the cooler's own fans and pump | In v1; control of other fans | Owner decisions 2026-10-22 and 2026-10-23; needs a driver that can write |
 | Creative Mode animations | Not in v1 | In v1 | DeepCreative 1.2.14's editor has no frames or timing (LP page code; Phase 1 saw static images only); owner decision 2026-10-22: possible later |
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
@@ -524,7 +534,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Settings app design | Our own design by a senior UI/UX designer agent; every DeepCreative feature reachable, its layout not copied | Mirror DeepCreative's pages, tabs and Combined/Separate options | Owner decision 2026-10-22: a modern, minimalist, fast app; DeepCreative's structure has unnecessary steps |
 | Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
 | Hardware coverage | Any PC with an LP360 on Arch Linux, Omarchy first: rules for the common CPU, GPU and board-sensor drivers; a driver without a rule leaves its metric unavailable | Only the owner's PC | Owner, 2026-10-23 |
-| GPU | Only the GPU metrics the display shows. A dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated one at first; the choice kept across reboots | DeepCreative's GPU list on every PC; wider GPU monitoring | Owner, 2026-10-23: a CPU cooler needs no GPU monitoring beyond its display |
+| GPU | Only the GPU metrics the display shows. A dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated one at first; the choice kept across reboots | DeepCreative's GPU list on every PC; wider GPU monitoring | Owner, 2026-10-23: the cooler needs no GPU monitoring beyond its display |
 | Who may change settings | Users in an active local session, without a password (polkit `allow_active`); remote and inactive sessions only read | Any local user; an admin password for every change | Owner, 2026-10-23: best practice for settings shared by the whole PC |
 | Driver names in the repository | Allowed for every driver the rules cover (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Naming only the owner's drivers | Owner decisions 2026-10-22 (the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception) and 2026-10-23 (sensors work on any PC) |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |

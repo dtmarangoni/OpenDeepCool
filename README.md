@@ -21,8 +21,9 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
   - a system service that starts at boot, the same for every user;
   - a GTK4 settings app that follows the current Omarchy theme live, with its own default theme on other desktops;
   - every LP360 display mode from DeepCreative 1.2.14: Load Mode, Temperature Guardian, Power Guardian, Music Mode, Creative Mode and screen rotation;
-  - CPU fan and pump speed readings.
-- **Not in v1**: fan/pump speed control, display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
+  - the cooler's fan and pump speed readings.
+- **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls other hardware. To monitor or control the CPU, GPU, other fans or power, use dedicated tools, as OpenRGB for lighting.
+- **Not in v1**: speed control of the cooler's fans and pump, display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
 
 ## Documentation
 

@@ -117,14 +117,14 @@ The sandbox blocks the network, so DeepCreative can't update itself or the firmw
 - Every mode, option and effect on DeepCreative 1.2.14's LP page, with frames and timing: modes 1–22, Creative Mode (100 and saved images), screen rotation, °C/°F.
 - Every message DeepCreative sends to the LP360 for these features, what it sends at start-up and exit, and what the display does when frames stop.
 - The exact pixels drawn: digit and unit glyphs, emoji animation frames and spectrum bars, with their positions and timing.
-- The sensor source for each metric DeepCreative shows, and how the owner's account can read it on Linux.
+- The sensor source for each metric DeepCreative shows, and how the display service can read it on any PC (owner, 2026-10-23).
 - The fan input mapping on the owner's board, recorded in `docs/local/machine.md` only.
 - The parity checklist, with each item checked by the owner on the cooler, and the owner's sign-off.
 
 ### Not building
 
 - Hidden settings and unused device reports: after v1 (PRD, What We're NOT Building).
-- Fan or pump speed control: after v1 (rule 8).
+- Speed control of the cooler's fans and pump: after v1 (rule 8). Monitoring or controlling any other hardware: never (owner, 2026-10-23).
 - OpenDeepCool code, its udev rule or its package: Phases 5–12.
 - Messages from our own tools to the LP360: in Phase 3 only DeepCreative sends.
 - A permanent access rule for research: access is granted per session and disappears at reboot (owner decision, 2026-10-22).

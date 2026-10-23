@@ -46,22 +46,26 @@ GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([senso
 
 The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` agent designs from this list; the app has its own design, not DeepCreative's ([below](#deepcreative-interface-quirks-not-reproduced)).
 
-- **Every setting above:** mode, rotation, temperature unit, the CPU fan and pump inputs, saved Creative images.
+**Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
+
+- **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs, saved Creative images.
 - **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
   - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
   - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run;
   - the user's choice is kept across reboots;
   - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
 - **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
-  - one picker for the CPU fan and one for the pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;
+  - one picker for the cooler's fans (DeepCreative's CPU Fan I/O) and one for its pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;
   - "none" is the default;
   - a saved input that's missing shows as not found;
-  - the app shows the chosen inputs' RPM, as DeepCreative's device card shows CPU temperature, CPU fan and pump speed. Fan speeds never reach the cooler.
+  - the app shows the cooler's fan and pump RPM from the chosen inputs. These speeds never reach the cooler's display.
 - **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
-- **Status:**
+- **Status**, kept short:
   - whether the cooler is connected and whether the service is running;
-  - for each metric, its source, or why it's unavailable: no rule for the driver, the CPU power counter not readable, no board fan sensors found;
-  - the board sensor detection: not needed, done, or done without finding sensors.
+  - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
+  - in the fan and pump pickers, a note when no fan sensors were found.
+
+  Details, such as which source each value comes from, go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. There's no theme setting in v1; choosing another desktop's theme comes after v1.
 - **Opacity and blur** (owner, 2026-10-23: the app takes the theme's opacity, blur and so on): on Omarchy, Hyprland applies window opacity and blur to every window by its own rules, so the app must not override them. Its own surfaces use the alpha values of the current theme's `shell.toml`: background, and the hover, focus, selected and pressed fills (PRD, Theme).
 - **Music Mode audio** comes from the session of the user at the PC. Before anyone logs in, the spectrum shows silence.

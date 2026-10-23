@@ -8,7 +8,7 @@ You are a senior UI/UX designer who builds modern, minimalist, clean, fast and p
 
 ## The product
 
-OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on any Arch Linux PC, with Omarchy first. A system service draws the display from boot, the same for every user; the settings app only changes settings and previews them. Settings belong to the PC, not to a user. Read first:
+OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on any Arch Linux PC, with Omarchy first. A system service draws the display from boot, the same for every user; the settings app only changes settings and previews them. Settings belong to the PC, not to a user. It covers only the cooler: its display, and its fans and pump. Read first:
 
 - `AGENTS.md`: the project rules. Rules 1, 2, 8, 10 and 11 bind your work.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`: Phase 11, the Technical Approach (GTK4 with gtk4-rs, Omarchy theming, IPC to the service) and the Decisions Log.
@@ -26,30 +26,33 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 ## Design brief (owner, 2026-10-23)
 
 - **GPU choice only when needed.** With one GPU, dedicated or integrated, show no GPU control. With more than one, show a dropdown, set to the dedicated GPU on the first run; the user's choice is kept across reboots.
-- **No GPU monitoring.** This is a CPU cooler. GPU values appear only where the display's GPU modes show them, for example in the preview; never as a GPU panel.
+- **Only the cooler.** The app covers the display's settings and the cooler's fan and pump speeds, nothing else.
+  - No dashboards and no controls for the CPU, GPU, other fans or power; users use dedicated tools for those, as OpenRGB handles lighting.
+  - CPU, GPU and RAM values appear only where the display shows them, for example in the preview.
+  - This keeps the app small: aim for the fewest screens that reach every display setting.
 - **A default theme of our own.** Where the app finds no Omarchy theme (other desktops, such as Plasma, Pop!_OS, Ubuntu, HyDE, Caelestia or ML4W), it uses OpenDeepCool's default theme. Design it, and make the screens work in both it and any Omarchy theme. Following other desktops' themes comes after v1, so leave room for a later "theme source" setting, but don't show it in v1.
 - **One setup for the whole PC.** Every user sees the same settings, and nobody sets OpenDeepCool up per user.
 
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–22, 100 + n) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).
-- **Out of scope for v1** (rule 8): fan or pump speed control, hidden display settings, ARGB lighting, other devices, GPU monitoring beyond the display's metrics. Never show controls for them.
+- **Out of scope** (rule 8): speed control of the cooler's fans and pump (after v1), hidden display settings, ARGB lighting, other devices, and any monitoring or control of other hardware. Never show controls for them.
 - **States to design:**
   - the cooler is disconnected;
   - the service isn't running;
-  - a metric is unavailable, with its reason;
+  - a value the chosen mode needs is unavailable, with a one-line reason;
   - first start, with the defaults from settings.md;
   - the PC has one GPU (no GPU control) or more than one (the dropdown);
   - a saved fan input or GPU is missing;
-  - no board fan sensors were found;
+  - no fan sensors were found for the cooler's fans and pump;
   - the user may only view the settings (a remote or inactive session).
 - **Settings app scope** (PRD Phase 11):
   - screens for all modes and settings;
   - a live preview of the 14×14 display, rotation included;
   - the pixel editor for Creative Mode images;
-  - the fan and pump input choice with their RPM;
+  - the cooler's fan and pump input choice with their RPM;
   - the GPU dropdown, only when the PC has more than one GPU;
-  - the cooler, service and sensor status.
+  - the cooler and service status, kept short (settings.md, Status).
 - **GTK4 realism:** design with widgets GTK4 actually offers, and name them in the design notes. When unsure whether GTK4 or gtk4-rs supports something, check the official documentation and mark anything you couldn't verify as "unverified" (rule 1).
 - **No machine data** (rule 10): no hardware models, serials, usernames or paths from the owner's PC in mockups or docs. Use made-up sample readings.
 

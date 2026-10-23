@@ -9,6 +9,8 @@ OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Lin
 - A system service drives the LP360's 14×14 dot-matrix display from boot, the same for every user.
 - A GTK4 app changes the settings. It follows the current Omarchy theme live, and uses its own default theme on other desktops.
 
+It covers only the DeepCool cooler: its display, and its fans and pump (owner, 2026-10-23). The CPU, GPU and RAM are read only for the values the display shows.
+
 It is a personal project in a public repository, MIT-licensed, and not affiliated with DeepCool.
 
 ## Start of every session
@@ -55,7 +57,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
    - ARGB lighting: OpenRGB handles it;
    - other devices (sensors, though, must work on any PC: rule 12);
-   - GPU monitoring beyond the GPU metrics the display shows;
+   - monitoring or controlling any hardware other than the cooler (owner, 2026-10-23): read the CPU, GPU and RAM only for the display's values, never write a CPU, GPU, fan or power setting, and leave that to dedicated tools, as OpenRGB handles lighting;
    - following other desktops' themes: v1 uses its default theme there.
 9. **Device safety.**
    - Send the LP360 only messages documented in the spec.
