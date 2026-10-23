@@ -2,7 +2,7 @@
 
 What DeepCreative 1.2.14 draws on the LP360 in modes 1–12 and in Creative Mode, precisely enough to reproduce every frame. How frames are sent is in [protocol.md](protocol.md); evidence labels are defined in [README.md](README.md).
 
-**Proof.** A script that applies only the rules below reproduces, pixel for pixel, every steady frame of 132 sweep steps: every mode 1–12, both temperature units, all four rotations, and values from 0 to 1999. One step is a recorded one-off (see [Observed one-off](#observed-one-off)). Evidence: capture: sweeps of 2026-10-22, with values fed to DeepCreative through its sensor readings (`research/hook/render-check.py`, local).
+**Proof.** A script that applies only the rules below reproduces, pixel for pixel, every steady frame of 340 sweep steps, with values from 0 to 1999. These include the **full test matrix**: every mode 1–12 and Creative Mode, in all four rotations, in both temperature units where a temperature is shown, with three value sets per case. Every metric had its own distinct value, so a mode drawing the wrong metric would have failed. Every scrolling case showed its full cycle. One step is a recorded one-off (see [Observed one-off](#observed-one-off)). Evidence: capture: sweeps of 2026-10-22, the matrix sweep included, with values fed to DeepCreative through its sensor readings (`research/hook/render-check.py`, local). The expected frame of every case is in [frames/](frames/).
 
 ## Grid
 
@@ -132,7 +132,9 @@ The Rotate Screen setting has four values. Value *r* turns the **whole finished 
 | 2 | 180° |
 | 3 | 270° clockwise |
 
-The turn is applied last, so scrolling text moves along the turned picture: after undoing the turn, every frame is the normal left-scrolling picture. Evidence: capture: rotation steps of 2026-10-22, with modes 1, 4, 7 in °F and 10 at each value.
+The turn is applied last, so scrolling text moves along the turned picture: after undoing the turn, every frame is the normal left-scrolling picture. The same holds in every mode, Music Mode and Creative Mode included. Evidence: capture: the matrix sweeps of 2026-10-22, every mode at every rotation value; owner: 2026-10-22, modes 1, 4, 7 in °F and 10, and Music Mode 20 at 90°.
+
+DeepCreative's on-screen preview of the display doesn't turn; only the cooler does (owner: 2026-10-22). So a screenshot of DeepCreative's window can't show rotation, and every rotation check compares the frames sent to the cooler.
 
 ## Creative Mode
 
