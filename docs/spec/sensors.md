@@ -52,7 +52,7 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 | Gpu temperature, usage, power | NVML | NVIDIA GPUs | NVIDIA's library | **unverified**: NVIDIA's driver has no hwmon interface (a pull request to add one exists, NVIDIA open-gpu-kernel-modules #1169, status unverified). Phase 6 chooses the NVML calls from NVIDIA's documentation |
 | Gpu metrics | — | other GPU drivers, such as Intel `i915` and `xe`, or `nouveau` | — | no rule yet: Phase 6 researches what their documentation offers; until then unavailable |
 | Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal | owner's PC |
-| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
+| CPU fan, pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
 
 - **Board sensor driver:** a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
   - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
@@ -65,7 +65,8 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 
 ## Updates and rounding
 
-- **Refresh:** OpenDeepCool reads every metric once per second, as DeepCreative does. Usage and power are averages over that second.
+- **Refresh:** OpenDeepCool reads every metric once per second, as DeepCreative does. CPU usage and CPU power are averages over that second, computed from two counter readings. Gpu usage is the driver's own percentage, shown as read; the window it covers isn't documented (**unverified**). System: on the owner's PC it rose from 2 % to 99–100 % within 2 s of a GPU load (an `ffmpeg` Vulkan filter) and was back at 2 % about 3 s after it stopped, 2026-10-23.
+- **Gpu power** is likewise the driver's own value (`power1_average`), shown as read; the window it averages over isn't documented (**unverified**). System: `sensors` reads the same file (a read right after `sensors` matched it 7 times out of 8). At idle it held steady; under a full GPU load, reads a fraction of a second apart differed by up to about a third, so the once-per-second value moves by tens of watts, 2026-10-23.
 - **Rounding:** the reading keeps its fraction until it's drawn. [display.md](display.md#values) defines the rounding per metric (usage and temperature round up, Memory Load rounds to nearest, and so on).
 - **Units:** temperatures are read in °C; °F is a display conversion ([display.md](display.md#values)).
 
@@ -107,6 +108,7 @@ OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage 
   - Under Wine the list is empty: HWiNFO needs its Windows kernel driver to read the sensor chip (Phase 1 report).
 - OpenDeepCool does the same, on any PC:
   - the settings app lists every hwmon fan input from every sensor chip, with the chip's name, the driver's label (`fanN_label`) when it has one, and the live RPM;
+  - it leaves out a graphics card's own fans, as DeepCreative does (owner, 2026-10-23): a pump or radiator fan never connects to a GPU. The rule: skip an hwmon device whose `device` is a PCI display controller, PCI base class `0x03` (kernel `pci_ids.h`: `PCI_BASE_CLASS_DISPLAY`). System: on the owner's PC the `amdgpu` fan's device has class `0x030000`, while the board chip's is a platform device, 2026-10-23;
   - the user picks one input for the CPU fan and one for the pump. None is chosen by default, as in DeepCreative. No rule could choose: the kernel's hwmon documentation says "There is no standard that ensures, for example, that … the second fan is on the CPU";
   - the choice is saved as the chip's name, its device path and the input number, never as an hwmon index, which changes between boots. If that input is missing, the app shows it as not found, never another input's RPM;
   - the settings app shows their RPM, and nothing reaches the display.

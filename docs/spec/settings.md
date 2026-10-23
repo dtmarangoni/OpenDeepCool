@@ -53,7 +53,7 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
   - the user's choice is kept across reboots;
   - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
 - **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
-  - one picker for the CPU fan and one for the pump. Each lists every fan input in the PC, with its chip's name, its label when the driver has one, and its live RPM;
+  - one picker for the CPU fan and one for the pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;
   - "none" is the default;
   - a saved input that's missing shows as not found;
   - the app shows the chosen inputs' RPM, as DeepCreative's device card shows CPU temperature, CPU fan and pump speed. Fan speeds never reach the cooler.

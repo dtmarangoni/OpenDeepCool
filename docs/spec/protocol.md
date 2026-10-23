@@ -9,7 +9,7 @@ How DeepCreative 1.2.14 talks to the LP360, and what the display does when nothi
 | USB ID | `3633:000c`, product string "LP-Series" (shown as "DeepCool LP-Series") | capture: lsusb and sysfs, 2026-10-21 |
 | Interface | One HID interface, vendor-defined usage page `0xFF00` | code: sysfs `report_descriptor`, 2026-10-22 |
 | Declared reports | 2, 3 and 4: output and feature, 63 bytes each. 5: input and feature, 63 one-bit values. 16: output and input, 63 bytes | code: sysfs `report_descriptor`, 2026-10-22 |
-| Used by DeepCreative | **Output report 16 only.** It never reads from the device and never uses a feature report | capture: all sessions (17,228 messages, every one a write) |
+| Used by DeepCreative | **Output report 16 only.** It never reads from the device and never uses a feature report | capture: every capture of Phases 1 and 3 (8 app starts, 106,075 messages, every one a write) |
 
 Find the device by its USB ID, never by its hidraw number: the number changes between boots (see `docs/local/`).
 
@@ -29,7 +29,7 @@ Every message is one 64-byte HID output report: report ID 16 followed by 63 byte
 | 6+N | `0x16` | Terminator |
 | 7+N … 63 | `0x00` | Padding |
 
-Evidence: capture: all sessions. Every one of the 17,228 captured messages has this layout, a correct checksum, the terminator and zero padding.
+Evidence: capture: all sessions. Every one of the 106,075 captured messages (8 app starts, 2026-10-22) has this layout, a correct checksum, the terminator and zero padding.
 
 ## Messages
 
@@ -38,7 +38,7 @@ DeepCreative sends exactly two kinds of message (capture: all sessions).
 ### Start-up command
 
 - **Payload:** `03 08` (N = 2). The whole report starts `10 68 01 05 02 03 08 7b 16`, followed by zeros.
-- **When:** once, as the first message of a session, before any frame. Capture: both sessions (2026-10-22).
+- **When:** once per app start, as the first message, before any frame. Capture: all 8 app starts, 2026-10-22. One logging process shows it twice, because the research rig restarted DeepCreative inside a Wine process that stayed alive; each `03 08` was the new start's first message.
 - **Meaning:** unverified. DeepCreative's strings don't show how it's built.
 - **OpenDeepCool:** sends it once at start-up, exactly as DeepCreative does.
 
@@ -68,7 +68,7 @@ Evidence: capture: all sessions, with the frames decoded this way showing legibl
 ## Timing
 
 - **Frames are sent continuously in every mode,** even when the picture doesn't change. Capture: all sessions.
-- **Interval:** median 103.9 ms between frames; 5th percentile 88–96 ms, 95th percentile 104.1 ms. That's about 9.6 frames per second. Capture: both sessions.
+- **Interval:** median 103.9 ms between frames; 5th percentile 88–96 ms, 95th percentile 104.1 ms. That's about 9.6 frames per second. Capture: the percentiles from the first two app starts; the median is 103.9–104.0 ms in all 8.
 - **Drawn by the PC:** rotation, scrolling and animation are all computed by DeepCreative; the cooler only shows the frames it receives. Capture: Phase 1 walkthroughs ([Phase 1 report](../research/phase1-wine-spike.md)).
 
 ## Session end and the display without frames
