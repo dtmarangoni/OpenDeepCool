@@ -18,7 +18,7 @@ Evidence:
   - Its stores held mode 1, rotation 0, no fan inputs, and the unit Celsius.
   - The data folder was restored afterwards.
 - **Restore:** capture: mode 9, Fahrenheit and rotation 2 were set, DeepCreative was quit and restarted, and every steady frame was the restored picture (render check). Owner: 2026-10-22, `32°F` twice, upside down and scrolling, on the cooler after the restart. A previous session restored mode 4 the same way.
-- **Saved images:** the image the owner drew in the morning was still shown as mode 101 after the evening's reboot and restarts (capture: matrix sweep, 2026-10-22).
+- **Saved images:** the image the owner drew in the morning was still shown as mode 101 after the evening's reboot and restarts (capture: matrix sweep, 2026-10-22). Checked again on 2026-10-23 after a further reboot and several restarts: mode 101 drew the same image, rotated 180° as set (capture and owner, on the cooler).
 - **Rotate Screen** is one button that steps the value: code, LP page.
 - **Unit:** the Celsius/Fahrenheit choice is one global setting. The device options also hold a field with the same name, but the cooler doesn't follow it: with that field at 1 and the global setting at Celsius, mode 7 drew `57°C` (capture, 2026-10-22). It sits with the hidden settings and wasn't researched further (AGENTS.md rule 8).
 
@@ -28,6 +28,8 @@ Evidence:
 - Sequence: the start-up command `03 08` ([protocol.md](protocol.md#start-up-command)), then frames of the saved picture.
   - A static mode appears with the first frame (first start: mode 1).
   - After a restart into a scrolling mode, DeepCreative sent blank frames for 3 s, then the text scrolled in from the right edge. Why it waited 3 s is unverified.
+  - Checked again on 2026-10-23, restarting into a scrolling °F mode rotated 180°: the first frame came about 1 s after `03 08`, then 30 blank frames over 3.0 s, then the text scrolled in. On the cooler, the owner saw the text start quickly ("like 2 seconds"); blank frames look the same as a dark display. With the screen rotated 180°, the text enters from the right edge of the unrotated picture, so on the cooler it moves left to right, upside down.
+  - DeepCreative sends no frames until its sensor helper delivers values: with the helper started 105 s late, only `03 08` went out until then (research rig, 2026-10-23).
 - **OpenDeepCool:** sends `03 08`, then the saved mode's frames straight away. A scrolling mode starts with its text entering from the right edge, as after a [mode switch](display.md#mode-switches), without the 3 s wait.
 
 ## Where the settings live
