@@ -12,7 +12,7 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 | [music.md](music.md) | Music Mode | Phase 9 |
 | [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–12 |
 | [settings.md](settings.md) | Settings that change what the cooler shows | Phases 7, 11 |
-| `parity-checklist.md` (to come) | Every item above, checked by the owner on the cooler | Every phase; Phase 12 |
+| [parity-checklist.md](parity-checklist.md) | Every item above, checked by the owner on the cooler | Every phase; Phase 12 |
 
 ## What the spec describes
 
