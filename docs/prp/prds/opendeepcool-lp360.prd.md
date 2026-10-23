@@ -364,7 +364,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - the fan input mapping on this board, confirmed with the board's manual and a check by the owner
   - the parity checklist, with each item validated by the owner on the device
 - **Success signal**: The owner signs off the parity checklist as complete and correct.
-- **Done 2026-10-23**: the owner signed off the [parity checklist](../../spec/parity-checklist.md) (73 rows). Outputs are in [`docs/spec/`](../../spec/): protocol, display (full test matrix), Music Mode, sensors, settings, expected frames, checklist.
+- **Done 2026-10-23**: the owner signed off the [parity checklist](../../spec/parity-checklist.md) (73 rows). Outputs are in [`docs/spec/`](../../spec/): protocol, display (full test matrix), Music Mode, sensors, settings, expected frames, checklist. Report: [phase-3-functionality-protocol-spec.report.md](../reports/phase-3-functionality-protocol-spec.report.md).
   - Found in the final checks: after a static mode, DeepCreative replays the paused text of the last scrolling mode, with stale readings, before the new text. OpenDeepCool never does, and the transition tests of Phases 7–8 check it ([display spec](../../spec/display.md#mode-switches)).
   - Owner decisions on 2026-10-23: sensors work on any PC, a sandboxed system service, automatic sensor detection, the GPU choice rules, the cooler-only scope, and the display going blank on its own when the service stops.
   - Still open: `03 08`'s meaning is unverified (sent as DeepCreative does).
