@@ -458,7 +458,8 @@ This project spans many sessions and possibly several coding agents, so the way 
 - **Tests**:
   - integration: install → uninstall leaves no files behind
   - e2e: fresh install → reboot → configured mode shows
-- **Success signal**: The checklist is at 100%, and uninstalling leaves nothing behind.
+- **Last step of v1** (owner, 2026-10-23): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
+- **Success signal**: The checklist is at 100%, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC.
 
 ### Parallelism Notes
 
@@ -495,8 +496,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 |---|---|---|
 | Rust toolchain | mise (already installed) | Build only |
 | Wine 11.20 (11.17 in Phase 1), winetricks | Already installed | Phases 1–3 |
-| Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Deleted after Phase 3 |
-| Extracted DeepCreative files and captures | Outside the repository | Never committed |
+| Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Kept until v1 is finished, in case research is needed again; then deleted with all DeepCreative material (owner, 2026-10-23; Phase 12) |
+| Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted at the end of v1 (Phase 12) |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
 | Temporary access to the LP360 device node | ACL granted by the owner with `sudo setfacl` for a research session | Gone at reboot or re-plug; first granted 2026-10-22 |
 
