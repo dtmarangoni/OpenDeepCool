@@ -10,7 +10,8 @@ Pre-alpha: planning and research. No installable app yet.
 
 - **Phase 1** (done, 2026-10-22): DeepCreative 1.2.14 runs under Wine on the target PC and drives the real cooler; every display mode was recorded. See [the report](docs/research/phase1-wine-spike.md).
 - **Phase 2** (done): this repository, with agent instructions and a commit guard.
-- **Next, Phase 3**: the full functionality and protocol spec, validated on the cooler.
+- **Phase 3** (done, 2026-10-23): the full functionality and protocol spec in [docs/spec/](docs/spec/), with the expected frame of every mode, rotation and unit, and a parity checklist the owner checked on the cooler.
+- **Next, Phase 4**: one implementation plan for each of Phases 5–12.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.
 
