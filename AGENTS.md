@@ -36,9 +36,12 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - Check against this machine, the spec, primary sources (official docs through Context7 or Firecrawl) or the owner.
    - Mark anything you couldn't check as "unverified".
 2. **If in doubt, ask now.** When something is ambiguous, stop and ask the owner right away. Never pick a default silently.
-3. **The owner validates the hardware.** Anything that shows only on the LP360's display, or otherwise physically, must be checked by the owner. Give numbered steps, say what they should see, and wait for the answer before marking it done.
+3. **Testing needs no person** (owner, 2026-10-24).
+   - Phases 1–3 needed the owner's eyes to learn how the device works, and the spec records it. From Phase 5 on, every test (unit, integration, differential and end to end on the real LP360) runs unattended. Nobody watches the cooler or acts during a test.
+   - The proof that bytes become the right picture is the byte-for-byte match with DeepCreative's captured messages, which the owner checked on the cooler in Phase 3.
+   - Ask the owner for decisions and for system changes (rule 7), never to look at the cooler. If a behaviour can only be judged by looking at the cooler, the spec has a gap: stop and raise it (rule 2).
 4. **One implementation, one commit.**
-   - Build each display mode and each combination on its own (for example Load Mode → Combined CPU/GPU): implement it, run its tests, get the owner's check on the cooler, then make **exactly one commit**.
+   - Build each display mode and each combination on its own (for example Load Mode → Combined CPU/GPU): implement it, run all its tests, including the unattended end-to-end run on the cooler, then make **exactly one commit**.
    - Never batch several modes, combinations or unrelated changes into one commit.
    - Use Conventional Commits style (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`).
    - Never commit failing tests or a broken build.
@@ -47,12 +50,13 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
-   - e2e: an automated run on the real device compares every written report with the expected frames; the owner then checks test patterns and samples on the cooler.
+   - e2e: an unattended run on the real device compares every written report with the expected frames (rule 3).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.
    - Describe protocol facts in our own words in the spec.
 7. **No undocumented system changes.** Ask before any `sudo` or system-level change. List every file, package, rule, module or service the app installs or creates in the README's "Installed on your system" section and in the PRD's System Footprint.
+   - Uninstalling removes everything the app installed or created (owner, 2026-10-24): files, users, groups, udev rules, enabled units, permissions and saved data. An automated install-and-uninstall test proves the system is left as it was.
 8. **Out of scope for v1:**
    - fan or pump speed control: never write to hwmon `pwm*` files;
    - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
