@@ -58,12 +58,13 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
   - **Home position** (owner, 2026-10-24): where the static layout places the picture ([Static layout](#static-layout-usage-and-temperature-in-c), OpenDeepCool: alignment). A picture wider than 14 columns has its first digit at column 2. A static picture is the strip stopped at home.
   - **Starting to scroll:** when a value reaches 100, the whole number is drawn at home, from column 2 (`100` in columns 2–12), and its symbol starts at column 14, so the symbol is cut until the strip moves. The strip then moves left from there, one column per frame.
   - **The cycle:** the strip followed by 4 blank columns, at least 21 columns as in DeepCreative (`100W` is 17 columns, so 21; `1234W` is 21, so 25).
-  - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart.
+  - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart. If the strip is at home at that moment and hasn't moved on yet, it stops at once (owner, 2026-10-24).
   - **Rising again before it stopped:** only the digits change; the strip keeps moving on its cycle.
   - **Every change of a number** keeps the strip's position (Scrolling layout, point 5). The position is never reset by a reading, or by switching between moving and stopped.
-  - **A mode switch resets it** (owner, 2026-10-24): the new mode's picture appears at home on the next frame ([Mode switches](#mode-switches)).
+  - **A mode switch resets it** (owner, 2026-10-24): the new mode's picture appears at home on the next frame ([Mode switches](#mode-switches)). A temperature unit change and a rotation change reset it the same way.
+  - **Two values whose lengths change while scrolling** (owner, 2026-10-24): the strip's first column, the first digit place of the longer value, stays put; the shorter value stays aligned to the longer one's right end, so it moves. This holds when the other value becomes the longer one, too.
 - **Music Mode:** only the value area (rows 2–6) scrolls; the spectrum below it keeps moving with the sound ([music.md](music.md#value-area-modes-1822)).
-- Until the spec is updated, the expected frames in [frames/](frames/) follow DeepCreative: its caps for value set 3 (usage 100, 120 °C, 1234 W, GPU 999 W), and °F and power always scrolling. They're regenerated with these rules.
+- The expected frames in [frames/](frames/) follow these rules (regenerated 2026-10-24).
 
 ## Glyphs
 
@@ -161,7 +162,7 @@ OpenDeepCool's own rule (owner, 2026-10-24). DeepCreative has no equivalent: und
 
 - **Static layout:** a dash in the tens place (columns 2–4) and in the units place (columns 6–8). The symbol stays: `--%`, `--°C`.
 - **Scrolling layout:** drawn like a two-digit number whose digits are both dashes: `--°F`, `--W`, in the same 21-column cycle.
-- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample.
+- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample. A reading no sensor can give, negative, not a number or infinite, is drawn as dashes too (owner, 2026-10-24).
 - In the settings app, a mode whose metric is persistently unavailable can't be chosen ([settings.md](settings.md#what-the-settings-app-must-offer)). Dashes on the cooler cover the cases the app can't prevent: the saved mode losing its reading after it was chosen, short read failures, and the first second.
 
 ## Mode switches
@@ -188,9 +189,49 @@ So the stale text enters wherever it stopped, often in the middle of a digit, gl
 - **Why it was missed on 2026-10-22:** the last scrolling text before the switch into mode 10 was that mode's own `345W`, so the replay looked like the new text.
 - **Evidence:** capture: manual switches of 2026-10-23 at 19:04, 19:08 and 19:13, and two runs of the transition probe at 19:20 and 19:34 (`research/hook/transition-probe.mjs` and `transition-analyze.py`, local). The probe records the time of every input and lines it up with every frame sent, with no one watching. Owner: 2026-10-23, on the cooler during the switches and the second probe run.
 
-**OpenDeepCool: a mode switch jumps** (owner, 2026-10-24). The next frame shows the new mode's picture at its home position, with current readings: nothing scrolls out, and no old text comes back. If a value of the new mode is 100 or more, the strip starts moving from home ([Values](#values), OpenDeepCool: one smooth movement). A change of the temperature unit is treated the same way, since it changes the digits and the symbol together.
+**OpenDeepCool: a mode switch jumps** (owner, 2026-10-24). The next frame shows the new mode's picture at its home position, with current readings: nothing scrolls out, and no old text comes back. If a value of the new mode is 100 or more, the strip starts moving from home ([Values](#values), OpenDeepCool: one smooth movement). A change of the temperature unit or of the rotation is treated the same way.
 
-**Test (Phases 7–8):** the transition tests switch between every pair of modes, with a different reading for every metric, with values below and above 100. The frame after the switch must be the new mode's picture at home, and every frame after it must follow the new mode's movement. Nothing of the old picture may appear after the switch.
+**Test (Phases 7–8):** the transition tests switch between every pair of modes, with a different reading for every metric, with values below and above 100. The frame after the switch must be the new mode's picture at home, and every frame after it must follow the new mode's movement. Nothing of the old picture may appear after the switch. The full list is in [Test scenarios](#test-scenarios-opendeepcool).
+
+## Test scenarios (OpenDeepCool)
+
+The display's behaviour over time, as the automated tests of OpenDeepCool's Rust implementation must check it (owner, 2026-10-24). These are OpenDeepCool's own rules: DeepCreative handles these cases differently (caps, fixed layouts, a scroll that finishes its cycle), so the scenarios are never compared with DeepCreative's captures. Each scenario is a sequence of readings and settings changes at chosen ticks, with the frame expected at every tick, generated from this spec's rules like [frames/](frames/). Below, *L* is the cycle length in frames and *k* the number of columns the strip has moved past home.
+
+**Values and movement** (the owner's list first):
+
+| ID | Scenario | Expected |
+|---|---|---|
+| S1 | A value of 100 or more | Scrolls from home: the whole number first, the symbol cut; then one column per frame, an *L*-frame cycle, repeating |
+| S2 | Static → 100 or more | The digits change on the next frame, at home, and the strip starts moving from there |
+| S3 | 100 or more → 99 or less | The strip keeps moving until home, then stops: (*L* − *k*) mod *L* more frames |
+| S4 | 100 or more → 99 or less → 100 or more, before home | Never stops; only the digits change; the position never jumps |
+| S5 | Static → 100 or more → 99 or less → 100 or more → 99 or less, every change before home | Stops at home after the last change |
+| S6 | 100 or more → 99 or less, one column after home (*k* = 1) | *L* − 1 more frames, then stops at home. Tested for every *k* from 0 to *L* − 1; at *k* = 0, still at home and not yet moved on, it stops at once |
+| S7 | Rounding at the limit | Usage 99.0 static, 99.01 → `100` scrolls (it rounds up); Memory Load 99.49 → `99`, 99.5 → `100`; °C 99.0 and 99.01; °F: 37 °C → `98°F` static, 37.01 °C → 38 → `100°F` scrolls; power 99 and 99.01 |
+| S8 | Length changes while scrolling: 3 ↔ 4 ↔ 5 digits (999 ↔ 1000 ↔ 10000) | The first digit place stays put; the cycle grows or shrinks (21 ↔ 25 ↔ 29); home is still reached and stopped at |
+| S9 | Length changes while static: 9 ↔ 10 | One value is re-centred: `9%` in columns 4–12, `10%` in 2–14. Two values stay ending at column 14 |
+| S10 | Two values, one 100 or more and the other 99 or less | Both scroll together, last digits aligned; then each of the two crosses the limit in turn, both at once, and one up while the other comes down on the same tick (it keeps scrolling) |
+| S10b | Two values scrolling, lengths changing: the longer one grows or shrinks, the shorter one grows past it (`1000` over `65` → `99` over `1500`) | The strip's first column stays put; the shorter value stays aligned to the longer one's right end |
+| S11 | A value becomes unavailable, or comes back: while static, while scrolling, in one or both bands, and → a value of 100 or more | Dashes take two digit places, with the symbol; the movement rules don't change |
+| S12 | Very long values (5 and 6 digits, for example 123456 W) | Long cycles (*L* = 4 × digits + symbol + 4); every digit shown |
+| S13 | Readings arrive every 10th tick; the cycle is 21 or more | A change is tested at every *k* of the cycle |
+
+**Settings, mode switches and the device:**
+
+| ID | Scenario | Expected |
+|---|---|---|
+| S14 | A mode switch at every *k*, into each kind of mode (static, scrolling from home, Music Mode, Creative Mode) and from each | The next frame is the new mode's picture at home; nothing of the old one |
+| S15 | A temperature unit change, static and scrolling (`57°C` → `134°F`) | Like a mode switch |
+| S16 | A rotation change (each value, and Rotate Screen presses) while scrolling and while static | Like a mode switch: the next frame is the turned picture at home |
+| S17 | Start-up into each mode: values of 99 or less, 100 or more, and the first second's dashes turning into a value of 100 or more | The saved picture at home on the first frame after `03 08` |
+| S18 | The cooler disconnects while scrolling and comes back | The position follows the ticks while it's away; the first frame back starts with `03 08` |
+| S19 | Readings outside what a sensor can give: negative, not a number, infinite, in each band, static and scrolling | Never a crash; drawn as dashes, like an unavailable value |
+| S20 | Value rules at every length boundary, for every metric: 0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000 | Each number as the Values table gives it, with no cap |
+| S21 | A reading change and a settings change on the same tick | The settings change wins: the new picture at home, with the new reading |
+| S22 | A tick whose deadline is missed (the frame is skipped) while scrolling | The strip moves one column per frame sent; nothing bunches up |
+| S23 | A change the service refuses (an unavailable mode, a later phase's mode) | Nothing changes on the cooler |
+
+**Which modes, units and values:** every scenario runs in every mode that shows a value (1–12 and 18–22), in both temperature units where the mode shows a temperature, for single values and for combined values, with the change in the top value, the bottom value, and both. Every rotation is checked too: the expected frames of a rotation are the rotation-0 frames turned. In Music Mode (18–22) only the value area (rows 2–6) moves, and the spectrum keeps following the sound in every frame. The modes without values (13–17 full screen and emoji, 100 and 101 Creative Mode) run S14 to S18: switches into and out of them at every *k*, rotation, start-up and reconnect.
 
 ## Rotation
 

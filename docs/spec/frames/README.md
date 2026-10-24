@@ -2,7 +2,13 @@
 
 The frame OpenDeepCool must send to the LP360 for every case of the test matrix: every mode × the four rotations × °C and °F where a temperature is shown, with three value sets per case. The Rust tests compare their output with these files (PRD, Testing Strategy).
 
-They're drawn from the spec's rules alone ([display.md](../display.md), [music.md](../music.md)), and the same rules reproduce DeepCreative's captured frames for every case. Where DeepCreative shows the wrong metric, these files show the metric the mode names (AGENTS.md rule 11), for example the CPU Temperature in mode 18 in °F.
+They're drawn from the spec's rules alone ([display.md](../display.md), [music.md](../music.md)): OpenDeepCool's rules, which differ from DeepCreative's on purpose in a few places (owner decisions of 2026-10-24):
+- every value in full, never capped;
+- static while every value is 99 or less, scrolling while one is 100 or more, °F and power included;
+- one value centred, two values ending at column 14;
+- where DeepCreative shows the wrong metric, the metric the mode names (AGENTS.md rule 11), for example the CPU Temperature in mode 18 in °F.
+
+Where the two sets of rules agree (for example two-digit usage, or two-digit °C in one band), the same cases reproduce DeepCreative's captured frames pixel for pixel. Regenerated on 2026-10-24 with these rules: 172 of the 292 cases changed.
 
 ## Format
 
@@ -13,7 +19,7 @@ One file per mode, `mode-NNN.txt`. Each `##` section is one case:
   - `#` on, `.` off;
   - `?` a spectrum pixel: it depends on the sound, so it's checked by the spectrum's layout rules instead (solid bars from the floor, height limits).
 - **Static case:** one frame, sent unchanged while the readings stay the same.
-- **Scrolling case:** 21 frames in time order, one per 100 ms tick, seven per line. The display may start at any of them and wraps from the last back to the first.
+- **Scrolling case:** one cycle in time order, one frame per 100 ms tick, seven per line: 21 frames, or more when the text is wider than 17 columns. The first frame is the home position, which is what the display shows on the first frame after a mode switch; after the last frame the cycle starts again.
 - **Emoji case:** one loop of pictures in order, with their durations above them.
 - **Creative Mode, mode 101:** a lopsided test image (an L in the top-left corner, a dot in the bottom-right) stands for a saved image, so a wrong turn or mirror shows.
 
