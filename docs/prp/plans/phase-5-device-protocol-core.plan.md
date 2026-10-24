@@ -464,38 +464,54 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 **Validation**
 - `scripts/dev/check.sh`: exit 0.
 
-### 9. Unattended end-to-end on the real LP360 (layer 4, local)
+### 9. Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)
 
 **Files and integration points**
-- `crates/odc-device/tests/real_device.rs`: CREATE.
-  - Every test is `#[ignore = "needs the LP360 and membership of the opendeepcool group (scripts/dev/setup.sh)"]`.
-  - They run with `--test-threads=1`.
+- `crates/odc-testkit/src/hardware.rs`: CREATE, the hardware probe that every phase's end-to-end tests share (owner, 2026-10-24: the dev program runs on other computers too).
+  - `Capability`: an enum, starting with `Lp360` and `Lp360Reconnect`. Phases 6–12 add theirs.
+  - `probe(cap) -> Probe`:
+    - `Real`: the device exists and this account can use it;
+    - `Absent { reason }`: the device doesn't exist;
+    - `Unusable { reason, fix }`: it exists but can't be used, for example no write access.
+  - It finds devices the way the product does: USB ID, driver name, PCI class.
+  - `ODC_E2E_REQUIRE`: an optional comma-separated list (`lp360,lp360-reconnect,…`). A listed capability that probes `Absent` is a failure. On the owner's PC it's set from `docs/local/` (git-ignored); other computers leave it unset.
+  - `Summary`: collects every capability's mode (real, fake, or failed with the reason) and prints it as a table at the end of the run.
+- `crates/odc-device/tests/hardware.rs`: CREATE.
+  - Every test is `#[ignore = "layer 4: run locally with --ignored --test-threads=1"]`. They touch real hardware when present, so they never run in CI.
 
 **Implementation**
-- **Preconditions:** the test asserts them with clear messages: `HidrawConnector::system()` finds the LP360, and opening it succeeds. A test that can't reach the cooler **fails**; it never skips.
+- **Each test probes its capability first:**
+  - `Real` → the real device;
+  - `Absent` → the same scenario through the fakes, with the mode recorded as fake: `HidrawConnector` over a fake tree (Phase 5 Task 7), or a `FakeConnector` for reconnect;
+  - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
 - **`test_images_all_rotations`:**
-  - `Lp360` over `Recording<HidrawConnector::system()>`, writing to `target/e2e/real-device-<unix ns>.log`;
+  - `Lp360` over `Recording<…>`, writing to `target/e2e/hardware-<unix ns>.log`;
   - shows mode 100 (blank), then the mode-101 stored image in rotations 0, 1, 2, 3, each for 20 frames at a fixed 104 ms interval (`protocol.md` Timing);
   - every `show` must return `Connected`.
   - Afterwards it reads the recording back:
     - the first message is `Startup`, and the only one;
     - then come exactly the 100 frames, in order, each matching its expected case from `mode-100.txt` and `mode-101.txt` (`odc_testkit::diff`);
     - nothing else was written.
-- **`reconnect_on_real_device`:**
-  - finds the LP360's USB device directory by `idVendor`/`idProduct` under `/sys/bus/usb/devices`;
-  - shows frames, writes `0` to `authorized`, and keeps calling `show` every 104 ms until it returns `Disconnected` (at most 2 s);
-  - writes `1`, and keeps calling `show` until `Connected` (at most 10 s);
-  - the recording must show `Startup`, frames, then a **second** `Startup` directly before the first frame after reconnecting.
+- **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`scripts/dev/reconnect.rules`).
+  - Real:
+    - find the LP360's USB device directory by `idVendor`/`idProduct` under `/sys/bus/usb/devices`;
+    - show frames, write `0` to `authorized`, and keep calling `show` every 104 ms until it returns `Disconnected` (at most 2 s);
+    - write `1`, and keep calling `show` until `Connected` (at most 10 s).
 
-  A drop guard writes `1` to `authorized` on every exit path, so a failing test never leaves the cooler disconnected.
+    A drop guard writes `1` to `authorized` on every exit path, so a failing test never leaves the cooler disconnected.
+  - Fake: the same sequence with the device removed from, then restored to, a fake tree under a new hidraw number.
+  - Either way, the recording must show `Startup`, frames, then a **second** `Startup` directly before the first frame after reconnecting.
 - Only `startup_report()` and `encode_frame` output reach the device; `Report` makes anything else impossible (rule 9).
 - The research rig must not run at the same time, because DeepCreative would write to the cooler too. The test file's doc comment says so.
 
 **Tests**
-- These are the tests.
+- These are the tests, plus unit tests of the probe against fake trees:
+  - no LP360 → `Absent`;
+  - an LP360 node without write access → `Unusable`, with the setup fix;
+  - an `ODC_E2E_REQUIRE` entry that probes `Absent` → failure.
 
 **Validation**
-- `cargo test -p odc-device --test real_device -- --ignored --test-threads=1`: passes. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
+- `cargo test -p odc-device --test hardware -- --ignored --test-threads=1`: passes, and prints the summary. On the owner's PC, with `ODC_E2E_REQUIRE=lp360,lp360-reconnect`, both capabilities run real. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
 - Then `scripts/dev/check.sh`: exit 0.
 
 ### 10. CI and the commit guard run the automated layers
@@ -540,14 +556,19 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - after the cooler disappears, `show` keeps rescanning and reconnects to it under a new hidraw number;
    - proven with fakes in CI and on the real cooler (Tasks 6, 7, 9).
 6. **AC6 — Without root:**
-   - the real-device tests run as a member of `opendeepcool`, with no `sudo`;
+   - the layer 4 tests run as a member of `opendeepcool`, with no `sudo`;
    - both udev rules pass `udevadm verify`;
    - `scripts/dev/check.sh` passes before and after a reconnect (Tasks 8, 9).
 7. **AC7 — Unattended:**
    - every layer runs with no person;
    - CI and the pre-commit guard run layers 1 and 3;
    - layers 2 and 4 have documented local commands (Task 10).
-8. **AC8 — Records:**
+8. **AC8 — Real where present, fake where absent:**
+   - the layer 4 run probes each capability on the PC it runs on;
+   - present and usable means real; absent means the same checks against fakes; present but unusable fails with the setup fix;
+   - capabilities listed in `ODC_E2E_REQUIRE` must run real;
+   - every run prints which mode each capability used (Task 9).
+9. **AC9 — Records:**
    - AGENTS.md Commands and Repository layout, the README Development section, and the PRD's dev footprint match what was built (Tasks 1, 8, 10).
 
 ## Validation
@@ -559,7 +580,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 | Layers 1 + 3 | `cargo test --workspace` | AC1 (spec vectors), AC2, AC3, AC4, AC5 (fakes) |
 | udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` | AC6 (syntax) |
 | Layer 2 (local) | `cargo test -p odc-protocol --test differential_captures -- --ignored` | AC1 (captures) |
-| Layer 4 (local, unattended) | `cargo test -p odc-device --test real_device -- --ignored --test-threads=1`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler |
+| Layer 4 (local, unattended) | `cargo test -p odc-device --test hardware -- --ignored --test-threads=1`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler where attached; AC8 |
 | Dev access state | `scripts/dev/check.sh` | AC6 |
 | CI | GitHub Actions run on the pushed branch | AC7 |
 
@@ -567,8 +588,8 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 
 | Matrix cases | Layer | Where |
 |---|---|---|
-| Mode 100 × rotations 0–3 | 1 (unit), 4 (real cooler) | Task 3 `rotation_expected`, Task 9 |
-| Mode 101 × rotations 0–3 | 1 (unit), 4 (real cooler) | Task 3 `rotation_expected`, Task 9 |
+| Mode 100 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
+| Mode 101 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
 | All 116 cases (292 sections) | loader only | Task 3: every file parses into typed cases for Phases 7–10 |
 
 The other 108 matrix cases need renderers and belong to Phases 7–10, which compare their output with the same loader and diff.

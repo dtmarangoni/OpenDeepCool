@@ -244,6 +244,12 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
   - reconnecting after the device disappears.
 - **Layer 4, end to end on the real LP360:**
   - **automated:** the service drives the real cooler through the whole matrix, records every report it actually wrote, and compares them with the expected frames. Unattended.
+  - **real where present, fake where absent** (owner, 2026-10-24: the dev program runs on other computers too): the run probes the PC it runs on, for the cooler, the CPU and GPU drivers and the board fans.
+    - A device that is present and usable is tested for real.
+    - An absent one gets the same checks against fakes.
+    - One that is present but unusable (for example without the dev access setup) fails with its fix, never falls back.
+    - `ODC_E2E_REQUIRE` lists what must run real on a given PC (on the owner's PC, set from `docs/local/`).
+    - Every run prints which mode each device used.
   - **no person (rule 3):** nobody looks at the cooler. Layer 2's byte-for-byte match with the captures the owner checked in Phase 3 proves bytes → picture and orientation.
 - **Music Mode spectrum:** OpenDeepCool's own analysis, so it isn't compared with DeepCreative. Synthetic tones must light the columns the Phase 9 design predicts, and every spectrum frame must follow the layout rules (solid bars from the bottom, bottom row lit, height limits) in every rotation.
 - **When they run:** layers 1 and 3 on every push (GitHub Actions) and in the pre-commit guard from Phase 5; layers 2 and 4 before each mode's commit (rule 4).

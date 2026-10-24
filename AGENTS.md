@@ -50,7 +50,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
-   - e2e: an unattended run on the real device compares every written report with the expected frames (rule 3).
+   - e2e: an unattended run compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `ODC_E2E_REQUIRE` lists what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.
