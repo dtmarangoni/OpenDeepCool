@@ -41,7 +41,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Intel GPUs report no usage.** Modes showing Gpu usage are disabled on them.
 - **Talking to the service.** The app uses the D-Bus system bus; in a remote or inactive session it shows the settings read-only (polkit).
 - **Static or scrolling, per mode.** Every mode except Music Mode can be shown static or scrolling; the user chooses, and the choice is saved with the mode. The preview shows the chosen layout.
-- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits). The display's glyphs and layouts are being redesigned for this (`docs/spec/display.md`, Values); the preview uses whatever that design specifies.
+- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits). A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
 
 ## Constraints
 

@@ -52,7 +52,7 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
 
 - **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs, saved Creative images.
 - **Static or scrolling** (owner, 2026-10-24): every mode except Music Mode can be shown static or scrolling. The user chooses it in the app; it's saved with the mode, so the cooler starts the next time with the same mode and the same choice ([display.md](display.md#modes)). DeepCreative has no such choice.
-- **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, never capped; the drawings are being redesigned to fit three or more digits ([display.md](display.md#values)).
+- **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, never capped. A value that doesn't fit the static layout scrolls on its own until it fits again; in Music Mode only the value scrolls, never the spectrum ([display.md](display.md#values)).
 - **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
   - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
   - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run;

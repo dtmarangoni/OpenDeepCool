@@ -32,7 +32,7 @@ DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative'
 
 Combined layouts exist in one order only, as listed. Evidence: code: LP page modes (Phase 1 report); capture: sweeps.
 
-**OpenDeepCool: static or scrolling for every mode** (owner, 2026-10-24). DeepCreative fixes the layout per mode: static for usage and °C, scrolling for °F and power. In OpenDeepCool the user chooses static or scrolling in the app for every mode except Music Mode, and the choice is saved with the mode, so the cooler starts the next time with the same mode and the same choice. How each mode looks in the layout DeepCreative doesn't have is part of the redesign under [Values](#values).
+**OpenDeepCool: static or scrolling for every mode** (owner, 2026-10-24). DeepCreative fixes the layout per mode: static for usage and °C, scrolling for °F and power. In OpenDeepCool the user chooses static or scrolling in the app for every mode except Music Mode, and the choice is saved with the mode, so the cooler starts the next time with the same mode and the same choice. Both layouts use the glyphs below. A static mode still scrolls on its own whenever a value doesn't fit ([Values](#values), OpenDeepCool: no caps).
 
 ## Values
 
@@ -51,8 +51,11 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 **OpenDeepCool: no caps** (owner, 2026-10-24).
 - These limits are DeepCreative's own rules, not the hardware's: the PC draws every pixel, and the cooler's only limit is its 14 × 14 grid of on/off pixels ([protocol.md](protocol.md)).
 - With the 3 × 5 digits, the static layout fits two digits and a symbol, and the scrolling field three digits; DeepCreative caps or cuts everything longer.
-- OpenDeepCool draws every value in full, in both layouts, with redesigned drawings (glyphs and layouts) that fit three or more digits in the static layout too.
-- The redesign isn't specified yet. Until it is, this section describes DeepCreative, and the expected frames in [frames/](frames/) follow it.
+- OpenDeepCool draws every value in full, with the same glyphs (owner, 2026-10-24). Smaller glyphs were considered and rejected: the owner's trials on the cooler showed them hard to read.
+- **Automatic scrolling:** whenever a value doesn't fit the static layout (three digits or more), the picture switches to the [scrolling layout](#scrolling-layout-temperature-in-f-and-power), so no digit is lost. It goes back to static once every value fits again.
+- **Longer text in the scrolling layout:** the field is as wide as the longer text when that is over 17 columns, followed by the same 4 blank columns. For example, `1234W` is 21 columns, so its cycle is 25.
+- **Music Mode:** only the value area (rows 2–6) scrolls; the spectrum below it keeps moving with the sound ([music.md](music.md#value-area-modes-1822)).
+- Until the spec is updated, the expected frames in [frames/](frames/) follow DeepCreative's caps for value set 3 (usage 100, 120 °C, 1234 W, GPU 999 W); they're regenerated with these rules.
 
 ## Glyphs
 
