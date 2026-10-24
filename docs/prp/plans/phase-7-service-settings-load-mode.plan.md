@@ -477,13 +477,14 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `scripts/dev/check.sh` exits 0;
   - `busctl get-property io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 Mode` prints `u 1`.
 
-### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; and the boot check
+### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the boot check; and the attended tour
 
 **Files and integration points**
 - `crates/odc-testkit/src/hardware.rs`: UPDATE, with two capabilities:
   - `DevService`: Real when the dev copy is active, owns its name, runs with `--dev`, and the LP360 probes Real;
   - `BootSinceInstall`: Real when the current boot started after the dev copy was installed (manifest time vs. `journalctl --list-boots`).
-- `crates/odc-service/tests/hardware.rs`: CREATE, `#[ignore = "layer 4: run locally with --ignored --test-threads=1"]`.
+- `crates/odc-e2e/src/service.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only service`.
+- `crates/odc-e2e/src/attended.rs`: CREATE, the attended tour behind the `--attended` flag.
 
 **Implementation**
 - **Matrix run** (`DevService` Real):
@@ -494,9 +495,15 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **Scenario run** (`DevService` Real): the scenarios of `scenarios/load.txt` on the real, sandboxed service.
   - To line changes up with ticks exactly, the dev interface's `OverrideReadings` takes effect on the next tick (not the next snapshot) and returns that tick's number, and the dev recording writes each report with its tick number. Settings changes go through the normal methods, and their tick is read from the recording.
   - Every recorded frame from each change on must match the scenario's expected frame for that tick.
-  - Default run: every scenario in rotation 0, and the first variant of each scenario in rotations 1–3, about 30 minutes. `ODC_E2E_FULL=1` runs every scenario in every rotation, a few hours, unattended. Layers 1 and 3 always run the whole cross.
+  - Every scenario in every rotation, every run: the whole cross, unattended (owner, 2026-10-24). It takes a few hours; the summary prints the time it took.
   - **Afterwards:** `ClearOverride` and restore the owner's saved settings, which were read at the start, so the run leaves the PC as it found it.
 - **Fake mode** (`DevService` Absent, for example on another computer): the same matrix and scenario runs against an in-process `Engine` with the fakes. A `DevService` that's present but unusable (for example the service is inactive) fails with the fix.
+- **Attended tour** (`odc-e2e --attended`; owner, 2026-10-24): a short run for the owner to watch on the cooler, never a gate (AGENTS.md rule 3: every required test stays unattended).
+  - One case of each kind: each Load Mode (modes 1–6) with one-digit, two-digit and `100%` values, and dashes.
+  - One case of each edge case: one variant of each scenario S1–S26 that applies to Load Mode.
+  - For each, it shows the case on the real cooler through the dev service, prints the expected picture as text and one line saying what should happen ("`100%` scrolls left from where `99%` was, then stops at home"), and waits: `y` it looked right, `n` it didn't (with an optional note), `r` show it again.
+  - The answers go to `target/e2e/attended-<unix time>.txt`, and a `n` makes the tour's exit code non-zero. Afterwards it restores the owner's settings, like the unattended run.
+  - Later phases add one case of each of their modes and edge cases.
 - **Boot check** (`BootSinceInstall` Real):
   - the journal shows the service started in this boot;
   - its first recorded frame, the saved mode's picture, is earlier than the first `New session` entry from `systemd-logind` in the same boot, or there was no login yet;
@@ -504,8 +511,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - Absent → it runs against a recorded journal fixture and says so.
 
 **Validation**
-- `cargo test -p odc-service --test hardware -- --ignored --test-threads=1`: passes, and prints the probe summary.
-- With `ODC_E2E_REQUIRE` on the owner's PC including `dev-service`, the matrix runs real. The boot check runs real after the first reboot following Task 8.
+- `cargo run -p odc-e2e -- --only service`: passes, and prints the probe summary.
+- With `--require dev-service` on the owner's PC, the matrix and the scenarios run real.
+- `cargo run -p odc-e2e -- --attended` works through the tour; the owner runs it when they want to look. The boot check runs real after the first reboot following Task 8.
 
 ### 10. Records, CI and the resource baseline
 
@@ -567,7 +575,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Unit and policies | `systemd-analyze verify packaging/systemd/opendeepcool.service`; `xmllint --noout packaging/dbus/*.conf packaging/polkit/*.policy` | AC8 (syntax) |
 | Sandbox | `systemd-analyze security opendeepcool.service` on the dev copy | AC8 |
 | Dev copy | `scripts/dev/check.sh`; `busctl get-property … Mode` | AC8, AC10 |
-| Layer 4 (local) | `cargo test -p odc-service --test hardware -- --ignored --test-threads=1` | AC9 |
+| Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only service --require dev-service` | AC9 |
+| Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended` | The owner's own look; never a gate |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |
 
 ### Test matrix covered in this phase
@@ -576,8 +585,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 |---|---|---|---|
 | Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 116 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
 | Dash and impossible-reading cases (`unavailable.txt`) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
-| Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | rotation 0, plus each scenario's first variant in rotations 1–3; all with `ODC_E2E_FULL=1` |
-| Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect, refused and repeated choices) × 4 rotations | `engine` | — | as above |
+| Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | every scenario in every rotation |
+| Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect, refused and repeated choices) × 4 rotations | `engine` | — | every scenario in every rotation |
 
 ## Risks and Decisions
 

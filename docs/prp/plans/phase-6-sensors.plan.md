@@ -163,7 +163,7 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 | `docs/prp/prds/opendeepcool-lp360.prd.md:168-204` | Sensor sources, architecture, service model |
 | `docs/prp/plans/phase-5-device-protocol-core.plan.md` (Tasks 1, 8, 10) | Workspace, lints, `packaging/udev/70-opendeepcool.rules`, `scripts/dev/*`, CI and the guard this phase extends |
 | `AGENTS.md` rules 3, 7, 8, 10 (exception for driver names), 11, 12 | The constraints every task checks |
-| `docs/local/machine.md` (local only) | The owner's devices: only for setting `ODC_E2E_REQUIRE` on the owner's PC, never in code or commits |
+| `docs/local/machine.md` (local only) | The owner's devices: only for the `odc-e2e --require` list on the owner's PC, never in code or commits |
 
 ### Existing patterns and primitives
 
@@ -468,7 +468,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - an iGPU plus a dGPU;
   - a failed query;
   - nouveau.
-- **End to end (local, ignored, `crates/odc-gpu-rank/tests/hardware.rs`):** the probe (Task 11) decides per GPU driver.
+- **End to end (local, `odc-e2e --only gpu-rank`, `crates/odc-e2e/src/gpu_rank.rs`):** the probe (Task 11) decides per GPU driver.
   - **Real GPUs:** `odc-gpu-rank --state-dir target/e2e/state` runs twice as a member of `opendeepcool`, against the real render nodes or NVIDIA's library.
     - Every PCI display device in sysfs gets a kind.
     - A driver with a documented signal must not end up `Unknown`.
@@ -478,7 +478,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - Nothing about the owner's GPUs is written into the code.
 
 **Validation**
-- `cargo test -p odc-gpu-rank`, then `cargo test -p odc-gpu-rank --test hardware -- --ignored`: both pass.
+- `cargo test -p odc-gpu-rank`, then `cargo run -p odc-e2e -- --only gpu-rank`: both pass.
 
 ### 10. `odc-sensors-detect`: lm-sensors finds the board's fan driver once, and nothing it didn't create is ever touched
 
@@ -532,8 +532,8 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
     - CPU power present but not readable → run `scripts/dev/setup.sh`;
     - a GPU present but its tool missing → install `ffmpeg`;
     - `sensors` missing → install `lm_sensors`.
-- `crates/odc-sensors/tests/hardware.rs`: CREATE. Every test is `#[ignore = "layer 4: run locally with --ignored --test-threads=1"]`.
-- No file describes the owner's PC. The tests learn the hardware from the probe (owner, 2026-10-24). `ODC_E2E_REQUIRE` (Phase 5 Task 9) lists what must run real on a given PC; on the owner's PC it's set from `docs/local/`.
+- `crates/odc-e2e/src/sensors.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only sensors`.
+- No file describes the owner's PC. The tests learn the hardware from the probe (owner, 2026-10-24). `odc-e2e --require` (Phase 5 Task 9) lists what must run real on a given PC; on the owner's PC the list comes from `docs/local/`.
 
 **Implementation** (`Real` capabilities run `Registry` over the real `/sys` and `/proc` as a member of `opendeepcool`; `Absent` ones run the same checks over the Task 3 fixtures, with values chosen to satisfy them)
 - **Every metric bound:**
@@ -566,8 +566,8 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - NVML not loadable → `GpuNvidia` `Absent`.
 
 **Validation**
-- `cargo test -p odc-sensors --test hardware -- --ignored --test-threads=1`: passes, and prints the summary.
-- On the owner's PC, with `ODC_E2E_REQUIRE` from `docs/local/` covering its CPU, power counter, GPU and board fans, every one of those runs real.
+- `cargo run -p odc-e2e -- --only sensors`: passes, and prints the summary.
+- On the owner's PC, with a `--require` list from `docs/local/` covering its CPU, power counter, GPU and board fans, every one of those runs real.
 - `AGENTS.md` Commands: add this and the `odc-gpu-rank` end-to-end command, to run before any commit touching `odc-sensors` or `odc-gpu-rank`.
 
 ## Acceptance
@@ -620,9 +620,9 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 | udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` | AC4 (syntax) |
 | Units | `systemd-analyze verify packaging/systemd/opendeepcool-gpu-rank.service packaging/systemd/opendeepcool-sensors-detect.service`, run locally; it reports the missing `opendeepcool.service` until Phase 7, which is expected and listed | AC6, AC7 (unit syntax) |
 | Dev access | `scripts/dev/check.sh` | AC4 |
-| GPU helper, layer 4 | `cargo test -p odc-gpu-rank --test hardware -- --ignored` | AC6 |
+| GPU helper, layer 4 | `cargo run -p odc-e2e -- --only gpu-rank` | AC6 |
 | Detection, once | `pkexec target/debug/odc-sensors-detect --state-dir /var/lib/opendeepcool`, then the Task 10 checks | AC7 |
-| Sensors, layer 4 | `cargo test -p odc-sensors --test hardware -- --ignored --test-threads=1` | AC4, AC9 |
+| Sensors, layer 4 | `cargo run -p odc-e2e -- --only sensors` | AC4, AC9 |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |
 
 ### Test matrix covered in this phase
@@ -657,7 +657,7 @@ Phase 6 draws no frames, so it covers none of the 116 display cases. Its own mat
 
 ## Agent Notes
 
-- The end-to-end tests read no description of the PC: the probe decides. Only `ODC_E2E_REQUIRE` is set on the owner's PC, from `docs/local/`.
+- The end-to-end tests read no description of the PC: the probe decides. Only the `odc-e2e --require` list is given on the owner's PC, from `docs/local/`.
 - Before the Task 10 real run, show the owner the exact command and the two files it may create. It's approved, but it is a system change (rule 7).
 - The 2026-10-24 conversation decided:
   - the rank helper's design (owner);

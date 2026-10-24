@@ -130,9 +130,9 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
   <div class="card" id="S6"><span class="step-n">6</span>CPU Power from the package energy counters, readable only by the service's group<div class="files">powercap.rs · 70-opendeepcool.rules · setup.sh · teardown.sh · check.sh</div></div>
   <div class="card" id="S7"><span class="step-n">7</span>The GPU list, the saved choice and the fan inputs<div class="files">gpu.rs · fans.rs</div></div>
   <div class="card" id="S8"><span class="step-n">8</span>GPU temperature, usage and power for amdgpu, Intel and NVIDIA<div class="files">drm.rs · nvml.rs · rules.rs</div></div>
-  <div class="card" id="S9"><span class="step-n">9</span><code>odc-gpu-rank</code>: a short-lived helper ranks the GPUs once<div class="files">crates/odc-gpu-rank/ · ffi.rs · main.rs · hardware.rs · opendeepcool-gpu-rank.service</div></div>
+  <div class="card" id="S9"><span class="step-n">9</span><code>odc-gpu-rank</code>: a short-lived helper ranks the GPUs once<div class="files">crates/odc-gpu-rank/ · ffi.rs · main.rs · opendeepcool-gpu-rank.service · gpu_rank.rs (odc-e2e)</div></div>
   <div class="card" id="S10"><span class="step-n">10</span><code>odc-sensors-detect</code>: lm-sensors finds the board's fan driver once, and nothing it didn't create is ever touched<div class="files">crates/odc-sensors-detect/ · opendeepcool-sensors-detect.service</div></div>
-  <div class="card" id="S11"><span class="step-n">11</span>Layer 4 end to end: real sensors where the PC has them, fakes where it doesn't<div class="files">hardware.rs (odc-testkit) · hardware.rs (odc-sensors)</div></div>
+  <div class="card" id="S11"><span class="step-n">11</span>Layer 4 end to end: real sensors where the PC has them, fakes where it doesn't<div class="files">hardware.rs (odc-testkit) · sensors.rs (odc-e2e)</div></div>
 </div>
 
 <h2>Risks and decisions</h2>

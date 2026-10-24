@@ -130,7 +130,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
   <div class="card" id="S6"><span class="step-n">6</span><code>Lp360</code> keeps the cooler fed: <code>03 08</code> first on every connection, rescan after any failure<div class="files">port.rs · lp360.rs · record.rs · fake.rs</div></div>
   <div class="card" id="S7"><span class="step-n">7</span>The hidraw adapter finds the LP360 by USB ID under any node name<div class="files">hidraw.rs</div></div>
   <div class="card" id="S8"><span class="step-n">8</span>The udev rule and group are product files; dev scripts install and remove the dev copies<div class="files">70-opendeepcool.rules · opendeepcool.conf · reconnect.rules · setup.sh · teardown.sh · check.sh · opendeepcool-lp360.prd.md</div></div>
-  <div class="card" id="S9"><span class="step-n">9</span>Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)<div class="files">hardware.rs (odc-testkit) · hardware.rs (odc-device)</div></div>
+  <div class="card" id="S9"><span class="step-n">9</span>Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)<div class="files">hardware.rs (odc-testkit) · crates/odc-e2e/ · device.rs</div></div>
   <div class="card" id="S10"><span class="step-n">10</span>CI and the commit guard run the automated layers<div class="files">ci.yml · pre-commit · AGENTS.md</div></div>
 </div>
 
@@ -153,7 +153,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
 <div class="card" id="AC5"><strong>AC5 — Start-up and reconnect:</strong><ul><li>every connection starts with <code>03 08</code> before its first frame;</li><li>after the cooler disappears, <code>show</code> keeps rescanning and reconnects to it under a new hidraw number;</li><li>proven with fakes in CI and on the real cooler (Tasks 6, 7, 9).</li></ul></div>
 <div class="card" id="AC6"><strong>AC6 — Without root:</strong><ul><li>the layer 4 tests run as a member of <code>opendeepcool</code>, with no <code>sudo</code>;</li><li>both udev rules pass <code>udevadm verify</code>;</li><li><code>scripts/dev/check.sh</code> passes before and after a reconnect (Tasks 8, 9).</li></ul></div>
 <div class="card" id="AC7"><strong>AC7 — Unattended:</strong><ul><li>every layer runs with no person;</li><li>CI and the pre-commit guard run layers 1 and 3;</li><li>layers 2 and 4 have documented local commands (Task 10).</li></ul></div>
-<div class="card" id="AC8"><strong>AC8 — Real where present, fake where absent:</strong><ul><li>the layer 4 run probes each capability on the PC it runs on;</li><li>present and usable means real; absent means the same checks against fakes; present but unusable fails with the setup fix;</li><li>capabilities listed in <code>ODC_E2E_REQUIRE</code> must run real;</li><li>every run prints which mode each capability used (Task 9).</li></ul></div>
+<div class="card" id="AC8"><strong>AC8 — Real where present, fake where absent:</strong><ul><li>the layer 4 run probes each capability on the PC it runs on;</li><li>present and usable means real; absent means the same checks against fakes; present but unusable fails with the setup fix;</li><li>capabilities named in <code>odc-e2e --require</code> must run real;</li><li>every run prints which mode each capability used (Task 9).</li></ul></div>
 <div class="card" id="AC9"><strong>AC9 — Records:</strong><ul><li>AGENTS.md Commands and Repository layout, the README Development section, and the PRD's dev footprint match what was built (Tasks 1, 8, 10).</li></ul></div>
 
 <h2>Validation</h2>

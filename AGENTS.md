@@ -38,8 +38,9 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 2. **If in doubt, ask now.** When something is ambiguous, stop and ask the owner right away. Never pick a default silently.
 3. **Testing needs no person** (owner, 2026-10-24).
    - Phases 1–3 needed the owner's eyes to learn how the device works, and the spec records it. From Phase 5 on, every test (unit, integration, differential and end to end on the real LP360) runs unattended. Nobody watches the cooler or acts during a test.
-   - The proof that bytes become the right picture is the byte-for-byte match with DeepCreative's captured messages, which the owner checked on the cooler in Phase 3.
+   - The proof that bytes become the right picture is the byte-for-byte match with DeepCreative's captured messages, which the owner checked on the cooler in Phase 3. Where OpenDeepCool draws differently on purpose (owner decisions, such as no caps), the expected frames follow the spec, drawn with the same glyphs and encoding.
    - Ask the owner for decisions and for system changes (rule 7), never to look at the cooler. If a behaviour can only be judged by looking at the cooler, the spec has a gap: stop and raise it (rule 2).
+   - The one exception is optional: `odc-e2e --attended` shows one case of each kind and of each edge case for the owner to watch and confirm, when the owner wants to (owner, 2026-10-24). It never replaces or gates the unattended tests.
 4. **One implementation, one commit.**
    - Build each display mode and each combination on its own (for example Load Mode → Combined CPU/GPU): implement it, run all its tests, including the unattended end-to-end run on the cooler, then make **exactly one commit**.
    - Never batch several modes, combinations or unrelated changes into one commit.
@@ -50,7 +51,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
-   - e2e: an unattended run compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `ODC_E2E_REQUIRE` lists what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24).
+   - e2e: an unattended run compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `odc-e2e --require <list>` names what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24). Test options are program flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.

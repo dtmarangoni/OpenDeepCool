@@ -131,7 +131,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
   <div class="card" id="S6"><span class="step-n">6</span>The engine: tick, readings, start-up, resets and updates, availability, dashes<div class="files">engine.rs · status.rs</div></div>
   <div class="card" id="S7"><span class="step-n">7</span>D-Bus interface, polkit and diagnostics<div class="files">dbus.rs · polkit.rs · log.rs</div></div>
   <div class="card" id="S8"><span class="step-n">8</span><code>opendeepcoold</code>, its unit and sandbox, the policies, and the dev copy on the owner's PC<div class="files">main.rs · opendeepcool.service · D-Bus policy · polkit action · sysusers · dev scripts</div></div>
-  <div class="card" id="S9"><span class="step-n">9</span>Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; and the boot check<div class="files">hardware.rs (odc-testkit) · hardware.rs (odc-service)</div></div>
+  <div class="card" id="S9"><span class="step-n">9</span>Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the boot check; and the attended tour<div class="files">hardware.rs (odc-testkit) · service.rs, attended.rs (odc-e2e)</div></div>
   <div class="card" id="S10"><span class="step-n">10</span>Records, CI and the resource baseline<div class="files">AGENTS.md · README.md · opendeepcool-lp360.prd.md</div></div>
 </div>
 
@@ -166,7 +166,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
 <div class="card">
 <table>
   <tr><th>Gate</th><th>Proves</th></tr>
-  <tr><td>Format, lint</td><td>Style; no warnings</td></tr><tr><td>Layers 1 + 3</td><td>AC1 (matrix), AC2, AC3, AC4, AC5, AC6, AC7</td></tr><tr><td>Layer 2 (local)</td><td>AC1 (captures)</td></tr><tr><td>Unit and policies</td><td>AC8 (syntax)</td></tr><tr><td>Sandbox</td><td>AC8</td></tr><tr><td>Dev copy</td><td>AC8, AC10</td></tr><tr><td>Layer 4 (local)</td><td>AC9</td></tr><tr><td>CI</td><td>Layers 1 + 3</td></tr>
+  <tr><td>Format, lint</td><td>Style; no warnings</td></tr><tr><td>Layers 1 + 3</td><td>AC1 (matrix), AC2, AC3, AC4, AC5, AC6, AC7</td></tr><tr><td>Layer 2 (local)</td><td>AC1 (captures)</td></tr><tr><td>Unit and policies</td><td>AC8 (syntax)</td></tr><tr><td>Sandbox</td><td>AC8</td></tr><tr><td>Dev copy</td><td>AC8, AC10</td></tr><tr><td>Layer 4 (local, unattended)</td><td>AC9</td></tr><tr><td>Attended tour (optional, the owner)</td><td>The owner's own look; never a gate</td></tr><tr><td>CI</td><td>Layers 1 + 3</td></tr>
 </table>
 </div>
 

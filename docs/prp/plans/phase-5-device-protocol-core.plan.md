@@ -74,7 +74,7 @@
   - 24 files (`mode-001` … `mode-022`, `mode-100`, `mode-101`), 292 `##` cases in all (counted 2026-10-24).
   - `mode-101.txt` holds the stored test image before its first case.
 - `docs/spec/settings.md:25-33`: start-up sends `03 08`, then the saved picture at once.
-- `docs/prp/prds/opendeepcool-lp360.prd.md:226-249`: Testing Strategy. Layer 2 includes the Phase 5 re-encode; layer 4 is unattended.
+- `docs/prp/prds/opendeepcool-lp360.prd.md`, Testing Strategy. Layer 2 includes the Phase 5 re-encode; layer 4 is unattended.
 - Kernel docs and source, read 2026-10-24:
   - hidraw `write()` takes the report ID as its first byte;
   - `hidraw_write` returns `-ENODEV` once the device is gone, and rejects writes longer than `HID_MAX_BUFFER_SIZE`;
@@ -335,7 +335,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 **Implementation**
 - `capture::read(path) -> impl Iterator<Item = Captured>`, with `Captured { unix_ns, dir, bytes }`. It parses the line format above and panics with the line number on a malformed line.
 - The test is `#[ignore = "needs the local DeepCreative captures in research/logs (git-ignored)"]`.
-  - It reads `research/logs/lp360-hidraw.log` and `research/logs/reconnect-20261024.log`, or the paths in `ODC_CAPTURES` (colon-separated).
+  - It reads `research/logs/lp360-hidraw.log` and `research/logs/reconnect-20261024.log`, the only place the captures exist.
   - When run, it **fails** if a file is missing. It never skips silently.
 - **For every `out` message of 64 bytes:**
   - `decode` succeeds;
@@ -475,13 +475,15 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
     - `Absent { reason }`: the device doesn't exist;
     - `Unusable { reason, fix }`: it exists but can't be used, for example no write access.
   - It finds devices the way the product does: USB ID, driver name, PCI class.
-  - `ODC_E2E_REQUIRE`: an optional comma-separated list (`lp360,lp360-reconnect,…`). A listed capability that probes `Absent` is a failure. On the owner's PC it's set from `docs/local/` (git-ignored); other computers leave it unset.
   - `Summary`: collects every capability's mode (real, fake, or failed with the reason) and prints it as a table at the end of the run.
-- `crates/odc-device/tests/hardware.rs`: CREATE.
-  - Every test is `#[ignore = "layer 4: run locally with --ignored --test-threads=1"]`. They touch real hardware when present, so they never run in CI.
+- `crates/odc-e2e/`: CREATE, the `odc-e2e` program (`publish = false`) that runs every layer 4 check. Test options are flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24). `cargo test` can't take custom flags, so layer 4 is this program rather than ignored tests; it never runs in `cargo test` or CI, because it touches real hardware when present.
+  - `--require <list>`: capabilities that must run real (`lp360,lp360-reconnect,…`); a listed capability that probes `Absent` is a failure. On the owner's PC the list comes from `docs/local/` (git-ignored); other computers leave it out.
+  - `--only <area>`: run one area's checks (`device` in this phase; later phases add `sensors`, `gpu-rank`, `service`, and so on). Without it, everything runs.
+  - Checks run one at a time, then the summary is printed. The exit code is non-zero when any check fails.
+  - `crates/odc-e2e/src/device.rs`: CREATE, this phase's checks.
 
 **Implementation**
-- **Each test probes its capability first:**
+- **Each check probes its capability first:**
   - `Real` → the real device;
   - `Absent` → the same scenario through the fakes, with the mode recorded as fake: `HidrawConnector` over a fake tree (Phase 5 Task 7), or a `FakeConnector` for reconnect;
   - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
@@ -499,20 +501,21 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
     - show frames, write `0` to `authorized`, and keep calling `show` every 100 ms until it returns `Disconnected` (at most 2 s);
     - write `1`, and keep calling `show` until `Connected` (at most 10 s).
 
-    A drop guard writes `1` to `authorized` on every exit path, so a failing test never leaves the cooler disconnected.
+    A drop guard writes `1` to `authorized` on every exit path, so a failing check never leaves the cooler disconnected.
   - Fake: the same sequence with the device removed from, then restored to, a fake tree under a new hidraw number.
   - Either way, the recording must show `Startup`, frames, then a **second** `Startup` directly before the first frame after reconnecting.
 - Only `startup_report()` and `encode_frame` output reach the device; `Report` makes anything else impossible (rule 9).
-- The research rig must not run at the same time, because DeepCreative would write to the cooler too. The test file's doc comment says so.
+- The research rig must not run at the same time, because DeepCreative would write to the cooler too. `odc-e2e --help` says so.
 
 **Tests**
-- These are the tests, plus unit tests of the probe against fake trees:
+- These are the checks, plus unit tests (in `cargo test`) of the probe and the flags against fake trees:
   - no LP360 → `Absent`;
   - an LP360 node without write access → `Unusable`, with the setup fix;
-  - an `ODC_E2E_REQUIRE` entry that probes `Absent` → failure.
+  - a capability named in `--require` that probes `Absent` → failure;
+  - an unknown flag or area → an error with the usage text.
 
 **Validation**
-- `cargo test -p odc-device --test hardware -- --ignored --test-threads=1`: passes, and prints the summary. On the owner's PC, with `ODC_E2E_REQUIRE=lp360,lp360-reconnect`, both capabilities run real. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
+- `cargo run -p odc-e2e -- --only device`: passes, and prints the summary. On the owner's PC, with `--require lp360,lp360-reconnect`, both capabilities run real. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
 - Then `scripts/dev/check.sh`: exit 0.
 
 ### 10. CI and the commit guard run the automated layers
@@ -567,7 +570,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 8. **AC8 — Real where present, fake where absent:**
    - the layer 4 run probes each capability on the PC it runs on;
    - present and usable means real; absent means the same checks against fakes; present but unusable fails with the setup fix;
-   - capabilities listed in `ODC_E2E_REQUIRE` must run real;
+   - capabilities named in `odc-e2e --require` must run real;
    - every run prints which mode each capability used (Task 9).
 9. **AC9 — Records:**
    - AGENTS.md Commands and Repository layout, the README Development section, and the PRD's dev footprint match what was built (Tasks 1, 8, 10).
@@ -581,7 +584,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 | Layers 1 + 3 | `cargo test --workspace` | AC1 (spec vectors), AC2, AC3, AC4, AC5 (fakes) |
 | udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` | AC6 (syntax) |
 | Layer 2 (local) | `cargo test -p odc-protocol --test differential_captures -- --ignored` | AC1 (captures) |
-| Layer 4 (local, unattended) | `cargo test -p odc-device --test hardware -- --ignored --test-threads=1`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler where attached; AC8 |
+| Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only device --require lp360,lp360-reconnect`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler where attached; AC8 |
 | Dev access state | `scripts/dev/check.sh` | AC6 |
 | CI | GitHub Actions run on the pushed branch | AC7 |
 
