@@ -317,8 +317,8 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 1 | Wine reference spike | Run DeepCreative under Wine with the real LP360 and log what it sends; the result may change this plan | complete | - | - | - | [report](../../research/phase1-wine-spike.md) | - |
 | 2 | Repository bootstrap | git, README, MIT license, .gitignore, agent instructions (AGENTS.md, CLAUDE.md), commit guard, PRD and research docs, public GitHub repo | complete | - | 1 | - | - | - |
 | 3 | Functionality & protocol spec | Full spec of LP360 + DeepCreative + board sensors; parity checklist validated by the owner | complete | - | 1, 2 | [plan](../plans/phase-3-functionality-protocol-spec.plan.md) | [report](../reports/phase-3-functionality-protocol-spec.report.md) | - |
-| 4 | Implementation plans | One PRP plan per implementation phase (5–12) | pending | - | 3 | - | - | - |
-| 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer, udev rule, test patterns | pending | with 6 | 4 | - | - | - |
+| 4 | Implementation plans | One PRP plan per implementation phase (5–12) | in-progress | - | 3 | - | - | - |
+| 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer that reconnects, udev rule, dev access scripts | pending | with 6 | 4 | [plan](../plans/phase-5-device-protocol-core.plan.md) | - | - |
 | 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | pending | with 5 | 4 | - | - | - |
 | 7 | Service, settings & Load Mode (MVP) | System service, start at boot, saved settings, Load Mode layouts | pending | - | 5, 6 | - | - | - |
 | 8 | Guardian modes | Temperature Guardian, Power Guardian | pending | with 9, 10, 11 | 7 | - | - | - |
@@ -376,12 +376,12 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 5: Device & protocol core**
 - **Goal**: Reliable frames to the LP360 without root.
-- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects; the udev rule; a developer test-pattern binary (not a user feature).
+- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects; the udev rule; dev scripts that install and remove the development access setup. The developer test-pattern binary is dropped: the unattended real-device test writes the test images instead (owner, 2026-10-24).
 - **Tests**:
   - unit: encoding, checksum, rotation (property tests); the expected-frame loader and picture diff the later phases reuse
-  - integration: fake transport, optionally a virtual `uhid` device
+  - integration: fake transport and fake sysfs trees (a virtual `uhid` device needs root, so it isn't used)
   - differential: every captured DeepCreative message re-encoded byte for byte
-  - e2e, unattended: test patterns written to the real cooler in all four rotations, every written report recorded and compared with the expected frames
+  - e2e, unattended: the Creative Mode test image written to the real cooler in all four rotations, every written report recorded and compared with the expected frames; a disconnect and reconnect of the real cooler
   - CI: GitHub Actions and the pre-commit guard run layers 1 and 3
 - **Success signal**: All test layers pass unattended, on the real cooler, without root.
 
