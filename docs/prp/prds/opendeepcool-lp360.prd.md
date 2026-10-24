@@ -239,10 +239,11 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 - **Test matrix:** every mode × the four rotations × °C/°F where a temperature is shown, scrolling included: 116 combinations, each with several values (Phase 3 plan, Test matrix). In every case each metric gets its own distinct, non-zero value, so a mode that draws the wrong metric fails.
 - **Movement scenarios** (owner, 2026-10-24): tests of the Rust implementation against OpenDeepCool's own rules, never against DeepCreative, which handles these cases differently. The display's behaviour over time is tested as scenarios S1–S19 in `docs/spec/display.md` (Test scenarios): values crossing 99/100 in every order and at every point of the cycle, length changes, dashes, mode, unit and rotation changes, start-up, reconnect and impossible readings. Every scenario runs in every mode that shows a value, both temperature units, single and combined values, and all four rotations; the modes without values run the switch, rotation, start-up and reconnect scenarios. The expected frame of every tick is generated from the spec's rules, like the expected frames.
 - **Expected frames:** `docs/spec/frames/` holds the expected frame of every matrix case as a text picture. Phase 3 generates it from the spec's rules and confirms it against DeepCreative's captures. It's the oracle for the layers below, so Rust output is never compared with Rust output.
-- **Layer 1, unit (CI):** drawing is one pure function of mode, readings, unit, rotation and scroll tick. Tests run every matrix case against the expected frames; a failure prints both pictures. Property tests add random inputs for these rules:
+- **Layer 1, unit (CI):** drawing is pure, in two parts (2026-10-24): the picture is a pure function of mode, readings and unit, and its movement a pure state machine of the changes and ticks (`display.md` Movement, precisely). Tests run every matrix case and every movement scenario against the expected frames; a failure prints both pictures. Property tests add random inputs for these rules:
   - four quarter turns give back the original;
   - drawing with a rotation equals rotating the finished frame;
-  - each scroll tick shifts the picture one column;
+  - between resets, each frame is the previous one shifted one column, or the same;
+  - a strip that needs no scrolling stops only at home;
   - each value rule matches the spec's table.
 
   Crates are chosen in the Phase 5 plan.

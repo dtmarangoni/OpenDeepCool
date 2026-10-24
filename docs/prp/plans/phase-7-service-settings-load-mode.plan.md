@@ -15,12 +15,13 @@
 - The agents building Phases 8–11, which extend this service, its settings and its D-Bus interface.
 
 **User outcome:**
-- After every boot, before anyone logs in, the LP360 shows the saved Load Mode layout (modes 1–6) with live values, drawn exactly as DeepCreative draws it, in the saved rotation.
+- After every boot, before anyone logs in, the LP360 shows the saved Load Mode layout (modes 1–6) with live values, in the saved rotation, drawn as the spec defines: DeepCreative's glyphs and layouts, every value in full (no 99 cap), one-digit values centred, and `100%` scrolling smoothly until it fits again.
 - A user at the PC can change mode, rotation, unit, GPU and fan inputs over D-Bus: today with `busctl`, from Phase 11 with the app. Other sessions can only read.
 
 **Invariant:**
 - Every frame equals the spec's picture for the current mode, readings, rotation and tick (`docs/spec/frames/` is the oracle).
-- A value that can't be read is drawn as dashes, never as a number (rule 11, `display.md` Unavailable values).
+- A value that can't be read, or a reading no sensor can give, is drawn as dashes, never as a number (rule 11, `display.md` Unavailable values).
+- A value is never capped. A picture with a value of 100 or more scrolls, and starts, keeps moving and stops exactly as `display.md` "Movement, precisely" says.
 - One frame per 100 ms tick, without drift.
 - A mode switch shows on the next frame.
 - The service runs as the locked `opendeepcool` account, sandboxed, and changes settings only for a caller polkit authorizes.
@@ -28,7 +29,7 @@
 **Success signal:** After cold boots, the configured mode appears with no action (PRD Phase 7). It's checked unattended from the journal and the recorded frames after each reboot of the owner's PC.
 
 **Approach:** four new crates on top of Phases 5 and 6:
-- **`odc-render`:** pure: glyphs, value rules, layouts, the mode table, and the Load Mode renderers.
+- **`odc-render`:** pure: glyphs, value rules, the static layout and the scrolling strip, the movement procedure, the mode table, and the Load Mode pictures.
 - **`odc-ipc`:** the D-Bus names, types and client proxy, shared by the service, the tests and Phase 11's app.
 - **`odc-service`:** a library plus the `opendeepcoold` binary.
   - An engine thread runs the 100 ms tick over the Phase 5 `DisplayPort` and the Phase 6 `Readings`.
@@ -42,14 +43,15 @@
 
 **One engine thread owns the display; D-Bus never touches it directly.**
 - The engine owns the `Lp360`, the `Registry`, the current mode state and the tick clock.
-- The D-Bus side owns `SettingsStore` (validate, persist) and sends the engine an `Apply(Settings)` message over a channel. The engine picks it up at the next tick, which is exactly the "switch on the next frame" rule (`display.md` Mode switches).
+- The D-Bus side owns `SettingsStore` (validate, persist) and sends the engine an `Apply(Change)` message over a channel: new settings, or `Refresh`. The engine picks it up at the next tick, which is exactly the "switch on the next frame" rule (`display.md` Mode switches).
 - Status flows back through one `Arc<RwLock<Status>>`: connected, availability, bindings.
 - Nothing is shared mutably in both directions, so a slow polkit check can never delay a frame.
 
-**Pure rendering, one function.** `render(mode, &Values, unit, rotation, tick) -> Frame`.
-- The PRD's layer 1 contract: "drawing is one pure function of mode, readings, unit, rotation and scroll tick".
+**Pure drawing, in two parts** (`display.md` Movement, precisely).
+- `picture(mode, &Values, unit) -> Result<Picture>`: the strip of the mode's values (both bands aligned), its width, cycle length *L*, home column *h*, and whether it must scroll (a value of 100 or more).
+- `Marquee`: the movement procedure as a pure state machine: `reset(Picture)`, `update(Picture)`, `tick() -> Frame`. It holds *x* and whether the strip moves. No clock and no I/O, so every test scenario runs as a unit test.
 - Rotation is applied last with Phase 5's `Frame::rotated` (`display.md` Rotation).
-- Load Mode is static, so `tick` is unused until Phase 8. It's in the signature now so the engine never changes shape.
+- The PRD's layer 1 contract was updated to match on 2026-10-24: the picture is a pure function of mode, readings and unit, and the movement a pure function of the changes and ticks. The old single `render(mode, values, unit, rotation, tick)` can't express a strip that keeps its position when a reading changes.
 
 **The 100 ms tick on absolute deadlines.**
 - The next frame is due at `start + n × 100 ms` on the monotonic clock. A late frame doesn't shift the ones after it.
@@ -79,8 +81,9 @@
 
 ### Evidence
 
-- `docs/spec/display.md:12-33` (modes 1–6 and their metrics, top first), `:35-47` (values: usage rounds up, at most 99; Memory Load rounds to nearest, at most 99), `:49-78` (glyphs), `:80-85` (bands), `:87-97` (static layout).
-- `docs/spec/display.md`: Updates; Unavailable values (dashes, added 2026-10-24); Mode switches (static switch in a single frame; OpenDeepCool switches on the next frame); Rotation.
+- `docs/spec/display.md`: Modes (modes 1–6 and their metrics, top first), Values (usage rounds up; Memory Load rounds to nearest; no cap in OpenDeepCool), Glyphs, Bands, Static layout. Line numbers changed with the 2026-10-24 decisions, so sections are named instead.
+- `docs/spec/display.md`: Updates; Unavailable values (dashes, added 2026-10-24); Values, OpenDeepCool: no caps (automatic scrolling, one smooth movement); Static layout, OpenDeepCool: alignment; Movement, precisely; Mode switches (a mode switch jumps to home); Test scenarios S1–S26; Rotation. All owner decisions of 2026-10-24.
+- `docs/spec/frames/` regenerated 2026-10-24 with OpenDeepCool's rules (172 of 292 cases changed); `research/hook/odc_rules.py` (local) draws them.
 - `docs/spec/protocol.md` Timing: one frame per 100 ms tick, corrected 2026-10-24.
 - `docs/spec/settings.md`:
   - Settings: defaults are mode 1, rotation 0, Celsius, no fan inputs;
@@ -119,7 +122,7 @@ flowchart LR
     DB --> ST[(SettingsStore<br/>settings.toml v1)]
     DB -->|CheckAuthorization| PK[[polkit]]
     CH --> EN["Engine thread<br/>100 ms absolute ticks"]
-    EN --> RD["odc-render::render<br/>(pure, new)"]
+    EN --> RD["odc-render: picture + Marquee<br/>(pure, new)"]
     EN --> LP["Lp360 DisplayPort (Phase 5)"]
     EN --> RG["Registry Readings (Phase 6)<br/>every 10th tick"]
     EN --> STAT[(Status: connected,<br/>availability, bindings)]
@@ -136,7 +139,7 @@ flowchart LR
 
 | File | Why it matters |
 |---|---|
-| `docs/spec/display.md` (Grid → Rotation, Unavailable values) | Everything Load Mode draws, how switches look, dashes |
+| `docs/spec/display.md` (all) | Everything Load Mode draws: values with no cap, alignment, the strip, the movement procedure, switches, dashes, the test scenarios |
 | `docs/spec/settings.md` (all) | Settings, defaults, start-up, availability, status, D-Bus/polkit |
 | `docs/spec/protocol.md` Timing | The 100 ms tick |
 | `docs/spec/frames/README.md`, `mode-001.txt`–`mode-006.txt` | The oracle and its format |
@@ -155,7 +158,7 @@ flowchart LR
 ### Integration points
 
 - `odc_ipc`: the contract Phase 11's app compiles against: names, the property and method list, error names.
-- `odc_render::{Mode, mode_metrics(mode), render}`: Phases 8–10 add renderers here, and the app's preview (Phase 11) reuses `render`.
+- `odc_render::{Mode, mode_info, picture, Marquee}`: Phases 8–10 add their modes' pictures; the strip and the movement serve them unchanged. The app's preview (Phase 11) reuses `picture` and `Marquee`.
 - `opendeepcool.service`: `Wants=` and `After=` on `opendeepcool-gpu-rank.service` and `opendeepcool-sensors-detect.service` (Phase 6).
 - `settings.toml` v1: Phases 8–11 add fields with defaults; nothing else writes it.
 
@@ -164,13 +167,14 @@ flowchart LR
 ### In scope
 
 - Load Mode, modes 1–6:
-  - renderers, value rules for usage and Memory Load;
+  - pictures and value rules for usage and Memory Load, with no cap;
   - the digit, `%` and dash glyphs;
-  - the static layout in both bands;
+  - the static layout with its alignment (one value centred, two values ending at column 14);
+  - the scrolling strip for values of 100 or more (`100%`), and the movement procedure;
   - rotation;
-  - dashes for unavailable values.
+  - dashes for unavailable and impossible readings.
 - The mode table for every spec mode (metrics and kind), used for availability now and by later phases' renderers.
-- The engine: 100 ms tick, readings every second, start-up, switches on the next frame (static to static), rotation and unit changes live, reconnect continuity, availability, status.
+- The engine: 100 ms tick, readings every second, start-up, resets and updates as the spec defines (mode, rotation, unit, GPU, Refresh; nothing for a choice already set), reconnect continuity, availability, status.
 - Settings v1, the D-Bus interface, polkit, diagnostics, journal logging.
 - The `opendeepcoold` binary, unit, sandbox, D-Bus policy, polkit action, service account, and the dev copy with its frame recording.
 - Tests in all four layers, plus a boot check and a resource baseline.
@@ -178,7 +182,7 @@ flowchart LR
 ### Not building
 
 - **Modes 7–22 and 100+:** Phases 8–10. `SetMode` rejects them with "not available yet". The mode table already describes them, for availability.
-- **Scrolling and the scroll-out transitions** (`display.md` Mode switches): Phase 8, the first scrolling modes. The engine's `tick` and switch state are designed for them, but only static-to-static switches are tested here.
+- **Temperature and power pictures** (the `°C`, `°F` and `W` glyphs, modes 7–12): Phase 8. The strip and the movement built here serve them unchanged.
 - **Audio input and its D-Bus path:** Phase 9.
 - **Creative images storage and D-Bus methods:** Phase 10.
 - **The settings app and its client UI:** Phase 11. The client proxy ships in `odc-ipc` now.
@@ -196,51 +200,67 @@ flowchart LR
 
 Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mode combination** (modes 1–6) is implemented, tested in all layers, and committed on its own (Task 3), as rule 4 requires.
 
-### 1. The oracle gets the dash cases
+### 1. The oracle gets the dash cases and the movement scenarios
 
 **Files and integration points**
-- `research/hook/expected-frames.py` (local, never committed): UPDATE, generating dash cases from the spec's rule.
-- `docs/spec/frames/unavailable.txt`: CREATE, generated. Cases, each in rotations 0–3:
-  - mode 1 with CPU Usage unavailable;
-  - mode 4 with CPU Usage 42 and Gpu usage unavailable;
+- `research/hook/odc_rules.py` and `expected-frames.py` (local, never committed): UPDATE.
+  - `odc_rules.py` already draws OpenDeepCool's pictures (it generated the 2026-10-24 frames). It gets the movement procedure of `display.md` "Movement, precisely" as a small state machine, written from the spec text, not from any Rust code.
+  - `expected-frames.py` writes the files below.
+- `docs/spec/frames/unavailable.txt`: CREATE, generated. Dash cases, each in rotations 0–3:
+  - mode 1 with CPU Usage unavailable, and with a negative, a not-a-number and an infinite reading;
+  - mode 4 with CPU Usage 42 and Gpu usage unavailable, and with CPU Usage 100 and Gpu usage unavailable (scrolling);
   - mode 6 with both unavailable.
-- `docs/spec/frames/README.md`: UPDATE, to describe `unavailable.txt`.
+- `docs/spec/frames/scenarios/load.txt`: CREATE, generated. Every test scenario of `display.md` (S1–S26) that applies to Load Mode, for each of modes 1–6, in rotation 0:
+  - each scenario is a list of ticks; each tick lists what changes (readings, a reset and its cause, or nothing) and the frame expected;
+  - for the two-value modes 4–6, each scenario runs with the change in the top value, the bottom value and both;
+  - the cycle-position scenarios (S6, S13, S14, S16, S24–S26) are listed for every *k* from 0 to *L* − 1.
+  - Rotations 1–3 aren't stored: their expected frames are the rotation-0 frames turned, which the tests do (`display.md` Rotation).
+- `docs/spec/frames/README.md`: UPDATE, describing `unavailable.txt` and the scenario file format.
 - `docs/spec/parity-checklist.md`: UPDATE, a new row: "Unavailable values: dashes (OpenDeepCool's own rule)", reviewed as an owner decision, 2026-10-24.
 
 **Tests**
-- The generator's own check: the existing cases are reproduced unchanged (`render-check.py`).
+- The generator's own checks:
+  - the existing `mode-*.txt` cases are reproduced unchanged;
+  - the owner's scenarios come out as the owner described them: a drop one column after home runs *L* − 1 more frames and stops at home; up, down and up again before home never stops; a value reaching 100 keeps its first digit place; nothing ever moves by more than one column per frame except at a reset.
 
 **Validation**
-- `git diff --stat docs/spec/frames/` shows only the new file and the README.
+- `git diff --stat docs/spec/frames/` shows only the new files and the README.
 
-### 2. `odc-render`: glyphs, values, bands, the mode table and the render function
+### 2. `odc-render`: glyphs, values, pictures, the mode table and the movement
 
 **Files and integration points**
 - `crates/odc-render/`: CREATE, a library: `lints.workspace = true`; it depends on `odc-protocol`.
   - `glyph.rs`: the digits 0–9, `%` and the dash, typed as `#`/`.` rows straight from `display.md`.
   - `value.rs`
-  - `layout.rs`
+  - `picture.rs`
+  - `marquee.rs`
   - `mode.rs`
   - `lib.rs`
 
 **Implementation**
-- **`Mode`:** the spec's numbers. `mode_info(mode) -> ModeInfo { metrics: &[Metric], kind: Static | ScrollingInF | Scrolling | Music | Creative }` for every mode in `display.md` and `music.md`.
-  - Phase 7 renders 1–6; `render` returns `Err(NotYetImplemented)` for the rest.
+- **`Mode`:** the spec's numbers. `mode_info(mode) -> ModeInfo { metrics: &[Metric], kind: Load | Temperature | Power | Music | Creative }` for every mode in `display.md` and `music.md`.
+  - Phase 7 draws 1–6; `picture` returns `Err(NotYetImplemented)` for the rest.
   - `Metric` is Phase 6's type.
-- **Value rules** (`display.md` Values), on `f64` readings:
-  - usage: round up, at most 99;
-  - Memory Load: round to nearest, halves up, at most 99.
-- **Static layout** (`display.md` Bands and Static layout):
-  - the tens digit (blank below 10) in columns 2–4, the units digit in 6–8, the symbol in 10–14;
-  - bands at rows 6–10 for one value, and rows 2–6 and 9–13 for two.
-  - An `Unavailable` value draws two dashes, with the symbol kept.
-- **`render(mode, values: &Values, unit, rotation, tick) -> Result<Frame>`:** draws unrotated, then applies `Frame::rotated(rotation)`.
+- **Value rules** (`display.md` Values, OpenDeepCool: no caps), on `f64` readings:
+  - usage: round up, no cap;
+  - Memory Load: round to nearest, halves up, no cap;
+  - a negative, not-a-number or infinite reading → `Unavailable`, drawn as dashes.
+- **`picture(mode, &Values, unit) -> Result<Picture>`** (`display.md` Static layout and Movement, precisely):
+  - the strip: digit places of 4 columns, then the symbol; dashes take two places; bands at rows 6–10 for one value, and rows 2–6 and 9–13 for two, both ending at the same column;
+  - *w*, *L* = *w* + max(4, 21 − *w*), the home column *h* (one value centred, an odd spare column on the left; two values ending at column 14; 2 when *w* > 14), and whether it must scroll.
+- **`Marquee`:** the procedure of `display.md` "Movement, precisely", step for step: `reset(Picture)`, `update(Picture)`, `tick() -> Frame` (unrotated). The engine rotates the frame last.
 
 **Tests** (layer 1, CI)
 - **Glyphs:** each glyph equals the spec's text picture, compared row by row with a copy typed into the test from `display.md`. Typing them independently makes a copy error show up as a mismatch.
-- **Value rules:** every row of the Values table's evidence column, for example 0.4 → 1, 9.5 → 10, 99.4 → 99 and 100 → 99 for usage; 0.4 → 0 and 0.5 → 1 for Memory Load. Plus a property: the result is always in 0..=99.
+- **Value rules:** every evidence row where OpenDeepCool keeps DeepCreative's rule (0.4 → 1, 9.5 → 10 for usage; 0.4 → 0, 0.5 → 1 for Memory Load), the no-cap rows (100 → 100, 1000 → 1000), the boundaries of S20 (0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000) and the impossible readings of S19. Property: any finite reading of 0 or more gives a whole number of 0 or more, and anything else gives dashes.
+- **Picture:** *w*, *L*, *h* and "must scroll" for every value length from dashes to 6 digits, one and two values.
+- **Marquee properties** (random pictures and change sequences):
+  - between resets, every frame is the previous one shifted one column left, or the same frame;
+  - a strip that needs no scrolling stops only at *h*, within *L* frames;
+  - an update never moves the copy whose first column is on the screen;
+  - after a reset, the first frame is the picture at *h*.
 - **Mode table:** `mode_info` lists the metrics `display.md` gives for modes 1–12 and `music.md` gives for 13–22, top first, for all 22 modes.
-- **Matrix and properties:** Task 3.
+- **Matrix and scenarios:** Task 3.
 
 **Validation**
 - `cargo test -p odc-render`: passes.
@@ -252,25 +272,26 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Files and integration points**
 - `crates/odc-render/src/load.rs`: UPDATE, per mode.
 - `crates/odc-render/tests/matrix_load.rs`: UPDATE, per mode.
+- `crates/odc-render/tests/scenarios_load.rs`: UPDATE, per mode.
 - `crates/odc-render/tests/differential_load.rs`: UPDATE, per mode (layer 2, local).
 
 **Implementation**
-- Each mode maps its metrics (top first) to the layout of Task 2. A CPU option reads only CPU metrics, a GPU option only GPU ones (rule 11).
+- Each mode maps its metrics (top first) to the picture of Task 2. A CPU option reads only CPU metrics, a GPU option only GPU ones (rule 11).
 
 **Tests per mode**
-- **Layer 1:** all 12 cases of `mode-00N.txt` (4 rotations × 3 value sets) match through `odc_testkit::diff`.
+- **Layer 1, matrix:** all 12 cases of `mode-00N.txt` (4 rotations × 3 value sets) match through `odc_testkit::diff`. A scrolling case (value set 3: `100%`) is compared frame by frame from the reset, over its whole cycle.
   - Each case's `readings` are mapped to a `Values` with **every** metric set to a distinct non-zero value. The metrics the mode doesn't show also get values, so drawing a wrong metric fails (rule 5).
 - **Dash cases:** from `unavailable.txt`, where that mode has some.
-- **Properties:**
-  - `render(m, v, u, r, t) == render(m, v, u, Rot0, t).rotated(r)`;
-  - for every value, only the band's rows change.
+- **Layer 1, scenarios:** every scenario of `scenarios/load.txt` for this mode, in all four rotations (the expected frames turned), driven through `Marquee` with `picture`: every tick's frame must match.
+- **Properties:** for every value, only the band's rows change.
 - **Layer 2 (local, `#[ignore]`):**
   - a sweep reader (`odc_testkit::sweep`, added with mode 1) reads `research/logs/sweep-*.json`;
-  - for every captured step of this mode, every frame inside the step's steady window equals `render(mode, step.values, step.unit, step.rot, 0)`: 0 differing pixels;
-  - the test prints how many steps and frames it compared, and fails if none were found.
+  - for every captured step of this mode **where OpenDeepCool's rules agree with DeepCreative's** (two-digit values, and the rows of two-value modes whose values are all two digits), every frame inside the step's steady window equals the picture at home: 0 differing pixels;
+  - steps where they differ on purpose (one-digit values centred, values of 100 or more) are skipped and listed with the reason;
+  - the test prints how many steps and frames it compared and skipped, and fails if none were compared.
 
 **Validation**
-- `cargo test -p odc-render --test matrix_load`: passes.
+- `cargo test -p odc-render --test matrix_load --test scenarios_load`: passes.
 - `cargo test -p odc-render --test differential_load -- --ignored`: passes.
 
 ### 4. `odc-ipc`: the D-Bus contract
@@ -334,7 +355,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Validation**
 - `cargo test -p odc-service --lib settings`: passes.
 
-### 6. The engine: tick, readings, start-up, switches, availability, dashes
+### 6. The engine: tick, readings, start-up, resets and updates, availability, dashes
 
 **Files and integration points**
 - `crates/odc-service/src/engine.rs`: CREATE.
@@ -343,11 +364,16 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Implementation**
 - `Engine<D: DisplayPort, R: Readings, C: Clock>` runs `loop { wait_until(deadline); tick(); deadline += 100 ms }`, with deadlines on the monotonic clock. A deadline missed by more than one tick is logged and skipped, and frames never bunch up.
 - **Each tick:**
-  1. Take any pending `Apply(Settings)` and adopt it now.
-  2. Every 10th tick, take a `Readings::snapshot()`.
-  3. `render(…)`.
-  4. `display.show(frame)`.
+  1. Take any pending `Apply(Change)` and adopt it now.
+  2. Every 10th tick, take a `Readings::snapshot()`. `Refresh` takes one at once.
+  3. Build the `picture` from the mode, readings and unit; hand it to the `Marquee` as a reset or an update (below).
+  4. `Marquee::tick()`, then `Frame::rotated(rotation)`, then `display.show(frame)`.
   5. Update `Status`.
+- **Reset or update** (`display.md` Mode switches and Movement, precisely):
+  - **reset:** start-up, a mode switch, a rotation change, a unit change while the mode shows a temperature, another GPU, `Refresh`;
+  - **update:** new readings;
+  - **nothing:** a choice that is already set; a unit change while the mode shows no temperature (the unit is only saved). The D-Bus side doesn't even send these (Task 7).
+  - When a settings change and new readings land on the same tick, the reset wins, drawn with the new readings (S21).
 - **Start-up:** the first tick shows the saved mode at once. `Lp360` sends `03 08` first (Phase 5). The first second's rate metrics are `NotYet` → dashes (`display.md` Unavailable values).
 - **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied` or `IntegratedGpuPower`.
   - `AvailableModes` = the modes whose every metric is available; the rest carry their first reason.
@@ -360,15 +386,19 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Tests** (layer 3, CI; `FakeConnector`, `FakeReadings`, `FakeClock`)
 - **Timing:** 50 ticks → exactly 50 frames, at `start + n × 100 ms`. A tick delayed 250 ms produces one frame, and later deadlines stay on the grid.
 - **Start-up:** the reports are `03 08`, then the saved mode's picture in the first frame.
-- **Switch:** `Apply(mode 4)` between ticks k and k+1 → frame k+1 is mode 4's picture.
-  - All 30 ordered pairs among modes 1–6 are tested, each with distinct readings.
-  - Rule from `display.md` Mode switches: the frame before the switch is the old picture, the one after is the new one, and nothing else appears.
-- **Rotation and unit change live:** the next frame is turned. A press of `RotateScreen` steps 0→1→2→3→0.
+- **Scenarios S14–S18 and S21–S26 for modes 1–6**, from `scenarios/load.txt` (Task 1), driven through the engine with the fakes, in all four rotations:
+  - mode switches: all 30 ordered pairs among modes 1–6, at every *k*, with values below and above 100; the frame after the switch is the new picture at home and nothing of the old one appears;
+  - rotation changes (each value, and `RotateScreen` presses 0→1→2→3→0) and unit changes, while static and while scrolling;
+  - another GPU and `Refresh` at every *k*; a choice already set changes nothing;
+  - start-up into each mode with values of 99 or less, 100 or more, and dashes turning into 100 or more;
+  - a reading change and a settings change on the same tick;
+  - a refused change (an unavailable mode, a later phase's mode) changes nothing.
+- **Missed tick while scrolling (S22):** the strip moves one column per frame sent.
 - **Readings:**
   - a changed reading shows within 10 ticks;
   - `NotYet` → dashes, then digits;
   - a GPU metric becoming `NoDevice` mid-run → dashes; mode 4 stays the mode, and `AvailableModes` drops 2, 4 and 6.
-- **Reconnect:** `FakeConnector` vanishes for 5 ticks, then returns. No frames are lost from the schedule, and the returning connection starts with `03 08` (Phase 5).
+- **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Stale GPU ranking:** the rank file is deleted only when the set changed and no choice exists.
 
 **Validation**
@@ -388,9 +418,11 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   1. `Authorizer::allowed(header.sender())`, else `NotAuthorized`.
   2. Validate the argument, else `InvalidArgument`.
   3. A later-phase mode → `NotYetAvailable`; an unavailable mode → `ModeUnavailable(reason)`.
-  4. `SettingsStore::store`.
-  5. Send `Apply` to the engine.
-  6. Emit `PropertiesChanged`.
+  4. The value is already set → success, and nothing is stored, sent or emitted (`display.md`: choosing what is already set changes nothing).
+  5. `SettingsStore::store`.
+  6. Send `Apply` to the engine. A unit change while the mode shows no temperature is stored but sends nothing that touches the picture.
+  7. Emit `PropertiesChanged`.
+- **`Refresh()`:** authorized like a change; sends `Apply(Refresh)`; stores nothing.
 - **Reads** take no authorization.
 - **`Diagnostics`** returns `Registry::bindings()` plus each state. The same list goes to the journal at start and at each rebind (PRD Diagnostics).
 - **The dev interface** (only when started with `--dev`):
@@ -405,6 +437,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - mode 9 → `NotYetAvailable`;
   - mode 2 while Gpu usage is `NoDevice` → `ModeUnavailable`;
   - rotation 4 → `InvalidArgument`;
+  - setting the mode, rotation, unit or GPU already set → success, nothing stored or applied, no signal;
+  - `Refresh()` allowed → the engine gets `Apply(Refresh)`; denied → `NotAuthorized`;
   - `Diagnostics` lists all seven metrics;
   - without `--dev`, the dev interface doesn't exist.
 - **`PolkitAuthorizer`:** a fake polkit object on a p2p connection checks the exact subject, action and flags it is sent.
@@ -427,7 +461,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - only group `opendeepcool` may call the `.Dev` interface.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `change-settings`: `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
-- `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged.
+- `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number (Task 9).
 - `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
   - **setup** builds `--release`, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
   - **teardown** reverses all of it from the manifest.
@@ -443,7 +477,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `scripts/dev/check.sh` exits 0;
   - `busctl get-property io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 Mode` prints `u 1`.
 
-### 9. Layer 4: the real service drives the cooler through every Load Mode case, unattended; and the boot check
+### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; and the boot check
 
 **Files and integration points**
 - `crates/odc-testkit/src/hardware.rs`: UPDATE, with two capabilities:
@@ -456,9 +490,13 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - for each of modes 1–6 × rotations 0–3 × value sets 1–3: `OverrideReadings`, then `SetMode` and `SetRotation` through `odc-ipc`'s proxy (the owner's active session passes polkit);
   - wait 3 ticks, then read the recorded frames since the call;
   - the last 2 frames must match the expected case;
-  - plus the dash cases of `unavailable.txt`, and a static-to-static switch sequence checked frame by frame.
+  - plus the dash cases of `unavailable.txt`.
+- **Scenario run** (`DevService` Real): the scenarios of `scenarios/load.txt` on the real, sandboxed service.
+  - To line changes up with ticks exactly, the dev interface's `OverrideReadings` takes effect on the next tick (not the next snapshot) and returns that tick's number, and the dev recording writes each report with its tick number. Settings changes go through the normal methods, and their tick is read from the recording.
+  - Every recorded frame from each change on must match the scenario's expected frame for that tick.
+  - Default run: every scenario in rotation 0, and the first variant of each scenario in rotations 1–3, about 30 minutes. `ODC_E2E_FULL=1` runs every scenario in every rotation, a few hours, unattended. Layers 1 and 3 always run the whole cross.
   - **Afterwards:** `ClearOverride` and restore the owner's saved settings, which were read at the start, so the run leaves the PC as it found it.
-- **Fake mode** (`DevService` Absent, for example on another computer): the same sequence against an in-process `Engine` with the fakes. A `DevService` that's present but unusable (for example the service is inactive) fails with the fix.
+- **Fake mode** (`DevService` Absent, for example on another computer): the same matrix and scenario runs against an in-process `Engine` with the fakes. A `DevService` that's present but unusable (for example the service is inactive) fails with the fix.
 - **Boot check** (`BootSinceInstall` Real):
   - the journal shows the service started in this boot;
   - its first recorded frame, the saved mode's picture, is earlier than the first `New session` entry from `systemd-logind` in the same boot, or there was no login yet;
@@ -487,15 +525,15 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 ## Acceptance
 
-1. **AC1 — Load Mode exactly:**
-   - all 72 Load Mode cases (modes 1–6 × 4 rotations × 3 value sets) match `docs/spec/frames/` in unit tests;
-   - every captured DeepCreative step of modes 1–6 matches with 0 differing pixels (local);
+1. **AC1 — Load Mode as the spec draws it:**
+   - all 72 Load Mode cases (modes 1–6 × 4 rotations × 3 value sets) match the regenerated `docs/spec/frames/` in unit tests, `100%` scrolling over its whole cycle;
+   - every captured DeepCreative step of modes 1–6 where the two sets of rules agree matches with 0 differing pixels (local); the steps skipped on purpose are listed;
    - a metric the mode doesn't show never appears (Tasks 2, 3).
-2. **AC2 — Dashes:** an unavailable value is drawn as dashes, with the symbol kept and the mode unchanged; `unavailable.txt` cases match (Tasks 1, 2, 6).
-3. **AC3 — Timing and switches:**
-   - one frame per 100 ms on absolute deadlines;
-   - readings every 10th tick;
-   - a mode, rotation or unit change shows on the next frame, with nothing else in between, for all 30 ordered pairs of modes 1–6 (Task 6).
+2. **AC2 — Dashes:** an unavailable value, or a negative, not-a-number or infinite reading, is drawn as dashes, with the symbol kept and the mode unchanged; `unavailable.txt` cases match (Tasks 1, 2, 6).
+3. **AC3 — Timing, resets and movement:**
+   - one frame per 100 ms on absolute deadlines; readings every 10th tick;
+   - every scenario S1–S26 that applies to Load Mode passes for modes 1–6, single and combined values (change in the top, bottom and both), in all four rotations, at every cycle position the scenario lists (Tasks 1, 2, 3, 6);
+   - a mode, rotation, unit (in a temperature mode) or GPU change, or `Refresh`, shows the new picture at home on the next frame; a choice already set changes nothing.
 4. **AC4 — Start-up:** `03 08`, then the saved mode in the first frame. A fresh install starts with mode 1, rotation 0, Celsius (Tasks 5, 6).
 5. **AC5 — Settings:**
    - one versioned TOML file, written atomically, only by the service;
@@ -504,6 +542,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
    - changes need polkit `change-settings` (active local session);
    - reads are open;
    - unavailable and later-phase modes are refused with their reason;
+   - `Refresh()` needs the same authorization as a change;
    - the dev interface exists only with `--dev` and only for group `opendeepcool` (Tasks 4, 7, 8).
 7. **AC7 — Availability:** `AvailableModes` excludes every mode with a persistently unavailable metric, and every mode of a missing device, with one-line reasons (Task 6).
 8. **AC8 — Sandboxed system service:**
@@ -511,7 +550,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
    - `systemd-analyze security` rates it "OK" or better;
    - it restarts on failure (Task 8).
 9. **AC9 — Real cooler, unattended:**
-   - the dev service, driven over D-Bus, writes the expected frame for every Load Mode case and the dash cases;
+   - the dev service, driven over D-Bus, writes the expected frame for every Load Mode case, the dash cases and the scenario run (default or full);
    - after a reboot, the saved mode was on the cooler before the first login;
    - other computers run the same checks against fakes (Task 9).
 10. **AC10 — Records:**
@@ -536,14 +575,16 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
 | Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 116 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
-| Dash cases (`unavailable.txt`, 12 sections) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
-| Static-to-static switches, all 30 ordered pairs of modes 1–6 | `engine` | — | one switch sequence on the dev service |
+| Dash and impossible-reading cases (`unavailable.txt`) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
+| Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | rotation 0, plus each scenario's first variant in rotations 1–3; all with `ODC_E2E_FULL=1` |
+| Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect, refused and repeated choices) × 4 rotations | `engine` | — | as above |
 
 ## Risks and Decisions
 
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
-| No caps; static unless a value is 100 or more (owner, 2026-10-24) | The plan is revised before implementation: a value too long for the static layout scrolls automatically, so Load Mode needs the scrolling layout too (usage at 100 %); there is no layout setting | `display.md` Values; parity checklist D36, D37; PRD Open Questions | Building the 99 cap now would be thrown away |
+| No caps, automatic scrolling, the movement procedure, Refresh (owner, 2026-10-24) | Done: the spec, the expected frames and this plan follow them (revised 2026-10-24) | `display.md` Values, Movement, precisely, Test scenarios; parity checklist D35–D41 | — |
+| The movement procedure is new and exact; a mismatch between the Rust code and the oracle generator could hide in rare cycle positions | Both follow the spec text independently; scenarios cover every cycle position; Marquee properties run on random sequences | `display.md` Movement, precisely | A bug would show as a jump or a strip that never stops |
 | D-Bus names use the GitHub account and the major version (`io.github.dtmarangoni.OpenDeepCool1`) | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule and its advice to version interface names; the account name is already public in `LICENSE` and the PRD | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
 | The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 12 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |
