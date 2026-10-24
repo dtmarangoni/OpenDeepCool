@@ -42,7 +42,7 @@ We'll know we're right when two things are true:
 
 - **Speed control of the cooler's fans and pump in v1.** v1 only reads their speeds. They're DeepCool hardware, so controlling them may come after v1 (owner, 2026-10-23). It would need a driver that can write (the in-kernel driver for the board's sensor chip is read-only), and a bug could slow or stop the pump. Other fans stay out (see "Monitoring or controlling any hardware other than the cooler" below).
 - **Creative Mode animations in v1.** DeepCreative 1.2.14's Creative Mode shows static 14×14 images only; its editor has no frames or timing. Animations may come after v1 (owner decision, 2026-10-22).
-- **Guardian warnings in v1.** Temperature Guardian and Power Guardian only show values, as DeepCreative does; the spec found no thresholds, alarms or blinking. Warnings at temperatures or power levels that really can damage hardware may come after v1, once those limits are researched (owner, 2026-10-24).
+- **Temperature and Power warnings in v1.** Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) only show values, as DeepCreative does; the spec found no thresholds, alarms or blinking. Warnings at temperatures or power levels that really can damage hardware may come after v1, once those limits are researched (owner, 2026-10-24).
 - **Hidden display settings and unused device reports in v1.** DeepCreative 1.2.14 stores `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` for the LP360, but its LP page has no control for them, and Phase 1 saw no USB message for them. The LP360 also declares HID reports that DeepCreative never sent in Phase 1 ([LP360 notes](../../hardware/deepcool-lp360.md)). Supporting them may come after v1 (owner decision, 2026-10-22). It would first need research into what each one does; until then OpenDeepCool never sends them.
 - **ARGB lighting.** The LP360's lighting cable plugs into the motherboard's 5V ARGB header (manual p. 16). OpenRGB, already installed, handles it.
 - **Other DeepCool devices, other distributions or other operating systems.** OpenDeepCool supports only the LP360, on Arch Linux: Omarchy comes first, but any desktop works (owner, 2026-10-23). Its sensors aren't tied to the owner's PC (owner, 2026-10-23): it finds the CPU, GPU and board fan sensors of any PC. Only the owner's PC is tested on real hardware; the rules for other drivers are tested against fake sysfs trees built from their kernel documentation.
@@ -117,7 +117,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Talks to the LP360 over USB without root | The service runs as its own unprivileged system user |
 | Must | Works on any PC: finds the sensors behind the display's values and the cooler's fan and pump inputs itself, and runs the board's sensor detection when the PC has none configured | Owner, 2026-10-23 |
 | Must | Load Mode: Combined and Separate display with CPU usage, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
-| Must | Temperature Guardian and Power Guardian | DeepCreative LP360 modes |
+| Must | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
 | Must | Static while the values fit (99 or less), scrolling by itself while one is 100 or more, in every mode; no layout setting | Owner, 2026-10-24; DeepCreative fixes the layout per mode and always scrolls °F and power |
@@ -338,10 +338,10 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 4 | Implementation plans | One PRP plan per implementation phase (5–12) | in-progress | - | 3 | - | - | - |
 | 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer that reconnects, udev rule, dev access scripts | pending | with 6 | 4 | [plan](../plans/phase-5-device-protocol-core.plan.md) | - | - |
 | 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | pending | with 5 | 4 | [plan](../plans/phase-6-sensors.plan.md) | - | - |
-| 7 | Service, settings & Load Mode (MVP) | System service, start at boot, saved settings, D-Bus and polkit, Load Mode (modes 1–6) | pending | - | 5, 6 | [plan](../plans/phase-7-service-settings-load-mode.plan.md) | - | - |
-| 8 | Guardian modes | Temperature Guardian, Power Guardian | pending | with 9, 10, 11 | 7 | - | - | - |
-| 9 | Music Mode | Audio capture, spectrum, the three Music Mode variants | pending | with 8, 10, 11 | 7 | - | - | - |
-| 10 | Creative Mode | Pixel art and animation engine, storage, import/export | pending | with 8, 9, 11 | 7 | - | - | - |
+| 7 | Service, settings & Load (MVP) | System service, start at boot, saved settings, D-Bus and polkit, Load Mode (modes 1–6) | pending | - | 5, 6 | [plan](../plans/phase-7-service-settings-load-mode.plan.md) | - | - |
+| 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | with 9, 10, 11 | 7 | - | - | - |
+| 9 | Music | Audio capture, spectrum, the three Music variants | pending | with 8, 10, 11 | 7 | - | - | - |
+| 10 | Creative | Pixel art and animation engine, storage, import/export | pending | with 8, 9, 11 | 7 | - | - | - |
 | 11 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview, pixel editor | pending | with 8, 9, 10 | 7 | - | - | - |
 | 12 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | pending | - | 8, 9, 10, 11 | - | - | - |
 
@@ -419,7 +419,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - e2e: values compared against `sensors` on the owner's PC
 - **Success signal**: Values match the system tools within each metric's resolution on the owner's PC, and every rule passes its fake-tree tests.
 
-**Phase 7: Service, settings & Load Mode (MVP)**
+**Phase 7: Service, settings & Load (MVP)**
 - **Goal**: Deliver the MVP.
 - **Scope**:
   - systemd system service (dedicated user, sandboxed) and the settings file in its state directory
@@ -434,8 +434,8 @@ This project spans many sessions and possibly several coding agents, so the way 
   - e2e, unattended: the matrix run on the cooler; boot → configured mode, checked from the service state and the recorded frames
 - **Success signal**: After cold boots, the configured mode appears with no action.
 
-**Phase 8: Guardian modes**
-- **Goal**: Temperature Guardian and Power Guardian as defined in the spec.
+**Phase 8: Temperature & Power**
+- **Goal**: Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) as defined in the spec.
 - **Scope**: renderers, the scrolling layout and timing from the spec, with every value drawn in full: automatic scrolling when a value doesn't fit. Guardian warnings (thresholds) come after v1 (owner, 2026-10-24).
 - **Tests**:
   - unit: renderers against the expected frames for every Guardian matrix case, and values of one to four digits and more
@@ -444,7 +444,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - e2e, unattended: the matrix run on the cooler
 - **Success signal**: These modes' checklist items pass.
 
-**Phase 9: Music Mode**
+**Phase 9: Music**
 - **Goal**: The three Music Mode variants.
 - **Scope**: the audio helper and its link to the service, PipeWire capture, FFT, renderers.
 - **Tests**:
@@ -454,7 +454,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - e2e, unattended: the matrix run on the cooler, with test audio played through a virtual output
 - **Success signal**: These modes' checklist items pass, and the measured delay from sound to frame is within the target the Phase 9 plan sets with the owner.
 
-**Phase 10: Creative Mode**
+**Phase 10: Creative**
 - **Goal**: Pixel art and animations.
 - **Scope**: frame and animation model, storage, playback timing, import/export in our own format.
 - **Tests**:
@@ -563,8 +563,9 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Readings that change while text scrolls | Shown on the next frame, at the same scroll position | DeepCreative's way: finish the 21-column cycle with the old reading first | Owner, 2026-10-24: a new reading shouldn't wait up to 3 s |
 | Value limits | None: every value drawn in full with DeepCreative's glyphs; a value too long for the static layout scrolls automatically, and in Music Mode only the value area scrolls | DeepCreative's caps (99 in static layouts, the last two digits from 1000 in scrolling ones); smaller redesigned glyphs | Owner, 2026-10-24: the caps are DeepCreative's own rules; smaller glyphs tried on the cooler were hard to read |
 | Static alignment | One value centred, an odd spare column going on the left; two values both ending at column 14 | DeepCreative's fixed columns (units in 6–8, symbol from 10) | Owner, 2026-10-24 |
+| Mode names | Load, Temperature, Power, Music, Creative: short names, in code and in the app | DeepCreative's Load Mode, Temperature Guardian, Power Guardian, Music Mode, Creative Mode | Owner, 2026-10-24: smaller and more elegant |
 | Static or scrolling | Chosen by the value: static while every value is 99 or less, scrolling while one is 100 or more; no setting. One smooth movement: it stops only at the static picture's position, and a change never resets the position | DeepCreative's fixed layout per mode; a per-mode setting in the app (decided and dropped the same day) | Owner, 2026-10-24 |
-| Guardian warnings | Not in v1; after v1, once the limits that can damage hardware are researched | Thresholds in v1 | Owner, 2026-10-24: DeepCreative's Guardian modes only show values |
+| Temperature and Power warnings | Not in v1; after v1, once the limits that can damage hardware are researched | Thresholds in v1 | Owner, 2026-10-24: DeepCreative's Guardian modes only show values |
 | Frame timing | One 100 ms tick: one frame, one scroll step, one animation step per tick | 104 ms frames (the median of DeepCreative's single gaps) | Owner, 2026-10-24: DeepCreative's long-run rate is 100.0 ms and its text moves one column per frame (protocol.md, display.md) |
 | Values that can't be read | The cooler shows dashes in their place; the app disables every mode that shows a persistently unavailable metric, and every mode of a missing device | Draw 0 (as DeepCreative under Wine); blank; switch to a fallback mode | Owner, 2026-10-24: never a wrong number; the saved choice isn't changed behind the user's back |
 | Development copy | The dev setup installs the service's files in administrator locations and keeps a manifest; teardown and the package's install script remove exactly what it lists | Run the service from the repository; leave cleanup to the developer | Owner, 2026-10-24 |

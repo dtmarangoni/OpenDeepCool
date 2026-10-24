@@ -40,6 +40,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **GPU list order.** Dedicated first, then integrated, then GPUs whose driver doesn't say; a GPU with no reading rule is listed last, and choosing it disables the GPU modes.
 - **Intel GPUs report no usage.** Modes showing Gpu usage are disabled on them.
 - **Talking to the service.** The app uses the D-Bus system bus; in a remote or inactive session it shows the settings read-only (polkit).
+- **Mode names: Load, Temperature, Power, Music, Creative.** Short names only. Never "Guardian", and no "Mode" after the name, in any label, menu or heading.
 - **Refresh button.** One button that syncs the display: fresh readings at once, and the picture restarts from its home position. Only for users who may change settings.
 - **Unit and GPU choices.** Changing the temperature unit while a mode without temperatures is shown changes nothing on the cooler; it's saved for the temperature modes. Choosing another GPU restarts the picture like a mode change.
 - **No static or scrolling option.** The layout isn't a setting: every mode is static while its values are 99 or less and scrolls by itself while one is 100 or more. The preview follows the same rule, including the movement: it stops only where the static picture sits, and never jumps or restarts.

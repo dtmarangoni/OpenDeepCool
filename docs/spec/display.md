@@ -32,6 +32,8 @@ DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative'
 
 Combined layouts exist in one order only, as listed. Evidence: code: LP page modes (Phase 1 report); capture: sweeps.
 
+**OpenDeepCool's names** (owner, 2026-10-24): **Load**, **Temperature**, **Power**, **Music** and **Creative**, in code and in the app. Never "Guardian", and no "Mode" after the name. The names in the table above, and elsewhere in this spec where DeepCreative is described, are DeepCreative's.
+
 **OpenDeepCool: static unless a value doesn't fit** (owner, 2026-10-24). DeepCreative fixes the layout per mode: static for usage and °C, scrolling for °F and power. OpenDeepCool has no layout setting. Every mode, °F and power included, uses the [static layout](#static-layout-usage-and-temperature-in-c) while each value it shows fits there (99 or less, or dashes), and switches to the [scrolling layout](#scrolling-layout-temperature-in-f-and-power) by itself while any value is 100 or more ([Values](#values), OpenDeepCool: no caps). Both layouts use the glyphs below.
 
 ## Values
