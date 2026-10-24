@@ -68,13 +68,13 @@
 - An unreadable file is renamed aside, logged, and replaced by defaults (`settings.md` OpenDeepCool's defaults).
 
 **Names.**
-- Bus name, interface and polkit action: `io.github.dtmarangoni.OpenDeepCool`. The names carry no version number (owner, 2026-10-24): the service and the settings app ship in one package and always change together. If the interface ever has to change incompatibly while old clients still exist, the new one takes a `2`.
+- Bus name, interface and polkit action: `io.github.dtmarangoni.OpenDeepCool1`. The `1` is the interface's major version, as the D-Bus specification recommends (owner, 2026-10-24): an incompatible change would add `…OpenDeepCool2` alongside it, so older clients keep working.
 - The D-Bus spec says names start with the author's reversed domain. The project's public address is its GitHub repository, and that account name is already public in `LICENSE` and the PRD.
-- Object path: `/io/github/dtmarangoni/OpenDeepCool`.
+- Object path: `/io/github/dtmarangoni/OpenDeepCool1`.
 - Binary: `opendeepcoold`. Unit: `opendeepcool.service`.
 
 **Testing the real service unattended, with known readings.** On the owner's PC the dev copy runs with a drop-in (dev only, never packaged) that starts the service with the `--dev` switch. `--dev` does two things, and the packaged service does neither:
-- it registers a second interface, `…OpenDeepCool.Dev`. Its D-Bus policy allows only members of group `opendeepcool`. It overrides readings, so the end-to-end test can drive every matrix case through the real, sandboxed, boot-started service.
+- it registers a second interface, `…OpenDeepCool1.Dev`. Its D-Bus policy allows only members of group `opendeepcool`. It overrides readings, so the end-to-end test can drive every matrix case through the real, sandboxed, boot-started service.
 - it records every report written to `/var/lib/opendeepcool/dev-frames.log`, using Phase 5's `Recording`.
 
 ### Evidence
@@ -115,7 +115,7 @@
 ```mermaid
 flowchart LR
   subgraph svc["opendeepcoold (new), User=opendeepcool, sandboxed"]
-    DB["D-Bus object (zbus blocking)<br/>io.github.dtmarangoni.OpenDeepCool"] -->|Apply(Settings)| CH((channel))
+    DB["D-Bus object (zbus blocking)<br/>io.github.dtmarangoni.OpenDeepCool1"] -->|Apply(Settings)| CH((channel))
     DB --> ST[(SettingsStore<br/>settings.toml v1)]
     DB -->|CheckAuthorization| PK[[polkit]]
     CH --> EN["Engine thread<br/>100 ms absolute ticks"]
@@ -124,7 +124,7 @@ flowchart LR
     EN --> RG["Registry Readings (Phase 6)<br/>every 10th tick"]
     EN --> STAT[(Status: connected,<br/>availability, bindings)]
     STAT --> DB
-    DEV["…OpenDeepCool.Dev<br/>(only with --dev)"] -.->|readings override| EN
+    DEV["…OpenDeepCool1.Dev<br/>(only with --dev)"] -.->|readings override| EN
   end
   APP["busctl now / settings app (Phase 11)"] -->|system bus| DB
   LP --> HW[(LP360)]
@@ -280,9 +280,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 **Implementation**
 - **Names:**
-  - bus name and interface `io.github.dtmarangoni.OpenDeepCool`; object path `/io/github/dtmarangoni/OpenDeepCool`;
-  - dev interface `io.github.dtmarangoni.OpenDeepCool.Dev`;
-  - polkit action `io.github.dtmarangoni.OpenDeepCool.change-settings`.
+  - bus name and interface `io.github.dtmarangoni.OpenDeepCool1`; object path `/io/github/dtmarangoni/OpenDeepCool1`;
+  - dev interface `io.github.dtmarangoni.OpenDeepCool1.Dev`;
+  - polkit action `io.github.dtmarangoni.OpenDeepCool1.change-settings`.
 - **Properties** (readable by everyone):
   - `Mode` (u), `Rotation` (y), `TemperatureUnit` (s: `celsius` or `fahrenheit`);
   - `CoolerConnected` (b);
@@ -421,11 +421,11 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `Wants=`/`After=` the two Phase 6 one-shots; `WantedBy=multi-user.target`;
   - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`;
   - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 12 after verification (Phase 6).
-- `packaging/dbus/io.github.dtmarangoni.OpenDeepCool.conf`: CREATE.
+- `packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf`: CREATE.
   - user `opendeepcool` may own the name;
   - everyone may call the main interface and read properties;
   - only group `opendeepcool` may call the `.Dev` interface.
-- `packaging/polkit/io.github.dtmarangoni.OpenDeepCool.policy`: CREATE. `change-settings`: `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD).
+- `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `change-settings`: `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
 - `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged.
 - `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
@@ -441,7 +441,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Validation**
 - After the owner approves the `pkexec scripts/dev/setup.sh` run:
   - `scripts/dev/check.sh` exits 0;
-  - `busctl get-property io.github.dtmarangoni.OpenDeepCool /io/github/dtmarangoni/OpenDeepCool io.github.dtmarangoni.OpenDeepCool Mode` prints `u 1`.
+  - `busctl get-property io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 Mode` prints `u 1`.
 
 ### 9. Layer 4: the real service drives the cooler through every Load Mode case, unattended; and the boot check
 
@@ -543,7 +543,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
-| D-Bus names use the GitHub account (`io.github.dtmarangoni.OpenDeepCool`), with no version number | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule; the name is already public in `LICENSE` and the PRD. Service and app ship together, so the spec's optional version number adds nothing | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
+| D-Bus names use the GitHub account and the major version (`io.github.dtmarangoni.OpenDeepCool1`) | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule and its advice to version interface names; the account name is already public in `LICENSE` and the PRD | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
 | The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 12 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
