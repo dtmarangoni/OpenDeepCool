@@ -292,7 +292,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `CoolerFanInput` and `PumpInput` (ssu each, empty when unset);
   - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable).
 - **Methods:**
-  - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`;
+  - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading:** `Diagnostics() -> a(sss)`: metric, bound source, state.
 - **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`.
 - A `#[proxy]` client for the tests and Phase 11.

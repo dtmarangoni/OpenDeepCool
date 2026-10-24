@@ -189,7 +189,7 @@ So the stale text enters wherever it stopped, often in the middle of a digit, gl
 - **Why it was missed on 2026-10-22:** the last scrolling text before the switch into mode 10 was that mode's own `345W`, so the replay looked like the new text.
 - **Evidence:** capture: manual switches of 2026-10-23 at 19:04, 19:08 and 19:13, and two runs of the transition probe at 19:20 and 19:34 (`research/hook/transition-probe.mjs` and `transition-analyze.py`, local). The probe records the time of every input and lines it up with every frame sent, with no one watching. Owner: 2026-10-23, on the cooler during the switches and the second probe run.
 
-**OpenDeepCool: a mode switch jumps** (owner, 2026-10-24). The next frame shows the new mode's picture at its home position, with current readings: nothing scrolls out, and no old text comes back. If a value of the new mode is 100 or more, the strip starts moving from home ([Values](#values), OpenDeepCool: one smooth movement). A change of the temperature unit or of the rotation is treated the same way.
+**OpenDeepCool: a mode switch jumps** (owner, 2026-10-24). The next frame shows the new mode's picture at its home position, with current readings: nothing scrolls out, and no old text comes back. If a value of the new mode is 100 or more, the strip starts moving from home ([Values](#values), OpenDeepCool: one smooth movement). A change of the rotation, of the chosen GPU, or of the temperature unit in a mode that shows a temperature is treated the same way (owner, 2026-10-24). Choosing what is already set changes nothing. A unit change in a mode without a temperature changes nothing on the cooler either: the unit is only saved, for the next temperature mode. The app's **Refresh** button also resets: it takes fresh readings at once and shows the picture at home, scrolling from there if a value is 100 or more.
 
 **Test (Phases 7–8):** the transition tests switch between every pair of modes, with a different reading for every metric, with values below and above 100. The frame after the switch must be the new mode's picture at home, and every frame after it must follow the new mode's movement. Nothing of the old picture may appear after the switch. The full list is in [Test scenarios](#test-scenarios-opendeepcool).
 
@@ -221,7 +221,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | ID | Scenario | Expected |
 |---|---|---|
 | S14 | A mode switch at every *k*, into each kind of mode (static, scrolling from home, Music Mode, Creative Mode) and from each | The next frame is the new mode's picture at home; nothing of the old one |
-| S15 | A temperature unit change, static and scrolling (`57°C` → `134°F`) | Like a mode switch |
+| S15 | A temperature unit change, static and scrolling (`57°C` → `134°F`) | In a mode that shows a temperature: like a mode switch. In any other mode: nothing changes on the cooler; the unit is saved and used by the next temperature mode |
 | S16 | A rotation change (each value, and Rotate Screen presses) while scrolling and while static | Like a mode switch: the next frame is the turned picture at home |
 | S17 | Start-up into each mode: values of 99 or less, 100 or more, and the first second's dashes turning into a value of 100 or more | The saved picture at home on the first frame after `03 08` |
 | S18 | The cooler disconnects while scrolling and comes back | The position follows the ticks while it's away; the first frame back starts with `03 08` |
@@ -230,6 +230,9 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S21 | A reading change and a settings change on the same tick | The settings change wins: the new picture at home, with the new reading |
 | S22 | A tick whose deadline is missed (the frame is skipped) while scrolling | The strip moves one column per frame sent; nothing bunches up |
 | S23 | A change the service refuses (an unavailable mode, a later phase's mode) | Nothing changes on the cooler |
+| S24 | Choosing the mode, unit, rotation or GPU that is already set, static and scrolling, at every *k* | Nothing changes: the strip keeps its position and movement |
+| S25 | Choosing another GPU, static and scrolling, at every *k* | Like a mode switch: the next frame is the picture at home with the new GPU's readings |
+| S26 | The app's Refresh, static and scrolling, at every *k*, with values below and above 100 | Fresh readings at once; the next frame is the picture at home, and it scrolls from there if a value is 100 or more |
 
 **Which modes, units and values:** every scenario runs in every mode that shows a value (1–12 and 18–22), in both temperature units where the mode shows a temperature, for single values and for combined values, with the change in the top value, the bottom value, and both. Every rotation is checked too: the expected frames of a rotation are the rotation-0 frames turned. In Music Mode (18–22) only the value area (rows 2–6) moves, and the spectrum keeps following the sound in every frame. The modes without values (13–17 full screen and emoji, 100 and 101 Creative Mode) run S14 to S18: switches into and out of them at every *k*, rotation, start-up and reconnect.
 

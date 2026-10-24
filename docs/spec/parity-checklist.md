@@ -74,6 +74,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D38 | - | A mode switch (or a unit change) shows the new mode's picture at its home position on the next frame; nothing scrolls out. Replaces OpenDeepCool's earlier scroll-out rule in D28 | [display](display.md#mode-switches) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision |
 | D39 | - | Static alignment: one value centred in 14 columns (with an odd number of spare columns, the extra one goes on the left); two values both end at column 14. DeepCreative uses fixed columns for both (units 6–8, symbol from 10). A unit change resets the picture like a mode switch (confirmed) | [display](display.md#static-layout-usage-and-temperature-in-c) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision |
 | D40 | - | A rotation change resets the picture to home like a mode switch; a strip still at home stops at once when the values fit; in two-value modes the longer value's first digit stays put; negative, not-a-number and infinite readings draw dashes | [display](display.md#values) | owner: 2026-10-24 | reviewed 2026-10-24: owner decisions |
+| D41 | - | Choosing what's already set changes nothing; a unit change in a mode without a temperature is only saved; choosing another GPU resets like a mode switch; the app's Refresh takes fresh readings and restarts the picture from home. DeepCreative has no Refresh | [display](display.md#mode-switches) | owner: 2026-10-24 | reviewed 2026-10-24: owner decisions |
 
 ## Music Mode
 
