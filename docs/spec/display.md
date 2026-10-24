@@ -32,19 +32,27 @@ DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative'
 
 Combined layouts exist in one order only, as listed. Evidence: code: LP page modes (Phase 1 report); capture: sweeps.
 
+**OpenDeepCool: static or scrolling for every mode** (owner, 2026-10-24). DeepCreative fixes the layout per mode: static for usage and °C, scrolling for °F and power. In OpenDeepCool the user chooses static or scrolling in the app for every mode except Music Mode, and the choice is saved with the mode, so the cooler starts the next time with the same mode and the same choice. How each mode looks in the layout DeepCreative doesn't have is part of the redesign under [Values](#values).
+
 ## Values
 
 How a reading becomes the number drawn:
 
 | Metric | Number drawn | Evidence (reading → drawn) |
 |---|---|---|
-| CPU Usage, Gpu usage | round **up** to a whole number, at most 99 | 0.4 → 1, 7.2 → 8, 9.5 → 10, 99.4 → 99, 100 → 99 |
+| CPU Usage, Gpu usage | round **up** to a whole number, at most 99 | 0.4 → 1, 7.2 → 8, 9.5 → 10, 99.4 → 99, 100 → 99, 1000 → 99 |
 | Memory Load | round to the nearest whole number (halves up), at most 99 | 0.4 → 0, 0.5 → 1, 7.2 → 7, 7.6 → 8, 100 → 99 |
-| CPU Temperature, Gpu temperature in °C | round **up**, at most 99 | 37.2 → 38, 57.4 → 58, 100 → 99, 120 → 99 |
-| The same in °F | round the °C reading up, convert (× 9/5 + 32), then drop the fraction; no upper limit | 0 → 32, 37.2 → 100, 57 → 134, 100 → 212, 120 → 248 |
-| CPU Power, Gpu power | round **up**; from 1000 on, only the last two digits are drawn, a leading 0 included | 57.2 → 58, 999 → 999, 1000 → 00, 1050 → 50, 1234 → 34, 1999 → 99 |
+| CPU Temperature, Gpu temperature in °C | round **up**, at most 99 | 37.2 → 38, 57.4 → 58, 100 → 99, 120 → 99, 1000 → 99 |
+| The same in °F | round the °C reading up, convert (× 9/5 + 32), then drop the fraction; from 1000 °F on, only the last two digits are drawn, a leading 0 included | 0 → 32, 37.2 → 100, 57 → 134, 100 → 212, 120 → 248, 537 → 998, 538 → 00 (1000 °F) |
+| CPU Power, Gpu power | round **up**; from 1000 on, only the last two digits are drawn, a leading 0 included | 57.2 → 58, 999 → 999, 1000 → 00, 1050 → 50, 1234 → 34, 1999 → 99, 10000 → 00 |
 
-Evidence: capture: sweeps of 2026-10-22. Readings below 0 were not tested (unverified).
+Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537 and 538 °C in °F, 10000 W) checked one at a time on 2026-10-24, rotation 0. No °C reading gives exactly 999 °F, so 998 °F is the highest three-digit °F. Readings below 0 were not tested; temperatures below 0 °C don't occur with a liquid cooler (owner, 2026-10-24).
+
+**OpenDeepCool: no caps** (owner, 2026-10-24).
+- These limits are DeepCreative's own rules, not the hardware's: the PC draws every pixel, and the cooler's only limit is its 14 × 14 grid of on/off pixels ([protocol.md](protocol.md)).
+- With the 3 × 5 digits, the static layout fits two digits and a symbol, and the scrolling field three digits; DeepCreative caps or cuts everything longer.
+- OpenDeepCool draws every value in full, in both layouts, with redesigned drawings (glyphs and layouts) that fit three or more digits in the static layout too.
+- The redesign isn't specified yet. Until it is, this section describes DeepCreative, and the expected frames in [frames/](frames/) follow it.
 
 ## Glyphs
 
@@ -106,12 +114,17 @@ Within a band, the text runs right to left in a fixed 21-column cycle:
    - Capture, whole log, re-analysed 2026-10-24: 22,874 frame-to-frame changes are one-column shifts; about 10 larger jumps are mode switches.
    - Corrected 2026-10-24: this point first called the scroll step a clock of its own, independent of the frames. An independent 100 ms clock sampled by frames would have shown a two-column jump every 25 frames or so.
 4. **Two values** (modes 9 and 12): both bands use the same field and move together, so a shorter value stays right-aligned under the longer one.
+5. **A reading that changes while the text scrolls** (owner, 2026-10-24): the frame after the new reading shows the new text at the same position in the 21-column cycle. The scroll doesn't restart and doesn't wait.
+   - A longer or shorter text stays right-aligned in the field, so its last digit and its symbol stay where they were.
+   - Both values of a two-value mode follow the same rule, and so does a value turning into dashes or back.
+   - **DeepCreative, not reproduced:** the text on show finishes its 21-column cycle with the old reading, and the next cycle carries the new one, so a change can take up to about 3 s to appear. All 60 changes between scrolling texts in the sweeps (reading changes, and switches between scrolling modes) join exactly at the end of a cycle, and every frame is a one-column shift. Evidence: capture: sweeps of 2026-10-22, re-analysed 2026-10-24 (local analysis script).
 
 Power scrolls at every value, even one digit (`7W`). Temperature scrolls only in °F. Evidence: capture: sweeps of 2026-10-22 (every frame change is a one-column left shift; cycle 21 columns at every value).
 
 ## Updates
 
 - A new reading appears with the next sensor snapshot, which DeepCreative receives about once per second. In the sweep, a changed value was drawn 957 ms after the reading changed. Evidence: capture: 2026-10-22, step 3.
+- In a scrolling mode, OpenDeepCool also shows the new reading on the next frame, at the same scroll position ([Scrolling layout](#scrolling-layout-temperature-in-f-and-power), point 5). DeepCreative waits for the end of the cycle.
 - Frames keep being sent every 100 ms tick whether or not anything changed ([protocol.md](protocol.md#timing)).
 
 ## Unavailable values

@@ -100,7 +100,7 @@
   - polkit (`man 8 polkit`) reads actions from `/etc/polkit-1/actions/` and `/usr/share/polkit-1/actions/`;
   - `/usr/share/dbus-1/system.conf` includes `/etc/dbus-1/system.d`;
   - `/proc/devices` names the `hidraw` and `drm` groups, for `DeviceAllow=char-hidraw` and `char-drm`;
-  - systemd 262 provides `systemd-analyze security`.
+  - systemd provides `systemd-analyze security`.
 - crates.io, 2026-10-24: `zbus` 6.1.0, `serde` 1.0.229, `toml` 1.1.8.
 
 ### Alternatives considered
@@ -543,6 +543,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
+| Display redesign pending (owner, 2026-10-24): no caps, and static or scrolling per mode | Implement the value rules, glyphs and layouts as `display.md` states them when implementation starts; the redesign must land in the spec first (PRD Open Questions) | `display.md` Values; parity checklist D36, D37 | Building the 99 cap now would be thrown away |
 | D-Bus names use the GitHub account and the major version (`io.github.dtmarangoni.OpenDeepCool1`) | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule and its advice to version interface names; the account name is already public in `LICENSE` and the PRD | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
 | The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 12 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |

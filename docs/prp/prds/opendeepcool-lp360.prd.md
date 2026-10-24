@@ -42,6 +42,7 @@ We'll know we're right when two things are true:
 
 - **Speed control of the cooler's fans and pump in v1.** v1 only reads their speeds. They're DeepCool hardware, so controlling them may come after v1 (owner, 2026-10-23). It would need a driver that can write (the in-kernel driver for the board's sensor chip is read-only), and a bug could slow or stop the pump. Other fans stay out (see "Monitoring or controlling any hardware other than the cooler" below).
 - **Creative Mode animations in v1.** DeepCreative 1.2.14's Creative Mode shows static 14×14 images only; its editor has no frames or timing. Animations may come after v1 (owner decision, 2026-10-22).
+- **Guardian warnings in v1.** Temperature Guardian and Power Guardian only show values, as DeepCreative does; the spec found no thresholds, alarms or blinking. Warnings at temperatures or power levels that really can damage hardware may come after v1, once those limits are researched (owner, 2026-10-24).
 - **Hidden display settings and unused device reports in v1.** DeepCreative 1.2.14 stores `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` for the LP360, but its LP page has no control for them, and Phase 1 saw no USB message for them. The LP360 also declares HID reports that DeepCreative never sent in Phase 1 ([LP360 notes](../../hardware/deepcool-lp360.md)). Supporting them may come after v1 (owner decision, 2026-10-22). It would first need research into what each one does; until then OpenDeepCool never sends them.
 - **ARGB lighting.** The LP360's lighting cable plugs into the motherboard's 5V ARGB header (manual p. 16). OpenRGB, already installed, handles it.
 - **Other DeepCool devices, other distributions or other operating systems.** OpenDeepCool supports only the LP360, on Arch Linux: Omarchy comes first, but any desktop works (owner, 2026-10-23). Its sensors aren't tied to the owner's PC (owner, 2026-10-23): it finds the CPU, GPU and board fan sensors of any PC. Only the owner's PC is tested on real hardware; the rules for other drivers are tested against fake sysfs trees built from their kernel documentation.
@@ -79,6 +80,7 @@ We'll know we're right when two things are true:
 - [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
 - [x] What should the display show when the service is stopped or the PC is idle? **Answered** (owner, 2026-10-23): when the service stops, it just stops sending, and the cooler goes blank on its own after about 10 s (parity checklist P8); no extra message is sent. While the PC is idle, the display keeps showing live values, as DeepCreative does.
 - [x] If Wine fails, can the main-process V8 bytecode (Electron 23.3.13) be decompiled? **Not needed** (2026-10-23): Wine worked (Phase 1), and watching DeepCreative's output with chosen inputs answered every Phase 3 question.
+- [ ] **Display redesign** (owner, 2026-10-24): every value drawn in full, never capped, and static or scrolling for every mode except Music Mode. New glyphs and layouts have to be specified in `display.md`, and the expected frames regenerated, before Phase 7 is implemented; the Phase 7 and 8 plans then follow that design. Not started yet.
 - [ ] How does the display service read CPU power? `energy_uj` became root-only after a reboot on 2026-10-22, and no rule was found that had made it readable before. Phase 6 decides how the service reads it ([sensors spec](../../spec/sensors.md#cpu-power), parity checklist S4).
 
 ---
@@ -115,6 +117,8 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Temperature Guardian and Power Guardian | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
+| Must | Static or scrolling for every mode except Music Mode, chosen in the app and saved with the mode | Owner, 2026-10-24; DeepCreative fixes the layout per mode |
+| Must | Every value drawn in full, never capped, with redesigned drawings that fit three or more digits | Owner, 2026-10-24; DeepCreative's caps are its own rules, not the hardware's |
 | Must | Display settings: Rotate Screen (one button, four quarter turns clockwise) and the global temperature unit (°C/°F) | What the spec found on DeepCreative's LP page and in its global settings ([settings spec](../../spec/settings.md)). Hidden settings such as brightness come after v1 |
 | Must | The cooler's fan and pump speed readings, with the inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | GPU choice: a dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated GPU at first; the choice kept across reboots | Owner, 2026-10-23 |
@@ -126,6 +130,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Should | Live preview of the 14×14 display in the app | Mode choice and Creative Mode work without looking at the pump |
 | Should | CI build and test on GitHub | Keeps the public repo's main branch passing |
 | Could | Speed control of the cooler's own fans and pump, after v1 | Owner: possible later; only DeepCool hardware (2026-10-23) |
+| Could | Guardian warnings at temperatures or power levels that can damage hardware, after v1 | Owner, 2026-10-24: research the real limits first |
 | Could | Creative Mode animations (several frames played in sequence), after v1 | DeepCreative 1.2.14 shows only static images; owner: possible later (2026-10-22) |
 | Could | Hidden display settings (brightness, screen on/off, no-load screen, `rgbOptical`, gyro) and the device reports DeepCreative doesn't use, after v1 | Owner: possible later (2026-10-22) |
 | Won't | Lighting, other devices, monitoring or control of any hardware other than the cooler, DeepCreative file compatibility, user-facing CLI | See [What We're NOT Building](#what-were-not-building) |
@@ -424,9 +429,9 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 8: Guardian modes**
 - **Goal**: Temperature Guardian and Power Guardian as defined in the spec.
-- **Scope**: renderers, thresholds and timing from the spec.
+- **Scope**: renderers, the scrolling layout and timing from the spec, with every value drawn in full (display redesign, Open Questions). Guardian warnings (thresholds) come after v1 (owner, 2026-10-24).
 - **Tests**:
-  - unit: renderers against the expected frames for every Guardian matrix case, at and around thresholds
+  - unit: renderers against the expected frames for every Guardian matrix case, and values of one to four digits and more
   - differential: DeepCreative's Guardian captures, 0 differing pixels
   - integration: service with simulated sensor values
   - e2e, unattended: the matrix run on the cooler
@@ -548,6 +553,10 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy) | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice) | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't |
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions, settings and saved images; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |
 | Settings app ↔ service | D-Bus system bus (`zbus`), polkit by bus name; diagnostics through the journal and a D-Bus method, no command line | Unix socket with our own protocol and client tool | Owner, 2026-10-24: the standard for system services with polkit; usable with `busctl` before the app exists |
+| Readings that change while text scrolls | Shown on the next frame, at the same scroll position | DeepCreative's way: finish the 21-column cycle with the old reading first | Owner, 2026-10-24: a new reading shouldn't wait up to 3 s |
+| Value limits | None: every value drawn in full, with redesigned drawings | DeepCreative's caps: 99 in static layouts, the last two digits from 1000 in scrolling ones | Owner, 2026-10-24: the caps are DeepCreative's own rules; the cooler's only limit is its 14 × 14 grid |
+| Static or scrolling | The user's choice for every mode except Music Mode, saved with the mode | DeepCreative's fixed layout per mode | Owner, 2026-10-24 |
+| Guardian warnings | Not in v1; after v1, once the limits that can damage hardware are researched | Thresholds in v1 | Owner, 2026-10-24: DeepCreative's Guardian modes only show values |
 | Frame timing | One 100 ms tick: one frame, one scroll step, one animation step per tick | 104 ms frames (the median of DeepCreative's single gaps) | Owner, 2026-10-24: DeepCreative's long-run rate is 100.0 ms and its text moves one column per frame (protocol.md, display.md) |
 | Values that can't be read | The cooler shows dashes in their place; the app disables every mode that shows a persistently unavailable metric, and every mode of a missing device | Draw 0 (as DeepCreative under Wine); blank; switch to a fallback mode | Owner, 2026-10-24: never a wrong number; the saved choice isn't changed behind the user's back |
 | Development copy | The dev setup installs the service's files in administrator locations and keeps a manifest; teardown and the package's install script remove exactly what it lists | Run the service from the repository; leave cleanup to the developer | Owner, 2026-10-24 |

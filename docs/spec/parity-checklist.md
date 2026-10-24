@@ -29,8 +29,8 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D3 | - | CPU and GPU usage round up, at most 99 | [display](display.md#values) | capture: sweeps (0.4 → 1, 100 → 99) | ok 2026-10-23: mode 4, CPU 0.4 and GPU 100 drew `1%` over `99%` |
 | D4 | - | Memory Load rounds to the nearest whole number, at most 99 | [display](display.md#values) | capture: sweeps (0.4 → 0, 0.5 → 1) | ok 2026-10-23: 0.4 drew `0%` (mode 5), 0.5 drew `1%` (mode 6) |
 | D5 | - | °C temperatures round up, at most 99 | [display](display.md#values) | capture: sweeps (57.4 → 58, 120 → 99) | ok 2026-10-23: mode 9, CPU 57.4 and GPU 120 drew `58°C` over `99°C` |
-| D6 | - | °F: round the °C reading up, convert, drop the fraction; no upper limit | [display](display.md#values) | capture: sweeps (57 → 134, 120 → 248) | ok 2026-10-23: mode 9 in °F, CPU 120 and GPU 37.8 scrolled `248°F` over `100°F` |
-| D7 | - | Power rounds up; from 1000 W only the last two digits are drawn | [display](display.md#values) | capture: sweeps (999 → 999, 1234 → 34) | ok 2026-10-23: mode 12, CPU 999 and GPU 1234 scrolled `999W` over `34W` |
+| D6 | - | °F: round the °C reading up, convert, drop the fraction; from 1000 °F only the last two digits are drawn | [display](display.md#values) | capture: sweeps (57 → 134, 120 → 248); limit steps of 2026-10-24 (537 °C → 998, 538 °C → 00) | ok 2026-10-23: mode 9 in °F, CPU 120 and GPU 37.8 scrolled `248°F` over `100°F` |
+| D7 | - | Power rounds up; from 1000 W only the last two digits are drawn | [display](display.md#values) | capture: sweeps (999 → 999, 1234 → 34); limit step of 2026-10-24 (10000 → 00) | ok 2026-10-23: mode 12, CPU 999 and GPU 1234 scrolled `999W` over `34W` |
 | D8 | - | One value in rows 6–10; two values in rows 2–6 and 9–13 | [display](display.md#bands) | capture: sweeps | ok 2026-10-22: seen in D11–D25 |
 | D9 | - | Static layout: tens in columns 2–4 (blank below 10), units in 6–8, symbol from column 10 | [display](display.md#static-layout-usage-and-temperature-in-c) | capture: sweeps | ok 2026-10-22: `7%` in the units place |
 | D10 | - | Scrolling: 21-column cycle, right-aligned 17-column field, one column left with every frame (the 100 ms tick); two values move together | [display](display.md#scrolling-layout-temperature-in-f-and-power) | capture: sweeps | ok 2026-10-22: `65W` over `250W`, right ends aligned |
@@ -68,6 +68,9 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D32 | 100 | Creative Mode → blank canvas: all pixels off | [display](display.md#creative-mode) | capture: Phase 1 and matrix sweep | ok 2026-10-22: all off |
 | D33 | 101 | Creative Mode → saved image, drawn exactly as stored | [display](display.md#creative-mode) | capture: matrix sweep, all rotations | ok 2026-10-22: the L and the dot as drawn |
 | D34 | - | Creative Mode has images only; animations are after v1 | [display](display.md#creative-mode) | code: LP page editor components | reviewed 2026-10-23: editor has images only; animations after v1 (owner, 2026-10-22) |
+| D35 | - | A reading that changes while text scrolls: DeepCreative finishes the 21-column cycle with the old reading; OpenDeepCool shows the new text on the next frame, at the same scroll position | [display](display.md#scrolling-layout-temperature-in-f-and-power) | capture: sweeps, all 60 changes between scrolling texts join at a cycle end (re-analysed 2026-10-24) | reviewed 2026-10-24: owner chose to update in place |
+| D36 | - | DeepCreative's limits (99 in static layouts; the last two digits from 1000 in scrolling ones) aren't reproduced: OpenDeepCool draws every value in full, with redesigned drawings (design pending) | [display](display.md#values) | capture: limit steps of 2026-10-24 | reviewed 2026-10-24: owner decision, no caps |
+| D37 | - | Static or scrolling for every mode except Music Mode, chosen in the app and saved with the mode; DeepCreative fixes it per mode | [display](display.md#modes) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision |
 
 ## Music Mode
 
