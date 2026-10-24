@@ -56,7 +56,7 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 - **One smooth movement, never reset** (owner, 2026-10-24). The static picture and the scrolling text are the same strip of columns: the static layout's spacing (digit, blank column, digit, blank column, symbol) is the scrolling layout's spacing.
   - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank), followed by the symbol. In a two-value mode both values end at the same column, so their last digits line up.
   - **Home position** (owner, 2026-10-24): where the static layout places the picture ([Static layout](#static-layout-usage-and-temperature-in-c), OpenDeepCool: alignment). A picture wider than 14 columns has its first digit at column 2. A static picture is the strip stopped at home.
-  - **Starting to scroll:** when a value reaches 100, the whole number is drawn at home, from column 2 (`100` in columns 2–12), and its symbol starts at column 14, so the symbol is cut until the strip moves. The strip then moves left from there, one column per frame.
+  - **Starting to scroll:** when a value reaches 100, the new digits are drawn where the static picture's first digit place was (column 2 for a two-digit value, column 4 for a centred one-digit value), so the whole number shows and only the symbol is cut. The strip then moves left from there, one column per frame. After a reset (a mode switch, for example) a picture wider than 14 columns starts with its first digit at column 2.
   - **The cycle:** the strip followed by 4 blank columns, at least 21 columns as in DeepCreative (`100W` is 17 columns, so 21; `1234W` is 21, so 25).
   - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart. If the strip is at home at that moment and hasn't moved on yet, it stops at once (owner, 2026-10-24).
   - **Rising again before it stopped:** only the digits change; the strip keeps moving on its cycle.
@@ -193,6 +193,21 @@ So the stale text enters wherever it stopped, often in the middle of a digit, gl
 
 **Test (Phases 7–8):** the transition tests switch between every pair of modes, with a different reading for every metric, with values below and above 100. The frame after the switch must be the new mode's picture at home, and every frame after it must follow the new mode's movement. Nothing of the old picture may appear after the switch. The full list is in [Test scenarios](#test-scenarios-opendeepcool).
 
+### Movement, precisely
+
+The rules above as one procedure, which the Rust implementation and the test oracle both follow. Columns are numbered 1–14 on the unrotated picture; rotation is applied to the finished frame.
+
+- **The picture:** the strip of the mode's values (both bands, aligned so that they end at the same column), its width *w*, its cycle length *L* = *w* + max(4, 21 − *w*), and its home column *h*: where the static layout puts its first column, or 2 when *w* is over 14. It **needs to scroll** when any value is 100 or more.
+- **State:** *x*, the column of the strip's first column (it may be off the screen), and whether the strip is **moving**. The strip repeats every *L* columns: copies start at *x*, *x* + *L*, *x* − *L*, and so on.
+- **Each tick:**
+  1. Apply what changed since the last tick: a reset, or a new picture.
+  2. If the strip is moving, doesn't need to scroll, and *x* = *h*: it stops.
+  3. Draw the frame at *x*.
+  4. If it's moving: *x* = *x* − 1, then while *x* ≤ *h* − *L*: *x* = *x* + *L*.
+- **A reset** (start-up, a mode switch, a rotation change, a unit change in a mode that shows a temperature, another GPU, Refresh): the new picture, *x* = *h*, moving if it needs to scroll.
+- **A new picture without a reset** (a reading changed): the copy whose first column is on the screen, the rightmost one if two are, keeps its first column where it was; if none is, the copy at *x* does. With the new *h* and *L*, while *x* ≤ *h* − *L*: *x* = *x* + *L*. *x* may end up right of *h*, for example a centred `7%` (*x* = 4) turning into `100%` (*h* = 2): the strip then moves left from where it is. The strip starts moving if the new picture needs to scroll, and a moving strip keeps moving.
+- **Choosing what is already set**, and a unit change in a mode without a temperature: nothing changes.
+
 ## Test scenarios (OpenDeepCool)
 
 The display's behaviour over time, as the automated tests of OpenDeepCool's Rust implementation must check it (owner, 2026-10-24). These are OpenDeepCool's own rules: DeepCreative handles these cases differently (caps, fixed layouts, a scroll that finishes its cycle), so the scenarios are never compared with DeepCreative's captures. Each scenario is a sequence of readings and settings changes at chosen ticks, with the frame expected at every tick, generated from this spec's rules like [frames/](frames/). Below, *L* is the cycle length in frames and *k* the number of columns the strip has moved past home.
@@ -202,7 +217,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | ID | Scenario | Expected |
 |---|---|---|
 | S1 | A value of 100 or more | Scrolls from home: the whole number first, the symbol cut; then one column per frame, an *L*-frame cycle, repeating |
-| S2 | Static → 100 or more | The digits change on the next frame, at home, and the strip starts moving from there |
+| S2 | Static → 100 or more | The digits change on the next frame, where the static picture's first digit place was, and the strip starts moving from there |
 | S3 | 100 or more → 99 or less | The strip keeps moving until home, then stops: (*L* − *k*) mod *L* more frames |
 | S4 | 100 or more → 99 or less → 100 or more, before home | Never stops; only the digits change; the position never jumps |
 | S5 | Static → 100 or more → 99 or less → 100 or more → 99 or less, every change before home | Stops at home after the last change |
