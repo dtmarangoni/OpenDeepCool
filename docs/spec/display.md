@@ -54,12 +54,14 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 - OpenDeepCool draws every value in full, with the same glyphs (owner, 2026-10-24). Smaller glyphs were considered and rejected: the owner's trials on the cooler showed them hard to read.
 - **Automatic scrolling, no setting:** every mode is static while its values fit (99 or less). When a value is 100 or more (`100%`, `100°C`, `100°F`, `100W`), the picture scrolls by itself, so no digit is lost. This applies to °F and power too, which DeepCreative always scrolls: `65W` and `98°F` are static in OpenDeepCool.
 - **One smooth movement, never reset** (owner, 2026-10-24). The static picture and the scrolling text are the same strip of columns: the static layout's spacing (digit, blank column, digit, blank column, symbol) is the scrolling layout's spacing.
-  - **Home position:** where the strip sits exactly as in the static layout, the symbol starting at column 10 and the units digit at columns 6–8. A static picture is the strip stopped at home.
-  - **Starting to scroll:** when a value reaches 100, the new text is drawn at the current position and the strip starts moving left from there, one column per frame.
+  - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank). A number uses as many places as it has digits, at least two; a one-digit number leaves its first place blank, as the static layout does (`7%`). In a two-value mode both values use the same number of places, the shorter one with blank places in front, so their last digits stay aligned.
+  - **Home position** (owner, 2026-10-24): the first digit place starts at column 2. For one or two digits this is exactly the static layout. A static picture is the strip stopped at home.
+  - **Starting to scroll:** when a value reaches 100, the whole number is drawn at home, from column 2 (`100` in columns 2–12), and its symbol starts at column 14, so the symbol is cut until the strip moves. The strip then moves left from there, one column per frame.
+  - **The cycle:** the strip followed by 4 blank columns, at least 21 columns as in DeepCreative (`100W` is 17 columns, so 21; `1234W` is 21, so 25).
   - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart.
   - **Rising again before it stopped:** only the digits change; the strip keeps moving on its cycle.
-  - **Every change of a number** keeps the strip's position (Scrolling layout, point 5). The position is never reset by a reading, or by switching between moving and stopped. Mode switches keep their own rules ([Mode switches](#mode-switches)).
-- **Longer text in the scrolling layout:** the field is as wide as the longer text when that is over 17 columns, followed by the same 4 blank columns. For example, `1234W` is 21 columns, so its cycle is 25.
+  - **Every change of a number** keeps the strip's position (Scrolling layout, point 5). The position is never reset by a reading, or by switching between moving and stopped.
+  - **A mode switch resets it** (owner, 2026-10-24): the new mode's picture appears at home on the next frame ([Mode switches](#mode-switches)).
 - **Music Mode:** only the value area (rows 2–6) scrolls; the spectrum below it keeps moving with the sound ([music.md](music.md#value-area-modes-1822)).
 - Until the spec is updated, the expected frames in [frames/](frames/) follow DeepCreative: its caps for value set 3 (usage 100, 120 °C, 1234 W, GPU 999 W), and °F and power always scrolling. They're regenerated with these rules.
 
@@ -124,7 +126,7 @@ Within a band, the text runs right to left in a fixed 21-column cycle:
    - Corrected 2026-10-24: this point first called the scroll step a clock of its own, independent of the frames. An independent 100 ms clock sampled by frames would have shown a two-column jump every 25 frames or so.
 4. **Two values** (modes 9 and 12): both bands use the same field and move together, so a shorter value stays right-aligned under the longer one.
 5. **A reading that changes while the text scrolls** (owner, 2026-10-24): the frame after the new reading shows the new text at the same position in the 21-column cycle. The scroll doesn't restart and doesn't wait.
-   - A longer or shorter text stays right-aligned in the field, so its last digit and its symbol stay where they were.
+   - A longer or shorter number keeps its first digit place where it was and grows or shrinks to the right ([Values](#values), OpenDeepCool: one smooth movement).
    - Both values of a two-value mode follow the same rule, and so does a value turning into dashes or back.
    - **DeepCreative, not reproduced:** the text on show finishes its 21-column cycle with the old reading, and the next cycle carries the new one, so a change can take up to about 3 s to appear. All 60 changes between scrolling texts in the sweeps (reading changes, and switches between scrolling modes) join exactly at the end of a cycle, and every frame is a one-column shift. Evidence: capture: sweeps of 2026-10-22, re-analysed 2026-10-24 (local analysis script).
 
@@ -180,9 +182,9 @@ So the stale text enters wherever it stopped, often in the middle of a digit, gl
 - **Why it was missed on 2026-10-22:** the last scrolling text before the switch into mode 10 was that mode's own `345W`, so the replay looked like the new text.
 - **Evidence:** capture: manual switches of 2026-10-23 at 19:04, 19:08 and 19:13, and two runs of the transition probe at 19:20 and 19:34 (`research/hook/transition-probe.mjs` and `transition-analyze.py`, local). The probe records the time of every input and lines it up with every frame sent, with no one watching. Owner: 2026-10-23, on the cooler during the switches and the second probe run.
 
-**OpenDeepCool:** no scrolling state survives a mode switch. When switching into a scrolling mode, the old picture scrolls out to the left, and the very next column is the first column of the new text's cycle, drawn with current readings. Nothing else appears in between.
+**OpenDeepCool: a mode switch jumps** (owner, 2026-10-24). The next frame shows the new mode's picture at its home position, with current readings: nothing scrolls out, and no old text comes back. If a value of the new mode is 100 or more, the strip starts moving from home ([Values](#values), OpenDeepCool: one smooth movement). A change of the temperature unit is treated the same way, since it changes the digits and the symbol together.
 
-**Test (Phases 7–8):** the transition tests switch between every pair of kinds (static to scrolling, scrolling to static, scrolling to scrolling, static to static), with a different reading for every metric, and also pass through a static mode between two different scrolling modes. A test fails if any column after the switch belongs to a text other than the outgoing picture or the new one. This is the check `transition-analyze.py` makes on DeepCreative's captures.
+**Test (Phases 7–8):** the transition tests switch between every pair of modes, with a different reading for every metric, with values below and above 100. The frame after the switch must be the new mode's picture at home, and every frame after it must follow the new mode's movement. Nothing of the old picture may appear after the switch.
 
 ## Rotation
 

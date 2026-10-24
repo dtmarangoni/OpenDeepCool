@@ -30,7 +30,7 @@ Evidence:
   - After a restart into a scrolling mode, DeepCreative sent blank frames for 3 s, then the text scrolled in from the right edge. Why it waited 3 s is unverified.
   - Checked again on 2026-10-23, restarting into a scrolling °F mode rotated 180°: the first frame came about 1 s after `03 08`, then 30 blank frames over 3.0 s, then the text scrolled in. On the cooler, the owner saw the text start quickly ("like 2 seconds"); blank frames look the same as a dark display. With the screen rotated 180°, the text enters from the right edge of the unrotated picture, so on the cooler it moves left to right, upside down.
   - DeepCreative sends no frames until its sensor helper delivers values: with the helper started 105 s late, only `03 08` went out until then (research rig, 2026-10-23).
-- **OpenDeepCool:** sends `03 08`, then the saved mode's frames straight away. A scrolling mode starts with its text entering from the right edge, as after a [mode switch](display.md#mode-switches), without the 3 s wait.
+- **OpenDeepCool:** sends `03 08`, then the saved mode's picture at its home position straight away, without the 3 s wait. If a value is 100 or more, the text starts moving from home, as after a [mode switch](display.md#mode-switches).
 
 ## Where the settings live
 
