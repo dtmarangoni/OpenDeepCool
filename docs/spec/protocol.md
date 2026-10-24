@@ -77,6 +77,20 @@ Evidence: capture: all sessions, with the frames decoded this way showing legibl
 - **When frames stop, the cooler keeps the last picture for about 10 seconds, then goes blank.** Owner: 2026-10-22. The 10 s is the owner's estimate, not a measurement.
 - A sender that wants the picture to stay must keep sending frames well within that time.
 
+## Disconnect and reconnect
+
+Tested on 2026-10-24: DeepCreative ran under Wine, sending frames, while the cooler was disconnected and reconnected in software three times, off for 2 s, 15 s and 30 s. The kernel's USB authorization switch (docs.kernel.org, "Authorizing (or not) your USB devices") removes the device and adds it again, like pulling and replugging the cable, without sending it anything. Capture: reconnect test, 2026-10-24: every USB write, the open and close of the device node, and DeepCreative's own log.
+
+- **When the cooler disappears,** DeepCreative's next frame fails with "no such device". It tries to send a frame 3 times in about 1.8 s, each time on the handle of the vanished device, then drops the device and stops sending. It sends no `03 08` during these tries.
+- **The cooler comes back under another hidraw number**, so a reconnect must find it again by its USB ID ([Device](#device)).
+- **DeepCreative never sent anything again** in any of the three cycles: it didn't reopen the cooler. This is probably the research rig, not DeepCreative: Wine runs in its own network namespace to block the internet, and device hotplug events reach programs through a netlink socket, so Wine likely never learned that the cooler came back. Unverified.
+- **So what DeepCreative sends after a reconnect is unverified,** in particular whether it sends `03 08` again.
+
+**OpenDeepCool** (owner, 2026-10-24):
+- it keeps looking for the cooler for as long as it runs, instead of giving up after a few tries;
+- after every reconnect, it sends `03 08` before the first frame, exactly as at start-up. A reconnect is a new start of the conversation with the cooler, and `03 08` is the only thing DeepCreative was seen sending first.
+
 ## Open
 
 - What `03 08` does, and whether the display works without it: unverified. OpenDeepCool sends it as DeepCreative does, so this doesn't block Phase 5.
+- Whether DeepCreative sends `03 08` again after a reconnect: unverified ([Disconnect and reconnect](#disconnect-and-reconnect)). OpenDeepCool does.

@@ -503,6 +503,9 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted at the end of v1 (Phase 12) |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
 | Temporary access to the LP360 device node | ACL granted by the owner with `sudo setfacl` for a research session | Gone at reboot or re-plug; first granted 2026-10-22 |
+| Group `opendeepcool` (dev copy) | `/etc/sysusers.d/opendeepcool.conf` (`g opendeepcool -`), applied with `systemd-sysusers`; installed 2026-10-24 with the owner's OK | Lets the unattended tests reach the cooler without root (AGENTS.md rule 3). Undo: `groupdel opendeepcool` and delete the file. Must be deleted before the Phase 12 package installs, because a file in `/etc` hides the packaged one of the same name in `/usr/lib` |
+| udev rule (dev copy) | `/etc/udev/rules.d/70-opendeepcool.rules`: the LP360's hidraw node (`3633:000c`) gets group `opendeepcool`, mode `0660`; installed 2026-10-24 | The rule the product ships, proven on the cooler: it followed the cooler to a new hidraw number after a reconnect. Undo: delete the file, `udevadm control --reload`, re-trigger the node. Same Phase 12 note as above |
+| The owner's account in group `opendeepcool` | `/etc/group`; added 2026-10-24 | Development only: tests and research tools run as the owner. The finished app never adds a person to the group. Undo: `gpasswd -d <user> opendeepcool` |
 
 ---
 

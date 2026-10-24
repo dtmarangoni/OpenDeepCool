@@ -18,6 +18,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | P6 | - | Frames are sent continuously, about every 104 ms, even when the picture doesn't change | [protocol](protocol.md#timing) | capture: median 103.9–104.0 ms in all 8 app starts | reviewed 2026-10-23: evidence re-run on all 8 captures |
 | P7 | - | At exit DeepCreative sends no special message | [protocol](protocol.md#session-end-and-the-display-without-frames) | capture: clean quit, 2026-10-22 | reviewed 2026-10-23: evidence re-run on all 8 captures |
 | P8 | - | Without frames the cooler keeps the last picture for about 10 s, then goes blank | [protocol](protocol.md#session-end-and-the-display-without-frames) | owner: 2026-10-22 | ok 2026-10-22: last picture, then blank after about 10 s |
+| P9 | - | When the cooler disappears, DeepCreative retries 3 times in about 1.8 s, then drops it; the cooler returns under another hidraw number. Whether DeepCreative sends `03 08` after a reconnect is unverified; OpenDeepCool keeps looking and sends `03 08` before the first frame after every reconnect | [protocol](protocol.md#disconnect-and-reconnect) | capture: reconnect test, 2026-10-24, three cycles | reviewed 2026-10-24: owner chose to send `03 08` after every reconnect |
 
 ## Display: grid, values and glyphs
 
@@ -116,4 +117,4 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 
 ## Sign-off
 
-Signed off by the owner on 2026-10-23: all 73 rows checked, on the cooler or by reviewing their evidence.
+Signed off by the owner on 2026-10-23: all 73 rows checked, on the cooler or by reviewing their evidence. P9 was added on 2026-10-24 and reviewed by the owner the same day.
