@@ -102,7 +102,9 @@ Within a band, the text runs right to left in a fixed 21-column cycle:
 
 1. **Text:** each digit (3 columns) followed by one blank column, then the symbol (`°F` or `W`, both 5 columns). For example, `345W` is 17 columns: `3 4 5` and `W`.
 2. **Field:** the text is right-aligned in a 17-column field, followed by 4 blank columns: 21 columns in all. A one-digit value leaves 8 blank columns before it, a two-digit value 4, and a three-digit value none.
-3. **Display:** the frame shows 14 consecutive columns of that 21-column cycle, wrapping around. The window moves one column to the left **every 100 ms**. That is a scroll tick of its own, independent of the ~104 ms frame interval, so a full cycle takes 2.1 s.
+3. **Display:** the frame shows 14 consecutive columns of that 21-column cycle, wrapping around. The window moves one column to the left **with every frame**, on the 100 ms tick ([protocol.md](protocol.md#timing)), so a full cycle takes 21 frames, 2.1 s.
+   - Capture, whole log, re-analysed 2026-10-24: 22,874 frame-to-frame changes are one-column shifts; about 10 larger jumps are mode switches.
+   - Corrected 2026-10-24: this point first called the scroll step a clock of its own, independent of the frames. An independent 100 ms clock sampled by frames would have shown a two-column jump every 25 frames or so.
 4. **Two values** (modes 9 and 12): both bands use the same field and move together, so a shorter value stays right-aligned under the longer one.
 
 Power scrolls at every value, even one digit (`7W`). Temperature scrolls only in °F. Evidence: capture: sweeps of 2026-10-22 (every frame change is a one-column left shift; cycle 21 columns at every value).
@@ -110,7 +112,27 @@ Power scrolls at every value, even one digit (`7W`). Temperature scrolls only in
 ## Updates
 
 - A new reading appears with the next sensor snapshot, which DeepCreative receives about once per second. In the sweep, a changed value was drawn 957 ms after the reading changed. Evidence: capture: 2026-10-22, step 3.
-- Frames keep being sent about every 104 ms whether or not anything changed ([protocol.md](protocol.md#timing)).
+- Frames keep being sent every 100 ms tick whether or not anything changed ([protocol.md](protocol.md#timing)).
+
+## Unavailable values
+
+OpenDeepCool's own rule (owner, 2026-10-24). DeepCreative has no equivalent: under Wine, with no readings, it drew 0, which would be a wrong number (AGENTS.md rule 11).
+
+- When a value the current mode shows can't be read, the cooler shows **dashes** in its place until the reading returns. The mode doesn't change, and the other value of a two-value mode is drawn as usual.
+- **Dash glyph** (3 × 5, middle row lit):
+
+  ```
+  ...
+  ...
+  ###
+  ...
+  ...
+  ```
+
+- **Static layout:** a dash in the tens place (columns 2–4) and in the units place (columns 6–8). The symbol stays: `--%`, `--°C`.
+- **Scrolling layout:** drawn like a two-digit number whose digits are both dashes: `--°F`, `--W`, in the same 21-column cycle.
+- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample.
+- In the settings app, a mode whose metric is persistently unavailable can't be chosen ([settings.md](settings.md#what-the-settings-app-must-offer)). Dashes on the cooler cover the cases the app can't prevent: the saved mode losing its reading after it was chosen, short read failures, and the first second.
 
 ## Mode switches
 

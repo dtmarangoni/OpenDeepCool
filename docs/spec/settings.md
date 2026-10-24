@@ -62,8 +62,17 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
   - a saved input that's missing shows as not found;
   - the app shows the cooler's fan and pump RPM from the chosen inputs. These speeds never reach the cooler's display.
 - **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
+- **Availability** (owner, 2026-10-24):
+  - A mode can't be chosen when a metric it shows is **persistently unavailable**: no driver rule, no device, no permission, or a reading the rules exclude (for example the power of integrated AMD graphics). The app shows it disabled, with the one-line reason.
+  - When a whole device is missing (for example no usable GPU), every mode that shows any of its metrics is disabled: Load Mode and Temperature and Power Guardian options, combined or separate, and Music Mode variants with that metric.
+  - When the device works but one metric doesn't (for example GPU power can't be read), only the modes that show that metric are disabled. On Intel GPUs, Gpu usage has no documented reading, so every mode showing Gpu usage is disabled there ([sensors.md](sensors.md#driver-rules)).
+  - This applies to every metric, not only the GPU's.
+  - A short read failure, or the first second after the service starts, doesn't disable anything; the cooler shows dashes meanwhile ([display.md](display.md#unavailable-values)).
+  - If the saved mode loses a reading after it was chosen, it stays the saved mode: the cooler shows dashes and the app shows the reason.
+- **GPU list order** (owner, 2026-10-24): dedicated GPUs first, then integrated, then GPUs whose driver doesn't say, each group by PCI address. A GPU whose driver has no reading rule is still listed, last; choosing it disables the GPU modes with the reason "no reading for this GPU's driver" ([sensors.md](sensors.md#gpu-choice)).
 - **Status**, kept short:
   - whether the cooler is connected and whether the service is running;
+  - the settings app talks to the service over the D-Bus system bus; polkit lets a user in an active local session change settings without a password, and other sessions only read (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
   - in the fan and pump pickers, a note when no fan sensors were found.
 

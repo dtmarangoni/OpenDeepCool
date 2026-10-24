@@ -350,6 +350,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - setup re-triggers the powercap zones;
   - teardown re-triggers them after removing the rule, so the mode returns to `0400 root:root`;
   - check verifies `energy_uj` is group `opendeepcool` and group-readable.
+  - every file or directory setup adds is recorded in the dev manifest (Phase 5 Task 8), so teardown and the Phase 12 package remove it.
 
 **Implementation**
 - **Zones:** every `<sys>/class/powercap/*` whose resolved path's parent directory is `intel-rapl` (control type), whose `name` starts with `package-`, and which isn't a sub-zone.

@@ -33,6 +33,14 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **A default theme of our own.** Where the app finds no Omarchy theme (other desktops, such as Plasma, Pop!_OS, Ubuntu, HyDE, Caelestia or ML4W), it uses OpenDeepCool's default theme. Design it, and make the screens work in both it and any Omarchy theme. Following other desktops' themes comes after v1, so leave room for a later "theme source" setting, but don't show it in v1.
 - **One setup for the whole PC.** Every user sees the same settings, and nobody sets OpenDeepCool up per user.
 
+## Design brief (owner, 2026-10-24)
+
+- **Unavailable metrics disable modes.** A mode that shows a metric the PC can't read is disabled in the app, with a one-line reason. A missing device (for example no usable GPU) disables every mode using any of its metrics; one missing metric (for example GPU power) disables only the modes that show it. This holds for every metric. The full rule is in `docs/spec/settings.md`, Availability.
+- **Dashes on the cooler.** When the saved mode loses a reading after it was chosen, the cooler shows dashes (`--%`, `--°C`) and the app keeps that mode selected and shows the reason. The preview must draw the same dashes (`docs/spec/display.md`, Unavailable values).
+- **GPU list order.** Dedicated first, then integrated, then GPUs whose driver doesn't say; a GPU with no reading rule is listed last, and choosing it disables the GPU modes.
+- **Intel GPUs report no usage.** Modes showing Gpu usage are disabled on them.
+- **Talking to the service.** The app uses the D-Bus system bus; in a remote or inactive session it shows the settings read-only (polkit).
+
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–22, 100 + n) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).

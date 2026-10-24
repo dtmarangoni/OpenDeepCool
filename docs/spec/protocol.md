@@ -68,7 +68,8 @@ Evidence: capture: all sessions, with the frames decoded this way showing legibl
 ## Timing
 
 - **Frames are sent continuously in every mode,** even when the picture doesn't change. Capture: all sessions.
-- **Interval:** median 103.9 ms between frames; 5th percentile 88–96 ms, 95th percentile 104.1 ms. That's about 9.6 frames per second. Capture: the percentiles from the first two app starts; the median is 103.9–104.0 ms in all 8.
+- **Interval: one frame per 100 ms tick,** 10 frames per second. Over every continuous run of the capture log, the mean interval is 99.98–100.06 ms (14 runs, 176,083 intervals). Single intervals are 96 or 104 ms (8 ms steps, probably the timer's granularity under Wine, unverified), which is why their median is 104 ms. Capture: whole capture log, re-analysed 2026-10-24.
+  - Corrected 2026-10-24: this section first gave the median, 103.9 ms, as the interval.
 - **Drawn by the PC:** rotation, scrolling and animation are all computed by DeepCreative; the cooler only shows the frames it receives. Capture: Phase 1 walkthroughs ([Phase 1 report](../research/phase1-wine-spike.md)).
 
 ## Session end and the display without frames

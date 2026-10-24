@@ -49,7 +49,7 @@
 
 **Reconnect owned by one struct, `Lp360<C: Connector>`.**
 - It owns three things: the open transport, the "need `03 08`" state, and the rescan on every call while disconnected. Each new connection sends `03 08` before its first frame (owner, 2026-10-24, `protocol.md` Disconnect and reconnect).
-- No timer and no background thread. The caller (Phase 7's scheduler, or a test) calls `show(frame)` about every 104 ms. A failed write drops the connection, and the next call rescans sysfs, which is a few small file reads.
+- No timer and no background thread. The caller (Phase 7's scheduler, or a test) calls `show(frame)` once per 100 ms tick. A failed write drops the connection, and the next call rescans sysfs, which is a few small file reads.
 - This avoids DeepCreative's behaviour of three tries, then giving up (`protocol.md` Disconnect and reconnect).
 
 **The oracle is the spec, never Rust.**
@@ -64,7 +64,7 @@
 - `docs/spec/protocol.md:18-32`: 64-byte layout, checksum over bytes 1 … 4+N, terminator `0x16`, zero padding.
 - `docs/spec/protocol.md:38-43`: `03 08`, whole report `10 68 01 05 02 03 08 7b 16` + zeros, once before any frame.
 - `docs/spec/protocol.md:45-66`: frame bit table: row pairs → bits `0x10 0x20 0x40 0x80 0x01 0x02 0x04`; odd rows columns 1→14, even rows columns 14→1; bit `0x08` never set.
-- `docs/spec/protocol.md:68-78`: frames every ~104 ms, continuously; the cooler blanks about 10 s after frames stop.
+- `docs/spec/protocol.md:68-80`: one frame per 100 ms tick, continuously (single gaps 96 or 104 ms; corrected 2026-10-24); the cooler blanks about 10 s after frames stop.
 - `docs/spec/protocol.md:80-91`: reconnect test of 2026-10-24.
   - The cooler returns under another hidraw number.
   - DeepCreative retries 3 times, then drops it.
@@ -101,7 +101,7 @@
 - **`hidapi` crate:** adds a native library and a second discovery mechanism. Its features (enumeration on other operating systems, Windows/macOS backends) are out of scope, because the PRD supports Arch Linux only.
 - **One crate with modules:** fewer manifests, but the PRD splits the workspace by concern, and `odc-testkit` must stay a dev-dependency so test-only parsing never ships in the service.
 - **A uhid virtual LP360 for integration tests:** `/dev/uhid` is root-only, which breaks unattended tests. Fake sysfs trees exercise the same adapter code without root.
-- **A background reconnect thread or udev monitor:** more state and synchronization for no gain. The caller already ticks every ~104 ms, and a sysfs rescan per tick costs a few reads.
+- **A background reconnect thread or udev monitor:** more state and synchronization for no gain. The caller already ticks every 100 ms, and a sysfs rescan per tick costs a few reads.
 
 ## Visuals
 
@@ -130,7 +130,7 @@ flowchart LR
   Cap --> D
 ```
 
-Phase 7's scheduler will call `DisplayPort::show` about every 104 ms; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency.
+Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency.
 
 ## Implementation Context
 
@@ -181,7 +181,7 @@ Phase 7's scheduler will call `DisplayPort::show` about every 104 ms; in Phase 5
 ### Not building
 
 - **The test-pattern binary:** dropped by the owner on 2026-10-24. The real-device test covers its purpose.
-- **Frame pacing, the scheduler, the service, logging to the journal, the settings file:** Phase 7. The 104 ms interval appears only as a test constant here, citing `protocol.md` Timing.
+- **Frame pacing, the scheduler, the service, logging to the journal, the settings file:** Phase 7. The 100 ms tick appears only as a test constant here, citing `protocol.md` Timing.
 - **Renderers:** Phases 7–10. Phase 5 covers only the matrix cases that need no renderer: Creative Mode 100 and 101, rotations 0–3.
 - **Sensors:** Phase 6.
 - **The service account (`u!` line), packaging and the uninstall removal script:** Phases 7 and 12. The group-only `g` line here is what the dev setup needs today.
@@ -438,8 +438,9 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - installs the sysusers file to `/etc/sysusers.d/` and runs `systemd-sysusers`;
   - installs the product rule as `/etc/udev/rules.d/70-opendeepcool.rules` and the dev rule as `71-opendeepcool-dev-reconnect.rules`;
   - reloads udev and triggers the LP360's hidraw node and USB device, both found by USB ID;
-  - adds `$PKEXEC_UID`'s user to the group.
-- `scripts/dev/teardown.sh`: CREATE, `pkexec`. It reverses every step: removes the three files, removes the user from the group, deletes the group, then reloads and re-triggers udev so access ends at once.
+  - adds `$PKEXEC_UID`'s user to the group;
+  - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, so teardown, and later the Phase 12 package's install script, remove exactly those (owner, 2026-10-24).
+- `scripts/dev/teardown.sh`: CREATE, `pkexec`. It removes what the manifest lists, reversing every step: removes the three files, removes the user from the group, deletes the group, then reloads and re-triggers udev so access ends at once.
 - `scripts/dev/check.sh`: CREATE, unprivileged. It reports:
   - each installed file and whether it equals the repository copy;
   - the group and your membership;
@@ -486,7 +487,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
 - **`test_images_all_rotations`:**
   - `Lp360` over `Recording<…>`, writing to `target/e2e/hardware-<unix ns>.log`;
-  - shows mode 100 (blank), then the mode-101 stored image in rotations 0, 1, 2, 3, each for 20 frames at a fixed 104 ms interval (`protocol.md` Timing);
+  - shows mode 100 (blank), then the mode-101 stored image in rotations 0, 1, 2, 3, each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
   - every `show` must return `Connected`.
   - Afterwards it reads the recording back:
     - the first message is `Startup`, and the only one;
@@ -495,7 +496,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 - **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`scripts/dev/reconnect.rules`).
   - Real:
     - find the LP360's USB device directory by `idVendor`/`idProduct` under `/sys/bus/usb/devices`;
-    - show frames, write `0` to `authorized`, and keep calling `show` every 104 ms until it returns `Disconnected` (at most 2 s);
+    - show frames, write `0` to `authorized`, and keep calling `show` every 100 ms until it returns `Disconnected` (at most 2 s);
     - write `1`, and keep calling `show` until `Connected` (at most 10 s).
 
     A drop guard writes `1` to `authorized` on every exit path, so a failing test never leaves the cooler disconnected.
