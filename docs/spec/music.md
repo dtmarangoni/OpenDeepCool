@@ -46,7 +46,7 @@ The value is drawn in rows 2–6 with the [display rules](display.md):
 
 Examples: `57°C`, `38°C`, `42%`, `7%`, `63%`; in °F, modes 18 and 19 scroll. Capture: 2026-10-22, with injected values.
 
-**OpenDeepCool: no caps** (owner, 2026-10-24). A value that doesn't fit the static layout, for example `100%`, scrolls in the value area, rows 2–6. Only the value scrolls; the spectrum bars below it never do ([display.md](display.md#values), OpenDeepCool: no caps).
+**OpenDeepCool: no caps** (owner, 2026-10-24). The value area is static while the value fits (99 or less, °F included) and scrolls by itself when it's 100 or more, for example `100%` or `134°F`, in rows 2–6. Only the value scrolls; the spectrum bars below it never do ([display.md](display.md#values), OpenDeepCool: no caps).
 
 **DeepCreative quirk, not reproduced:** in mode 18 with °F, DeepCreative draws the **Gpu temperature**, not the CPU Temperature the option names. With CPU 57 °C and GPU 38 °C it scrolled `100°F` (the GPU) instead of `134°F`; with the GPU at 0 it scrolled `32°F`. Mode 18 in °C and mode 19 in both units draw the right metric. Capture: music sweep step `MusicLoud 18`, unit 1, and the matrix sweep, in all four rotations; owner: 2026-10-22, `32°F` and then `100°F` on the cooler.
 

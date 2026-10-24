@@ -51,7 +51,7 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
 **Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
 
 - **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs, saved Creative images.
-- **Static or scrolling** (owner, 2026-10-24): every mode except Music Mode can be shown static or scrolling. The user chooses it in the app; it's saved with the mode, so the cooler starts the next time with the same mode and the same choice ([display.md](display.md#modes)). DeepCreative has no such choice.
+- **No layout setting** (owner, 2026-10-24): the app has no static or scrolling option. Every mode is static while its values fit (99 or less) and scrolls on its own while one is 100 or more ([display.md](display.md#modes)).
 - **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, never capped. A value that doesn't fit the static layout scrolls on its own until it fits again; in Music Mode only the value scrolls, never the spectrum ([display.md](display.md#values)).
 - **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
   - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
