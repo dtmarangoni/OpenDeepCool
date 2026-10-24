@@ -54,8 +54,8 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 - OpenDeepCool draws every value in full, with the same glyphs (owner, 2026-10-24). Smaller glyphs were considered and rejected: the owner's trials on the cooler showed them hard to read.
 - **Automatic scrolling, no setting:** every mode is static while its values fit (99 or less). When a value is 100 or more (`100%`, `100°C`, `100°F`, `100W`), the picture scrolls by itself, so no digit is lost. This applies to °F and power too, which DeepCreative always scrolls: `65W` and `98°F` are static in OpenDeepCool.
 - **One smooth movement, never reset** (owner, 2026-10-24). The static picture and the scrolling text are the same strip of columns: the static layout's spacing (digit, blank column, digit, blank column, symbol) is the scrolling layout's spacing.
-  - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank). A number uses as many places as it has digits, at least two; a one-digit number leaves its first place blank, as the static layout does (`7%`). In a two-value mode both values use the same number of places, the shorter one with blank places in front, so their last digits stay aligned.
-  - **Home position** (owner, 2026-10-24): the first digit place starts at column 2. For one or two digits this is exactly the static layout. A static picture is the strip stopped at home.
+  - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank), followed by the symbol. In a two-value mode both values end at the same column, so their last digits line up.
+  - **Home position** (owner, 2026-10-24): where the static layout places the picture ([Static layout](#static-layout-usage-and-temperature-in-c), OpenDeepCool: alignment). A picture wider than 14 columns has its first digit at column 2. A static picture is the strip stopped at home.
   - **Starting to scroll:** when a value reaches 100, the whole number is drawn at home, from column 2 (`100` in columns 2–12), and its symbol starts at column 14, so the symbol is cut until the strip moves. The strip then moves left from there, one column per frame.
   - **The cycle:** the strip followed by 4 blank columns, at least 21 columns as in DeepCreative (`100W` is 17 columns, so 21; `1234W` is 21, so 25).
   - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart.
@@ -114,6 +114,12 @@ Within a band:
 | 10–14 | `%` for usage; `°C` (columns 10–13) for temperature. OpenDeepCool also draws `°F` and `W` here, both 5 wide, when °F or power is static |
 
 So a one-digit number sits in the units place and the tens place stays blank, for example `5°C` and `0%`. The frame is the same every time until the number changes. Evidence: capture: sweeps of 2026-10-22.
+
+DeepCreative uses these fixed columns for one value and for two: it never centres. Everything ends at column 14, except `°C`, which ends at column 13.
+
+**OpenDeepCool: alignment** (owner, 2026-10-24). The picture is the number (digits 3 wide, a blank column after each) followed by its symbol, and is placed by its width:
+- **One value:** centred in the 14 columns. When only one column is left over, it goes on the left, so the picture ends at column 14 (`42%`, `65W`, `98°F`, as DeepCreative). An odd number of spare columns otherwise: see the open question in the PRD.
+- **Two values:** both end at column 14, so their last digits and symbols line up. `°C` moves one column right of DeepCreative's place here.
 
 ## Scrolling layout (temperature in °F, and power)
 
