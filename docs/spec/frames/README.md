@@ -21,7 +21,6 @@ One file per mode, `mode-NNN.txt`. Each `##` section is one case:
 - **Static case:** one frame, sent unchanged while the readings stay the same.
 - **Scrolling case:** one cycle in time order, one frame per 100 ms tick, seven per line: 21 frames, or more when the text is wider than 17 columns. The first frame is the home position, which is what the display shows on the first frame after a mode switch; after the last frame the cycle starts again.
 - **Emoji case:** one loop of pictures in order, with their durations above them.
-- **Creative Mode, mode 101:** a lopsided test image (an L in the top-left corner, a dot in the bottom-right) stands for a saved image, so a wrong turn or mirror shows.
 
 ## Readings used
 

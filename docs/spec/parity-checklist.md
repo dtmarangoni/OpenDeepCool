@@ -1,6 +1,6 @@
 # Parity checklist
 
-One row for each mode, option, setting and behaviour in the spec. Each row links to its spec section, says what evidence backs it, and records the owner's check. Evidence labels are defined in [README.md](README.md). Phase 3 ends when the owner signs off the whole list ([sign-off](#sign-off)); Phase 12 runs it again against OpenDeepCool.
+One row for each mode, option, setting and behaviour in the spec. Each row links to its spec section, says what evidence backs it, and records the owner's check. Evidence labels are defined in [README.md](README.md). Phase 3 ends when the owner signs off the whole list ([sign-off](#sign-off)); Phase 11 runs it again against OpenDeepCool.
 
 - **Mode:** DeepCreative's mode number, or `-` when the row isn't about one mode.
 - **Owner check:** `ok <date>`, with what the cooler showed, or `pending`. A row about something the cooler can't show (bytes on the wire, sensor files) is checked by the owner reviewing its evidence: `reviewed <date>`.
@@ -55,7 +55,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D24 | 11 | Power Guardian → Separate → GPU | [display](display.md#modes) | capture: matrix sweep, all rotations | ok 2026-10-22: `250W` scrolling |
 | D25 | 12 | Power Guardian → Combined → CPU / GPU | [display](display.md#modes) | capture: matrix sweep, all rotations | ok 2026-10-22: `65W` over `250W` |
 
-## Display: behaviour, rotation and Creative Mode
+## Display: behaviour and rotation
 
 | ID | Mode | Item | Spec | Evidence | Owner check |
 |---|---|---|---|---|---|
@@ -65,9 +65,6 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D29 | - | Rotate Screen 0–3 turns the whole finished frame 0°, 90°, 180°, 270° clockwise | [display](display.md#rotation) | capture: matrix sweeps, every mode at every value | ok 2026-10-22: 90°, 180°, 270° clockwise |
 | D30 | - | Scrolling text moves along the turned picture | [display](display.md#rotation) | capture: matrix sweeps | ok 2026-10-22: modes 7 in °F and 10, turned |
 | D31 | - | DeepCreative's on-screen preview doesn't turn; only the cooler does (not a feature to copy) | [display](display.md#rotation) | owner: 2026-10-22 | ok 2026-10-22 |
-| D32 | 100 | Creative Mode → blank canvas: all pixels off | [display](display.md#creative-mode) | capture: Phase 1 and matrix sweep | ok 2026-10-22: all off |
-| D33 | 101 | Creative Mode → saved image, drawn exactly as stored | [display](display.md#creative-mode) | capture: matrix sweep, all rotations | ok 2026-10-22: the L and the dot as drawn |
-| D34 | - | Creative Mode has images only; animations are after v1 | [display](display.md#creative-mode) | code: LP page editor components | reviewed 2026-10-23: editor has images only; animations after v1 (owner, 2026-10-22) |
 | D35 | - | A reading that changes while text scrolls: DeepCreative finishes the 21-column cycle with the old reading; OpenDeepCool shows the new text on the next frame, at the same scroll position | [display](display.md#scrolling-layout-temperature-in-f-and-power) | capture: sweeps, all 60 changes between scrolling texts join at a cycle end (re-analysed 2026-10-24) | reviewed 2026-10-24: owner chose to update in place |
 | D36 | - | DeepCreative's limits (99 in static layouts; the last two digits from 1000 in scrolling ones) aren't reproduced: OpenDeepCool draws every value in full with the same glyphs, scrolling automatically whenever a value doesn't fit the static layout; in Music Mode only the value area scrolls. Every value is capped at 9999 everywhere: 10 000 and more are drawn `9999` (owner, 2026-10-25) | [display](display.md#values) | capture: limit steps of 2026-10-24 | reviewed 2026-10-24: owner decision, after trying smaller drawings on the cooler |
 | D37 | - | No layout setting: every mode, °F and power included, is static while its values are 99 or less and scrolls by itself while any value is 100 or more. One smooth movement: scrolling starts from the current picture, stops only at the home position (the static picture), and a reading change never resets the position; DeepCreative fixes it per mode (°F and power always scroll) | [display](display.md#modes) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision, replacing a per-mode setting decided earlier the same day |
@@ -120,11 +117,10 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 
 | ID | Mode | Item | Spec | Evidence | Owner check |
 |---|---|---|---|---|---|
-| T1 | - | First start: mode 1, rotation 0, Celsius, no fan inputs, no saved images | [settings](settings.md#settings) | capture and code: start with the data folder moved aside | ok 2026-10-23: first start with the data folder moved aside showed `3%` upright (mode 1, rotation 0), after `03 08` |
+| T1 | - | First start: mode 1, rotation 0, Celsius, no fan inputs | [settings](settings.md#settings) | capture and code: start with the data folder moved aside | ok 2026-10-23: first start with the data folder moved aside showed `3%` upright (mode 1, rotation 0), after `03 08` |
 | T2 | - | Mode, rotation and unit come back after a restart | [settings](settings.md#settings) | capture: restart into mode 9, °F, rotation 2 | ok 2026-10-22: `32°F` upside down and scrolling after the restart |
 | T3 | - | Rotate Screen is one button: each press adds a quarter turn clockwise, 3 wraps to 0 | [settings](settings.md#settings) | code: LP page (`rotatingScreenfun`); capture: 2026-10-23, the button pressed 4 times on `23%` | reviewed 2026-10-23: every frame matched the rendered `23%` turned 90°, 180°, 270°, then upright again, about 0.3 s after each press |
 | T4 | - | Temperature unit is one global setting; the device options' field of the same name has no effect | [settings](settings.md#settings) | capture: field at 1, global Celsius, mode 7 drew `57°C` | reviewed 2026-10-23: global unit seen switching every temperature mode; the device field is a hidden setting, not sent again (AGENTS.md rule 8) |
-| T5 | - | Saved Creative images survive restarts and reboots | [settings](settings.md#settings) | capture: mode 101 after the evening's reboot (2026-10-22), and after a reboot and restarts on 2026-10-23; owner checked the cooler | ok 2026-10-23 |
 | T6 | - | Start-up: `03 08`, then the saved picture at once; OpenDeepCool skips DeepCreative's 3 s blank before a scrolling mode | [settings](settings.md#start-up) | capture: restarts of 2026-10-22 and 2026-10-23, window on the home page; owner watched the cooler | ok 2026-10-23 |
 
 ## Sign-off

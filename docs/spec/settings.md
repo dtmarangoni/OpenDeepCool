@@ -6,11 +6,10 @@ Every DeepCreative 1.2.14 setting that affects the LP360: its values, its defaul
 
 | Setting | Where in DeepCreative | Values | First-start default | Restored after a restart | Effect |
 |---|---|---|---|---|---|
-| Mode | LP page: the mode family and its option | modes 1–22, 100 and 100 + n; OpenDeepCool adds 23 (Dancer) | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
+| Mode | LP page: the mode family and its option | modes 1–22; OpenDeepCool adds 23 (Dancer) | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
 | Rotate Screen | LP page: one button | 0–3. Each press adds a quarter turn clockwise, and 3 wraps to 0 | **0** | yes | [rotation](display.md#rotation) |
 | Temperature Display | app Settings page, for all devices | Celsius (0), Fahrenheit (1) | **Celsius** | yes | modes 7–9, 18 and 19 ([values](display.md#values)) |
 | CPU Fan I/O, Pump Fan I/O | LP page | one of the board's fan inputs | none chosen | unverified: under Wine the list is empty | the RPM on DeepCreative's own device card, never the cooler ([sensors.md](sensors.md#fan-and-pump-speed)) |
-| Saved Creative images | Creative Mode editor | a list of `{index, data}`, each a 14 × 14 grid | none | yes | [Creative Mode](display.md#creative-mode) |
 
 Evidence:
 - **Defaults:** capture and code: DeepCreative started with its data folder moved aside, 2026-10-22.
@@ -18,7 +17,6 @@ Evidence:
   - Its stores held mode 1, rotation 0, no fan inputs, and the unit Celsius.
   - The data folder was restored afterwards.
 - **Restore:** capture: mode 9, Fahrenheit and rotation 2 were set, DeepCreative was quit and restarted, and every steady frame was the restored picture (render check). Owner: 2026-10-22, `32°F` twice, upside down and scrolling, on the cooler after the restart. A previous session restored mode 4 the same way.
-- **Saved images:** the image the owner drew in the morning was still shown as mode 101 after the evening's reboot and restarts (capture: matrix sweep, 2026-10-22). Checked again on 2026-10-23 after a further reboot and several restarts: mode 101 drew the same image, rotated 180° as set (capture and owner, on the cooler).
 - **Rotate Screen** is one button that steps the value: code, LP page.
 - **Unit:** the Celsius/Fahrenheit choice is one global setting. The device options also hold a field with the same name, but the cooler doesn't follow it: with that field at 1 and the global setting at Celsius, mode 7 drew `57°C` (capture, 2026-10-22). It sits with the hidden settings and wasn't researched further (AGENTS.md rule 8).
 
@@ -35,12 +33,12 @@ Evidence:
 ## Where the settings live
 
 - DeepCreative keeps them in its own data folder, under the Wine user's application data. Each change on the LP page is saved at once through its main process (code: LP page).
-- Mode, rotation and unit are stored in the app's database. The per-device file kept its date while they changed, so it isn't where they live; it is probably the encrypted store of saved images. Both points are inferred from file dates and strings, unverified.
+- Mode, rotation and unit are stored in the app's database. The per-device file kept its date while they changed, so it isn't where they live. This is inferred from file dates and strings, unverified.
 - **OpenDeepCool:** keeps one settings file for the whole PC, in the display service's state directory, the same for every user (PRD, Service model; owner, 2026-10-23). It never reads DeepCreative's files.
 
 ## OpenDeepCool's defaults
 
-The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inputs chosen, no saved images.
+The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inputs chosen.
 
 OpenDeepCool's own settings: Music peak dots on, bar fall moderate, peak fall slow (Winamp's defaults) ([music.md](music.md#opendeepcools-spectrum-precisely); owner, 2026-10-25).
 
@@ -48,14 +46,14 @@ GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([senso
 
 ## What the settings app must offer
 
-The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` agent designs from this list; the app has its own design, not DeepCreative's ([below](#deepcreative-interface-quirks-not-reproduced)).
+The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` agent designs from this list; the app has its own design, not DeepCreative's ([below](#deepcreative-interface-quirks-not-reproduced)).
 
 **Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
 
-- **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs, saved Creative images.
+- **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs.
 - **A configuration screen** (owner, 2026-10-25): every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay where the mode is chosen. So the configuration screen holds the rotation, the GPU choice, the cooler's fan and pump inputs, and the Music settings below.
 - **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a *bar fall* slider and a *peak fall* slider, each with Winamp's five stops, slower, slow, moderate, fast and faster (defaults: moderate for bars, slow for peaks, as in Winamp). The preview draws them the same way ([music.md](music.md#opendeepcools-spectrum-precisely)).
-- **Mode names** (owner, 2026-10-24): Load, Temperature, Power, Music and Creative. Never DeepCreative's "Temperature Guardian", "Power Guardian" or "… Mode" ([display.md](display.md#modes)).
+- **Mode names** (owner, 2026-10-24): Load, Temperature, Power and Music. Never DeepCreative's "Temperature Guardian", "Power Guardian" or "… Mode" ([display.md](display.md#modes)).
 - **Refresh button** (owner, 2026-10-24): syncs the display. The service takes fresh readings at once and redraws the picture from its home position, so a scrolling value starts its cycle again (and stops at home if it now fits). Allowed to the same users as settings changes.
 - **No layout setting** (owner, 2026-10-24): the app has no static or scrolling option. Every mode is static while its values fit (99 or less) and scrolls on its own while one is 100 or more ([display.md](display.md#modes)).
 - **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, with no cap below 9999. Every value is capped at 9999 everywhere: a reading of 10 000 or more shows `9999` on the cooler, in the preview and anywhere else the app shows it (owner, 2026-10-25). A value that doesn't fit the static layout scrolls on its own until it fits again; in Music Mode only the value scrolls, never the spectrum ([display.md](display.md#values)).
@@ -93,9 +91,9 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
 
 - **Separate options hidden:** Load Mode's Separate options (modes 1–3) sit below the visible part of the options box, and under Wine there's no scrollbar, so only scrolling reveals them. Code: LP page; owner: found by scrolling, 2026-10-22.
 - **Wrong tab on start:** when the saved mode is 7 (Temperature Guardian → CPU), DeepCreative's window opens on the Load Mode tab, because its check treats modes up to 7 as Load Mode. The cooler still shows mode 7. Code: LP page.
-- **OpenDeepCool's settings app** has its own design, not DeepCreative's pages and tabs (owner, 2026-10-22; PRD, Phase 11). These quirks don't carry over.
+- **OpenDeepCool's settings app** has its own design, not DeepCreative's pages and tabs (owner, 2026-10-22; PRD, Phase 10). These quirks don't carry over.
 
 ## Not covered
 
 - Hidden display settings: after v1 (PRD, What We're NOT Building).
-- App settings that don't touch the cooler (start at login, language): the settings app's own concern (Phase 11).
+- App settings that don't touch the cooler (start at login, language): the settings app's own concern (Phase 10).

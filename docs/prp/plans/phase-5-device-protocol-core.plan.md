@@ -8,9 +8,9 @@
 
 ## Outcome
 
-**Problem:** Every later phase (Load Mode, Guardians, Music, Creative, the service) ends in the same act: a 14×14 picture becomes a USB report that the LP360 shows. Nothing in the repository does that yet. There is no Rust workspace and no encoder. Nothing gets the device node without root, and nothing survives the cooler disappearing. The tests of Phases 7–12 need the expected-frame loader and the picture diff, which don't exist either.
+**Problem:** Every later phase (Load, Temperature, Power, Music, the service) ends in the same act: a 14×14 picture becomes a USB report that the LP360 shows. Nothing in the repository does that yet. There is no Rust workspace and no encoder. Nothing gets the device node without root, and nothing survives the cooler disappearing. The tests of Phases 7–11 need the expected-frame loader and the picture diff, which don't exist either.
 
-**Affected user:** The owner, whose display must work from boot without root. Also the agents building Phases 6–12 on this core.
+**Affected user:** The owner, whose display must work from boot without root. Also the agents building Phases 6–11 on this core.
 
 **User outcome:**
 - A tested core turns any picture, in any of the four rotations, into the exact bytes DeepCreative sends, and writes them to the LP360 as an unprivileged user.
@@ -54,10 +54,10 @@
 
 **The oracle is the spec, never Rust.**
 - Encoding is checked against the spec's bit table (`protocol.md` Frame) and the exact start-up bytes (`protocol.md` Start-up command). Locally, it's also checked byte for byte against every captured DeepCreative message: the owner checked those pictures on the cooler in Phase 3.
-- Rotation is checked against `docs/spec/frames/mode-101.txt` and `mode-100.txt`.
+- Rotation is checked against the static cases of `docs/spec/frames/mode-001.txt` (`3%` and `42%`, whose `%` glyph shows any wrong turn or mirror).
 - On the real cooler, the recording of what was actually written is decoded and compared with the same expected frames. Nobody looks at the display.
 
-**The test-pattern binary in the PRD scope is dropped** (owner, 2026-10-24). It existed for the owner's look at the pump. The unattended real-device test now writes the same test image in all four rotations and checks every report.
+**The test-pattern binary in the PRD scope is dropped** (owner, 2026-10-24). It existed for the owner's look at the pump. The unattended real-device test now writes mode 1's static expected frames in all four rotations and checks every report.
 
 ### Evidence
 
@@ -70,9 +70,8 @@
   - DeepCreative retries 3 times, then drops it.
   - OpenDeepCool keeps looking and sends `03 08` after every reconnect.
 - `docs/spec/display.md:143-156`: rotation value *r* turns the whole finished frame *r* × 90° clockwise; 0–3.
-- `docs/spec/frames/README.md:7-18`: expected-frame file format (static, 21-frame scrolling, emoji loops with durations, `?` wildcard).
-  - 24 files (`mode-001` … `mode-022`, `mode-100`, `mode-101`), 292 `##` cases in all (counted 2026-10-24).
-  - `mode-101.txt` holds the stored test image before its first case.
+- `docs/spec/frames/README.md`: expected-frame file format (static; scrolling, one cycle of 21 frames or more; emoji loops with durations; `?` wildcard).
+  - 22 files (`mode-001` … `mode-022`), 284 `##` cases in all when Phase 5 runs (counted 2026-10-25). Phase 9 adds `mode-023.txt`.
 - `docs/spec/settings.md:25-33`: start-up sends `03 08`, then the saved picture at once.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`, Testing Strategy. Layer 2 includes the Phase 5 re-encode; layer 4 is unattended.
 - Kernel docs and source, read 2026-10-24:
@@ -141,7 +140,7 @@ Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase
 | `docs/spec/protocol.md:5-91` | The whole wire contract, timing, and the reconnect behaviour this plan implements |
 | `docs/spec/display.md:143-156` | Rotation semantics and which way is clockwise |
 | `docs/spec/frames/README.md:1-35` | Expected-frame file format the loader must parse |
-| `docs/spec/frames/mode-101.txt`, `mode-100.txt`, `mode-007.txt`, `mode-014.txt` | One file of each shape: stored image + static cases, blank cases, 21-frame scrolling, emoji loop with durations |
+| `docs/spec/frames/mode-001.txt`, `mode-010.txt`, `mode-014.txt` | One file of each shape: static and scrolling cases, a 25-frame cycle, emoji loop with durations |
 | `docs/spec/settings.md:25-33` | Start-up sequence: `03 08`, then the picture at once |
 | `docs/prp/prds/opendeepcool-lp360.prd.md:149-249` | Architecture (ports and adapters, display port, access without root) and the four test layers |
 | `AGENTS.md:33-70` | Rules 3 (no person), 4 (one commit per implementation), 5, 7, 9, 10, 12 |
@@ -156,10 +155,10 @@ Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase
 
 ### Integration points
 
-- `Cargo.toml` (new, repository root): the workspace that Phases 6–12 add crates to.
+- `Cargo.toml` (new, repository root): the workspace that Phases 6–11 add crates to.
 - `odc_device::DisplayPort`: the port Phase 7's scheduler drives.
-- `odc_testkit::{expected, diff, capture}`: what the renderer tests of Phases 7–10 compare against.
-- `packaging/udev/70-opendeepcool.rules`, `packaging/sysusers/opendeepcool.conf`: the product files Phase 7 (service user) and Phase 12 (package) build on.
+- `odc_testkit::{expected, diff, capture}`: what the renderer tests of Phases 7–9 compare against.
+- `packaging/udev/70-opendeepcool.rules`, `packaging/sysusers/opendeepcool.conf`: the product files Phase 7 (service user) and Phase 11 (package) build on.
 - `.github/workflows/ci.yml`: the CI every later phase relies on.
 
 ## Scope
@@ -182,7 +181,7 @@ Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase
 
 - **The test-pattern binary:** dropped by the owner on 2026-10-24. The real-device test covers its purpose.
 - **Frame pacing, the scheduler, the service, logging to the journal, the settings file:** Phase 7. The 100 ms tick appears only as a test constant here, citing `protocol.md` Timing.
-- **Renderers:** Phases 7–10. Phase 5 covers only the matrix cases that need no renderer: Creative Mode 100 and 101, rotations 0–3.
+- **Renderers:** Phases 7–9. Phase 5 needs none: it reads the pictures of mode 1's static cases straight from the expected frames.
 - **Sensors:** Phase 6.
 - **The service account (`u!` line), packaging and the uninstall removal script:** Phases 7 and 12. The group-only `g` line here is what the dev setup needs today.
 - **A uhid virtual device:** root-only, so not unattended.
@@ -231,7 +230,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 - `Rotation`: four values matching the setting 0–3 (`display.md` Rotation).
   - `Rotation::from_setting(u8) -> Option<Rotation>`.
   - `Rotation::next()`: one press of Rotate Screen; 3 wraps to 0 (parity T3, `settings.md:9`).
-- `Frame::rotated(Rotation) -> Frame`: turns the whole frame *r* × 90° clockwise, with value 1 = 90° clockwise. The direction is proven against `mode-101.txt` in Task 3, not asserted here from memory.
+- `Frame::rotated(Rotation) -> Frame`: turns the whole frame *r* × 90° clockwise, with value 1 = 90° clockwise. The direction is proven against `mode-001.txt` in Task 3, not asserted here from memory.
 
 **Tests** (unit, `proptest` for random frames)
 - Four quarter turns give back the original.
@@ -253,7 +252,6 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 - `expected::load_mode(mode: u16) -> ModeFrames`. It reads `docs/spec/frames/mode-NNN.txt` from `concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/frames")`.
 - `ModeFrames` contains:
   - the title;
-  - any pictures before the first case (the stored test image of `mode-101.txt`);
   - `cases: Vec<Case>`.
 - `Case` contains:
   - `rotation: Rotation`;
@@ -261,33 +259,30 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - `readings: Vec<(String, u32)>`, metric names exactly as written (for example `CPU Usage`, `Gpu temperature`). Phases 7–9 map them to their metric type.
   - `kind`, one of:
     - `Static(Picture)`;
-    - `Scrolling(Vec<Picture>)`: 21 pictures in time order;
+    - `Scrolling(Vec<Picture>)`: one cycle in time order, 21 pictures or more (`frames/README.md`);
     - `Loop(Vec<(Duration, Picture)>)`.
 - `Picture`: 14×14 of `On` / `Off` / `Any` (`?`). `Picture::matches(&Frame)`: `Any` matches either value.
 - **Parsing rules from `frames/README.md`:**
   - a picture block is 14 rows;
   - a row holding several pictures splits on two spaces;
-  - scrolling blocks follow the line "21 frames in time order…" in 3 blocks of 7;
+  - scrolling blocks follow the line "N frames in time order…" in blocks of 7 per line, N taken from that line;
   - loops follow "one loop, picture durations in order: …", whose list gives one duration per picture.
 - **Parse failures panic** with the file and line number. A mis-parsed oracle must never pass silently.
 - `diff::assert_matches(expected: &Picture, actual: &Frame, context: &str)`: on mismatch it panics with both pictures side by side and the differing pixels marked. That is the "failure prints both pictures" requirement (PRD layer 1).
 
 **Tests**
-- **Loader self-check:** all 24 files load, and the total is 292 cases.
-  - Every `Scrolling` has exactly 21 pictures.
+- **Loader self-check:** every file in `docs/spec/frames/` loads, and the total is the number of `##` headings (284 when Phase 5 runs).
+  - Every `Scrolling` has as many pictures as its heading line says, at least 21.
   - Every `Loop` has as many durations as pictures.
   - Every picture is 14×14.
-  - `mode-101` has exactly one stored picture before its cases.
   - No picture outside the Music Mode files (modes 13–22) contains `?`.
 - **Diff self-check:** a one-pixel difference panics with a message containing both pictures, checked with `#[should_panic(expected = …)]` on a stable marker string.
-- **Rotation against the oracle (matrix cases):**
-  - mode 101: the stored image `rotated(r)` matches each of its 4 cases;
-  - mode 100: `Frame::blank().rotated(r)` matches each of its 4 cases.
+- **Rotation against the oracle (matrix cases):** for mode 1's static value sets (`3%` and `42%`), the rotation-0 picture `rotated(r)` matches the rotation-*r* case, for *r* = 1, 2, 3.
 
-  That's 8 of the 120 matrix cases, the only ones that need no renderer.
+  These 8 cases need no renderer: the pictures come from the file itself.
 
 **Validation**
-- `cargo test -p odc-testkit && cargo test -p odc-protocol --test rotation_expected`: passes. Flipping the rotation direction in Task 2 must make the mode-101 test fail.
+- `cargo test -p odc-testkit && cargo test -p odc-protocol --test rotation_expected`: passes. Flipping the rotation direction in Task 2 must make the mode-1 test fail.
 
 ### 4. Frames and the start-up command become the exact 64-byte reports
 
@@ -439,7 +434,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - installs the product rule as `/etc/udev/rules.d/70-opendeepcool.rules` and the dev rule as `71-opendeepcool-dev-reconnect.rules`;
   - reloads udev and triggers the LP360's hidraw node and USB device, both found by USB ID;
   - adds `$PKEXEC_UID`'s user to the group;
-  - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, so teardown, and later the Phase 12 package's install script, remove exactly those (owner, 2026-10-24).
+  - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, so teardown, and later the Phase 11 package's install script, remove exactly those (owner, 2026-10-24).
 - `scripts/dev/teardown.sh`: CREATE, `pkexec`. It removes what the manifest lists, reversing every step: removes the three files, removes the user from the group, deletes the group, then reloads and re-triggers udev so access ends at once.
 - `scripts/dev/check.sh`: CREATE, unprivileged. It reports:
   - each installed file and whether it equals the repository copy;
@@ -469,7 +464,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 
 **Files and integration points**
 - `crates/odc-testkit/src/hardware.rs`: CREATE, the hardware probe that every phase's end-to-end tests share (owner, 2026-10-24: the dev program runs on other computers too).
-  - `Capability`: an enum, starting with `Lp360` and `Lp360Reconnect`. Phases 6–12 add theirs.
+  - `Capability`: an enum, starting with `Lp360` and `Lp360Reconnect`. Phases 6–11 add theirs.
   - `probe(cap) -> Probe`:
     - `Real`: the device exists and this account can use it;
     - `Absent { reason }`: the device doesn't exist;
@@ -489,11 +484,11 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
 - **`test_images_all_rotations`:**
   - `Lp360` over `Recording<…>`, writing to `target/e2e/hardware-<unix ns>.log`;
-  - shows mode 100 (blank), then the mode-101 stored image in rotations 0, 1, 2, 3, each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
+  - shows the pictures of mode 1's static cases (`3%`, then `42%`) in rotations 0, 1, 2, 3, each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
   - every `show` must return `Connected`.
   - Afterwards it reads the recording back:
     - the first message is `Startup`, and the only one;
-    - then come exactly the 100 frames, in order, each matching its expected case from `mode-100.txt` and `mode-101.txt` (`odc_testkit::diff`);
+    - then come exactly the 160 frames, in order, each matching its expected case from `mode-001.txt` (`odc_testkit::diff`);
     - nothing else was written.
 - **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`scripts/dev/reconnect.rules`).
   - Real:
@@ -551,7 +546,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - the real-device recording holds only start-up commands and frames (Tasks 4, 6, 9).
 3. **AC3 — Rotation:**
    - rotation property tests pass;
-   - the mode-100 and mode-101 matrix cases (8 of 120) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
+   - mode 1's static cases (8 of 112) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
 4. **AC4 — Reusable oracle:**
    - all 24 expected-frame files load into 292 typed cases;
    - a mismatch prints both pictures (Task 3).
@@ -592,11 +587,10 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 
 | Matrix cases | Layer | Where |
 |---|---|---|
-| Mode 100 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
-| Mode 101 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
-| All 120 cases (296 sections) | loader only | Task 3: every file parses into typed cases for Phases 7–10 |
+| Mode 1, static value sets 1–2 × rotations 0–3 (pictures read from the file) | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
+| Every case present (284 sections when Phase 5 runs) | loader only | Task 3: every file parses into typed cases for Phases 7–9 |
 
-The other 108 matrix cases need renderers and belong to Phases 7–10, which compare their output with the same loader and diff.
+Rendering every matrix case belongs to Phases 7–9, which compare their output with the same loader and diff.
 
 ## Risks and Decisions
 

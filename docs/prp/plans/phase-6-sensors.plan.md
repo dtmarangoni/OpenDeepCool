@@ -70,7 +70,7 @@
 - The alternative, a root helper serving the value, adds a root process and IPC for one number.
 
 **Detection as a small Rust program, not a shell line in a unit.**
-- The "never overwrite, once per board, record what was created" logic must be tested, and uninstall (Phase 12) depends on the record.
+- The "never overwrite, once per board, record what was created" logic must be tested, and uninstall (Phase 11) depends on the record.
 - `sensors-detect` writes `/etc/conf.d/lm_sensors` and, when driver options are needed, `/etc/modprobe.d/lm_sensors.conf`. It overwrites either one if present, then enables and starts `lm_sensors.service` (read in the script, 2026-10-24).
 - So the program runs it only when **both** files are absent, and records which of them appeared and whether the service was enabled before.
 
@@ -159,7 +159,7 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 |---|---|
 | `docs/spec/sensors.md` (all) | Metrics, driver rules, refresh, GPU choice, CPU power, fan inputs: the contract this phase implements |
 | `docs/spec/display.md:35-47` | Values keep their fraction until drawn; rounding is Phase 7's |
-| `docs/spec/settings.md:5-23`, `:41-45`, `:47-73` | Fan inputs and GPU choice as settings; defaults; what the app shows (Phase 11 consumer) |
+| `docs/spec/settings.md:5-23`, `:41-45`, `:47-73` | Fan inputs and GPU choice as settings; defaults; what the app shows (Phase 10 consumer) |
 | `docs/prp/prds/opendeepcool-lp360.prd.md:168-204` | Sensor sources, architecture, service model |
 | `docs/prp/plans/phase-5-device-protocol-core.plan.md` (Tasks 1, 8, 10) | Workspace, lints, `packaging/udev/70-opendeepcool.rules`, `scripts/dev/*`, CI and the guard this phase extends |
 | `AGENTS.md` rules 3, 7, 8, 10 (exception for driver names), 11, 12 | The constraints every task checks |
@@ -174,9 +174,9 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 ### Integration points
 
 - `odc_sensors::Readings`: the readings port Phase 7's scheduler calls once per second.
-- `odc_sensors::gpus()`, `GpuChoice`, `fan_inputs()`, `FanInput`: the lists and saved identities Phase 7 (settings file) and Phase 11 (pickers) use.
+- `odc_sensors::gpus()`, `GpuChoice`, `fan_inputs()`, `FanInput`: the lists and saved identities Phase 7 (settings file) and Phase 10 (pickers) use.
 - `/var/lib/opendeepcool/gpu-rank.json`: written by `odc-gpu-rank`, read by the registry, deleted by the service when the GPU set changes and the user hasn't chosen (Task 7).
-- `/var/lib/opendeepcool/sensors-detect.json`: the detection record that Phase 12's uninstall reads.
+- `/var/lib/opendeepcool/sensors-detect.json`: the detection record that Phase 11's uninstall reads.
 - `packaging/systemd/opendeepcool-gpu-rank.service`, `packaging/systemd/opendeepcool-sensors-detect.service`: ordered before `opendeepcool.service`, which Phase 7 creates.
 
 ## Scope
@@ -199,8 +199,8 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 ### Not building
 
 - **The settings file, the scheduler, the `doctor` command, and logging to the journal:** Phase 7. This phase exposes `Registry::bindings()` for them.
-- **The pickers and GPU dropdown UI:** Phase 11.
-- **Packaging and the uninstall removal script:** Phase 12. This phase writes the record it needs.
+- **The pickers and GPU dropdown UI:** Phase 10.
+- **Packaging and the uninstall removal script:** Phase 11. This phase writes the record it needs.
 - **Gpu usage on Intel GPUs:** no documented sysfs reading; unavailable with a reason.
 - **nouveau and other GPU drivers:** no documented readings or kind signal. Listed last, all metrics unavailable with "no reading for this GPU's driver".
 - **Fan or pump control, any `pwm*` write:** out of scope (rule 8).
@@ -350,7 +350,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - setup re-triggers the powercap zones;
   - teardown re-triggers them after removing the rule, so the mode returns to `0400 root:root`;
   - check verifies `energy_uj` is group `opendeepcool` and group-readable.
-  - every file or directory setup adds is recorded in the dev manifest (Phase 5 Task 8), so teardown and the Phase 12 package remove it.
+  - every file or directory setup adds is recorded in the dev manifest (Phase 5 Task 8), so teardown and the Phase 11 package remove it.
 
 **Implementation**
 - **Zones:** every `<sys>/class/powercap/*` whose resolved path's parent directory is `intel-rapl` (control type), whose `name` starts with `package-`, and which isn't a sub-zone.
@@ -395,7 +395,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `rpm(&FanInput)` re-resolves by chip name + device path + N on every read. A missing input → `Unavailable(NoDevice)`, never another input's value.
 
 **Tests** (fake trees)
-- **One GPU, any kind** → it's chosen. With one GPU, the list API reports `len() == 1`, so Phase 11 shows no dropdown.
+- **One GPU, any kind** → it's chosen. With one GPU, the list API reports `len() == 1`, so Phase 10 shows no dropdown.
 - **A dedicated amdgpu and an integrated i915** → the amdgpu is chosen.
 - **Two dedicated GPUs** → the lower PCI address wins.
 - **Unknown kinds:** nouveau plus an integrated amdgpu → the APU wins, and nouveau is listed last.
@@ -457,8 +457,8 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `Type=oneshot`, `User=opendeepcool`;
   - `ConditionPathExists=!/var/lib/opendeepcool/gpu-rank.json`;
   - `Before=opendeepcool.service`, `WantedBy=opendeepcool.service`;
-  - sandbox: `ProtectSystem=strict`, `ReadWritePaths=/var/lib/opendeepcool`, `ProtectHome=yes`, `NoNewPrivileges=yes`, `PrivateNetwork=yes`, `CapabilityBoundingSet=`, `DevicePolicy=closed`, `DeviceAllow=char-drm rw`, plus the NVIDIA device nodes (exact `DeviceAllow` entries unverified until checked against a PC with NVIDIA's driver, in Phase 12).
-  - The exact set is re-checked in Phase 12. It's written now so Phase 7 can order it.
+  - sandbox: `ProtectSystem=strict`, `ReadWritePaths=/var/lib/opendeepcool`, `ProtectHome=yes`, `NoNewPrivileges=yes`, `PrivateNetwork=yes`, `CapabilityBoundingSet=`, `DevicePolicy=closed`, `DeviceAllow=char-drm rw`, plus the NVIDIA device nodes (exact `DeviceAllow` entries unverified until checked against a PC with NVIDIA's driver, in Phase 11).
+  - The exact set is re-checked in Phase 11. It's written now so Phase 7 can order it.
 
 **Tests**
 - **Unit (CI):** `size_of` and the field offsets of every mirrored struct equal constants written from the kernel headers, with each header and struct cited in a comment.
@@ -500,7 +500,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   4. Run `sensors-detect --auto`.
   5. Write `sensors-detect.json`: the identity, the date, which of the two files now exist (`created`), and whether the service was enabled before.
 
-  Phase 12's removal script removes only what `created` lists, and disables the service only if it wasn't enabled before.
+  Phase 11's removal script removes only what `created` lists, and disables the service only if it wasn't enabled before.
 - `sensors-detect` exiting non-zero is logged, and the record is still written, so it doesn't run again at every boot (`sensors.md` driver rules).
 
 **Tests** (integration; the fake `sensors-detect` is a shell script that writes the files a scenario needs)
@@ -516,7 +516,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **End to end (owner approved 2026-10-24, a system change done once):**
   - shown to the owner, then `pkexec target/debug/odc-sensors-detect --state-dir /var/lib/opendeepcool`;
   - afterwards, unattended: `/etc/conf.d/lm_sensors` exists, `lm_sensors.service` is enabled, the record lists what was created, and the board's fan chip appears in `/sys/class/hwmon` after the next boot without a manual `modprobe`.
-  - The PRD dev footprint lists the created files and the enabled service, until Phase 12's package takes over.
+  - The PRD dev footprint lists the created files and the enabled service, until Phase 11's package takes over.
 
 ### 11. Layer 4 end to end: real sensors where the PC has them, fakes where it doesn't
 
@@ -627,7 +627,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 ### Test matrix covered in this phase
 
-Phase 6 draws no frames, so it covers none of the 120 display cases. Its own matrix is the driver rules × hardware cases:
+Phase 6 draws no frames, so it covers none of the 112 display cases. Its own matrix is the driver rules × hardware cases:
 
 | Rule | Fake-tree cases | Real on the owner's PC (any PC: where present) |
 |---|---|---|

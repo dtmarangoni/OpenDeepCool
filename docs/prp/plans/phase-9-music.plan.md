@@ -12,7 +12,7 @@
 
 **Affected user:**
 - The owner, and whoever is at the PC: the spectrum follows the sound of the active local session.
-- Phase 11: the app's configuration screen sets peak dots, bar fall and peak fall, and its preview draws the same spectrum.
+- Phase 10: the app's configuration screen sets peak dots, bar fall and peak fall, and its preview draws the same spectrum.
 
 **User outcome:**
 - **Music** can be the saved mode:
@@ -49,12 +49,12 @@
   - asks the service for a pipe over D-Bus;
   - runs PipeWire's own `pw-record` on the default output's monitor, writing raw samples straight into that pipe.
 - **polkit authorizes the helper**, through a new `feed-audio` action (`allow_active` only).
-- **Three new settings** (peak dots, bar fall, peak fall) join settings v1, with D-Bus properties and setters for Phase 11's configuration screen.
+- **Three new settings** (peak dots, bar fall, peak fall) join settings v1, with D-Bus properties and setters for Phase 10's configuration screen.
 
 ## Recommendation
 
 **The service analyses; the helper only connects the sound.**
-- The PRD left open where the FFT runs (PRD, Music Mode). Putting it in the service keeps every rule that decides a pixel in one pure crate, next to `picture` and `Marquee`. The same rules then serve the preview (Phase 11) and the tests.
+- The PRD left open where the FFT runs (PRD, Music Mode). Putting it in the service keeps every rule that decides a pixel in one pure crate, next to `picture` and `Marquee`. The same rules then serve the preview (Phase 10) and the tests.
 - **The helper has no logic to test:**
   1. `AttachAudio()` returns the write end of a pipe the service created.
   2. The helper starts `pw-record --raw --format f32 --rate 48000 --channels 2 --latency 20ms -P '{ "stream.capture.sink": true, "node.name": "opendeepcool-audio" }' -`, with that pipe as its standard output.
@@ -226,7 +226,7 @@ flowchart LR
 
 ### Not building
 
-- **The settings app and its configuration screen:** Phase 11. Its contract (the new properties and setters) ships here.
+- **The settings app and its configuration screen:** Phase 10. Its contract (the new properties and setters) ships here.
 - **Choosing an audio source other than the default output's monitor:** not asked for. The helper's `--target` flag exists only for the end-to-end test.
 - **Tuning the bands or the loudness range:** they're spec values (`music.md` points 2–3). Changing them is a spec change with the owner.
 - **Audio before login:** silence, as the spec says.
@@ -550,7 +550,7 @@ Five sub-steps, **each its own commit** (rule 4):
 - **Layer 3:**
   - "audio file → frames" for the dancer signals, through the engine;
   - every ordered switch with modes 1–22, so all 506 ordered pairs among modes 1–23 have run;
-  - `SetMode(23)` succeeds; the `NotYetAvailable` test moves to mode 100 (Phase 10).
+  - `SetMode(23)` succeeds. Every mode in the table is now drawable, so `NotYetAvailable` is no longer returned; its test becomes a mode outside the table (0, 24, 100) → `InvalidArgument`.
 - **Layer 2:** none: DeepCreative has no Dancer.
 - **Layer 4:**
   - `--modes 23`: the matrix through `OverrideAudio` with silence and the dancer signals;
@@ -570,7 +570,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - the user unit, at its dev path in the dev table;
   - the global enable symlink;
   - the polkit action `feed-audio`;
-  - runtime dependency `pipewire-audio` (for `pw-record`), noted for Phase 12's package.
+  - runtime dependency `pipewire-audio` (for `pw-record`), noted for Phase 11's package.
 
 **Implementation**
 - **The Phase 9 report's parity table:** M1–M20, each with the test that proves it. Where DeepCreative differs (M1 with peaks, M10), the row says what OpenDeepCool does.
@@ -633,14 +633,14 @@ Five sub-steps, **each its own commit** (rule 4):
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 13–23 × rotations 0–3 (× °C/°F for 18–19) × value sets (60 of the 120 combinations) | `matrix_music`, spectrum in silence and with the signals | the 79 steps that agree, top area | the dev service through `OverrideAudio`, or fakes |
+| Modes 13–23 × rotations 0–3 (× °C/°F for 18–19) × value sets (52 of the 112 combinations) | `matrix_music`, spectrum in silence and with the signals | the 79 steps that agree, top area | the dev service through `OverrideAudio`, or fakes |
 | Spectrum signals × *H* 12/6 × peaks on/off × 5 bar fall stops × 5 peak fall stops | `spectrum` unit tests; the engine from samples | — (OpenDeepCool's own analysis) | the real capture through a virtual output |
 | Movement scenarios for 18–22, and S14–S18 for 13–17 and 23, × 4 rotations | `scenarios_music` | — | every scenario in every rotation |
 | Dancer sequences: signals, beat trains around each threshold, resets | `dancer` unit tests; the engine from samples | — (OpenDeepCool's own) | the dev service through `OverrideAudio` |
 | Mode switches: 506 ordered pairs among 1–23, continuity of the spectrum | `engine` | — | every scenario in every rotation |
 | Delay: 200 bursts | — | — | `--only music` |
 
-After this phase, 116 of the 120 matrix combinations are covered: everything but Creative (modes 100 and 101 in four rotations), which Phase 10 adds.
+After this phase, all 112 matrix combinations are covered.
 
 ## Risks and Decisions
 
@@ -659,7 +659,7 @@ After this phase, 116 of the 120 matrix combinations are covered: everything but
 ## Related Plans
 
 - **Depends on:** `docs/prp/plans/phase-7-service-settings-load-mode.plan.md`; `docs/prp/plans/phase-8-temperature-power.plan.md` (`draws`, `cycle_match`, `--modes`, the temperature rules for 18–19).
-- **Followed by:** the Phase 11 plan (the configuration screen and the preview reuse `odc_render::spectrum` and these D-Bus members).
+- **Followed by:** the Phase 10 plan (the configuration screen and the preview reuse `odc_render::spectrum` and these D-Bus members).
 
 ## Agent Notes
 

@@ -1,6 +1,6 @@
 # OpenDeepCool spec
 
-What DeepCool's DeepCreative app does with the LP360's 14×14 display, written so that OpenDeepCool can reproduce it without running DeepCreative. Phase 3 of the [PRD](../prp/prds/opendeepcool-lp360.prd.md) writes it; Phases 4–12 build from it.
+What DeepCool's DeepCreative app does with the LP360's 14×14 display, written so that OpenDeepCool can reproduce it without running DeepCreative. Phase 3 of the [PRD](../prp/prds/opendeepcool-lp360.prd.md) writes it; Phases 4–11 build from it.
 
 ## Documents
 
@@ -8,11 +8,11 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 |---|---|---|
 | [protocol.md](protocol.md) | The USB messages, their timing, and what the display does without them | Phase 5 |
 | [sensors.md](sensors.md) | What each metric means and where Linux has it | Phase 6 |
-| [display.md](display.md) | Load Mode, Temperature Guardian, Power Guardian, Creative Mode, rotation | Phases 7, 8, 10 |
+| [display.md](display.md) | Load Mode, Temperature Guardian, Power Guardian, rotation | Phases 7, 8 |
 | [music.md](music.md) | Music Mode | Phase 9 |
-| [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–12 |
+| [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–11 |
 | [settings.md](settings.md) | Settings that change what the cooler shows | Phases 7, 11 |
-| [parity-checklist.md](parity-checklist.md) | Every item above, checked by the owner on the cooler | Every phase; Phase 12 |
+| [parity-checklist.md](parity-checklist.md) | Every item above, checked by the owner on the cooler | Every phase; Phase 11 |
 
 ## What the spec describes
 

@@ -12,11 +12,11 @@
 
 **Affected user:**
 - The owner, and every user of the PC: the display is shared.
-- The agents building Phases 8–11, which extend this service, its settings and its D-Bus interface.
+- The agents building Phases 8–10, which extend this service, its settings and its D-Bus interface.
 
 **User outcome:**
 - After every boot, before anyone logs in, the LP360 shows the saved Load Mode layout (modes 1–6) with live values, in the saved rotation, drawn as the spec defines: DeepCreative's glyphs and layouts, every value in full (no 99 cap), one-digit values centred, and `100%` scrolling smoothly until it fits again.
-- A user at the PC can change mode, rotation, unit, GPU and fan inputs over D-Bus: today with `busctl`, from Phase 11 with the app. Other sessions can only read.
+- A user at the PC can change mode, rotation, unit, GPU and fan inputs over D-Bus: today with `busctl`, from Phase 10 with the app. Other sessions can only read.
 
 **Invariant:**
 - Every frame equals the spec's picture for the current mode, readings, rotation and tick (`docs/spec/frames/` is the oracle).
@@ -30,7 +30,7 @@
 
 **Approach:** four new crates on top of Phases 5 and 6:
 - **`odc-render`:** pure: glyphs, value rules, the static layout and the scrolling strip, the movement procedure, the mode table, and the Load Mode pictures.
-- **`odc-ipc`:** the D-Bus names, types and client proxy, shared by the service, the tests and Phase 11's app.
+- **`odc-ipc`:** the D-Bus names, types and client proxy, shared by the service, the tests and Phase 10's app.
 - **`odc-service`:** a library plus the `opendeepcoold` binary.
   - An engine thread runs the 100 ms tick over the Phase 5 `DisplayPort` and the Phase 6 `Readings`.
   - A zbus blocking connection serves the interface and asks polkit before every change.
@@ -129,7 +129,7 @@ flowchart LR
     STAT --> DB
     DEV["…OpenDeepCool1.Dev<br/>(only with --dev)"] -.->|readings override| EN
   end
-  APP["busctl now / settings app (Phase 11)"] -->|system bus| DB
+  APP["busctl now / settings app (Phase 10)"] -->|system bus| DB
   LP --> HW[(LP360)]
 ```
 
@@ -157,10 +157,10 @@ flowchart LR
 
 ### Integration points
 
-- `odc_ipc`: the contract Phase 11's app compiles against: names, the property and method list, error names.
-- `odc_render::{Mode, mode_info, picture, Marquee}`: Phases 8–10 add their modes' pictures; the strip and the movement serve them unchanged. The app's preview (Phase 11) reuses `picture` and `Marquee`.
+- `odc_ipc`: the contract Phase 10's app compiles against: names, the property and method list, error names.
+- `odc_render::{Mode, mode_info, picture, Marquee}`: Phases 8–9 add their modes' pictures; the strip and the movement serve them unchanged. The app's preview (Phase 10) reuses `picture` and `Marquee`.
 - `opendeepcool.service`: `Wants=` and `After=` on `opendeepcool-gpu-rank.service` and `opendeepcool-sensors-detect.service` (Phase 6).
-- `settings.toml` v1: Phases 8–11 add fields with defaults; nothing else writes it.
+- `settings.toml` v1: Phases 8–10 add fields with defaults; nothing else writes it.
 
 ## Scope
 
@@ -181,12 +181,11 @@ flowchart LR
 
 ### Not building
 
-- **Modes 7–22 and 100+:** Phases 8–10. `SetMode` rejects them with "not available yet". The mode table already describes them, for availability.
+- **Modes 7–23:** Phases 8–9. `SetMode` rejects them with "not available yet". The mode table already describes them, for availability.
 - **Temperature and power pictures** (the `°C`, `°F` and `W` glyphs, modes 7–12): Phase 8. The strip and the movement built here serve them unchanged.
 - **Audio input and its D-Bus path:** Phase 9.
-- **Creative images storage and D-Bus methods:** Phase 10.
-- **The settings app and its client UI:** Phase 11. The client proxy ships in `odc-ipc` now.
-- **The final package, `/usr` paths, uninstall removal script, cold-boot series:** Phase 12.
+- **The settings app and its client UI:** Phase 10. The client proxy ships in `odc-ipc` now.
+- **The final package, `/usr` paths, uninstall removal script, cold-boot series:** Phase 11.
 
 ## Delivery Considerations
 
@@ -194,7 +193,7 @@ flowchart LR
 |---|---|
 | Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `scripts/dev/teardown.sh` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
 | Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
-| Documentation | README: how to change the mode with `busctl` until Phase 11, and the journal command. AGENTS.md Commands: new tests. PRD footprint: the dev copy rows already exist (2026-10-24); add the D-Bus and polkit file names |
+| Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: new tests. PRD footprint: the dev copy rows already exist (2026-10-24); add the D-Bus and polkit file names |
 
 ## Implementation
 
@@ -238,7 +237,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
   - `lib.rs`
 
 **Implementation**
-- **`Mode`:** the spec's numbers. `mode_info(mode) -> ModeInfo { metrics: &[Metric], kind: Load | Temperature | Power | Music | Creative }` for every mode in `display.md` and `music.md`.
+- **`Mode`:** the spec's numbers. `mode_info(mode) -> ModeInfo { metrics: &[Metric], kind: Load | Temperature | Power | Music }` for every mode in `display.md` and `music.md`.
   - Phase 7 draws 1–6; `picture` returns `Err(NotYetImplemented)` for the rest.
   - `Metric` is Phase 6's type.
 - **Value rules** (`display.md` Values, OpenDeepCool: no caps), on `f64` readings:
@@ -317,10 +316,10 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading:** `Diagnostics() -> a(sss)`: metric, bound source, state.
 - **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`.
-- A `#[proxy]` client for the tests and Phase 11.
+- A `#[proxy]` client for the tests and Phase 10.
 
 **Tests**
-- The names are valid D-Bus names (zbus parsing). The property and method lists are written into a doc comment, and that list is what Phase 11's design reads.
+- The names are valid D-Bus names (zbus parsing). The property and method lists are written into a doc comment, and that list is what Phase 10's design reads.
 
 **Validation**
 - `cargo test -p odc-ipc`: passes.
@@ -455,7 +454,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `User=opendeepcool`, `Group=opendeepcool`, `StateDirectory=opendeepcool`, `Restart=on-failure`, `RestartSec=1`;
   - `Wants=`/`After=` the two Phase 6 one-shots; `WantedBy=multi-user.target`;
   - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`;
-  - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 12 after verification (Phase 6).
+  - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 11 after verification (Phase 6).
 - `packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf`: CREATE.
   - user `opendeepcool` may own the name;
   - everyone may call the main interface and read properties;
@@ -584,7 +583,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 120 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
+| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 112 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
 | Dash and impossible-reading cases (`unavailable.txt`) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
 | Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | every scenario in every rotation |
 | Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect, refused and repeated choices) × 4 rotations | `engine` | — | every scenario in every rotation |
@@ -596,14 +595,14 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | No caps, automatic scrolling, the movement procedure, Refresh (owner, 2026-10-24) | Done: the spec, the expected frames and this plan follow them (revised 2026-10-24) | `display.md` Values, Movement, precisely, Test scenarios; parity checklist D35–D41 | — |
 | The movement procedure is new and exact; a mismatch between the Rust code and the oracle generator could hide in rare cycle positions | Both follow the spec text independently; scenarios cover every cycle position; Marquee properties run on random sequences | `display.md` Movement, precisely | A bug would show as a jump or a strip that never stops |
 | D-Bus names use the GitHub account and the major version (`io.github.dtmarangoni.OpenDeepCool1`) | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule and its advice to version interface names; the account name is already public in `LICENSE` and the PRD | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
-| The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 12 |
+| The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 11 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
-| The boot check needs a reboot to happen | It runs whenever the PC has rebooted since the dev copy was installed; it's never forced | Rule 3: no person; the owner reboots on their own schedule; Phase 12 runs the cold-boot series | — |
+| The boot check needs a reboot to happen | It runs whenever the PC has rebooted since the dev copy was installed; it's never forced | Rule 3: no person; the owner reboots on their own schedule; Phase 11 runs the cold-boot series | — |
 
 ## Agent Notes
 
 - Installing or upgrading the dev copy is a `pkexec` system change. Show the owner the script's commands the first time; later upgrades of the same script follow the same approval (rule 7).
 - The end-to-end run changes the cooler's picture for a few minutes, then restores the owner's settings. It must never leave the override active (the drop guard calls `ClearOverride`).
-- Mode names in code and in anything a user reads (journal lines, D-Bus error texts, `--help`): Load, Temperature, Power, Music, Creative, never "Guardian" or "… Mode" (owner, 2026-10-24). DeepCreative's names appear only where the spec describes DeepCreative.
+- Mode names in code and in anything a user reads (journal lines, D-Bus error texts, `--help`): Load, Temperature, Power, Music, never "Guardian" or "… Mode" (owner, 2026-10-24). DeepCreative's names appear only where the spec describes DeepCreative.
 - The D-Bus property and method list in `odc-ipc` is the settings app's contract. If it changes, update `docs/spec/settings.md` "What the settings app must offer" so the UI designer sees it (owner's rule, 2026-10-24).

@@ -103,7 +103,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/local/` | Facts about the owner's PC: **local only, git-ignored** |
 | `docs/reference/vendor/` | Vendor manuals: **local only, git-ignored**; see `docs/reference/README.md` |
 | `research/` | Research workspace (Wine prefix, extracted DeepCreative, captures, screenshots, research tools): **local only, git-ignored** |
-| Rust workspace, packaging | Created in Phases 5–12; add them here when they exist |
+| Rust workspace, packaging | Created in Phases 5–11; add them here when they exist |
 
 The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`, so plans and reports land in the repository.
 

@@ -1,8 +1,8 @@
-# Display: Load Mode, Temperature Guardian, Power Guardian, Creative Mode, rotation
+# Display: Load Mode, Temperature Guardian, Power Guardian, rotation
 
-What DeepCreative 1.2.14 draws on the LP360 in modes 1–12 and in Creative Mode, precisely enough to reproduce every frame. How frames are sent is in [protocol.md](protocol.md); evidence labels are defined in [README.md](README.md).
+What DeepCreative 1.2.14 draws on the LP360 in modes 1–12, precisely enough to reproduce every frame. How frames are sent is in [protocol.md](protocol.md); evidence labels are defined in [README.md](README.md).
 
-**Proof.** A script that applies only the rules below reproduces, pixel for pixel, every steady frame of 340 sweep steps, with values from 0 to 1999. These include the **full test matrix**: every mode 1–12 and Creative Mode, in all four rotations, in both temperature units where a temperature is shown, with three value sets per case. Every metric had its own distinct value, so a mode drawing the wrong metric would have failed. Every scrolling case showed its full cycle. One step is a recorded one-off (see [Observed one-off](#observed-one-off)). Evidence: capture: sweeps of 2026-10-22, the matrix sweep included, with values fed to DeepCreative through its sensor readings (`research/hook/render-check.py`, local). The expected frame of every case is in [frames/](frames/).
+**Proof.** A script that applies only the rules below reproduces, pixel for pixel, every steady frame of 340 sweep steps, with values from 0 to 1999. These include the **full test matrix**: every mode 1–12, in all four rotations, in both temperature units where a temperature is shown, with three value sets per case. Every metric had its own distinct value, so a mode drawing the wrong metric would have failed. Every scrolling case showed its full cycle. One step is a recorded one-off (see [Observed one-off](#observed-one-off)). Evidence: capture: sweeps of 2026-10-22, the matrix sweep included, with values fed to DeepCreative through its sensor readings (`research/hook/render-check.py`, local). The expected frame of every case is in [frames/](frames/).
 
 ## Grid
 
@@ -27,12 +27,10 @@ DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative'
 | 10 | Power Guardian → Separate → CPU | CPU Power | scrolling |
 | 11 | Power Guardian → Separate → GPU | Gpu power | scrolling |
 | 12 | Power Guardian → Combined → CPU / GPU | CPU Power, Gpu power | scrolling |
-| 100 | Creative Mode → blank canvas | — | static, all off |
-| 100 + n | Creative Mode → saved image n | — | static |
 
 Combined layouts exist in one order only, as listed. Evidence: code: LP page modes (Phase 1 report); capture: sweeps.
 
-**OpenDeepCool's names** (owner, 2026-10-24): **Load**, **Temperature**, **Power**, **Music** and **Creative**, in code and in the app. Never "Guardian", and no "Mode" after the name. The names in the table above, and elsewhere in this spec where DeepCreative is described, are DeepCreative's.
+**OpenDeepCool's names** (owner, 2026-10-24): **Load**, **Temperature**, **Power** and **Music**, in code and in the app. Never "Guardian", and no "Mode" after the name. The names in the table above, and elsewhere in this spec where DeepCreative is described, are DeepCreative's.
 
 **OpenDeepCool: static unless a value doesn't fit** (owner, 2026-10-24). DeepCreative fixes the layout per mode: static for usage and °C, scrolling for °F and power. OpenDeepCool has no layout setting. Every mode, °F and power included, uses the [static layout](#static-layout-usage-and-temperature-in-c) while each value it shows fits there (99 or less, or dashes), and switches to the [scrolling layout](#scrolling-layout-temperature-in-f-and-power) by itself while any value is 100 or more ([Values](#values), OpenDeepCool: no caps). Both layouts use the glyphs below.
 
@@ -172,7 +170,7 @@ OpenDeepCool's own rule (owner, 2026-10-24). DeepCreative has no equivalent: und
 
 | Switch into | What the display does | Evidence |
 |---|---|---|
-| A static mode (Load Mode, °C temperature, Creative Mode), from any mode | The new picture replaces the old one in a single frame. A scrolling old picture keeps scrolling until then | capture: 2026-10-22, transition steps; 2026-10-23, transition probe |
+| A static mode (Load Mode, °C temperature), from any mode | The new picture replaces the old one in a single frame. A scrolling old picture keeps scrolling until then | capture: 2026-10-22, transition steps; 2026-10-23, transition probe |
 | A scrolling mode (°F temperature, power), from a scrolling mode | The old text finishes its 21-column cycle, then the new text follows | capture: 2026-10-23, transition probe |
 | A scrolling mode, from a static mode | The old picture scrolls out to the left. Behind it, DeepCreative replays the **paused text of the last scrolling mode**, then the new text follows (see the quirk below) | capture: 2026-10-23, transition probe; owner: 2026-10-23 |
 
@@ -238,7 +236,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 
 | ID | Scenario | Expected |
 |---|---|---|
-| S14 | A mode switch at every *k*, into each kind of mode (static, scrolling from home, Music Mode, Creative Mode) and from each | The next frame is the new mode's picture at home; nothing of the old one |
+| S14 | A mode switch at every *k*, into each kind of mode (static, scrolling from home, Music Mode) and from each | The next frame is the new mode's picture at home; nothing of the old one |
 | S15 | A temperature unit change, static and scrolling (`57°C` → `134°F`) | In a mode that shows a temperature: like a mode switch. In any other mode: nothing changes on the cooler; the unit is saved and used by the next temperature mode |
 | S16 | A rotation change (each value, and Rotate Screen presses) while scrolling and while static | Like a mode switch: the next frame is the turned picture at home |
 | S17 | Start-up into each mode: values of 99 or less, 100 or more, and the first second's dashes turning into a value of 100 or more | The saved picture at home on the first frame after `03 08` |
@@ -252,7 +250,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S25 | Choosing another GPU, static and scrolling, at every *k* | Like a mode switch: the next frame is the picture at home with the new GPU's readings |
 | S26 | The app's Refresh, static and scrolling, at every *k*, with values below and above 100 | Fresh readings at once; the next frame is the picture at home, and it scrolls from there if a value is 100 or more |
 
-**Which modes, units and values:** every scenario runs in every mode that shows a value (1–12 and 18–22), in both temperature units where the mode shows a temperature, for single values and for combined values, with the change in the top value, the bottom value, and both. Every rotation is checked too: the expected frames of a rotation are the rotation-0 frames turned. In Music Mode (18–22) only the value area (rows 2–6) moves, and the spectrum keeps following the sound in every frame. The modes without values (13–17 full screen and emoji, 23 Dancer, 100 and 101 Creative Mode) run S14 to S18: switches into and out of them at every *k*, rotation, start-up and reconnect.
+**Which modes, units and values:** every scenario runs in every mode that shows a value (1–12 and 18–22), in both temperature units where the mode shows a temperature, for single values and for combined values, with the change in the top value, the bottom value, and both. Every rotation is checked too: the expected frames of a rotation are the rotation-0 frames turned. In Music Mode (18–22) only the value area (rows 2–6) moves, and the spectrum keeps following the sound in every frame. The modes without values (13–17 full screen and emoji, 23 Dancer) run S14 to S18: switches into and out of them at every *k*, rotation, start-up and reconnect.
 
 ## Rotation
 
@@ -265,16 +263,9 @@ The Rotate Screen setting has four values. Value *r* turns the **whole finished 
 | 2 | 180° |
 | 3 | 270° clockwise |
 
-The turn is applied last, so scrolling text moves along the turned picture: after undoing the turn, every frame is the normal left-scrolling picture. The same holds in every mode, Music Mode and Creative Mode included. Evidence: capture: the matrix sweeps of 2026-10-22, every mode at every rotation value; owner: 2026-10-22, modes 1, 4, 7 in °F and 10, and Music Mode 20 at 90°.
+The turn is applied last, so scrolling text moves along the turned picture: after undoing the turn, every frame is the normal left-scrolling picture. The same holds in every mode, Music Mode included. Evidence: capture: the matrix sweeps of 2026-10-22, every mode at every rotation value; owner: 2026-10-22, modes 1, 4, 7 in °F and 10, and Music Mode 20 at 90°.
 
 DeepCreative's on-screen preview of the display doesn't turn; only the cooler does (owner: 2026-10-22). So a screenshot of DeepCreative's window can't show rotation, and every rotation check compares the frames sent to the cooler.
-
-## Creative Mode
-
-- **Mode 100:** the blank canvas, all pixels off. Capture: Phase 1.
-- **Mode 100 + n:** saved image n, drawn exactly as stored: stored row 1 is the top row, stored column 1 the left column. Static. Capture and owner: an image drawn in DeepCreative's editor on 2026-10-22, with an L in the top-left and a dot in the bottom-right, was shown unchanged.
-- **Stored images:** a list of `{index, data}`, where `data` is 14 rows of 14 values, 1 = on. DeepCreative's editor saves nothing else per image. Code and capture: the image the owner drew, 2026-10-22.
-- **Images only.** DeepCreative 1.2.14 has no Creative Mode animations; the PRD lists them for after v1.
 
 ## Observed one-off
 
