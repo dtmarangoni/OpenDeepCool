@@ -342,7 +342,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 7 | Service, settings & Load (MVP) | System service, start at boot, saved settings, D-Bus and polkit, Load Mode (modes 1–6) | pending | - | 5, 6 | [plan](../plans/phase-7-service-settings-load-mode.plan.md) | - | - |
 | 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | with 9, 10 | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | - | - |
 | 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | pending | with 8, 10 | 7 | [plan](../plans/phase-9-music.plan.md) | - | - |
-| 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | pending | with 8, 9 | 7 | - | - | - |
+| 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | pending | with 8, 9 | 7 | [plan](../plans/phase-10-settings-app.plan.md) | - | - |
 | 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | pending | - | 8, 9, 10 | - | - | - |
 
 ### Phase Details

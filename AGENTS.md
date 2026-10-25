@@ -98,6 +98,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/prp/plans/` | One plan per phase (from Phase 3), with its HTML companion |
 | `docs/prp/reports/` | Implementation reports |
 | `docs/spec/` | Functionality and protocol spec (from Phase 3) |
+| `docs/design/` | The settings app's design, its mockups and the mockup generator (`mockups-src/gen.py`); a UI change updates them before the code |
 | `docs/research/` | Spike and research reports (e.g. `phase1-wine-spike.md`) |
 | `docs/hardware/` | Our own notes on the LP360, with manual page references |
 | `docs/local/` | Facts about the owner's PC: **local only, git-ignored** |
