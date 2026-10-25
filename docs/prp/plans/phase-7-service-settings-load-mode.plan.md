@@ -584,7 +584,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 116 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
+| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 120 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step | the dev service, or fakes where absent |
 | Dash and impossible-reading cases (`unavailable.txt`) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
 | Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | every scenario in every rotation |
 | Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect, refused and repeated choices) × 4 rotations | `engine` | — | every scenario in every rotation |

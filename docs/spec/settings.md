@@ -6,7 +6,7 @@ Every DeepCreative 1.2.14 setting that affects the LP360: its values, its defaul
 
 | Setting | Where in DeepCreative | Values | First-start default | Restored after a restart | Effect |
 |---|---|---|---|---|---|
-| Mode | LP page: the mode family and its option | modes 1–22, 100 and 100 + n | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
+| Mode | LP page: the mode family and its option | modes 1–22, 100 and 100 + n; OpenDeepCool adds 23 (Dancer) | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
 | Rotate Screen | LP page: one button | 0–3. Each press adds a quarter turn clockwise, and 3 wraps to 0 | **0** | yes | [rotation](display.md#rotation) |
 | Temperature Display | app Settings page, for all devices | Celsius (0), Fahrenheit (1) | **Celsius** | yes | modes 7–9, 18 and 19 ([values](display.md#values)) |
 | CPU Fan I/O, Pump Fan I/O | LP page | one of the board's fan inputs | none chosen | unverified: under Wine the list is empty | the RPM on DeepCreative's own device card, never the cooler ([sensors.md](sensors.md#fan-and-pump-speed)) |

@@ -469,13 +469,13 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 7–9 × rotations 0–3 × °C/°F × value sets 1–3 (24 of the 116 mode, rotation and unit cases; 72 sections) | `matrix_temperature` | the steps where both rules agree (68 on 2026-10-25) | the dev service, or fakes where absent |
+| Modes 7–9 × rotations 0–3 × °C/°F × value sets 1–3 (24 of the 120 mode, rotation and unit cases; 72 sections) | `matrix_temperature` | the steps where both rules agree (68 on 2026-10-25) | the dev service, or fakes where absent |
 | Modes 10–12 × rotations 0–3 × value sets 1–3 (12 cases; 36 sections) | `matrix_power` | the steps where both rules agree (24 on 2026-10-25) | the dev service, or fakes |
 | Dash and impossible-reading cases (`unavailable.txt`) | both matrix targets | — (DeepCreative has no dashes) | the dev service, or fakes |
 | Movement scenarios S1–S13, S19, S20, S22 × modes 7–12 × units × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_temperature`, `scenarios_power` | — (OpenDeepCool's own rules) | every scenario in every rotation |
 | Resets and settings: S14–S18, S21, S23–S26 (132 ordered mode pairs among 1–12, unit in and out of temperature modes, rotation, GPU, Refresh, start-up with `NotYet`, reconnect) × 4 rotations | `engine` | — | every scenario in every rotation |
 
-After this phase, 60 of the 116 matrix combinations are covered: modes 1–12 in every rotation and unit.
+After this phase, 60 of the 120 matrix combinations are covered: modes 1–12 in every rotation and unit.
 
 ## Risks and Decisions
 

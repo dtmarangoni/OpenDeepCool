@@ -284,7 +284,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - mode 101: the stored image `rotated(r)` matches each of its 4 cases;
   - mode 100: `Frame::blank().rotated(r)` matches each of its 4 cases.
 
-  That's 8 of the 116 matrix cases, the only ones that need no renderer.
+  That's 8 of the 120 matrix cases, the only ones that need no renderer.
 
 **Validation**
 - `cargo test -p odc-testkit && cargo test -p odc-protocol --test rotation_expected`: passes. Flipping the rotation direction in Task 2 must make the mode-101 test fail.
@@ -551,7 +551,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - the real-device recording holds only start-up commands and frames (Tasks 4, 6, 9).
 3. **AC3 — Rotation:**
    - rotation property tests pass;
-   - the mode-100 and mode-101 matrix cases (8 of 116) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
+   - the mode-100 and mode-101 matrix cases (8 of 120) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
 4. **AC4 — Reusable oracle:**
    - all 24 expected-frame files load into 292 typed cases;
    - a mismatch prints both pictures (Task 3).
@@ -594,7 +594,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 |---|---|---|
 | Mode 100 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
 | Mode 101 × rotations 0–3 | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
-| All 116 cases (292 sections) | loader only | Task 3: every file parses into typed cases for Phases 7–10 |
+| All 120 cases (296 sections) | loader only | Task 3: every file parses into typed cases for Phases 7–10 |
 
 The other 108 matrix cases need renderers and belong to Phases 7–10, which compare their output with the same loader and diff.
 

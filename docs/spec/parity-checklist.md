@@ -99,6 +99,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | M17 | - | Peak dots on or off, bar fall and peak fall (sliders with Winamp's five stops; defaults moderate and slow, as in Winamp) are settings on the app's configuration screen | [settings](settings.md#what-the-settings-app-must-offer) | owner: 2026-10-25 | reviewed 2026-10-25: owner decision |
 | M18 | - | Delay from sound to frame: at most 150 ms for 95 % of frames | [music](music.md#opendeepcools-spectrum-precisely) | owner: 2026-10-25 | reviewed 2026-10-25: owner decision |
 | M19 | 14–17 | A reset restarts the emoji loop from its first picture | [music](music.md#emoji-animations-modes-1417) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner decision |
+| M20 | 23 | Music → Dancer (OpenDeepCool's own): a stick figure on the whole grid, standing still in silence, moving to its next pose on each bass beat (sways when soft, big moves when loud) | [music](music.md#dancer-mode-23-opendeepcools-own) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner approved |
 
 ## Sensors
 

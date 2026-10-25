@@ -51,7 +51,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 
 ## Constraints
 
-- **Modes are fixed by the spec.** The display's modes (1–22, 100 + n) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).
+- **Modes are fixed by the spec.** The display's modes (1–23, 100 + n; 23 is OpenDeepCool's Music → Dancer) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).
 - **Out of scope** (rule 8): speed control of the cooler's fans and pump (after v1), hidden display settings, ARGB lighting, other devices, and any monitoring or control of other hardware. Never show controls for them.
 - **States to design:**
   - the cooler is disconnected;

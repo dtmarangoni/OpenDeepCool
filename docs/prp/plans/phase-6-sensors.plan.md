@@ -627,7 +627,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 ### Test matrix covered in this phase
 
-Phase 6 draws no frames, so it covers none of the 116 display cases. Its own matrix is the driver rules × hardware cases:
+Phase 6 draws no frames, so it covers none of the 120 display cases. Its own matrix is the driver rules × hardware cases:
 
 | Rule | Fake-tree cases | Real on the owner's PC (any PC: where present) |
 |---|---|---|
