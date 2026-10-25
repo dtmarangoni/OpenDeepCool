@@ -226,7 +226,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - **Elsewhere**, or when that file is missing or unreadable, the app uses OpenDeepCool's own default theme, designed with the screens in Phase 10.
   - **After v1, other desktops:** the XDG Desktop Portal's Settings interface gives a desktop's light/dark preference (`color-scheme`) and accent colour (`accent-color`), with a `SettingChanged` signal, on desktops that implement it. Setups without a standard need a theme folder that the user picks.
 - **Build and run**: `cargo build --release` produces native binaries, so running them needs no Rust toolchain. They link to the system GTK4, which Omarchy already ships.
-- **Packaging**: a local PKGBUILD, so pacman tracks every installed file and `pacman -R` removes them all (proposed; decided in the Phase 11 plan).
+- **Packaging** (owner, 2026-10-25): one PKGBUILD, so pacman tracks every installed file, offered two ways: as an **AUR** package, and from **GitHub** by cloning the repository and running `makepkg -si`. Both are tested installing and uninstalling in a throwaway Arch container. The official repositories can only follow later, if the AUR package gets popular and an Arch Package Maintainer adopts it (Arch Wiki, Arch User Repository, read 2026-10-25). The package enables the service at install, and the audio helper for every user, although Arch convention is not to ("does not enable most services on installation", Arch Wiki, systemd, read 2026-10-25); its install message says what was enabled and how to disable it (owner, 2026-10-25).
 - **Reverse-engineering environment** (development only, never shipped):
   - DeepCreative 1.2.14 is extracted from the owner's installer and run under Wine (11.17 in Phase 1, 11.20 in Phase 3) in its own prefix, with networking blocked.
   - Its Electron build honours Node inspector arguments (fuse `EnableNodeCliInspectArguments`), so a small hook can log every USB write for each mode.
@@ -343,7 +343,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | with 9, 10 | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | - | - |
 | 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | pending | with 8, 10 | 7 | [plan](../plans/phase-9-music.plan.md) | - | - |
 | 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | pending | with 8, 9 | 7 | [plan](../plans/phase-10-settings-app.plan.md) | - | - |
-| 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | pending | - | 8, 9, 10 | - | - | - |
+| 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | pending | - | 8, 9, 10 | [plan](../plans/phase-11-packaging-final-validation.plan.md) | - | - |
 
 ### Phase Details
 
@@ -466,9 +466,9 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 11: Packaging & final validation**
 - **Goal**: Clean install and uninstall, plus full parity sign-off.
-- **Scope**: PKGBUILD (proposed) with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24).
+- **Scope**: one PKGBUILD, published to the AUR and usable from a GitHub clone with `makepkg -si` (owner, 2026-10-25), with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24).
 - **Tests**:
-  - integration: install → uninstall in a throwaway Arch container (built with `pacstrap`, entered with `systemd-nspawn`, never booted; owner, 2026-10-25) leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
+  - integration: install → uninstall, both from the AUR and from a GitHub clone, in a throwaway Arch container (built rootless with `pacstrap -N`, entered with `arch-chroot -N`, never booted; owner, 2026-10-25) leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
   - e2e, unattended: the package installed on the owner's PC; the service the package started passes the start check, and the full checklist run passes against it. No reboot (owner, 2026-10-25)
 - **Last step of v1** (owner, 2026-10-23): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
 - **Success signal**: The checklist is at 100%, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC.
@@ -510,6 +510,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 |---|---|---|
 | Rust toolchain | mise (already installed) | Build only |
 | Wine 11.20 (11.17 in Phase 1), winetricks | Already installed | Phases 1–3 |
+| weston | Installed by the owner, 2026-10-25 | Headless display for the settings app's UI tests (Phase 10); not installed or removed by OpenDeepCool |
+| arch-install-scripts | Installed by the owner, 2026-10-25 | `pacstrap -N` and `arch-chroot -N` build and enter the throwaway, rootless container for the install and uninstall tests (Phase 11); not installed or removed by OpenDeepCool |
 | Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Kept until v1 is finished, in case research is needed again; then deleted with all DeepCreative material (owner, 2026-10-23; Phase 11) |
 | Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted at the end of v1 (Phase 11) |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
@@ -549,6 +551,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Driver names in the repository | Allowed for every driver the rules cover (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Naming only the owner's drivers | Owner decisions 2026-10-22 (the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception) and 2026-10-23 (sensors work on any PC) |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |
 | Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy) | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice) | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't |
+| Distribution | One PKGBUILD: an AUR package, and clone + `makepkg -si` from GitHub; both tested in a container | Official repositories directly (not possible: they need a Package Maintainer); a GitHub release with a prebuilt package; an install script without pacman | Owner, 2026-10-25 |
+| Service at install | Enabled and started at install, with the audio helper enabled for all users; the install message explains | Print the enable command only, as Arch convention prefers | Owner, 2026-10-25: the cooler must work with no extra step |
 | Boot testing | None: no real, VM or container boots. Starting at boot is proven by the unit's enablement and the running service's start check | Five cold boots; a VM or container boot series | Owner, 2026-10-25 |
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions and settings; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |
 | Settings app ↔ service | D-Bus system bus (`zbus`), polkit by bus name; diagnostics through the journal and a D-Bus method, no command line | Unix socket with our own protocol and client tool | Owner, 2026-10-24: the standard for system services with polkit; usable with `busctl` before the app exists |
