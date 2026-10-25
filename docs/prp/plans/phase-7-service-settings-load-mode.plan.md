@@ -26,7 +26,7 @@
 - A mode switch shows on the next frame.
 - The service runs as the locked `opendeepcool` account, sandboxed, and changes settings only for a caller polkit authorizes.
 
-**Success signal:** After cold boots, the configured mode appears with no action (PRD Phase 7). It's checked unattended from the journal and the recorded frames after each reboot of the owner's PC.
+**Success signal:** The service, enabled for boot and running with nobody logged in, shows the configured mode with no action (PRD Phase 7). The start check proves it unattended from the journal and the recorded frames, without rebooting (owner, 2026-10-25: no boot testing).
 
 **Approach:** four new crates on top of Phases 5 and 6:
 - **`odc-render`:** pure: glyphs, value rules, the static layout and the scrolling strip, the movement procedure, the mode table, and the Load Mode pictures.
@@ -152,7 +152,7 @@ flowchart LR
 
 - **Ports:** Phase 5 `DisplayPort` (`show(&Frame) -> Link`) and Phase 6 `Readings` (`snapshot()`), with their fakes. The engine depends only on these two traits and a `Clock`.
 - **Oracle and diff:** `odc_testkit::{expected, diff}` (Phase 5 Task 3).
-- **Hardware probe:** `odc_testkit::hardware` (Phase 5 Task 9, Phase 6 Task 11). This phase adds `DevService` and `BootSinceInstall`.
+- **Hardware probe:** `odc_testkit::hardware` (Phase 5 Task 9, Phase 6 Task 11). This phase adds `DevService`.
 - **Dev setup and manifest:** Phase 5 Task 8. Every file this phase installs goes through it.
 
 ### Integration points
@@ -177,7 +177,7 @@ flowchart LR
 - The engine: 100 ms tick, readings every second, start-up, resets and updates as the spec defines (mode, rotation, unit, GPU, Refresh; nothing for a choice already set), reconnect continuity, availability, status.
 - Settings v1, the D-Bus interface, polkit, diagnostics, journal logging.
 - The `opendeepcoold` binary, unit, sandbox, D-Bus policy, polkit action, service account, and the dev copy with its frame recording.
-- Tests in all four layers, plus a boot check and a resource baseline.
+- Tests in all four layers, plus a start check and a resource baseline.
 
 ### Not building
 
@@ -477,12 +477,11 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `scripts/dev/check.sh` exits 0;
   - `busctl get-property io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 Mode` prints `u 1`.
 
-### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the boot check; and the attended tour
+### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the start check; and the attended tour
 
 **Files and integration points**
 - `crates/odc-testkit/src/hardware.rs`: UPDATE, with two capabilities:
   - `DevService`: Real when the dev copy is active, owns its name, runs with `--dev`, and the LP360 probes Real;
-  - `BootSinceInstall`: Real when the current boot started after the dev copy was installed (manifest time vs. `journalctl --list-boots`).
 - `crates/odc-e2e/src/service.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only service`.
 - `crates/odc-e2e/src/attended.rs`: CREATE, the attended tour behind the `--attended` flag.
 
@@ -504,16 +503,15 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - For each, it shows the case on the real cooler through the dev service, prints the expected picture as text and one line saying what should happen ("`100%` scrolls left from where `99%` was, then stops at home"), and waits: `y` it looked right, `n` it didn't (with an optional note), `r` show it again.
   - The answers go to `target/e2e/attended-<unix time>.txt`, and a `n` makes the tour's exit code non-zero. Afterwards it restores the owner's settings, like the unattended run.
   - Later phases add one case of each of their modes and edge cases.
-- **Boot check** (`BootSinceInstall` Real):
-  - the journal shows the service started in this boot;
-  - its first recorded frame, the saved mode's picture, is earlier than the first `New session` entry from `systemd-logind` in the same boot, or there was no login yet;
-  - the frame matches the expected picture for the saved mode with the readings of that moment, its values checked against the journal's first snapshot line.
-  - Absent → it runs against a recorded journal fixture and says so.
+- **Start check** (`DevService` Real; no reboot, owner 2026-10-25):
+  - `systemctl is-enabled opendeepcool.service` is `enabled`, and the unit's `WantedBy=` is `multi-user.target` with no `After=`, `Requires=` or `Wants=` on a login, a session or `graphical.target`;
+  - in the running instance's recording (from its own start, whenever that was), the first report is `03 08` and the next is the saved mode's picture with the readings of that moment, its values checked against the journal's first snapshot line of that instance.
+  - Absent → it runs against a recorded journal and recording fixture and says so.
 
 **Validation**
 - `cargo run -p odc-e2e -- --only service`: passes, and prints the probe summary.
 - With `--require dev-service` on the owner's PC, the matrix and the scenarios run real.
-- `cargo run -p odc-e2e -- --attended` works through the tour; the owner runs it when they want to look. The boot check runs real after the first reboot following Task 8.
+- `cargo run -p odc-e2e -- --attended` works through the tour; the owner runs it when they want to look. The start check runs real once Task 8's dev copy is running.
 
 ### 10. Records, CI and the resource baseline
 
@@ -559,7 +557,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
    - it restarts on failure (Task 8).
 9. **AC9 — Real cooler, unattended:**
    - the dev service, driven over D-Bus, writes the expected frame for every Load Mode case, the dash cases and the scenario run (default or full);
-   - after a reboot, the saved mode was on the cooler before the first login;
+   - the running service's first frame after `03 08` was the saved mode, and its unit is enabled for boot with nothing tied to a login (the start check, no reboot);
    - other computers run the same checks against fakes (Task 9).
 10. **AC10 — Records:**
     - README, AGENTS.md Commands, and the PRD (footprint file names, resource baseline) match what was built;
@@ -598,7 +596,6 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | The dev readings override lives in the shipped binary | Keep it off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; group plus polkit gate it anyway | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 11 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
-| The boot check needs a reboot to happen | It runs whenever the PC has rebooted since the dev copy was installed; it's never forced | Rule 3: no person; the owner reboots on their own schedule; Phase 11 runs the cold-boot series | — |
 
 ## Agent Notes
 

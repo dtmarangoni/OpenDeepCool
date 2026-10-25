@@ -61,7 +61,7 @@ We'll know we're right when two things are true:
 | Metric | Target | How Measured |
 |---|---|---|
 | Parity with DeepCreative | 100% of parity-checklist items pass | The unattended end-to-end run on the real LP360 checks every item against the expected frames, which match DeepCreative's captures the owner checked in Phase 3 |
-| Starts with the system | Configured mode is on the display after every cold boot, with no action and before anyone logs in (proposed check: 5 consecutive cold boots) | An unattended boot test: after each boot, a check reads the service state, the journal and the recording of written frames. The Phase 11 plan decides how the power cycle is triggered without a person |
+| Starts with the system | Configured mode is on the display from boot, with no action and before anyone logs in | Not tested by booting. An unattended start check reads the running service's own start: its first written frame, after `03 08`, is the saved mode's picture, and the unit is enabled for `multi-user.target` with nothing tied to a login. No reboot (owner, 2026-10-25: no boot testing) |
 | Correct values | Displayed values match the system's own readings within each metric's resolution | Integration and e2e tests compare rendered values with the sensor sources and with `sensors` |
 | Same timing as DeepCreative | Refresh interval and animation timing per mode match DeepCreative | Compare frame timestamps against the Wine capture |
 | Tested | Unit, integration and e2e tests for each phase, where applicable | Test suites run locally and in CI; e2e on the real device, unattended |
@@ -431,8 +431,8 @@ This project spans many sessions and possibly several coding agents, so the way 
   - unit: renderers against the expected frames for every Load Mode matrix case
   - differential: DeepCreative's Load Mode captures, 0 differing pixels
   - integration: service → fake device
-  - e2e, unattended: the matrix run on the cooler; boot → configured mode, checked from the service state and the recorded frames
-- **Success signal**: After cold boots, the configured mode appears with no action.
+  - e2e, unattended: the matrix run on the cooler; the start check: the running service's first frame, after `03 08`, is the configured mode, checked from the service state and the recorded frames (no reboot; owner, 2026-10-25)
+- **Success signal**: The service, enabled for boot and running with nobody logged in, shows the configured mode with no action, as the start check proves (no reboot; owner, 2026-10-25).
 
 **Phase 8: Temperature & Power**
 - **Goal**: Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) as defined in the spec.
@@ -466,10 +466,10 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 11: Packaging & final validation**
 - **Goal**: Clean install and uninstall, plus full parity sign-off.
-- **Scope**: PKGBUILD (proposed) with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an unattended boot test, also with nobody logged in; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24).
+- **Scope**: PKGBUILD (proposed) with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24).
 - **Tests**:
-  - integration: install → uninstall in a throwaway system leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
-  - e2e, unattended: fresh install → reboot → configured mode shows, checked from the service state and the recorded frames
+  - integration: install → uninstall in a throwaway Arch container (built with `pacstrap`, entered with `systemd-nspawn`, never booted; owner, 2026-10-25) leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
+  - e2e, unattended: the package installed on the owner's PC; the service the package started passes the start check, and the full checklist run passes against it. No reboot (owner, 2026-10-25)
 - **Last step of v1** (owner, 2026-10-23): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
 - **Success signal**: The checklist is at 100%, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC.
 
@@ -549,6 +549,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Driver names in the repository | Allowed for every driver the rules cover (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Naming only the owner's drivers | Owner decisions 2026-10-22 (the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception) and 2026-10-23 (sensors work on any PC) |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |
 | Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy) | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice) | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't |
+| Boot testing | None: no real, VM or container boots. Starting at boot is proven by the unit's enablement and the running service's start check | Five cold boots; a VM or container boot series | Owner, 2026-10-25 |
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions and settings; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |
 | Settings app ↔ service | D-Bus system bus (`zbus`), polkit by bus name; diagnostics through the journal and a D-Bus method, no command line | Unix socket with our own protocol and client tool | Owner, 2026-10-24: the standard for system services with polkit; usable with `busctl` before the app exists |
 | Readings that change while text scrolls | Shown on the next frame, at the same scroll position | DeepCreative's way: finish the 21-column cycle with the old reading first | Owner, 2026-10-24: a new reading shouldn't wait up to 3 s |
