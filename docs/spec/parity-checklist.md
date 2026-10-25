@@ -95,6 +95,10 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | M13 | 20 | Usage + Spectrum → CPU | [music](music.md#value-area-modes-1822) | capture: matrix sweep, all rotations | ok 2026-10-22; also at 90° |
 | M14 | 21 | Usage + Spectrum → GPU | [music](music.md#value-area-modes-1822) | capture: matrix sweep, all rotations | ok 2026-10-22 |
 | M15 | 22 | Usage + Spectrum → RAM | [music](music.md#value-area-modes-1822) | capture: matrix sweep, all rotations | ok 2026-10-22 |
+| M16 | - | OpenDeepCool's spectrum: 14 log-spaced bands from 40 Hz to 16 kHz, −75 to −25 dB, bars that rise at once and fall in the *bar fall* time, peak dots that fall in the *peak fall* time, in every Music mode including the emoji ones; DeepCreative draws no peaks | [music](music.md#opendeepcools-spectrum-precisely) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner decision |
+| M17 | - | Peak dots on or off, bar fall (0–2 s, default 0.6 s) and peak fall (0.3–3 s, default 1.2 s) are settings on the app's configuration screen | [settings](settings.md#what-the-settings-app-must-offer) | owner: 2026-10-25 | reviewed 2026-10-25: owner decision |
+| M18 | - | Delay from sound to frame: at most 150 ms for 95 % of frames | [music](music.md#opendeepcools-spectrum-precisely) | owner: 2026-10-25 | reviewed 2026-10-25: owner decision |
+| M19 | 14–17 | A reset restarts the emoji loop from its first picture | [music](music.md#emoji-animations-modes-1417) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner decision |
 
 ## Sensors
 

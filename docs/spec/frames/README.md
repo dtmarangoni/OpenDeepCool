@@ -17,7 +17,7 @@ One file per mode, `mode-NNN.txt`. Each `##` section is one case:
 - **Heading:** the rotation value (0–3, see [rotation](../display.md#rotation)), the unit where it matters, and the readings of the metrics the mode shows. Every metric has its own distinct value in each value set.
 - **Frames:** 14 rows of 14 characters, row 1 at the top, as the cooler shows them:
   - `#` on, `.` off;
-  - `?` a spectrum pixel: it depends on the sound, so it's checked by the spectrum's layout rules instead (solid bars from the floor, height limits).
+  - `?` a spectrum pixel: it depends on the sound, so it's checked by the spectrum's layout rules instead (solid bars from the floor, at most one peak dot above each, height limits).
 - **Static case:** one frame, sent unchanged while the readings stay the same.
 - **Scrolling case:** one cycle in time order, one frame per 100 ms tick, seven per line: 21 frames, or more when the text is wider than 17 columns. The first frame is the home position, which is what the display shows on the first frame after a mode switch; after the last frame the cycle starts again.
 - **Emoji case:** one loop of pictures in order, with their durations above them.

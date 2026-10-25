@@ -119,6 +119,8 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Load Mode: Combined and Separate display with CPU usage, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
 | Must | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
+| Must | Music spectrum with peak dots (on by default, can be switched off), bar fall and peak fall set by sliders | Owner, 2026-10-25, after a preview page |
+| Must | One configuration screen in the app for every setting except the mode and the temperature unit | Owner, 2026-10-25 |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
 | Must | Static while the values fit (99 or less), scrolling by itself while one is 100 or more, in every mode; no layout setting | Owner, 2026-10-24; DeepCreative fixes the layout per mode and always scrolls °F and power |
 | Must | Every value drawn in full, never capped: a value too long for the static layout scrolls automatically (in Music Mode only the value area). Every value capped at 9999 everywhere: a reading of 10 000 or more is shown as `9999` (owner, 2026-10-25) | Owner, 2026-10-24; DeepCreative's caps are its own rules, not the hardware's |
@@ -211,7 +213,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
     - That writes the configuration and enables `lm_sensors.service`, which loads the detected drivers at every boot.
     - An existing configuration is never overwritten.
   - **Audio helper:** audio belongs to each user's session. A small systemd user unit, enabled for all users at install (`systemctl --global enable`), captures the session's audio and passes it to the display service. The service accepts it only from the active local session. Nobody sets it up by hand.
-- **Music Mode**: the audio helper captures the monitor of the default audio output through PipeWire; the plan decides whether the FFT runs in the helper or the service, and chooses the crates. The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. How its bars and peaks fall is unverified; the owner decides it in the Phase 9 plan, and the tests then check it automatically. The bars' size and position follow DeepCreative's layout.
+- **Music Mode**: the audio helper captures the monitor of the default audio output through PipeWire; the plan decides whether the FFT runs in the helper or the service, and chooses the crates. The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. The owner chose its behaviour on 2026-10-25 from a preview page: bars that fall in 0.6 s, peak dots that fall in 1.2 s, both adjustable, and peaks that can be switched off ([music spec](../../spec/music.md#opendeepcools-spectrum-precisely)); the tests check it automatically. The bars' size and position follow DeepCreative's layout.
 - **Settings app ↔ service**: the D-Bus system bus (owner, 2026-10-24), through the pure-Rust `zbus` crate. Before the app exists (Phases 7–10), settings are changed with the generic `busctl` tool, so OpenDeepCool needs no command line of its own. polkit identifies the caller by its bus name (`system-bus-name` subject).
   - polkit authorizes changes. A user in an active local session changes settings without a password; remote and inactive sessions may only read them (polkit `allow_active`; owner, 2026-10-23).
   - Settings live in the service's state directory: one set for the whole PC.
@@ -263,7 +265,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
     - Every run prints which mode each device used.
   - **attended tour, optional** (owner, 2026-10-24): `odc-e2e --attended` shows one case of each kind and of each edge case on the cooler and asks the owner to confirm each; it's for the owner's own look and never gates anything.
   - **no person (rule 3):** nobody looks at the cooler. Layer 2's byte-for-byte match with the captures the owner checked in Phase 3 proves bytes → picture and orientation.
-- **Music Mode spectrum:** OpenDeepCool's own analysis, so it isn't compared with DeepCreative. Synthetic tones must light the columns the Phase 9 design predicts, and every spectrum frame must follow the layout rules (solid bars from the bottom, bottom row lit, height limits) in every rotation.
+- **Music Mode spectrum:** OpenDeepCool's own analysis, so it isn't compared with DeepCreative. Synthetic tones must light the columns the Phase 9 design predicts, and every spectrum frame must follow the layout rules (solid bars from the bottom, bottom row lit, at most one peak dot above each bar, height limits) in every rotation.
 - **When they run:** layers 1 and 3 on every push (GitHub Actions) and in the pre-commit guard from Phase 5; layers 2 and 4 before each mode's commit (rule 4).
 
 **Technical Risks**
@@ -452,7 +454,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - differential: DeepCreative's Music Mode captures, top areas only
   - integration: audio file → frames
   - e2e, unattended: the matrix run on the cooler, with test audio played through a virtual output
-- **Success signal**: These modes' checklist items pass, and the measured delay from sound to frame is within the target the Phase 9 plan sets with the owner.
+- **Success signal**: These modes' checklist items pass, and the measured delay from sound to frame is at most 150 ms for 95 % of frames (owner, 2026-10-25).
 
 **Phase 10: Creative**
 - **Goal**: Pixel art and animations.
@@ -549,7 +551,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Creative Mode animations | Not in v1 | In v1 | DeepCreative 1.2.14's editor has no frames or timing (LP page code; Phase 1 saw static images only); owner decision 2026-10-22: possible later |
 | Hidden display settings and unused device reports | Not in v1; documented, never sent | Research them in Phase 3 | Owner decision 2026-10-22: out of scope for now, kept as a possible later feature |
 | Lighting | Out of scope (OpenRGB) | Include it | Wired to the motherboard ARGB header |
-| Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
+| Music Mode spectrum | Imitate Winamp's classic analyser (whole audible range); DeepCreative's layout kept, plus peak dots (2026-10-25); bars fall in 0.6 s and peaks in 1.2 s by default, both adjustable; at most 150 ms from sound to frame | Copy DeepCreative's analysis | Owner decision 2026-10-22: under Wine DeepCreative's columns cover only about 5–160 Hz and show a second pattern at half the frequency, which may be a Wine artefact; nobody remembers its behaviour on Windows |
 | Settings app design | Our own design by a senior UI/UX designer agent; every DeepCreative feature reachable, its layout not copied | Mirror DeepCreative's pages, tabs and Combined/Separate options | Owner decision 2026-10-22: a modern, minimalist, fast app; DeepCreative's structure has unnecessary steps |
 | Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
 | Hardware coverage | Any PC with an LP360 on Arch Linux, Omarchy first: rules for the common CPU, GPU and board-sensor drivers; a driver without a rule leaves its metric unavailable | Only the owner's PC | Owner, 2026-10-23 |

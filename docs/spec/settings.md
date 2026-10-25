@@ -42,6 +42,8 @@ Evidence:
 
 The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inputs chosen, no saved images.
 
+OpenDeepCool's own settings: Music peak dots on, bar fall 0.6 s, peak fall 1.2 s ([music.md](music.md#opendeepcools-spectrum-precisely); owner, 2026-10-25).
+
 GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([sensors.md](sensors.md#gpu-choice)).
 
 ## What the settings app must offer
@@ -51,6 +53,8 @@ The input for the settings app's design (PRD, Phase 11). The `ui-ux-designer` ag
 **Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
 
 - **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs, saved Creative images.
+- **A configuration screen** (owner, 2026-10-25): every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay where the mode is chosen. So the configuration screen holds the rotation, the GPU choice, the cooler's fan and pump inputs, and the Music settings below.
+- **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a *bar fall* slider, 0 to 2 s in 0.1 s steps (0.6 s by default, 0 = instant); a *peak fall* slider, 0.3 to 3 s in 0.1 s steps (1.2 s by default). The preview draws them the same way ([music.md](music.md#opendeepcools-spectrum-precisely)).
 - **Mode names** (owner, 2026-10-24): Load, Temperature, Power, Music and Creative. Never DeepCreative's "Temperature Guardian", "Power Guardian" or "… Mode" ([display.md](display.md#modes)).
 - **Refresh button** (owner, 2026-10-24): syncs the display. The service takes fresh readings at once and redraws the picture from its home position, so a scrolling value starts its cycle again (and stops at home if it now fits). Allowed to the same users as settings changes.
 - **No layout setting** (owner, 2026-10-24): the app has no static or scrolling option. Every mode is static while its values fit (99 or less) and scrolls on its own while one is 100 or more ([display.md](display.md#modes)).

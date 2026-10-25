@@ -25,6 +25,7 @@ Evidence: code: LP page modes (Phase 1 report); capture: Music Mode passes of 20
 - **Columns:** 14 bars, one per column, from column 1 (left) to 14 (right).
 - **Bars:** each is solid, from the bottom row up, with no gaps. Capture: every frame of the 2026-10-22 passes.
 - **Floor:** the bottom row (row 14) is always lit, so silence shows a flat line one pixel high.
+- **OpenDeepCool's peak dots** (owner, 2026-10-25): when they're on, each column may also have one lit pixel above its bar, with off pixels between them ([below](#opendeepcools-spectrum-precisely)). DeepCreative draws no peaks.
 - **Height:** full screen, 1 to 12 rows (rows 14 up to 3); split modes, 1 to 6 rows (rows 14 up to 9). Rows above stay off.
 - **Updates:** the bars change from frame to frame while sound plays. Capture: Phase 1, with every frame different during music.
 
@@ -34,8 +35,28 @@ Evidence: capture: 2026-10-22, the loud-chord pass reached rows 3 and 9 but neve
 
 DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; see the PRD).
 - **What DeepCreative does under Wine:** its 14 columns each cover one band about 10.8 Hz wide, so the whole display spans only about 5–160 Hz. Alternate frames also show a weaker copy at half the frequency, which may be a Wine artefact. Capture: test tones and a sweep, 2026-10-22.
-- **What OpenDeepCool does instead:** imitate Winamp's classic analyser, with bands spread across the whole audible range over the 14 columns. Winamp's falloff and peak behaviour are unverified; Phase 9 designs them, and the owner tunes them by eye.
-- **Source:** the monitor of the default audio output, as the PRD says.
+- **What OpenDeepCool does instead:** imitate Winamp's classic analyser, with bands spread across the whole audible range over the 14 columns. The rules below were chosen by the owner on 2026-10-25, after watching them on a preview page that drew the 14 × 14 grid at the cooler's 100 ms tick.
+- **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one.
+
+### OpenDeepCool's spectrum, precisely
+
+Every Music mode (13–22) draws its spectrum this way, the emoji modes included (owner, 2026-10-25). *H* is the spectrum area's height: 12 rows in mode 13, 6 rows in modes 14–22.
+
+1. **Analysis, at every tick:** the latest 2048 samples, windowed and transformed as the W3C Web Audio API's `AnalyserNode` defines it: a Blackman window with α = 0.16, then X[k] = (1/N) Σ x̂[n] e^(−2πikn/N), with N = 2048 and no smoothing over time. Each bin's level is 20 log₁₀ |X[k]| dB. Evidence: W3C Web Audio API 1.1, AnalyserNode, "FFT windowing and smoothing over time" (read 2026-10-25). The preview page used the browser's own `AnalyserNode` with 4096 samples; OpenDeepCool uses 2048 to keep the delay target below.
+2. **Columns:** 14 bands, their edges spaced evenly on a log scale from 40 Hz to 16 kHz: edge *i* = 40 × 400^(*i*/14) Hz, *i* = 0 … 14. Column *c* (1 = left) takes the highest level of the bins whose frequency is at least edge *c* − 1 and below edge *c*, and at least the one bin nearest edge *c* − 1.
+3. **Loudness:** −75 dB or less is level 0, −25 dB or more level 1, linear in between.
+4. **Bars:** a bar rises to a higher level at once. Otherwise it falls by 0.1 s ÷ *bar fall* of the full height per tick, never below the current level. With *bar fall* = 0 it shows the current level. It's drawn max(1, round(level × *H*)) rows high, from the floor up.
+5. **Peak dots** (when on): each column has a peak *p* and a speed *v*. After the bar is updated: if the bar is at *p* or above, *p* = the bar and *v* = *v₀*; otherwise *p* = max(0, *p* − *v*) and *v* = 1.5 × *v*. *v₀* = 0.5 ÷ (1.5^*n* − 1), where *n* = *peak fall* ÷ 0.1 s, so a peak at full height reaches the floor in *peak fall*, slowly at first. The dot is one pixel at height round(*p* × *H*) rows, drawn only when that is above the bar and within the area.
+6. **Settings** (owner, 2026-10-25), on the settings app's configuration screen ([settings.md](settings.md#what-the-settings-app-must-offer)):
+   - peak dots on or off, on by default;
+   - *bar fall*: 0 to 2 s in 0.1 s steps, 0.6 s by default; 0 means instant;
+   - *peak fall*: 0.3 to 3 s in 0.1 s steps, 1.2 s by default.
+
+   A change shows on the next frame and resets nothing: the bars and peaks keep their levels. In a mode without a spectrum it is only saved.
+7. **Continuity:** the bars and peaks keep their levels across a switch between Music modes, a rotation change and Refresh, and are drawn at the new mode's *H*. Entering a Music mode from any other mode starts them at level 0.
+8. **Delay** (owner, 2026-10-25): at most 150 ms for 95 % of frames, from the sound reaching the output's monitor to the frame written to the cooler. The 100 ms tick alone adds 0–100 ms.
+
+The values in points 2 and 3 are starting values the owner accepted on the preview page; changing them later is a spec change, not a setting.
 
 ## Value area (modes 18–22)
 
@@ -55,6 +76,7 @@ Examples: `57°C`, `38°C`, `42%`, `7%`, `63%`; in °F, modes 18 and 19 scroll. 
 ## Emoji animations (modes 14–17)
 
 - **Timing:** each animation is a fixed loop on a 100 ms tick. It plays the same in silence and with sound, so the music doesn't drive it.
+- **OpenDeepCool: a reset restarts the loop** (owner, 2026-10-25). A reset (start-up, a switch into the mode, a rotation change, another GPU, Refresh; [display.md](display.md#mode-switches)) shows the loop's first picture on the next frame, as a value's picture restarts from home.
 - **Area:** the pictures occupy rows 1–7; rows 8–14 are the spectrum area.
 
 Evidence: capture: 2026-10-22, the silent and loud passes give the same pictures and loop.
