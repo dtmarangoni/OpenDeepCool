@@ -71,7 +71,7 @@
 - **The tiles** are drawn by the app with `odc_render::picture` and `odc_render::music` from fixed sample values (design, Display page). That is the same code the service uses, with no audio and no clock.
 
 **The other contract additions, each the smallest shape that serves the design:**
-- `FanInputs` becomes `a(ssusd)`: chip, device path, input, label, RPM. `PropertiesChanged` for it is emitted once a second only while a frame watch exists, so an app that isn't open costs nothing.
+- `FanInputs` becomes `a(ssusd)`: chip, device path, input, label, RPM (capped at 9999, like every value; owner, 2026-10-25). `PropertiesChanged` for it is emitted once a second only while a frame watch exists, so an app that isn't open costs nothing.
 - `Gpus` becomes `a(sssqqb)`: PCI address, driver, kind, PCI vendor ID, PCI device ID, has a reading rule. The app looks up the product name in `/usr/share/hwdata/pci.ids` (package `hwdata`, present on this PC, 2026-10-25). The service, which is sandboxed, reads nothing new.
 - `GpuInUse` (s): the GPU the readings come from, next to `ChosenGpu`, the saved choice.
 - `CoolerFanInputPresent` and `PumpInputPresent` (b).
@@ -253,7 +253,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - the D-Bus side emits only while watchers exist and only on change;
   - watchers are tracked by unique name and dropped on `NameOwnerChanged`.
 - **New and changed properties:**
-  - `FanInputs` `a(ssusd)` (RPM added), `PropertiesChanged` once a second only while a watch exists;
+  - `FanInputs` `a(ssusd)` (RPM added, capped at 9999), `PropertiesChanged` once a second only while a watch exists;
   - `Gpus` `a(sssqqb)` (vendor ID, device ID, has rule; from the Phase 6 `Registry`, whose GPU scan already reads the PCI device);
   - `GpuInUse` (s); `CoolerFanInputPresent`, `PumpInputPresent` (b).
 - **`CanChangeSettings() -> b`:** `Authorizer::allowed(sender)`, the call every change makes, without interaction.

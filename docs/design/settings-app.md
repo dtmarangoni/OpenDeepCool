@@ -85,7 +85,7 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
   - cooler: "Cooler connected" or "Cooler not connected" ("Cooler: unknown" while the service is down);
   - service: "Service running" or "Service not running";
   - Music sound, **only while a Music mode is chosen** (`AudioConnected`): "Sound connected" or "No sound: spectrum is silent".
-- **Fan and pump RPM:** two rows, "Cooler fans" and "Pump". Each value is one of:
+- **Fan and pump RPM:** two rows, "Cooler fans" and "Pump". Speeds are capped at 9,999 RPM, like every value in OpenDeepCool (settings.md); the same holds for the RPM in the input pickers. Each value is one of:
   - `1,180 RPM`;
   - "Choose input": a link-style `GtkButton` that opens the Configuration page;
   - "Input not found";

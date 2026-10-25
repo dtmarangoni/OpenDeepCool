@@ -311,7 +311,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `Gpus` (a(sss): PCI address, driver, kind, in rank order) and `ChosenGpu` (s, empty when none was chosen);
   - `FanInputs` (a(ssus): chip, device path, input, label);
   - `CoolerFanInput` and `PumpInput` (ssu each, empty when unset);
-  - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable).
+  - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable, capped at 9999 like every value; owner, 2026-10-25).
 - **Methods:**
   - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading:** `Diagnostics() -> a(sss)`: metric, bound source, state.

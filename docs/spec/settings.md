@@ -68,7 +68,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - one picker for the cooler's fans (DeepCreative's CPU Fan I/O) and one for its pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;
   - "none" is the default;
   - a saved input that's missing shows as not found;
-  - the app shows the cooler's fan and pump RPM from the chosen inputs. These speeds never reach the cooler's display.
+  - the app shows the cooler's fan and pump RPM from the chosen inputs, capped at 9,999 RPM like every other value: a faster reading shows `9,999 RPM` (owner, 2026-10-25). These speeds never reach the cooler's display.
 - **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
 - **Availability** (owner, 2026-10-24):
   - A mode can't be chosen when a metric it shows is **persistently unavailable**: no driver rule, no device, no permission, or a reading the rules exclude (for example the power of integrated AMD graphics). The app shows it disabled, with the one-line reason.
