@@ -45,16 +45,25 @@ Every Music mode (13–22) draws its spectrum this way, the emoji modes included
 1. **Analysis, at every tick:** the latest 2048 samples, windowed and transformed as the W3C Web Audio API's `AnalyserNode` defines it: a Blackman window with α = 0.16, then X[k] = (1/N) Σ x̂[n] e^(−2πikn/N), with N = 2048 and no smoothing over time. Each bin's level is 20 log₁₀ |X[k]| dB. Evidence: W3C Web Audio API 1.1, AnalyserNode, "FFT windowing and smoothing over time" (read 2026-10-25). The preview page used the browser's own `AnalyserNode` with 4096 samples; OpenDeepCool uses 2048 to keep the delay target below.
 2. **Columns:** 14 bands, their edges spaced evenly on a log scale from 40 Hz to 16 kHz: edge *i* = 40 × 400^(*i*/14) Hz, *i* = 0 … 14. Column *c* (1 = left) takes the highest level of the bins whose frequency is at least edge *c* − 1 and below edge *c*, and at least the one bin nearest edge *c* − 1.
 3. **Loudness:** −75 dB or less is level 0, −25 dB or more level 1, linear in between.
-4. **Bars:** a bar rises to a higher level at once. Otherwise it falls by 0.1 s ÷ *bar fall* of the full height per tick, never below the current level. With *bar fall* = 0 it shows the current level. It's drawn max(1, round(level × *H*)) rows high, from the floor up.
-5. **Peak dots** (when on): each column has a peak *p* and a speed *v*. After the bar is updated: if the bar is at *p* or above, *p* = the bar and *v* = *v₀*; otherwise *p* = max(0, *p* − *v*) and *v* = 1.5 × *v*. *v₀* = 0.5 ÷ (1.5^*n* − 1), where *n* = *peak fall* ÷ 0.1 s, so a peak at full height reaches the floor in *peak fall*, slowly at first. The dot is one pixel at height round(*p* × *H*) rows, drawn only when that is above the bar and within the area.
-6. **Settings** (owner, 2026-10-25), on the settings app's configuration screen ([settings.md](settings.md#what-the-settings-app-must-offer)):
+4. **Falloff stops: Winamp's** (owner, 2026-10-25). Bars and peaks each have Winamp's five falloff settings, slower, slow, moderate, fast and faster, with Winamp's per-frame values: bars 3, 6, 12, 16 and 32; peaks 1.05, 1.1, 1.2, 1.4 and 1.6. Winamp's defaults are moderate for bars and slow for peaks. Evidence: Webamp `packages/webamp/js/components/VisPainter.ts` (read 2026-10-25), which reports them from Winamp 5.666 and 2.63 executables and names the defaults "of a fresh new Winamp installation". Winamp's frame rate isn't documented (unverified), so one Winamp frame is taken as 30 ms, which makes Winamp's default bar fall the 0.6 s the owner chose; the other stops keep Winamp's ratios. A tick is 10/3 Winamp frames.
+
+   | Stop | Bar value | Bar: full height falls in | Peak value | Peak: full height falls in |
+   |---|---|---|---|---|
+   | slower | 3 | 2.4 s | 1.05 | 2.6 s |
+   | slow | 6 | 1.2 s | **1.1 (default)** | 1.5 s |
+   | moderate | **12 (default)** | 0.6 s | 1.2 | 0.9 s |
+   | fast | 16 | 0.45 s | 1.4 | 0.57 s |
+   | faster | 32 | 0.225 s | 1.6 | 0.45 s |
+5. **Bars:** a bar rises to a higher level at once. Otherwise it falls by *b* ÷ 72 of the full height per tick (*b* = the bar value above), never below the current level. It's drawn max(1, round(level × *H*)) rows high, from the floor up.
+6. **Peak dots** (when on): each column keeps the level *p₀* its peak was last set to and the ticks *t* since then. After the bar is updated: if the bar is at the peak or above, *p₀* = the bar and *t* = 0; otherwise *t* = *t* + 1 and the peak is max(0, *p₀* − (3 ÷ 3840) × (*g*^(*t* × 10/3) − 1) ÷ (*g* − 1)), with *g* the peak value above. That is Winamp's recurrence (a speed of 3/256 pixel on a 15-pixel display, growing by *g* every frame), summed over the frames of each tick. The dot is one pixel at height round(peak × *H*) rows, drawn only when that is above the bar and within the area.
+7. **Settings** (owner, 2026-10-25), on the settings app's configuration screen ([settings.md](settings.md#what-the-settings-app-must-offer)):
    - peak dots on or off, on by default;
-   - *bar fall*: 0 to 2 s in 0.1 s steps, 0.6 s by default; 0 means instant;
-   - *peak fall*: 0.3 to 3 s in 0.1 s steps, 1.2 s by default.
+   - *bar fall*: a slider with the five stops, moderate by default;
+   - *peak fall*: a slider with the five stops, slow by default.
 
    A change shows on the next frame and resets nothing: the bars and peaks keep their levels. In a mode without a spectrum it is only saved.
-7. **Continuity:** the bars and peaks keep their levels across a switch between Music modes, a rotation change and Refresh, and are drawn at the new mode's *H*. Entering a Music mode from any other mode starts them at level 0.
-8. **Delay** (owner, 2026-10-25): at most 150 ms for 95 % of frames, from the sound reaching the output's monitor to the frame written to the cooler. The 100 ms tick alone adds 0–100 ms.
+8. **Continuity:** the bars and peaks keep their levels across a switch between Music modes, a rotation change and Refresh, and are drawn at the new mode's *H*. Entering a Music mode from any other mode starts them at level 0.
+9. **Delay** (owner, 2026-10-25): at most 150 ms for 95 % of frames, from the sound reaching the output's monitor to the frame written to the cooler. The 100 ms tick alone adds 0–100 ms.
 
 The values in points 2 and 3 are starting values the owner accepted on the preview page; changing them later is a spec change, not a setting.
 
@@ -72,6 +81,10 @@ Examples: `57°C`, `38°C`, `42%`, `7%`, `63%`; in °F, modes 18 and 19 scroll. 
 **DeepCreative quirk, not reproduced:** in mode 18 with °F, DeepCreative draws the **Gpu temperature**, not the CPU Temperature the option names. With CPU 57 °C and GPU 38 °C it scrolled `100°F` (the GPU) instead of `134°F`; with the GPU at 0 it scrolled `32°F`. Mode 18 in °C and mode 19 in both units draw the right metric. Capture: music sweep step `MusicLoud 18`, unit 1, and the matrix sweep, in all four rotations; owner: 2026-10-22, `32°F` and then `100°F` on the cooler.
 
 **OpenDeepCool:** mode 18 shows the CPU Temperature in both units. Every mode shows the metric it names (owner decision, 2026-10-22; AGENTS.md rule 11).
+
+## Dancer (OpenDeepCool's own, requested)
+
+Requested by the owner on 2026-10-25: a new Music mode where a stick figure dances to the music on the whole 14 × 14 grid, in place of the bars, and stands still and straight in silence. DeepCreative has nothing like it. Its poses and the rules that move it are **pending the owner's review** of a first design on the preview page; they're written here once approved.
 
 ## Emoji animations (modes 14–17)
 

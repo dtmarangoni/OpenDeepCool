@@ -47,7 +47,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits), with every value capped at 9999 everywhere: a larger reading shows `9999` (owner, 2026-10-25). A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
 
 - **Configuration screen** (owner, 2026-10-25). Every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay on the screen where the mode is chosen. That screen holds the rotation, the GPU choice, the fan and pump inputs, and the Music settings.
-- **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a bar fall slider, 0–2 s in 0.1 s steps (0.6 s default; 0 = instant); a peak fall slider, 0.3–3 s in 0.1 s steps (1.2 s default). The preview's spectrum follows them (`docs/spec/music.md`, OpenDeepCool's spectrum, precisely).
+- **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a bar fall slider and a peak fall slider, each with Winamp's five stops: slower, slow, moderate, fast, faster (defaults moderate for bars, slow for peaks). The preview's spectrum follows them (`docs/spec/music.md`, OpenDeepCool's spectrum, precisely).
 
 ## Constraints
 
