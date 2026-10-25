@@ -3,7 +3,7 @@
 **Plan:** none of its own. Phase 4 is the planning phase, one PRP plan per implementation phase.
 **PRD phase:** 4 — Implementation plans
 **Branch:** `phase-4-plans`
-**Status:** written 2026-10-25, waiting for the owner's sign-off; then the branch is merged into `main` (fast-forward) and pushed, as AGENTS.md says.
+**Status:** complete, 2026-10-25: the owner signed off, and the branch was merged into `main` (fast-forward) and pushed, as AGENTS.md says.
 
 ## Outcome
 
@@ -84,11 +84,11 @@ All recorded in the spec, the PRD and the plans the same day.
 
 ## Commits
 
-36 commits on `phase-4-plans`, all `docs:`, from `4a6bd9b` (testing needs no person; uninstall removes everything) to the commit that adds this report. `git log --oneline main..phase-4-plans` lists them.
+37 commits on `phase-4-plans`, all `docs:`, from `4a6bd9b` (testing needs no person; uninstall removes everything) to the commit that marks this phase complete. `git log --oneline main..phase-4-plans` lists them.
 
 ## Left for the owner
 
-- **Sign off Phase 4.** Then the branch is merged into `main` and pushed, and implementation starts with Phase 5. Phase 6 can run alongside it.
+- **Phase 4 signed off** (2026-10-25). Implementation starts with Phase 5; Phase 6 can run alongside it.
 - **Later, one-time actions:**
   - approve each `pkexec` run of the dev setup (Phases 5–10);
   - create an AUR account and SSH key before the release (Phase 11);
