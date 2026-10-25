@@ -133,7 +133,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Settings kept across reboots, one set for the whole PC | Owner requirement; the same for every user: owner, 2026-10-23 |
 | Must | Clean install and uninstall, with every installed piece documented | Owner requirement |
 | Must | Unit, integration and e2e tests for each phase, where applicable | Owner requirement |
-| Should | Live preview of the 14×14 display in the app | Mode choice works without looking at the pump |
+| Must | Live preview of the 14×14 display in the app, showing what the cooler shows | Mode choice works without looking at the pump; the app's design is built around it (2026-10-25) |
 | Should | CI build and test on GitHub | Keeps the public repo's main branch passing |
 | Could | Speed control of the cooler's own fans and pump, after v1 | Owner: possible later; only DeepCool hardware (2026-10-23) |
 | Could | Guardian warnings at temperatures or power levels that can damage hardware, after v1 | Owner, 2026-10-24: research the real limits first |
@@ -148,7 +148,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 
 1. The PC boots and the OpenDeepCool system service starts, before anyone logs in. It reads the saved settings, opens the LP360 and draws the configured mode at each refresh interval. If the PC has no sensor configuration yet, the board's sensor detection runs first, once per motherboard.
 2. When someone logs in, their session's audio helper starts and feeds Music Mode. Until then, Music Mode shows silence.
-3. To change the mode, any user at the PC opens OpenDeepCool from the launcher, picks a mode and options (with a preview), and applies. The service switches right away and saves the choice for the whole PC.
+3. To change the mode, any user at the PC opens OpenDeepCool from the launcher, picks a mode and options, which apply at once, with a live preview of the cooler. The service switches right away and saves the choice for the whole PC.
 
 ---
 
@@ -445,7 +445,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 - **Success signal**: These modes' checklist items pass.
 
 **Phase 9: Music**
-- **Goal**: The three Music Mode variants.
+- **Goal**: The three Music variants and the Dancer.
 - **Scope**: the audio helper and its link to the service, PipeWire capture, FFT, renderers.
 - **Tests**:
   - unit: spectrum from synthetic signals; emoji and value areas against the expected frames in every rotation and unit; spectrum layout rules

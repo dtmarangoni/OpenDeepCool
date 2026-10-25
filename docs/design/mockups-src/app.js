@@ -1,0 +1,433 @@
+"use strict";
+// OpenDeepCool settings app mockup. All readings, chips and GPU names are made up.
+const S = JSON.parse(JSON.stringify(CONFIG));
+
+const METRIC = {
+  cpu_usage: "CPU usage", gpu_usage: "GPU usage", ram: "RAM usage",
+  cpu_temp: "CPU temperature", gpu_temp: "GPU temperature",
+  cpu_power: "CPU power", gpu_power: "GPU power"
+};
+const M = (id, group, caption, metrics, kind) => ({ id, group, caption, metrics, kind });
+const MODES = [
+  M(1, "Load", "CPU", ["cpu_usage"], "value"),
+  M(2, "Load", "GPU", ["gpu_usage"], "value"),
+  M(3, "Load", "RAM", ["ram"], "value"),
+  M(4, "Load", "CPU + GPU", ["cpu_usage", "gpu_usage"], "value"),
+  M(5, "Load", "CPU + RAM", ["cpu_usage", "ram"], "value"),
+  M(6, "Load", "GPU + RAM", ["gpu_usage", "ram"], "value"),
+  M(7, "Temperature", "CPU", ["cpu_temp"], "value"),
+  M(8, "Temperature", "GPU", ["gpu_temp"], "value"),
+  M(9, "Temperature", "CPU + GPU", ["cpu_temp", "gpu_temp"], "value"),
+  M(10, "Power", "CPU", ["cpu_power"], "value"),
+  M(11, "Power", "GPU", ["gpu_power"], "value"),
+  M(12, "Power", "CPU + GPU", ["cpu_power", "gpu_power"], "value"),
+  M(13, "Music", "Spectrum", [], "full"),
+  M(14, "Music", "Emoji 1", [], "emoji"),
+  M(15, "Music", "Emoji 2", [], "emoji"),
+  M(16, "Music", "Emoji 3", [], "emoji"),
+  M(17, "Music", "Emoji 4", [], "emoji"),
+  M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
+  M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
+  M(20, "Music", "CPU usage", ["cpu_usage"], "musicvalue"),
+  M(21, "Music", "GPU usage", ["gpu_usage"], "musicvalue"),
+  M(22, "Music", "RAM usage", ["ram"], "musicvalue"),
+  M(23, "Music", "Dancer", [], "dancer")
+];
+const byId = id => MODES.find(m => m.id === id);
+
+// Fixed sample values for the tiles (owner, 2026-10-25), and made-up live readings for the preview.
+const SAMPLE = { cpu_usage: 42, gpu_usage: 63, ram: 51, cpu_temp: 57, gpu_temp: 38, cpu_power: 65, gpu_power: 88 };
+const SAMPLE_SPECTRUM = { bars: [.55, .8, .95, .7, .6, .5, .62, .45, .38, .42, .3, .22, .15, .08],
+                          peaks: [.7, .9, 1, .85, .7, .62, .7, .6, .5, .5, .42, .3, .22, .12] };
+const LIVE_SPECTRUM = { bars: [.4, .72, .86, .58, .5, .66, .48, .52, .33, .28, .36, .2, .12, .05],
+                        peaks: [.6, .85, .95, .75, .66, .7, .62, .6, .45, .4, .4, .3, .2, .1] };
+
+const DIG = {
+  "0": ["###", "#.#", "#.#", "#.#", "###"], "1": [".#.", "##.", ".#.", ".#.", "###"],
+  "2": ["###", "..#", "###", "#..", "###"], "3": ["###", "..#", "###", "..#", "###"],
+  "4": ["#.#", "#.#", "###", "..#", "..#"], "5": ["###", "#..", "###", "..#", "###"],
+  "6": ["###", "#..", "###", "#.#", "###"], "7": ["###", "..#", ".#.", ".#.", ".#."],
+  "8": ["###", "#.#", "###", "#.#", "###"], "9": ["###", "#.#", "###", "..#", "###"],
+  "-": ["...", "...", "###", "...", "..."]
+};
+const SYM = {
+  "%": ["##..#", "##.#.", "..#..", ".#.##", "#..##"],
+  "C": ["#...", "..##", ".#..", ".#..", "..##"],
+  "F": ["#.###", "..#..", "..###", "..#..", "..#.."],
+  "W": [".....", "#.#.#", "#.#.#", "#.#.#", ".#.#."]
+};
+const EMOJI = {
+  14: ["..............", "..............", "...###..###...", "..............", "..............", "..............", ".....####....."],
+  15: ["...#......#...", "..#.#....#.#..", ".#...#..#...#.", "..............", "..............", "..............", ".....####....."],
+  16: ["..............", "..###....###..", "..###....###..", "..###....###..", "..............", "....#....#....", ".....####....."],
+  17: ["..............", ".#####..#####.", "...##.....##..", "..............", "..............", ".....####.....", ".............."]
+};
+const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "......#.......", "......#.......",
+  ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
+  ".....#.#......", ".....#.#......", ".....#.#......", ".....#.#......"];
+
+function numberFor(metric, v, unit) {
+  if (v === null || v === undefined || !isFinite(v) || v < 0) return null;
+  let n;
+  if (metric === "ram") n = Math.floor(v + 0.5);
+  else if (metric.endsWith("temp") && unit === "F") n = Math.floor(Math.ceil(v) * 9 / 5 + 32);
+  else n = Math.ceil(v);
+  return Math.min(n, 9999);
+}
+function symFor(metric, unit) {
+  if (metric.endsWith("usage") || metric === "ram") return "%";
+  if (metric.endsWith("temp")) return unit === "F" ? "F" : "C";
+  return "W";
+}
+function strip(n, sym) {
+  const chars = n === null ? "--" : String(n);
+  const cols = [];
+  for (const ch of chars) {
+    const g = DIG[ch];
+    for (let c = 0; c < 3; c++) cols.push(g.map(r => r[c] === "#"));
+    cols.push([false, false, false, false, false]);
+  }
+  const s = SYM[sym];
+  for (let c = 0; c < s[0].length; c++) cols.push(s.map(r => r[c] === "#"));
+  return cols;
+}
+function blank() { return Array.from({ length: 14 }, () => Array(14).fill(false)); }
+function drawBands(g, strips, topRows) {
+  const widths = strips.map(s => s.length), wmax = Math.max(...widths);
+  strips.forEach((s, i) => {
+    let start;
+    if (wmax > 14) start = 2 + (wmax - widths[i]);
+    else if (strips.length === 1) start = Math.ceil((14 - widths[i]) / 2) + 1;
+    else start = 15 - widths[i];
+    s.forEach((col, k) => {
+      const c = start + k;
+      if (c < 1 || c > 14) return;
+      col.forEach((on, r) => { if (on) g[topRows[i] + r][c - 1] = true; });
+    });
+  });
+}
+function drawSpectrum(g, H, spec, peaksOn) {
+  for (let c = 0; c < 14; c++) {
+    const h = Math.max(1, Math.round(spec.bars[c] * H));
+    for (let k = 0; k < h; k++) g[13 - k][c] = true;
+    if (peaksOn) {
+      const ph = Math.round(spec.peaks[c] * H);
+      if (ph > h && ph <= H) g[14 - ph][c] = true;
+    }
+  }
+}
+function picture(mode, readings, unit, spec, peaksOn) {
+  const g = blank();
+  const m = byId(mode);
+  if (m.kind === "value") {
+    const strips = m.metrics.map(k => strip(numberFor(k, readings[k], unit), symFor(k, unit)));
+    drawBands(g, strips, strips.length === 1 ? [5] : [1, 8]);
+  } else if (m.kind === "musicvalue") {
+    const k = m.metrics[0];
+    drawBands(g, [strip(numberFor(k, readings[k], unit), symFor(k, unit))], [1]);
+    drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "full") {
+    drawSpectrum(g, 12, spec, peaksOn);
+  } else if (m.kind === "emoji") {
+    EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
+    drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "dancer") {
+    DANCER_STILL.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
+  }
+  return g;
+}
+function rotate(g, r) {
+  for (let t = 0; t < r; t++) {
+    const n = blank();
+    for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) n[i][j] = g[13 - j][i];
+    g = n;
+  }
+  return g;
+}
+
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function hexToRgba(hex, a) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+function paint(canvas, g, pitch) {
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const size = pitch * 14;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  canvas.style.width = size + "px"; canvas.style.height = size + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const fg = cssVar("--fg");
+  const lit = fg, unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const r = pitch * 0.38;
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
+    ctx.beginPath();
+    ctx.arc(j * pitch + pitch / 2, i * pitch + pitch / 2, r, 0, Math.PI * 2);
+    ctx.fillStyle = g && g[i][j] ? lit : unlit;
+    ctx.fill();
+  }
+}
+
+// ---------- availability ----------
+function reasonFor(m) {
+  for (const k of m.metrics) if (S.unavailable[k]) return { metric: k, reason: S.unavailable[k] };
+  return null;
+}
+function liveReadings() {
+  const r = Object.assign({}, S.live);
+  for (const k of Object.keys(S.unavailable)) r[k] = null;
+  return r;
+}
+
+// ---------- icons ----------
+const ICON = {
+  refresh: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.6 1.6v3.2H9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warn: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12" r=".9" fill="currentColor"/></svg>',
+  info: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.8" r=".9" fill="currentColor"/></svg>',
+  error: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  chevron: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  copy: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 10.5V3.8C3 3.4 3.4 3 3.8 3h6.7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>'
+};
+
+// ---------- view ----------
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const fmt = n => n.toLocaleString("en-US");
+const canChange = () => S.service && !S.readOnly;
+const dis = () => (canChange() ? "" : " disabled");
+
+function gpuLabel(g) { return g.name ? `${g.kind} · ${g.name}` : `${g.kind} · ${g.driver} · ${g.pci}`; }
+function fanLabel(f) { return `${f.chip} · ${f.label || "fan" + f.input}`; }
+function fanOption(i) {
+  if (i === null) return { text: "None", rpm: "" };
+  const f = S.fans[i];
+  return { text: fanLabel(f), rpm: f.rpm === null ? "no reading" : fmt(f.rpm) + " RPM" };
+}
+
+function banners() {
+  let out = "";
+  if (!S.service) {
+    out += `<div class="banner error" role="alert" aria-label="Service banner">${ICON.error}
+      <div class="banner-text"><strong>The OpenDeepCool service isn't running.</strong>
+      The cooler shows nothing until it starts. Start it from a terminal:
+      <code>sudo systemctl start opendeepcool.service</code>
+      The app connects by itself once it runs.</div>
+      <button class="btn" aria-label="Copy start command" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div>`;
+    return out;
+  }
+  if (S.readOnly) out += `<div class="banner info" role="status" aria-label="View-only banner">${ICON.info}
+      <div class="banner-text"><strong>View only.</strong> Settings can be changed only from the session at the PC.</div></div>`;
+  if (!S.cooler) out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
+      <div class="banner-text"><strong>The cooler isn't connected.</strong> Changes are still saved, and the cooler shows them when it's back.</div></div>`;
+  return out;
+}
+
+function header() {
+  const tab = (id, text) => `<button role="tab" class="seg${S.page === id ? " on" : ""}" aria-selected="${S.page === id}"
+      aria-label="${text}"${S.service ? "" : " disabled"} onclick="go('${id}')">${text}</button>`;
+  const roTip = S.readOnly ? "Only the session at the PC can refresh the display" : "Refresh the display: fresh readings, picture from the start";
+  return `<header class="hb">
+    <div class="hb-start"><span class="app-name">OpenDeepCool</span></div>
+    <div class="segs" role="tablist" aria-label="Pages">${tab("display", "Display")}${tab("config", "Configuration")}</div>
+    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="${roTip}"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
+  </header>`;
+}
+
+function side() {
+  const m = byId(S.mode);
+  const lost = S.service ? reasonFor(m) : null;
+  const dot = (cls, text, name) => `<li aria-label="${name}"><span class="dot ${cls}"></span>${text}</li>`;
+  let status = "";
+  if (!S.service) {
+    status += dot("off", "Cooler: unknown", "Cooler status") + dot("bad", "Service not running", "Service status");
+  } else {
+    status += S.cooler ? dot("good", "Cooler connected", "Cooler status") : dot("warn", "Cooler not connected", "Cooler status");
+    status += dot("good", "Service running", "Service status");
+    if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
+                                               : dot("warn", "No sound: spectrum is silent", "Music sound status");
+  }
+  const rpmRow = (name, which) => {
+    let v;
+    if (!S.service) v = `<span class="muted">—</span>`;
+    else if (S.fans.length === 0) v = `<span class="muted">No fan sensors found</span>`;
+    else {
+      const sel = S[which];
+      if (sel === null) v = `<button class="link" aria-label="Choose ${name.toLowerCase()} input" onclick="go('config')">Choose input</button>`;
+      else if (S.missing[which]) v = `<span class="warn-text">${ICON.warn} Input not found</span>`;
+      else v = `<span class="num">${fmt(S.fans[sel].rpm)} RPM</span>`;
+    }
+    return `<div class="rpm" aria-label="${name} speed"><span>${name}</span>${v}</div>`;
+  };
+  let caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
+  let sub = !S.service ? "The service draws the picture" : S.cooler ? "Shown on the cooler now" : "Not on the cooler: it isn't connected";
+  return `<aside class="side">
+    <div class="preview" role="img" aria-label="Cooler display preview" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
+    <div class="pv-caption">${esc(caption)}</div>
+    <div class="pv-sub muted">${sub}</div>
+    ${lost ? `<div class="reason warn-text" role="status" aria-label="Unavailable reading">${ICON.warn}<span>${METRIC[lost.metric]}: ${esc(lost.reason)}. The cooler shows dashes until it's back.</span></div>` : ""}
+    <ul class="status" aria-label="Status">${status}</ul>
+    <div class="rpms">${rpmRow("Cooler fans", "fan")}${rpmRow("Pump", "pump")}</div>
+  </aside>`;
+}
+
+function tile(m) {
+  const sel = m.id === S.mode;
+  const why = reasonFor(m);
+  const disabled = (why && !sel) || !canChange();
+  const desc = why ? `${METRIC[why.metric]}: ${why.reason}` : "";
+  return `<button class="tile${sel ? " on" : ""}${why ? " unavailable" : ""}" role="radio" aria-checked="${sel}"
+      aria-label="${m.group}: ${m.caption}"${desc ? ` aria-description="${esc(desc)}" title="${esc(desc)}"` : ""}
+      ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
+      <canvas data-mode="${m.id}"></canvas>
+      <span class="tile-cap">${m.caption}</span>
+      ${why && sel ? `<span class="tile-flag warn-text">${ICON.warn}Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+    </button>`;
+}
+function group(name, extraClass) {
+  const ms = MODES.filter(m => m.group === name);
+  const reasons = {};
+  ms.forEach(m => { const r = reasonFor(m); if (r) reasons[`${METRIC[r.metric]}: ${r.reason}`] = 1; });
+  const rl = Object.keys(reasons).map(t => `<div class="group-reason muted">${ICON.info}<span>${esc(t)}</span></div>`).join("");
+  return `<section class="group ${extraClass || ""}" aria-label="${name}">
+    <h3>${name}</h3>${rl}
+    <div class="tiles" role="radiogroup" aria-label="${name} options">${ms.map(tile).join("")}</div></section>`;
+}
+function displayPage() {
+  const u = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}" aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
+  return `<div class="page">
+    <div class="unitrow"><span id="unit-l">Temperature unit</span>
+      <div class="segs" role="radiogroup" aria-labelledby="unit-l">${u("C", "°C", "Celsius")}${u("F", "°F", "Fahrenheit")}</div></div>
+    ${group("Load")}
+    <div class="pair">${group("Temperature")}${group("Power")}</div>
+    ${group("Music")}
+  </div>`;
+}
+
+function dropdown(id, name, valueHtml, items, opts) {
+  const open = S.open === id;
+  return `<div class="dd${open ? " open" : ""}">
+    <button class="dd-btn${opts && opts.warn ? " warn-border" : ""}" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.disabled ? " disabled" : dis()} onclick="toggle('${id}')">
+      <span class="dd-val">${valueHtml}</span>${ICON.chevron}</button>
+    ${open ? `<div class="dd-pop" role="listbox" aria-label="${name} choices">${items}</div>` : ""}
+  </div>`;
+}
+function fanPicker(which, name) {
+  if (S.fans.length === 0) {
+    return dropdown(which, name, `<span class="muted">No fan sensors found</span>`, "", { disabled: true });
+  }
+  const sel = S[which];
+  let val;
+  if (sel === null) val = `None`;
+  else if (S.missing[which]) val = `${esc(fanLabel(S.fans[sel]))} <span class="warn-text">— not found</span>`;
+  else { const o = fanOption(sel); val = `${esc(o.text)} <span class="num muted">${o.rpm}</span>`; }
+  const items = [null, ...S.fans.map((_, i) => i)].map(i => {
+    const o = fanOption(i);
+    const on = i === sel;
+    const nf = i !== null && S.missing[which] && i === sel;
+    return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}" onclick="choose('${which}', ${i})">
+      <span class="dd-check">${on ? ICON.check : ""}</span><span>${esc(o.text)}</span>
+      <span class="num muted">${nf ? '<span class="warn-text">not found</span>' : o.rpm}</span></div>`;
+  }).join("");
+  return dropdown(which, name, val, items, { warn: S.missing[which] });
+}
+function configPage() {
+  const rot = [0, 1, 2, 3].map(r => `<button class="seg${S.rotation === r ? " on" : ""}" role="radio" aria-checked="${S.rotation === r}"
+      aria-label="Rotation ${r * 90}°"${dis()} onclick="rotateTo(${r})">${r * 90}°</button>`).join("");
+  let gpuRow = "";
+  const present = S.gpus.filter(g => !g.missing);
+  if (present.length > 1 || S.gpus.some(g => g.missing)) {
+    const cur = S.gpus[S.gpu];
+    const items = S.gpus.map((g, i) => `<div class="dd-item${i === S.gpu ? " on" : ""}" role="option" aria-selected="${i === S.gpu}" onclick="choose('gpu', ${i})">
+        <span class="dd-check">${i === S.gpu ? ICON.check : ""}</span><span>${esc(gpuLabel(g))}</span>
+        <span class="muted">${g.missing ? '<span class="warn-text">not found</span>' : g.norule ? "no readings" : ""}</span></div>`).join("");
+    const val = esc(gpuLabel(cur)) + (cur.missing ? ` <span class="warn-text">— not found</span>` : "");
+    const inUse = S.gpus[S.gpuInUse];
+    gpuRow = `<div class="row"><div class="row-l"><span>GPU</span><span class="muted small">Where the display's GPU values come from</span></div>
+      <div class="row-r">${dropdown("gpu", "GPU", val, items, { warn: cur.missing })}
+      ${cur.missing ? `<div class="hint warn-text">${ICON.warn}<span>Using ${esc(gpuLabel(inUse))} until it's back.</span></div>` : ""}
+      ${cur.norule ? `<div class="hint muted">${ICON.info}<span>No reading for this GPU's driver: the GPU options are unavailable.</span></div>` : ""}</div></div>`;
+  }
+  const stops = ["Slower", "Slow", "Moderate", "Fast", "Faster"];
+  const slider = (id, name, v) => `<div class="row"><div class="row-l"><span id="${id}-l">${name}</span></div>
+    <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" aria-labelledby="${id}-l"
+      aria-valuetext="${stops[v]}" aria-label="${name}"${dis()} oninput="setStop('${id}', this.value)">
+      <div class="marks">${stops.map((s, i) => `<span class="${i === v ? "on" : ""}">${s}</span>`).join("")}</div></div></div></div>`;
+  const fanNote = S.fans.length === 0
+    ? `<div class="hint muted">${ICON.info}<span>No fan sensors were found. The board's sensor driver may not be loaded; the journal says more.</span></div>`
+    : `<div class="hint muted"><span>Pick the inputs your cooler's radiator fans and pump are plugged into. Their speeds show in the app only, never on the cooler.</span></div>`;
+  return `<div class="page config">
+    <section class="card" aria-label="Display settings"><h3>Display</h3>
+      <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+      ${gpuRow}
+    </section>
+    <section class="card" aria-label="Cooler settings"><h3>Cooler</h3>
+      <div class="row"><div class="row-l"><span>Cooler fans input</span></div><div class="row-r">${fanPicker("fan", "Cooler fans input")}
+        ${S.missing.fan ? `<div class="hint warn-text">${ICON.warn}<span>The saved input isn't found. Pick another, or it comes back when the input does.</span></div>` : ""}</div></div>
+      <div class="row"><div class="row-l"><span>Pump input</span></div><div class="row-r">${fanPicker("pump", "Pump input")}
+        ${S.missing.pump ? `<div class="hint warn-text">${ICON.warn}<span>The saved input isn't found. Pick another, or it comes back when the input does.</span></div>` : ""}</div></div>
+      ${fanNote}
+    </section>
+    <section class="card" aria-label="Music settings"><h3>Music</h3>
+      <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
+        <div class="row-r"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
+      ${slider("bar", "Bar fall", S.barFall)}
+      ${slider("peak", "Peak fall", S.peakFall)}
+      <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>
+    </section>
+  </div>`;
+}
+function emptyPage() {
+  return `<div class="page empty"><div><h2>Settings appear here when the service runs</h2>
+    <p class="muted">The service keeps the settings for the whole PC; the app only shows and changes them.</p></div></div>`;
+}
+
+function render() {
+  const win = document.getElementById("win");
+  win.className = "window" + (S.readOnly ? " view-only" : "");
+  win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
+    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div><div id="toast" class="toast" role="status"></div>`;
+  paintAll();
+}
+function paintAll() {
+  const pv = document.getElementById("pv");
+  if (!pv) return;
+  if (S.service) {
+    const g = picture(S.mode, liveReadings(), S.unit, S.audio ? LIVE_SPECTRUM : { bars: Array(14).fill(0), peaks: Array(14).fill(0) }, S.peaks);
+    paint(pv, rotate(g, S.rotation), 15);
+  } else paint(pv, null, 15);
+  document.querySelectorAll("canvas[data-mode]").forEach(c => {
+    const id = +c.dataset.mode;
+    paint(c, picture(id, SAMPLE, S.unit, SAMPLE_SPECTRUM, S.peaks), 4.5);
+  });
+}
+
+// ---------- actions (instant apply: every choice goes to the service at once) ----------
+function go(p) { S.page = p; S.open = null; render(); }
+function pick(id) { if (!canChange()) return; S.mode = id; render(); }
+function unit(u) { if (!canChange()) return; S.unit = u; render(); }
+function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
+function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
+function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
+function toggle(id) { S.open = S.open === id ? null : id; render(); }
+function choose(which, i) {
+  if (which === "gpu") {
+    S.gpu = i; if (!S.gpus[i].missing) S.gpuInUse = i;
+    const nr = S.gpus[S.gpuInUse].norule;
+    ["gpu_usage", "gpu_temp", "gpu_power"].forEach(k => {
+      if (nr) S.unavailable[k] = "no reading for this GPU's driver";
+      else if (S.unavailable[k] === "no reading for this GPU's driver") delete S.unavailable[k];
+    });
+  } else { S[which] = i; S.missing[which] = false; }
+  S.open = null; render();
+}
+function flash(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
+function copied(b) { b.querySelector("span").textContent = "Copied"; }
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
+  paintAll();
+}
+document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || S.theme || "omarchy"); });

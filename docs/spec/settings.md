@@ -51,6 +51,8 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 **Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
 
 - **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs.
+- **Changes apply at once** (2026-10-25): every choice in the app goes to the service, and so to the cooler, when it's made. There's no Apply button and no unsaved state. The preview shows what the cooler shows.
+- **No app-only settings in v1** (2026-10-25): the app offers no settings of its own (start at login, language); it's in English.
 - **A configuration screen** (owner, 2026-10-25): every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay where the mode is chosen. So the configuration screen holds the rotation, the GPU choice, the cooler's fan and pump inputs, and the Music settings below.
 - **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a *bar fall* slider and a *peak fall* slider, each with Winamp's five stops, slower, slow, moderate, fast and faster (defaults: moderate for bars, slow for peaks, as in Winamp). The preview draws them the same way ([music.md](music.md#opendeepcools-spectrum-precisely)).
 - **Mode names** (owner, 2026-10-24): Load, Temperature, Power and Music. Never DeepCreative's "Temperature Guardian", "Power Guardian" or "… Mode" ([display.md](display.md#modes)).
@@ -59,7 +61,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 - **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, with no cap below 9999. Every value is capped at 9999 everywhere: a reading of 10 000 or more shows `9999` on the cooler, in the preview and anywhere else the app shows it (owner, 2026-10-25). A value that doesn't fit the static layout scrolls on its own until it fits again; in Music Mode only the value scrolls, never the spectrum ([display.md](display.md#values)).
 - **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
   - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
-  - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run;
+  - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run. Each GPU is named by its kind and its product name from the system's PCI ID list (`/usr/share/hwdata/pci.ids`, package `hwdata`), or by its kind, driver and PCI address when the list has no entry (2026-10-25);
   - the user's choice is kept across reboots;
   - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
 - **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
@@ -70,7 +72,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 - **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
 - **Availability** (owner, 2026-10-24):
   - A mode can't be chosen when a metric it shows is **persistently unavailable**: no driver rule, no device, no permission, or a reading the rules exclude (for example the power of integrated AMD graphics). The app shows it disabled, with the one-line reason.
-  - When a whole device is missing (for example no usable GPU), every mode that shows any of its metrics is disabled: Load Mode and Temperature and Power Guardian options, combined or separate, and Music Mode variants with that metric.
+  - When a whole device is missing (for example no usable GPU), every mode that shows any of its metrics is disabled: Load, Temperature and Power options, combined or separate, and Music variants with that metric.
   - When the device works but one metric doesn't (for example GPU power can't be read), only the modes that show that metric are disabled. On Intel GPUs, Gpu usage has no documented reading, so every mode showing Gpu usage is disabled there ([sensors.md](sensors.md#driver-rules)).
   - This applies to every metric, not only the GPU's.
   - A short read failure, or the first second after the service starts, doesn't disable anything; the cooler shows dashes meanwhile ([display.md](display.md#unavailable-values)).
@@ -78,6 +80,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 - **GPU list order** (owner, 2026-10-24): dedicated GPUs first, then integrated, then GPUs whose driver doesn't say, each group by PCI address. A GPU whose driver has no reading rule is still listed, last; choosing it disables the GPU modes with the reason "no reading for this GPU's driver" ([sensors.md](sensors.md#gpu-choice)).
 - **Status**, kept short:
   - whether the cooler is connected and whether the service is running;
+  - in a Music mode, whether sound is coming in from the session at the PC (the service's `AudioConnected`; without it the spectrum is silent);
   - the settings app talks to the service over the D-Bus system bus; polkit lets a user in an active local session change settings without a password, and other sessions only read (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
   - in the fan and pump pickers, a note when no fan sensors were found.
