@@ -44,7 +44,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Refresh button.** One button that syncs the display: fresh readings at once, and the picture restarts from its home position. Only for users who may change settings.
 - **Unit and GPU choices.** Changing the temperature unit while a mode without temperatures is shown changes nothing on the cooler; it's saved for the temperature modes. Choosing another GPU restarts the picture like a mode change.
 - **No static or scrolling option.** The layout isn't a setting: every mode is static while its values are 99 or less and scrolls by itself while one is 100 or more. The preview follows the same rule, including the movement: it stops only where the static picture sits, and never jumps or restarts.
-- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits), up to 9 999; a larger reading is impossible and shows dashes (owner, 2026-10-25). A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
+- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits), with every value capped at 9999 everywhere: a larger reading shows `9999` (owner, 2026-10-25). A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
 
 ## Constraints
 
