@@ -21,7 +21,7 @@
 **Invariant:**
 - Every frame equals the spec's picture for the current mode, readings, rotation and tick (`docs/spec/frames/` is the oracle).
 - A value that can't be read, or a reading no sensor can give, is drawn as dashes, never as a number (rule 11, `display.md` Unavailable values).
-- A value is never capped. A picture with a value of 100 or more scrolls, and starts, keeps moving and stops exactly as `display.md` "Movement, precisely" says.
+- A value is never capped below 9 999; a number of 10 000 or more draws dashes (owner, 2026-10-25). A picture with a value of 100 or more scrolls, and starts, keeps moving and stops exactly as `display.md` "Movement, precisely" says.
 - One frame per 100 ms tick, without drift.
 - A mode switch shows on the next frame.
 - The service runs as the locked `opendeepcool` account, sandboxed, and changes settings only for a caller polkit authorizes.
@@ -244,7 +244,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 - **Value rules** (`display.md` Values, OpenDeepCool: no caps), on `f64` readings:
   - usage: round up, no cap;
   - Memory Load: round to nearest, halves up, no cap;
-  - a negative, not-a-number or infinite reading → `Unavailable`, drawn as dashes.
+  - a negative, not-a-number or infinite reading, or one whose number would be 10 000 or more → `Unavailable`, drawn as dashes (owner, 2026-10-25).
 - **`picture(mode, &Values, unit) -> Result<Picture>`** (`display.md` Static layout and Movement, precisely):
   - the strip: digit places of 4 columns, then the symbol; dashes take two places; bands at rows 6–10 for one value, and rows 2–6 and 9–13 for two, both ending at the same column;
   - *w*, *L* = *w* + max(4, 21 − *w*), the home column *h* (one value centred, an odd spare column on the left; two values ending at column 14; 2 when *w* > 14), and whether it must scroll.
@@ -252,8 +252,8 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 
 **Tests** (layer 1, CI)
 - **Glyphs:** each glyph equals the spec's text picture, compared row by row with a copy typed into the test from `display.md`. Typing them independently makes a copy error show up as a mismatch.
-- **Value rules:** every evidence row where OpenDeepCool keeps DeepCreative's rule (0.4 → 1, 9.5 → 10 for usage; 0.4 → 0, 0.5 → 1 for Memory Load), the no-cap rows (100 → 100, 1000 → 1000), the boundaries of S20 (0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000) and the impossible readings of S19. Property: any finite reading of 0 or more gives a whole number of 0 or more, and anything else gives dashes.
-- **Picture:** *w*, *L*, *h* and "must scroll" for every value length from dashes to 6 digits, one and two values.
+- **Value rules:** every evidence row where OpenDeepCool keeps DeepCreative's rule (0.4 → 1, 9.5 → 10 for usage; 0.4 → 0, 0.5 → 1 for Memory Load), the no-cap rows (100 → 100, 1000 → 1000, 9999 → 9999), the boundaries of S20 (0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000) and the impossible readings of S19 (10000 → dashes). Property: any finite reading of 0 or more whose number is 9 999 or less gives that whole number, and anything else gives dashes.
+- **Picture:** *w*, *L*, *h* and "must scroll" for every value length from dashes to 4 digits, one and two values.
 - **Marquee properties** (random pictures and change sequences):
   - between resets, every frame is the previous one shifted one column left, or the same frame;
   - a strip that needs no scrolling stops only at *h*, within *L* frames;

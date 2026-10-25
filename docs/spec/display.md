@@ -54,6 +54,7 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 - These limits are DeepCreative's own rules, not the hardware's: the PC draws every pixel, and the cooler's only limit is its 14 × 14 grid of on/off pixels ([protocol.md](protocol.md)).
 - With the 3 × 5 digits, the static layout fits two digits and a symbol, and the scrolling field three digits; DeepCreative caps or cuts everything longer.
 - OpenDeepCool draws every value in full, with the same glyphs (owner, 2026-10-24). Smaller glyphs were considered and rejected: the owner's trials on the cooler showed them hard to read.
+- **Largest number: 9 999** (owner, 2026-10-25). A reading whose number would be 10 000 or more, in the unit drawn (for °F, after the conversion), is one no sensor can give, and is drawn as dashes ([Unavailable values](#unavailable-values)). So a value has at most four digits: `9999W` is 21 columns wide, with a 25-column cycle. No °C reading gives exactly 9999 °F: 5537 °C gives `9998°F`, and 5538 °C gives 10 000, so dashes.
 - **Automatic scrolling, no setting:** every mode is static while its values fit (99 or less). When a value is 100 or more (`100%`, `100°C`, `100°F`, `100W`), the picture scrolls by itself, so no digit is lost. This applies to °F and power too, which DeepCreative always scrolls: `65W` and `98°F` are static in OpenDeepCool.
 - **One smooth movement, never reset** (owner, 2026-10-24). The static picture and the scrolling text are the same strip of columns: the static layout's spacing (digit, blank column, digit, blank column, symbol) is the scrolling layout's spacing.
   - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank), followed by the symbol. In a two-value mode both values end at the same column, so their last digits line up.
@@ -164,7 +165,7 @@ OpenDeepCool's own rule (owner, 2026-10-24). DeepCreative has no equivalent: und
 
 - **Static layout:** a dash in the tens place (columns 2–4) and in the units place (columns 6–8). The symbol stays: `--%`, `--°C`.
 - **Scrolling layout:** drawn like a two-digit number whose digits are both dashes: `--°F`, `--W`, in the same 21-column cycle.
-- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample. A reading no sensor can give, negative, not a number or infinite, is drawn as dashes too (owner, 2026-10-24).
+- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample. A reading no sensor can give, negative, not a number or infinite, is drawn as dashes too (owner, 2026-10-24), and so is a reading whose number would be 10 000 or more ([Values](#values); owner, 2026-10-25).
 - In the settings app, a mode whose metric is persistently unavailable can't be chosen ([settings.md](settings.md#what-the-settings-app-must-offer)). Dashes on the cooler cover the cases the app can't prevent: the saved mode losing its reading after it was chosen, short read failures, and the first second.
 
 ## Mode switches
@@ -225,12 +226,12 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S5 | Static → 100 or more → 99 or less → 100 or more → 99 or less, every change before home | Stops at home after the last change |
 | S6 | 100 or more → 99 or less, one column after home (*k* = 1) | *L* − 1 more frames, then stops at home. Tested for every *k* from 0 to *L* − 1; at *k* = 0, still at home and not yet moved on, it stops at once |
 | S7 | Rounding at the limit | Usage 99.0 static, 99.01 → `100` scrolls (it rounds up); Memory Load 99.49 → `99`, 99.5 → `100`; °C 99.0 and 99.01; °F: 37 °C → `98°F` static, 37.01 °C → 38 → `100°F` scrolls; power 99 and 99.01 |
-| S8 | Length changes while scrolling: 3 ↔ 4 ↔ 5 digits (999 ↔ 1000 ↔ 10000) | The first digit place stays put; the cycle grows or shrinks (21 ↔ 25 ↔ 29); home is still reached and stopped at |
+| S8 | Length changes while scrolling: 3 ↔ 4 digits (999 ↔ 1000), and past the largest number (9999 → 10000) | The first digit place stays put; the cycle grows or shrinks (21 ↔ 25); 10000 draws dashes, which fit, so the strip moves on to home and stops there (S3); home is still reached and stopped at |
 | S9 | Length changes while static: 9 ↔ 10 | One value is re-centred: `9%` in columns 4–12, `10%` in 2–14. Two values stay ending at column 14 |
 | S10 | Two values, one 100 or more and the other 99 or less | Both scroll together, last digits aligned; then each of the two crosses the limit in turn, both at once, and one up while the other comes down on the same tick (it keeps scrolling) |
 | S10b | Two values scrolling, lengths changing: the longer one grows or shrinks, the shorter one grows past it (`1000` over `65` → `99` over `1500`) | The strip's first column stays put; the shorter value stays aligned to the longer one's right end |
 | S11 | A value becomes unavailable, or comes back: while static, while scrolling, in one or both bands, and → a value of 100 or more | Dashes take two digit places, with the symbol; the movement rules don't change |
-| S12 | Very long values (5 and 6 digits, for example 123456 W) | Long cycles (*L* = 4 × digits + symbol + 4); every digit shown |
+| S12 | The longest values: 4 digits (`9999%`, `9999W`, `9998°F`), in one band and in both | *L* = 25; every digit shown (owner, 2026-10-25: at most four digits) |
 | S13 | Readings arrive every 10th tick; the cycle is 21 or more | A change is tested at every *k* of the cycle |
 
 **Settings, mode switches and the device:**
@@ -242,8 +243,8 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S16 | A rotation change (each value, and Rotate Screen presses) while scrolling and while static | Like a mode switch: the next frame is the turned picture at home |
 | S17 | Start-up into each mode: values of 99 or less, 100 or more, and the first second's dashes turning into a value of 100 or more | The saved picture at home on the first frame after `03 08` |
 | S18 | The cooler disconnects while scrolling and comes back | The position follows the ticks while it's away; the first frame back starts with `03 08` |
-| S19 | Readings outside what a sensor can give: negative, not a number, infinite, in each band, static and scrolling | Never a crash; drawn as dashes, like an unavailable value |
-| S20 | Value rules at every length boundary, for every metric: 0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000 | Each number as the Values table gives it, with no cap |
+| S19 | Readings outside what a sensor can give: negative, not a number, infinite, or a number of 10 000 or more, in each band, static and scrolling | Never a crash; drawn as dashes, like an unavailable value |
+| S20 | Value rules at every length boundary, for every metric: 0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000; in °F, 5537 ↔ 5538 °C | Each number as the Values table gives it, with no cap up to 9999; 10000 and more draw dashes |
 | S21 | A reading change and a settings change on the same tick | The settings change wins: the new picture at home, with the new reading |
 | S22 | A tick whose deadline is missed (the frame is skipped) while scrolling | The strip moves one column per frame sent; nothing bunches up |
 | S23 | A change the service refuses (an unavailable mode, a later phase's mode) | Nothing changes on the cooler |

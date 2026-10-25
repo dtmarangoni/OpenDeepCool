@@ -121,7 +121,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
 | Must | Creative Mode: draw 14×14 pixel images; save, import and export them (own file format) | DeepCreative LP360 mode. Animations come after v1 |
 | Must | Static while the values fit (99 or less), scrolling by itself while one is 100 or more, in every mode; no layout setting | Owner, 2026-10-24; DeepCreative fixes the layout per mode and always scrolls °F and power |
-| Must | Every value drawn in full, never capped: a value too long for the static layout scrolls automatically (in Music Mode only the value area) | Owner, 2026-10-24; DeepCreative's caps are its own rules, not the hardware's |
+| Must | Every value drawn in full, never capped: a value too long for the static layout scrolls automatically (in Music Mode only the value area). At most four digits: a reading of 10 000 or more is impossible and draws dashes (owner, 2026-10-25) | Owner, 2026-10-24; DeepCreative's caps are its own rules, not the hardware's |
 | Must | Display settings: Rotate Screen (one button, four quarter turns clockwise) and the global temperature unit (°C/°F) | What the spec found on DeepCreative's LP page and in its global settings ([settings spec](../../spec/settings.md)). Hidden settings such as brightness come after v1 |
 | Must | The cooler's fan and pump speed readings, with the inputs chosen as in DeepCreative's "CPU Fan I/O" / "Pump I/O" | DeepCreative LP360 card and settings |
 | Must | Refresh button in the app: fresh readings at once, and the display restarts from its home position | Owner, 2026-10-24 |
@@ -438,8 +438,8 @@ This project spans many sessions and possibly several coding agents, so the way 
 - **Goal**: Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) as defined in the spec.
 - **Scope**: renderers, the scrolling layout and timing from the spec, with every value drawn in full: automatic scrolling when a value doesn't fit. Guardian warnings (thresholds) come after v1 (owner, 2026-10-24).
 - **Tests**:
-  - unit: renderers against the expected frames for every Guardian matrix case, and values of one to four digits and more
-  - differential: DeepCreative's Guardian captures, 0 differing pixels
+  - unit: renderers against the expected frames for every Temperature and Power matrix case, and values of one to four digits, plus 10 000 and more (dashes)
+  - differential: DeepCreative's Temperature Guardian and Power Guardian captures, 0 differing pixels
   - integration: service with simulated sensor values
   - e2e, unattended: the matrix run on the cooler
 - **Success signal**: These modes' checklist items pass.
@@ -561,7 +561,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions, settings and saved images; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |
 | Settings app ↔ service | D-Bus system bus (`zbus`), polkit by bus name; diagnostics through the journal and a D-Bus method, no command line | Unix socket with our own protocol and client tool | Owner, 2026-10-24: the standard for system services with polkit; usable with `busctl` before the app exists |
 | Readings that change while text scrolls | Shown on the next frame, at the same scroll position | DeepCreative's way: finish the 21-column cycle with the old reading first | Owner, 2026-10-24: a new reading shouldn't wait up to 3 s |
-| Value limits | None: every value drawn in full with DeepCreative's glyphs; a value too long for the static layout scrolls automatically, and in Music Mode only the value area scrolls | DeepCreative's caps (99 in static layouts, the last two digits from 1000 in scrolling ones); smaller redesigned glyphs | Owner, 2026-10-24: the caps are DeepCreative's own rules; smaller glyphs tried on the cooler were hard to read |
+| Value limits | No caps: every value drawn in full with DeepCreative's glyphs; a value too long for the static layout scrolls automatically, and in Music Mode only the value area scrolls. The largest number drawn is 9 999; 10 000 and more draw dashes, as a reading no sensor can give (owner, 2026-10-25) | DeepCreative's caps (99 in static layouts, the last two digits from 1000 in scrolling ones); smaller redesigned glyphs | Owner, 2026-10-24: the caps are DeepCreative's own rules; smaller glyphs tried on the cooler were hard to read |
 | Static alignment | One value centred, an odd spare column going on the left; two values both ending at column 14 | DeepCreative's fixed columns (units in 6–8, symbol from 10) | Owner, 2026-10-24 |
 | Mode names | Load, Temperature, Power, Music, Creative: short names, in code and in the app | DeepCreative's Load Mode, Temperature Guardian, Power Guardian, Music Mode, Creative Mode | Owner, 2026-10-24: smaller and more elegant |
 | Static or scrolling | Chosen by the value: static while every value is 99 or less, scrolling while one is 100 or more; no setting. One smooth movement: it stops only at the static picture's position, and a change never resets the position | DeepCreative's fixed layout per mode; a per-mode setting in the app (decided and dropped the same day) | Owner, 2026-10-24 |
