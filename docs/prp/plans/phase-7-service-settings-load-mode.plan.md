@@ -185,7 +185,7 @@ flowchart LR
 - **Temperature and power pictures** (the `°C`, `°F` and `W` glyphs, modes 7–12): Phase 8. The strip and the movement built here serve them unchanged.
 - **Audio input and its D-Bus path:** Phase 9.
 - **The settings app and its client UI:** Phase 10. The client proxy ships in `odc-ipc` now.
-- **The final package, `/usr` paths, uninstall removal script, cold-boot series:** Phase 11.
+- **The final package, `/usr` paths, uninstall removal script:** Phase 11.
 
 ## Delivery Considerations
 

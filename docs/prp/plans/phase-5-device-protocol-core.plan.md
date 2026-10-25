@@ -548,7 +548,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - rotation property tests pass;
    - mode 1's static cases (8 of 112) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
 4. **AC4 — Reusable oracle:**
-   - all 24 expected-frame files load into 292 typed cases;
+   - every expected-frame file loads into typed cases (284 when Phase 5 runs);
    - a mismatch prints both pictures (Task 3).
 5. **AC5 — Start-up and reconnect:**
    - every connection starts with `03 08` before its first frame;
