@@ -86,6 +86,7 @@ We'll know we're right when two things are true:
 - [x] **Movement edge cases?** **Answered** (owner, 2026-10-24): a rotation change resets the picture like a mode switch; in a two-value mode the longer value's first digit stays put and the shorter one stays aligned to its right end; a strip still at home stops at once; negative, not-a-number and infinite readings are drawn as dashes ([display spec](../../spec/display.md#test-scenarios-opendeepcool)).
 - [x] **More movement edge cases?** **Answered** (owner, 2026-10-24): choosing what's already set changes nothing; a unit change in a mode without a temperature changes nothing on the cooler and is only saved; choosing another GPU resets like a mode switch. The app gets a Refresh button that takes fresh readings and restarts the picture from home ([display spec](../../spec/display.md#test-scenarios-opendeepcool)).
 - [ ] How does the display service read CPU power? `energy_uj` became root-only after a reboot on 2026-10-22, and no rule was found that had made it readable before. Phase 6 decides how the service reads it ([sensors spec](../../spec/sensors.md#cpu-power), parity checklist S4).
+- [ ] **Release stages** (owner, 2026-10-27: an alpha and a beta come before `v1.0.0`): who installs each stage, where it's published (GitHub, the AUR), how its versions are numbered, what ends each stage, and whether the stages get a phase of their own. To decide with the owner at the Phase 11 review's cross-check (owner, 2026-10-27), before the plan's release tasks are planned again.
 
 ---
 
@@ -155,7 +156,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 
 ## Technical Approach
 
-**Feasibility**: HIGH for USB communication, sensors, autostart and theming. MEDIUM for exact parity of every mode, until the Wine spike (Phase 2) settles it.
+**Feasibility**: HIGH for USB communication, sensors, autostart and theming. Exact parity of every mode was MEDIUM until the Wine spike (Phase 1) proved that DeepCreative's output can be recorded, and the spec (Phase 3) defined every mode.
 
 **Architecture Notes**
 
@@ -174,7 +175,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - checksum = sum of bytes 1–33 mod 256
   - terminator `22`
 
-  We haven't verified it yet. Phases 2–3 confirm it and add any other messages.
+  Phase 1 confirmed it on the real cooler, and the [protocol spec](../../spec/protocol.md) defines it; the only other message is the start-up command `03 08`.
 - **Access without root**: a udev rule gives the display service's own group access to `3633:000c`. Only the sensor detection runs as root (Service model).
 - **Sensors**, on any PC (owner, 2026-10-23; the rules per driver are in [sensors.md](../../spec/sensors.md#driver-rules)):
   - CPU temperature: the CPU's hwmon driver (`coretemp` on Intel, `k10temp` on AMD)
@@ -243,9 +244,10 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - turning it off takes `systemctl mask`, and the install message says so.
 - **Reverse-engineering environment** (development only, never shipped):
   - DeepCreative 1.2.14 is extracted from the owner's installer and run under Wine (11.17 in Phase 1, 11.20 in Phase 3) in its own prefix, with networking blocked.
-  - Its Electron build honours Node inspector arguments (fuse `EnableNodeCliInspectArguments`), so a small hook can log every USB write for each mode.
+  - Its Electron build honours Node inspector arguments (fuse `EnableNodeCliInspectArguments`), so the research tools can set its readings inside the main process. A script hook doesn't see its USB writes, which come from native code, so a small logger on the LP360's device node records them (Phase 1 report).
   - `usbmon` and `strace` serve as cross-checks.
   - Raw captures stay local, outside the repository.
+  - Kept as a spare until `v1.0.0` is released (owner, 2026-10-27); no plan runs it. Its sandbox blocks only the network, so before any new run it's narrowed to what the app needs, and any TCP bridge to its debug sockets is stopped at the end of each session (solution review P1-01).
 
 **Testing Strategy** (owner's requirement, 2026-10-22: every combination is tested automatically, not by hand)
 
@@ -485,11 +487,11 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 11: Packaging & final validation**
 - **Goal**: Clean install and uninstall, plus full parity sign-off.
-- **Scope**: one PKGBUILD, published to the AUR and usable from a GitHub clone with `makepkg -si` (owner, 2026-10-25), with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24). The package enables its units with symlinks it ships, and starts the service from its own post-transaction pacman hook, after systemd's hooks (owner, 2026-10-26).
+- **Scope**: one PKGBUILD, published to the AUR and usable from a GitHub clone with `makepkg -si` (owner, 2026-10-25), with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24). The package enables its units with symlinks it ships, and starts the service from its own post-transaction pacman hook, after systemd's hooks (owner, 2026-10-26). It's released in stages (owner, 2026-10-27): an alpha, then a beta, then `v1.0.0`; how the stages work is still open ([Open Questions](#open-questions)).
 - **Tests**:
   - integration: install → uninstall, both from the AUR and from a GitHub clone, in a throwaway Arch container (built rootless with `pacstrap -N`, entered with `arch-chroot -N`, never booted; owner, 2026-10-25) leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
   - e2e, unattended: the package installed on the owner's PC; the service the package started passes the start check, and the full checklist run passes against it: every case in-process, one example of each mode and test type on the cooler. No reboot (owner, 2026-10-25)
-- **Last step of v1** (owner, 2026-10-23): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
+- **Last step of v1** (owner, 2026-10-23), once `v1.0.0` is released after the alpha and the beta (owner, 2026-10-27): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
 - **Success signal**: The checklist is at 100%, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC.
 
 ### Parallelism Notes
@@ -532,8 +534,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Wine 11.20 (11.17 in Phase 1), winetricks | Already installed | Phases 1–3 |
 | weston | Installed by the owner, 2026-10-25 | Headless display for the settings app's UI tests (Phase 10); not installed or removed by OpenDeepCool |
 | arch-install-scripts | Installed by the owner, 2026-10-25 | `pacstrap -N` and `arch-chroot -N` build and enter the throwaway, rootless container for the install and uninstall tests (Phase 11); not installed or removed by OpenDeepCool |
-| Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Kept until v1 is finished, in case research is needed again; then deleted with all DeepCreative material (owner, 2026-10-23; Phase 11) |
-| Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted at the end of v1 (Phase 11) |
+| Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Kept as a spare until `v1.0.0` is released, after the alpha and the beta, in case research is needed again; then deleted with all DeepCreative material (owner, 2026-10-23 and 2026-10-27) |
+| Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted once `v1.0.0` is released (owner, 2026-10-27) |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
 | Temporary access to the LP360 device node | ACL granted by the owner with `sudo setfacl` for a research session | Gone at reboot or re-plug; first granted 2026-10-22 |
 | Group `opendeepcool` (dev copy) | `/etc/sysusers.d/opendeepcool.conf` (`g opendeepcool -`), applied with `systemd-sysusers`; installed 2026-10-24 with the owner's OK | Lets the unattended tests reach the cooler without root (AGENTS.md rule 3). Undo: `groupdel opendeepcool` and delete the file. Must be deleted before the Phase 11 package installs, because a file in `/etc` hides the packaged one of the same name in `/usr/lib` |
@@ -572,6 +574,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |
 | Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy). The whole cross runs in-process; on the real cooler, one example of each mode and of each test type | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice); the whole cross on the real cooler every run | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't. Owner, 2026-10-26 (solution review OV-04): at the real 100 ms tick the whole cross would take days, and it repeats the in-process tests of the same code |
 | Distribution | One PKGBUILD: an AUR package, and clone + `makepkg -si` from GitHub; both tested in a container | Official repositories directly (not possible: they need a Package Maintainer); a GitHub release with a prebuilt package; an install script without pacman | Owner, 2026-10-25 |
+| Release stages | An alpha, then a beta, then `v1.0.0`. DeepCreative stays on the owner's PC until `v1.0.0` is released; then all of it is deleted | `v1.0.0` straight after the final validation, with DeepCreative deleted in the same phase (the Phase 11 plan) | Owner, 2026-10-27: v1 is raised from alpha to beta, then to release, and DeepCreative isn't needed after that |
 | Service at install | Enabled and started at install, with the audio helper enabled for all users; the install message explains. Enabled by symlinks the package ships under `/usr/lib/systemd/`; started by the package's post-transaction pacman hook, after systemd's hooks; turned off with `systemctl mask` | Print the enable command only, as Arch convention prefers; `systemctl enable --now` in the install script | Owner, 2026-10-25: the cooler must work with no extra step. Owner, 2026-10-26 (solution review OV-02): pacman runs install scripts before its hooks, so a start there would come before the account and policies exist; Arch's guidance is to keep install scripts minimal and enable units declaratively |
 | Boot testing | None: no real, VM or container boots. Starting at boot is proven by the unit's enablement and the running service's start check | Five cold boots; a VM or container boot series | Owner, 2026-10-25 |
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions and settings; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |

@@ -65,6 +65,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 8. **Out of scope for v1:**
    - fan or pump speed control: never write to hwmon `pwm*` files;
    - hidden display settings (`screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical`, `gyroStatus`) and the device reports DeepCreative doesn't use: don't research or send them;
+   - Creative Mode (DeepCreative's image editor, modes 100 and 100 + n), in any version (owner, 2026-10-25);
    - ARGB lighting: OpenRGB handles it;
    - other devices (sensors, though, must work on any PC: rule 12);
    - monitoring or controlling any hardware other than the cooler (owner, 2026-10-23): read the CPU, GPU and RAM only for the display's values, never write a CPU, GPU, fan or power setting, and leave that to dedicated tools, as OpenRGB handles lighting;
@@ -89,7 +90,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 
 ## Verified facts (details in the PRD Research Summary)
 
-- **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. The USB message format and the full list of display modes are in `docs/research/phase1-wine-spike.md`.
+- **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. Its USB messages are in `docs/spec/protocol.md`, and the display modes in `docs/spec/display.md` (1–12) and `docs/spec/music.md` (13–23). The Phase 1 report (`docs/research/phase1-wine-spike.md`) is history: the spec supersedes it, and its mode list is DeepCreative's, Creative Mode included.
 - **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files, and never make the code depend on it (rule 12).
 - **Device lookup**: find hwmon and DRM devices by name or driver, never by index, because indexes change between boots.
 - **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`. App templates live in each user's `~/.config/omarchy/themed/*.tpl` and in Omarchy's own `$OMARCHY_PATH/default/themed/` (its `omarchy-theme-set-templates` script, read 2026-10-23).

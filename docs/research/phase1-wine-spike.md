@@ -1,5 +1,7 @@
 # Phase 1 — Wine reference spike: report
 
+> **History.** The spec in [`docs/spec/`](../spec/) supersedes this report. Its mode list is DeepCreative's: Creative Mode isn't part of OpenDeepCool (owner, 2026-10-25), and OpenDeepCool adds its own Dancer, mode 23 ([music.md](../spec/music.md#dancer-mode-23-opendeepcools-own)).
+
 **Date:** 2026-10-22
 **Verdict:** **PROVEN.** DeepCreative 1.2.14 runs under Wine on this PC, drives the real LP360, and every byte it sends can be recorded. On 2026-10-22 the owner confirmed on the physical display what the walkthrough showed: scrolling power values, music faces and spectrum, the custom test image, and rotation.
 

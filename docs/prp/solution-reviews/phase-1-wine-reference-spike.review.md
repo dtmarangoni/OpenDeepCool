@@ -69,17 +69,28 @@ DeepCreative is vendor software from a known vendor, and the PC has one user, so
 - **Evidence:** Phase 1 report, Setup ("Isolation: `bwrap --unshare-net`: loopback only"); the local launch script (`--dev-bind / /`); the prefix's `Z:` mapping; `docs/local/` (the `socat` TCP bridges for DevTools and the inspector).
 - **Why it matters:** closed-source code ran with read and write access to the owner's files, and the inspector gives any local process code execution in the app, which holds the cooler's device node.
 - **Recommendation:** if the rig is used again, apply the narrower `bwrap` binds and Unix-socket endpoints described above, and check that no bridge is left listening after a session.
+- **Outcome (2026-10-27):** deferred: it applies only if the rig runs again. The owner keeps the rig as a spare until `v1.0.0` is released, which now follows an alpha and a beta; no plan runs it. The PRD (Reverse-engineering environment) now says to narrow the sandbox before any new run and to stop any TCP bridge at the end of each session; `docs/local/` says the same next to the bridge command. Corrections found at the cross-check, for whoever narrows it:
+  - The debug endpoints are already Unix sockets in `research/run/`, reachable only by the owner's account. Other local processes can reach only the TCP bridge started by hand on the host for the walkthrough tools, and only while it runs; none was running on 2026-10-27.
+  - Besides drive `Z:`, the prefix's user folders (Desktop, Documents, Downloads, Music, Pictures, Videos) link into the owner's home folder, so removing `Z:` alone isn't enough.
+  - A private `/tmp` per sandbox would most likely cut the app off from its sensor helper. They run in two separate sandboxes, and Wine keeps its server's socket and lock file in `/tmp/.wine-<uid>` (wineserver(1)), so each sandbox would start its own server. Both need the same `/tmp`. Reasoned from the man page, not tested.
 
 ### P1-02: AGENTS.md points at the report for the mode list
 
 - **Evidence:** `AGENTS.md`, Verified facts, first bullet; Phase 1 report, Display options (Creative Mode rows); PRD, What We're NOT Building (Creative Mode, owner, 2026-10-25).
 - **Why it matters:** the report is history; the spec is the contract. A stale pointer invites building something the owner removed.
 - **Recommendation:** point AGENTS.md at `docs/spec/protocol.md`, `display.md` and `music.md` for messages and modes. Optionally add a one-line note at the top of the report: "Superseded by `docs/spec/`; Creative Mode is not part of OpenDeepCool."
+- **Outcome (2026-10-27):** accepted, with more found at the cross-check: the report's mode list is DeepCreative's, so it also lacks OpenDeepCool's Dancer (mode 23); `AGENTS.md` never named Creative Mode as out of scope; and the README pointed at the report the same way.
+  - `AGENTS.md`: Verified facts points at `docs/spec/protocol.md`, `display.md` and `music.md`, with the report as history; rule 8 lists Creative Mode, in any version.
+  - The Phase 1 report: a note at the top.
+  - `README.md`: the documentation table gains a spec row, and the report's row says it's history.
+  - Fixed with it (owner, 2026-10-27), four lines out of date since the spike: `CLAUDE.md` (the spike was Phase 1, not Phase 2), and in the PRD the Feasibility line, the Device note ("We haven't verified it yet") and the Reverse-engineering environment (a script hook can't see DeepCreative's USB writes).
+  - Left for P2-08: the README's status line, its "Planned" list (which says "every LP360 display mode from DeepCreative 1.2.14" while rightly leaving Creative Mode out), and the PRD footer.
 
 ### P1-03: Deleting the rig also deletes the oracle tools
 
 - **Evidence:** Phase 11 Task 8 deletes `research/`, including "the hooks that only work with DeepCreative in `research/hook/`". The oracle generators (`odc_rules.py`, `expected-frames.py`) live in the same folder.
 - **Recommendation:** see P3-01: commit the spec-only generator early, not at the end.
+- **Outcome (2026-10-27):** no action of its own; decided with P3-01 at the Phase 3 cross-check (owner). Correction: Phase 11 Task 8 doesn't delete the generator. It keeps and commits it: `expected-frames.py`, `odc_rules.py`, and the glyph part of `render-check.py`, which both load. What's open is only when it's committed (P3-01).
 
 ## Questions for the owner
 

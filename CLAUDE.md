@@ -14,7 +14,7 @@ Imported from the owner's git-ignored file (absent on other machines). Use it fo
   - `/prp-core:prp-implement` carries out a plan and writes its report.
   - `/prp-core:prp-prd-update` records progress in the PRD table.
   - `/prp-core:prp-commit` makes commits.
-  - `/prp-core:prp-spike` runs the Wine reference spike (Phase 2).
+  - `/prp-core:prp-spike` runs a spike, a throwaway proof of an idea. The Wine reference spike was Phase 1 and is complete.
   - `/prp-core:prp-review` reviews changes.
 - **Reverse engineering of DeepCreative**: use the `reverse-engineer-anything` skill (REA). Do static analysis first.
 - **Settings app design**: the `ui-ux-designer` agent (`.claude/agents/ui-ux-designer.md`) designs every screen and mockup of the settings app. Run it before planning Phase 10; never copy DeepCreative's interface.

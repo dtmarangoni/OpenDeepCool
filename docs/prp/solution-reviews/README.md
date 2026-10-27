@@ -42,9 +42,9 @@ All reviewed on 2026-10-26, at commit `3ec34b7` (Phase 4 complete, Phases 5–11
 | Review | Scope | Findings (High / total) | Status |
 |---|---|---|---|
 | [project-overview.review.md](project-overview.review.md) | The whole solution: architecture, privileges, threat model, bottlenecks, coherence between plans | 3 / 25 | Paused after OV-01 to OV-14 (2026-10-26): 8 accepted and applied, OV-06 partly decided, OV-11 open, OV-07, OV-09, OV-10 and OV-12 not covered; OV-19 decided later the same day. Resumes after the phase reviews, for what's still open |
-| [phase-1-wine-reference-spike.review.md](phase-1-wine-reference-spike.review.md) | The research rig and how its report is used | 0 / 3 | Waiting for the cross-check; the next one |
+| [phase-1-wine-reference-spike.review.md](phase-1-wine-reference-spike.review.md) | The research rig and how its report is used | 0 / 3 | Done (2026-10-27): P1-01 deferred (only if the rig runs again), P1-02 accepted and applied, P1-03 goes with P3-01 |
 | [phase-2-repository-bootstrap.review.md](phase-2-repository-bootstrap.review.md) | Agent rules, the commit guard, repository conventions | 0 / 8 | Waiting for the cross-check |
-| [phase-3-functionality-protocol-spec.review.md](phase-3-functionality-protocol-spec.review.md) | The spec, the expected frames and the parity checklist | 0 / 7 | Waiting for the cross-check; P3-03 and P3-04 already decided through the overview |
+| [phase-3-functionality-protocol-spec.review.md](phase-3-functionality-protocol-spec.review.md) | The spec, the expected frames and the parity checklist | 0 / 7 | Waiting for the cross-check; P3-03 and P3-04 already decided through the overview; P1-03 is decided with P3-01 |
 | [phase-4-implementation-plans.review.md](phase-4-implementation-plans.review.md) | The plans as a set: dependencies, shared contracts, budgets | 0 / 8 | Waiting for the cross-check; P4-02 already decided through the overview |
 | [phase-5-device-protocol-core.review.md](phase-5-device-protocol-core.review.md) | Frame encoding, the LP360 writer, udev, dev scripts, CI | 0 / 13 | Waiting for the cross-check; P5-01 and P5-05 already decided through the overview |
 | [phase-6-sensors.review.md](phase-6-sensors.review.md) | Driver rules, GPU ranking, sensor detection, CPU power access | 1 / 14 | Waiting for the cross-check; P6-01 and P6-05 already decided through the overview |
@@ -52,7 +52,7 @@ All reviewed on 2026-10-26, at commit `3ec34b7` (Phase 4 complete, Phases 5–11
 | [phase-8-temperature-power.review.md](phase-8-temperature-power.review.md) | Temperature and Power | 0 / 8 | Waiting for the cross-check; P8-01 and P8-02 already decided through the overview, P8-08 partly |
 | [phase-9-music.review.md](phase-9-music.review.md) | The audio helper, the spectrum, emojis and the Dancer | 0 / 14 | Waiting for the cross-check; P9-01, P9-02, P9-07 and P9-14 already decided through the overview |
 | [phase-10-settings-app.review.md](phase-10-settings-app.review.md) | The GTK4 app, the frame preview, the theme, UI tests | 0 / 12 | Waiting for the cross-check; P10-01 and P10-02 already decided (owner, 2026-10-26: only the user at the PC) |
-| [phase-11-packaging-final-validation.review.md](phase-11-packaging-final-validation.review.md) | The PKGBUILD, install and uninstall, release, the final parity run | 2 / 21 | Waiting for the cross-check; P11-01, P11-02 and P11-15 already decided through the overview, P11-04 and P11-05 partly |
+| [phase-11-packaging-final-validation.review.md](phase-11-packaging-final-validation.review.md) | The PKGBUILD, install and uninstall, release, the final parity run | 2 / 21 | Waiting for the cross-check; P11-01, P11-02 and P11-15 already decided through the overview, P11-04 and P11-05 partly; the release stages (alpha, beta, then `v1.0.0`; owner, 2026-10-27) are designed in this round |
 
 ## How the cross-check works
 

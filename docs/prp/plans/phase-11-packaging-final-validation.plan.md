@@ -6,6 +6,8 @@
 **Source Issue:** `None`
 **Plan Publication:** `None`
 
+> **Changed by the owner on 2026-10-27, not yet planned here:** v1 is released in stages, an alpha, then a beta, then `v1.0.0`, and DeepCreative leaves the owner's PC only once `v1.0.0` is released. The release steps below (Approach → Release, Tasks 6–8, AC6 and AC7) still follow the old order: `v1.0.0` at once, then the deletion. They're planned again once the stages are decided (PRD, Open Questions: Release stages).
+
 ## Outcome
 
 **Problem:** After Phases 5–10 OpenDeepCool runs only as the owner's dev copy, installed by scripts under `/etc` and `/usr/local`. Nobody else can install it, nothing proves that uninstalling leaves the system as it was, and the parity checklist has never been run whole against an installed build.
@@ -370,6 +372,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
 ### 6. Release v1.0.0 and the AUR repository
 
+> Changes with the release stages (owner, 2026-10-27; see the note at the top).
+
 **Implementation**
 - **Version:** `1.0.0` in the workspace, and `CHANGELOG.md` written.
 - **On `main`** (after Phase 4's flow: phases merged, pushed): tag `v1.0.0`, pushed over HTTPS with the gh login (see `docs/local/`).
@@ -403,6 +407,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
 - The run passes. The Phase 11 report holds the checklist table at 100 % and every area's summary.
 
 ### 8. DeepCreative leaves the owner's PC, and v1 is closed
+
+> Now comes only after the `v1.0.0` release, which follows an alpha and a beta (owner, 2026-10-27; see the note at the top).
 
 **Implementation**
 - **The list** (owner, 2026-10-23: the owner confirms it before anything is deleted):
