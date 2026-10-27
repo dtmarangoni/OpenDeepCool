@@ -121,22 +121,31 @@ Decision D8 in the design says the `GFileMonitor` watches "the parent of `curren
 ### P10-03: The Ubuntu job
 
 - **Recommendation:** all CI in the `archlinux` container (P4-05). If an Ubuntu job stays, exclude `odc-app` and the UI crates from it explicitly.
+- **Outcome (2026-10-27):** settled with P4-05: every CI job runs in the `archlinux:base-devel` container from Phase 5.
 
 ### P10-04: Display-bound tests and `check()`
 
 - **Recommendation:** a cargo feature or an `odc-e2e` area for the weston tests; `cargo test --workspace` without it stays display-free; CI enables it. Phase 11's `check()` runs without it and passes on a PC with no weston.
+- **Outcome (2026-10-27):** settled with P4-05: the weston tests sit behind `odc-app`'s `weston-tests` feature, outside `cargo test --workspace`, the guard and `check()`; CI runs them in a job of their own.
 
 ### P10-05: Theme values
 
 - **Recommendation:** parse colours into a typed value; write only re-serialised values into CSS; one test per malformed value (missing `#`, a CSS keyword, `;}` injected text).
+- **Outcome (2026-10-27):** accepted, with a correction: Omarchy's themes don't use CSS's `rgba(r, g, b, a)`. A survey of the installed themes found `#RRGGBB` everywhere, and Hyprland's `rgb(RRGGBB)`, `rgba(RRGGBBAA)` and gradients in the `hyprland_*_border` keys, so the parser accepts exactly those, plus numeric alphas; anything else falls back to the default colour, logged. Phase 10 Task 3, with a test per accepted shape and per malformed kind.
 
 ### P10-06: Monitor location
 
 - **Recommendation:** fix the design's D8 wording to `current/`, and check in Task 1 how Omarchy replaces `current`.
+- **Outcome (2026-10-27):** accepted and checked at the cross-check instead of in Task 1: `omarchy-theme-set` keeps `current/` as a plain folder and replaces only `current/theme` (`rm -rf`, then `mv`); `current` is never a link. D8 now says `current/`, with that evidence, and the PRD's Theme section records the re-read. The plan's 150 ms quiet wait covers the moment between the delete and the move.
 
 ### P10-11: Contract freeze
 
 - **Recommendation:** see P4-04.
+- **Outcome (2026-10-27):** settled with P4-04: one contract document, `docs/spec/dbus.md`, tested against the service and frozen at `v1.0.0`.
+
+### P10-07 to P10-10, and P10-12: notes
+
+- **Outcome (2026-10-27):** no action. P10-07: either command starts the service. P10-08: the second zbus comes from a test-only crate kept out of the shipped build, and Phase 5's `cargo deny` allows duplicates one at a time. P10-09: once a second, only while the app is open. P10-10: `hwdata` is already a dependency of the Phase 11 package. P10-12: the test flags only redirect the user's own app.
 
 ## Questions for the owner
 

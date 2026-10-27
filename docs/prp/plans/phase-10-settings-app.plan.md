@@ -309,6 +309,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - **The theme:**
   - the token table of the design;
   - alphas computed into `rgba()` literals;
+  - every value parsed before it goes into the CSS (owner, 2026-10-27; solution review P10-05). A colour is accepted only as `#RRGGBB`, `#RRGGBBAA`, Hyprland's `rgb(RRGGBB)` or `rgba(RRGGBBAA)`, or a Hyprland gradient of those (first colour taken, a trailing angle such as `45deg` ignored); an alpha only as a number from 0 to 1. Those are the shapes Omarchy's installed themes use (surveyed 2026-10-27: 654 `#RRGGBB` values, and the Hyprland forms only in `hyprland_active_border` and `hyprland_inactive_border`). Only the re-written value reaches the CSS; anything else → that token from the default theme, with a log line naming the key, as for a missing key;
   - one missing key → that token from the default theme, with a log line naming the key;
   - `colors.toml` missing or unreadable → the whole default theme;
   - `mode` chooses dark or light;
@@ -325,6 +326,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - **`theme`:**
   - a sample Omarchy theme fixture (made-up colours) → the exact expected CSS `:root` block;
   - each key missing in turn → the default's value, and the log line;
+  - each accepted shape (`#RRGGBB`, `#RRGGBBAA`, `rgb(RRGGBB)`, `rgba(RRGGBBAA)`, a gradient with and without an angle) → the right re-written colour; each malformed value (no `#`, a CSS keyword such as `red`, a short hex, text that ends the rule such as `#123456;} * {`, an alpha of 2 or `x`) → the default's value and a log line, and the CSS holds only re-written values (P10-05);
   - a light theme;
   - no `colors.toml` → the default dark;
   - the CSS contains no `opacity`, no `transition` other than `none`, and no colour literal outside `:root`.
