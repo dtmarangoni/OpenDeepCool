@@ -245,7 +245,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `scripts/dev/teardown.sh` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
-| Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect, each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
+| Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect with the reason (one line per change), each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
 | Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: new tests. PRD footprint: the dev copy rows already exist (2026-10-24); add the D-Bus and polkit file names |
 
 ## Implementation
@@ -374,7 +374,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - polkit actions `io.github.dtmarangoni.OpenDeepCool1.use` (reads) and `io.github.dtmarangoni.OpenDeepCool1.change-settings` (changes).
 - **The state, with no D-Bus properties** (owner, 2026-10-26: nothing readable without a check, nothing broadcast). It's a dictionary, `a{sv}`, read with `GetState()` and sent in `StateChanged`; the proxy parses it into a typed `State`, and a client ignores keys it doesn't know, so later phases add keys:
   - `Mode` (u), `Rotation` (y), `TemperatureUnit` (s: `celsius` or `fahrenheit`);
-  - `CoolerConnected` (b);
+  - `CoolerConnected` (b), and `CoolerState` (s: `connected`, `not-found`, `no-access` or `write-failed`), from Phase 5's `Link` and its reason (owner, 2026-10-27; solution review P5-02, P7-14);
   - `AvailableModes` (au) and `UnavailableReasons` (a{us}: mode → one-line reason);
   - `Gpus` (a(sss): PCI address, driver, kind, in rank order) and `ChosenGpu` (s, empty when none was chosen);
   - `FanInputs` (a(ssus): chip, device path, input, label);
@@ -541,6 +541,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - with `--dev`, a caller outside the group is refused, both through a normal call and through a raw method call without an interface field; a caller inside the group passes;
   - the introspection data lists no properties;
   - the contract (solution review P4-04): the service's introspection equals the XML in `docs/spec/dbus.md`, and `GetState()` returns exactly its state table's keys, each with its type;
+  - `CoolerState` follows the fake connector (P5-02): absent → `not-found`, an open error → `no-access`, a failed write → `write-failed`, then `connected` again; each change reaches watchers once, and the journal gets one line per change;
   - `GetState`, `Watch` and `Diagnostics` from a caller the fake authorizer refuses → `NotAuthorized`, and nothing is registered;
   - a watcher the authorizer stops allowing gets no `StateChanged`; once allowed again, it gets the whole state in one;
   - a ninth watcher of one user, or a 33rd in all → `TooManyWatchers`; a watcher whose connection closes is dropped;
@@ -577,8 +578,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
 - `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number (Task 9).
-- `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
-  - **setup** builds `--release`, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
+- `scripts/dev/setup.sh`, `install-root.sh`, `teardown.sh`, `check.sh`: UPDATE.
+  - **setup**, as the user, builds `--release` (solution review P5-03); then **install-root**, its only `pkexec` step, which never builds, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
   - **teardown** reverses all of it from the manifest.
   - **check** verifies the service is active, owns its bus name, and runs as `opendeepcool`.
 
@@ -589,7 +590,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `xmllint --noout` on the D-Bus and polkit files. They're validated against their DTDs where the DTDs are installed; otherwise the check is "well-formed" only, and the report says so.
 
 **Validation**
-- After the owner approves the `pkexec scripts/dev/setup.sh` run:
+- After the owner approves the `scripts/dev/setup.sh` run and its `pkexec` step:
   - `scripts/dev/check.sh` exits 0;
   - `busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 GetState` from the owner's session shows `Mode` as `u 1`.
 

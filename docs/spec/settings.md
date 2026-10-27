@@ -81,7 +81,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - If the saved mode loses a reading after it was chosen, it stays the saved mode: the cooler shows dashes and the app shows the reason.
 - **GPU list order** (owner, 2026-10-24): dedicated GPUs first, then integrated, then GPUs whose driver doesn't say, each group by PCI address. A GPU whose driver has no reading rule is still listed, last; choosing it disables the GPU modes with the reason "no reading for this GPU's driver" ([sensors.md](sensors.md#gpu-choice)).
 - **Status**, kept short:
-  - whether the cooler is connected and whether the service is running;
+  - whether the cooler is connected and whether the service is running. A cooler that's plugged in but that the service can't open (a permissions problem, such as a missing udev rule) is told apart from one that isn't connected, with what to do about it (owner, 2026-10-27; solution review P5-02);
   - in a Music mode, whether sound is coming in from the session at the PC (the service's `AudioConnected`; without it the spectrum is silent);
   - the settings app talks to the service over the D-Bus system bus; polkit lets the user of the active local session read and change settings without a password, and refuses every other session (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";

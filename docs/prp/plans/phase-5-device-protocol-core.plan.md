@@ -375,10 +375,10 @@ The program that draws every expected frame gets history and review before any R
 **Files and integration points**
 - `crates/odc-device/src/port.rs`: CREATE.
   - `pub trait DisplayPort { fn show(&mut self, frame: &Frame) -> Link; }`
-  - `pub enum Link { Connected, Disconnected }`
+  - `pub enum Link { Connected, Disconnected(Reason) }`, with `pub enum Reason { NotFound, NoAccess { path: PathBuf, errno: i32 }, WriteFailed { errno: i32 } }`: no cooler, a cooler the service can't open, or a write that failed (owner, 2026-10-27; solution review P5-02).
 - `crates/odc-device/src/lp360.rs`: CREATE.
   - `pub trait Transport { fn write_report(&mut self, r: &Report) -> io::Result<()>; }`
-  - `pub trait Connector { type Transport: Transport; fn connect(&mut self) -> io::Result<Option<Self::Transport>>; }`
+  - `pub trait Connector { type Transport: Transport; fn connect(&mut self) -> Result<Option<Self::Transport>, OpenError>; }`, where `OpenError { path: PathBuf, error: io::Error }` names the node that couldn't be opened.
   - `pub struct Lp360<C: Connector>`.
 - `crates/odc-device/src/record.rs`: CREATE.
   - `Recording<C>` wraps any `Connector`. Each successful write appends `<unix ns> 0 0 out 64 <hex>` to a file, in the capture format, so `odc_testkit::capture` reads it back.
@@ -389,17 +389,18 @@ The program that draws every expected frame gets history and review before any R
 **Implementation**
 - `Lp360::show(frame)`:
   1. **No open transport:** call `connect()`.
-     - `Ok(None)` or `Err`: return `Disconnected` without writing.
+     - `Ok(None)`: return `Disconnected(NotFound)`; `Err`: return `Disconnected(NoAccess)` with its path and error. Nothing is written.
      - `Ok(Some(t))`: write `startup_report()` first.
   2. Write `encode_frame(frame)`.
-  3. **Any write error:** drop the transport and return `Disconnected`. The next `show` starts again at step 1, so every new connection gets `03 08` before its first frame.
+  3. **Any write error:** drop the transport and return `Disconnected(WriteFailed)` with the error. The next `show` starts again at step 1, so every new connection gets `03 08` before its first frame.
 - There is no retry limit and no sleeping: the caller's tick paces rescans (`protocol.md` Disconnect and reconnect).
-- `Lp360::new(connector)`. `Lp360::state_changed()` reports whether the last `show` changed `Link`, so Phase 7 can log transitions without logging every tick.
+- `Lp360::new(connector)`. `Lp360::state_changed()` reports whether the last `show` changed `Link`, its reason included, so Phase 7 logs each change once, never every tick.
 - `Lp360::reset_connection()`: drops the open transport, if there is one. The next `show` starts again at step 1, so it connects anew and writes `03 08` first (`protocol.md` Standby).
 
 **Tests** (integration, CI, `crates/odc-device/tests/reconnect.rs`, using `FakeConnector`)
 - **Absent at start:** `show` returns `Disconnected` and nothing is written; when the device appears, the first two writes are `03 08` then the frame.
 - **Steady:** three `show` calls give exactly one `03 08`, then three frames.
+- **Reasons** (P5-02): absent → `NotFound`; a connector error → `NoAccess` with its path; a failed write → `WriteFailed`. `state_changed()` is true when the reason changes (`NotFound` → `NoAccess`) and false while the same reason repeats.
 - **Failure:** after a write fails, the next `show` rescans and writes `03 08` then the frame, on the new connection.
 - **Vanish and return:** the device is absent for N ticks, then returns. No writes happen while it's absent, and the returning connection starts with `03 08`.
 - **Reset:** with the device present all along, `reset_connection()` and then `show` connect once more and write `03 08`, then the frame. Without an open transport, `reset_connection()` changes nothing.
@@ -420,11 +421,11 @@ The program that draws every expected frame gets history and review before any R
 - `connect()`:
   - list `<sysfs>/class/hidraw/`; for each entry, read `device/uevent` and parse its `HID_ID=` line as three hex numbers (bus, vendor, product);
   - accept bus `0x0003` (USB), vendor `0x3633`, product `0x000c`;
-  - choose the lowest hidraw number among matches;
+  - choose the lowest hidraw number among matches, compared as numbers, so `hidraw9` comes before `hidraw10` (solution review P5-10);
   - open `<dev>/<name>` write-only with `O_CLOEXEC`;
   - `Ok(None)` when nothing matches.
   - An entry whose uevent can't be read is skipped, not fatal: devices come and go during a scan.
-  - A matching node that can't be opened (for example, permission denied) returns `Err` naming the path and the error, so Phase 7 can tell "no cooler" from "no access".
+  - A matching node that can't be opened (for example, permission denied) returns `Err(OpenError)` naming the path and the error, which `Lp360` reports as `NoAccess`, so Phase 7 can tell "no cooler" from "no access".
 - `write_report()`: one `write` of the 64 bytes (`hidraw.html`: the report ID comes first).
   - A short write is an error.
   - `ENODEV` and every other error go to `Lp360`, which drops the connection.
@@ -435,7 +436,8 @@ The program that draws every expected frame gets history and review before any R
 - **The LP360 among others** (as `hidraw5`): it's found, and `Lp360` writes `03 08` and a frame into the stand-in file, which decode back correctly.
 - **Letter case:** an LP360 whose uevent shows the IDs in lower case is still found.
 - **Moved node:** the LP360 moves from `hidraw1` to `hidraw6` between ticks, and its old stand-in file is removed. After a write error is injected, the next `show` writes `03 08` and the frame to `hidraw6`.
-- **Unreadable node:** the file isn't writable → `connect` returns `Err` naming the path.
+- **Unreadable node:** the file isn't writable → `connect` returns `Err` naming the path, and `Lp360::show` returns `Disconnected(NoAccess)`.
+- **Numeric order** (P5-10): `hidraw9` and `hidraw10` both match → `hidraw9` is chosen.
 - **Unrelated USB IDs:** uevents with vendor `0x3633` but another product, and with product `0x000c` but another vendor, are not matched.
 
 **Validation**
@@ -458,7 +460,8 @@ The program that draws every expected frame gets history and review before any R
   ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="3633", ATTR{idProduct}=="000c", RUN+="/usr/bin/chgrp opendeepcool /sys%p/authorized", RUN+="/usr/bin/chmod g+w /sys%p/authorized"
   ```
 
-- `scripts/dev/setup.sh`: CREATE, run with `pkexec`. It's idempotent: it reproduces the 2026-10-24 manual install and adds the reconnect rule. It:
+- `scripts/dev/setup.sh`: CREATE, run as the user, never as root (owner, 2026-10-27; solution review P5-03). It builds what the dev copy needs (nothing yet in this phase; Phase 7 adds the service's `--release` build), then runs `pkexec scripts/dev/install-root.sh` with the files to install. Together they're idempotent: they reproduce the 2026-10-24 manual install and add the reconnect rule.
+- `scripts/dev/install-root.sh`: CREATE, the only part run with `pkexec`. It never runs `cargo` or any build. It:
   - installs the sysusers file to `/etc/sysusers.d/` and runs `systemd-sysusers`;
   - installs the product rule as `/etc/udev/rules.d/70-opendeepcool.rules` and the dev rule as `71-opendeepcool-dev-reconnect.rules`;
   - reloads udev and triggers the LP360's hidraw node and USB device, both found by USB ID;
@@ -481,11 +484,12 @@ The program that draws every expected frame gets history and review before any R
 
 **Implementation**
 - The scripts find devices by USB ID only. They never hard-code a hidraw number, USB port or user name.
-- Running `setup.sh` is a system change: the implementing agent shows its commands and asks the owner before running it with `pkexec` (rule 7). The owner already agreed to it on 2026-10-24.
+- Running `setup.sh` is a system change: the implementing agent shows its commands and asks the owner before its `pkexec` step (rule 7). The owner already agreed to it on 2026-10-24.
 
 **Tests**
 - `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` passes. It runs in the guard and in CI.
-- `bash -n` on the three scripts.
+- `bash -n` on the four scripts.
+- `install-root.sh` contains no `cargo` call, and `setup.sh` refuses to run as root (P5-03).
 - `teardown.sh --check-only` refuses a manifest with an empty line, `/`, a `..` component, a relative path or a path outside the dev locations, and accepts the manifest `setup.sh` wrote (P4-08).
 - After running `setup.sh`, `scripts/dev/check.sh` exits 0, including after an unattended reconnect (Task 9). This proves the `authorized` permission survives a deauthorize and authorize, which is unverified until then.
 
@@ -510,6 +514,7 @@ The program that draws every expected frame gets history and review before any R
   - `crates/odc-e2e/src/device.rs`: CREATE, this phase's checks.
 
 **Implementation**
+- **At start, before any probe** (owner, 2026-10-27; solution review P5-09): find the LP360's USB device by `idVendor`/`idProduct` under `/sys/bus/usb/devices`, as the reconnect check does. If its `authorized` is `0`, write `1` and print a note. A kill or a power cut during the reconnect check skips its drop guard, and the cooler would otherwise stay switched off and probe as absent.
 - **Each check probes its capability first:**
   - `Real` → the real device;
   - `Absent` → the same scenario through the fakes, with the mode recorded as fake: `HidrawConnector` over a fake tree (Phase 5 Task 7), or a `FakeConnector` for reconnect;
@@ -527,6 +532,7 @@ The program that draws every expected frame gets history and review before any R
   - Real:
     - find the LP360's USB device directory by `idVendor`/`idProduct` under `/sys/bus/usb/devices`;
     - show frames, write `0` to `authorized`, and keep calling `show` every 100 ms until it returns `Disconnected` (at most 2 s);
+    - while it's switched off, the USB device must still be listed with its IDs, which the start-up step relies on;
     - write `1`, and keep calling `show` until `Connected` (at most 10 s).
 
     A drop guard writes `1` to `authorized` on every exit path, so a failing check never leaves the cooler disconnected.
@@ -542,7 +548,8 @@ The program that draws every expected frame gets history and review before any R
   - no LP360 → `Absent`;
   - an LP360 node without write access → `Unusable`, with the setup fix;
   - a capability named in `--require` that probes `Absent` → failure;
-  - an unknown flag or area → an error with the usage text.
+  - an unknown flag or area → an error with the usage text;
+  - a fake tree whose LP360 USB device has `authorized` `0` → the start-up step writes `1` and prints the note; with `1`, it writes nothing (P5-09).
 
 **Validation**
 - `cargo run -p odc-e2e -- --only device`: passes, and prints the summary. On the owner's PC, with `--require lp360,lp360-reconnect`, both capabilities run real. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
@@ -551,22 +558,27 @@ The program that draws every expected frame gets history and review before any R
 ### 10. CI and the commit guard run the automated layers
 
 **Files and integration points**
-- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, every job runs in the official `archlinux:base-devel` container image (Docker Hub, read 2026-10-27; owner, 2026-10-27, solution review P4-05), after `pacman -Syu --noconfirm git python`, so the checkout is a full git clone:
-  - `actions/checkout@v7`;
-  - `jdx/mise-action@v5`, which installs the Rust pinned in `mise.toml`;
+- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, every job runs in the official `archlinux:base-devel` container image (Docker Hub, read 2026-10-27; owner, 2026-10-27, solution review P4-05), after `pacman -Syu --noconfirm git python cargo-deny`, so the checkout is a full git clone:
+  - `permissions: contents: read` for the whole workflow (GitHub Docs, Secure use reference; owner, 2026-10-27, solution review P5-06);
+  - `actions/checkout`, pinned to its full commit hash, with its tag (`v7`) in a comment;
+  - `jdx/mise-action`, pinned the same way (`v5`), which installs the Rust pinned in `mise.toml`;
+  - `cargo deny check` (P5-07), with `cargo-deny` from Arch's `extra` repository (0.20.2, read 2026-10-27): RustSec advisories, licences on an allow-list compatible with MIT distribution, crates.io as the only source, and duplicate versions, each allowed explicitly where unavoidable;
   - `cargo fmt --all --check`;
   - `cargo clippy --workspace --all-targets -- -D warnings`;
   - `cargo test --workspace`, layers 1 and 3: ignored tests don't run;
   - `udevadm verify --resolve-names=never` on both rules files. It needs systemd 254 or later, and the container's Arch systemd is current;
   - a `privacy` job (owner, 2026-10-27; solution review P2-02), with a full-depth checkout: every commit in the history has the no-reply address as author and committer, and no file in the tree is binary outside the guard's allow-list. The sensitive list stays on the PC, so CI checks only these.
   - a `frames` step (P3-01): `tools/oracle/expected-frames.py` regenerates the frames into a temporary folder, and any difference from `docs/spec/frames/` fails.
-- `.githooks/pre-commit`: UPDATE. After the existing checks, when `Cargo.toml` exists:
-  - run the same fmt, clippy and test commands, plus the `udevadm verify` and `bash -n` checks;
-  - add each failure to `fail` in the existing style.
-  - The header comment says these run on the working tree, so unrelated unstaged changes must not be present when committing.
-  - The identity check reads `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`, the identities git will record, instead of `git config user.*`. Both must be the no-reply address and free of sensitive values (owner, 2026-10-27; solution review P2-01). `git config` misses `git commit --author`, the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and `-c author.*`; `git var` reported the recorded identity in each case (tested 2026-10-27, git 2.56).
-  - Every staged file git treats as binary is rejected unless its path is on the guard's allow-list, empty for now (P2-03). The extension list stays, `.bin` included (P2-06).
+- `.githooks/pre-commit`: UPDATE.
+  - **On every commit**, besides the existing checks:
+    - the identity check reads `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`, the identities git will record, instead of `git config user.*`. Both must be the no-reply address and free of sensitive values (owner, 2026-10-27; solution review P2-01). `git config` misses `git commit --author`, the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and `-c author.*`; `git var` reported the recorded identity in each case (tested 2026-10-27, git 2.56);
+    - every staged file git treats as binary is rejected unless its path is on the guard's allow-list, empty for now (P2-03). The extension list stays, `.bin` included (P2-06).
+  - **The Rust checks**, when `Cargo.toml` exists and a staged path is under `crates/`, `Cargo.toml`, `Cargo.lock`, `packaging/`, `scripts/`, `tools/oracle/`, `docs/spec/frames/`, `docs/spec/dbus.md`, `.githooks/` or `.github/` (owner, 2026-10-27; solution review P5-08). The last five are there because the tests read the frames and the contract, and the guard and CI are code too. The guard prints which checks ran:
+    - run the same fmt, clippy and test commands, plus the `udevadm verify` and `bash -n` checks;
+    - add each failure to `fail` in the existing style.
+    - The header comment says these run on the working tree, so unrelated unstaged changes must not be present when committing.
   - When a staged path is under `tools/oracle/` or `docs/spec/frames/`, the same regeneration check as CI's `frames` step runs (P3-01).
+- `deny.toml`: CREATE, `cargo deny`'s configuration: the licence allow-list, the source rule, and each allowed duplicate with its reason (P5-07).
 - `.githooks/guard-lib.sh`: CREATE. The checks `pre-commit` and `pre-push` share (identity, path, type, binary, size, code markers, sensitive values), sourced like `sensitive-values.sh`.
 - `.githooks/pre-push`: CREATE (P2-01, P2-04). For every commit and tag the push would add to the remote, the author, committer and tagger, the commit and tag messages, and every file each commit adds or changes pass the same checks. It catches what never ran `pre-commit`: `--no-verify`, rebase, cherry-pick and merge commits (tested 2026-10-27).
 - `.githooks/test-guard.sh`: CREATE. Builds a throwaway repository in a temporary folder, with these hooks, a local bare remote and a made-up sensitive list, and runs the guard cases in Tests.
@@ -580,6 +592,8 @@ The program that draws every expected frame gets history and review before any R
   - rejected at push: a `--no-verify` commit with a wrong identity, a rebased commit that adds a listed value, and a tag whose message holds one;
   - accepted: a clean commit and its push.
 - The regeneration check passes on the clean tree, and fails when one expected-frame file is edited by hand, checked in a throwaway copy.
+- A documentation-only commit runs no Rust checks and says so; a commit that touches `docs/spec/frames/` runs them (P5-08).
+- `cargo deny check` passes on the workspace (P5-07).
 
 **Validation**
 - `.githooks/pre-commit` exits 0 on the clean branch, and the GitHub Actions run is green.
@@ -656,6 +670,7 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | The `authorized` permission may not survive a reconnect | Check it in Task 8/9 with `check.sh` after the real reconnect test | Deauthorize unconfigures the device but should keep the USB device itself (kernel authorization docs); unverified on this PC | If it's lost, the rule needs a different trigger, decided with the owner before Task 9 is committed |
 | The pre-commit guard tests the working tree, not the staged snapshot | Accept, and document it in the guard's header | Stashing unstaged work inside a hook risks losing it | A commit could pass with unstaged fixes present; CI catches it on push |
 | Merging once CI exists (after Task 10) | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests (owner, 2026-10-27; solution review P2-07) | AGENTS.md "How to work" | A failing CI run would land on `main` |
+| Pinned actions go stale | Check and update them at each phase sign-off (AGENTS.md); no Dependabot, which works through pull requests (owner, 2026-10-27; solution review P5-06) | GitHub Docs, Secure use reference: pin to a full commit hash | A fix in an action waits until the next sign-off |
 | CI follows a rolling distribution | Accept: Arch is the only supported platform, and Rust stays pinned through `mise.toml` (P4-05) | Arch Linux is rolling | An update can break CI until it's fixed |
 | The push-time check is client-side too | Accept: `git push --no-verify` skips it; the CI `privacy` job still flags a wrong identity or a binary file, though only after the push | git-push(1): "With --no-verify, the hook is bypassed completely" | A leak would stay public until the pushed history is rewritten |
 | Two writers: the research rig and the real-device test | Never run them together; the test doc says so | DeepCreative writes to the same node | Interleaved reports would fail the recording comparison, loudly |

@@ -482,7 +482,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service` passes.
 
 **Validation**
-- After the owner approves the `pkexec scripts/dev/setup.sh` run:
+- After the owner approves the `scripts/dev/setup.sh` run and its `pkexec` step:
   - `scripts/dev/check.sh` exits 0;
   - `busctl call … GetState` shows `AudioConnected` as `b true` while the owner is logged in and a Music mode is shown. In mode 1 it shows `b false`, and no `opendeepcool-audio` node exists.
 

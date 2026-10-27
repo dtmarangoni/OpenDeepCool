@@ -134,11 +134,13 @@ It's a protocol behaviour, so the owner decides (P5-05).
 
 - **Evidence:** plan Task 7 ("so Phase 7 can tell 'no cooler' from 'no access'"); Task 6 (`show` returns `Disconnected` for `Ok(None)` and `Err`); Phase 7 status `CoolerConnected` (b).
 - **Recommendation:** `Link::Disconnected(Reason)` with `Absent`, `NoAccess { path }` and `WriteFailed { errno }`; `state_changed()` compares the reason too. Phase 7 then exposes a `CoolerState` instead of a boolean (P7-14), and the app can say "Cooler found, but the service can't open it".
+- **Outcome (2026-10-27):** accepted, through to the app (owner). Phase 5: `Link::Disconnected(Reason)` with `NotFound`, `NoAccess` (path and error) and `WriteFailed`, a typed `OpenError` from the connector, and `state_changed()` counting the reason. Phase 7: a `CoolerState` state key next to `CoolerConnected`, journal lines with the reason, and a test. The app's own banner for "found, but the service can't open it" is in `settings.md` Status and the designer's brief; the `ui-ux-designer` agent adds it to the design before Phase 10 (Phase 10 Task 1). PRD Decisions Log: Cooler status. This also settles P7-14.
 
 ### P5-03: Building as root
 
 - **Evidence:** plan Task 8 (`setup.sh`, run with `pkexec`); Phase 7 Task 8 ("setup builds `--release`").
 - **Recommendation:** split the script. `setup.sh` runs as the user, builds, and then calls `pkexec scripts/dev/install-root.sh <artefacts…>`, which only copies files, checks them against the manifest and refuses to run `cargo`. The same split helps Phases 9 and 10, which add binaries.
+- **Outcome (2026-10-27):** accepted. Phase 5 Task 8 builds the split from the start: `setup.sh` runs as the user and refuses root, and `install-root.sh` is the only `pkexec` step and never builds. Phase 7's setup builds `--release` on the user's side, and the Phase 7 and 9 validation steps name the `pkexec` step. PRD Decisions Log: Dev setup.
 
 ### P5-04: Dev group membership
 
@@ -147,6 +149,7 @@ It's a protocol behaviour, so the owner decides (P5-05).
   - state the consequences in the PRD's dev footprint;
   - prefer `sg opendeepcool -c '<test command>'` for test runs over permanent membership in the login session;
   - keep the teardown and Phase 11 removal as planned.
+- **Outcome (2026-10-27):** documented and accepted (owner): the PRD's dev footprint row now says what the membership allows on the development PC. The `sg` part was dropped, with a correction: `sg` isn't installed on this PC (Arch's `newgrp` comes from util-linux), both commands work only for group members or with a typed group password, and a member gets the group in every new login session anyway, so a per-command group narrows nothing. A separate test account would, but isn't worth it.
 
 ### P5-05: Resume from suspend
 
@@ -161,6 +164,7 @@ It's a protocol behaviour, so the owner decides (P5-05).
 
 - **Evidence:** plan Task 10 (`actions/checkout@v7`, `jdx/mise-action@v5`); GitHub Docs, Secure use reference.
 - **Recommendation:** pin both to full commit SHAs (with the tag in a comment), add `permissions: contents: read`, and add Dependabot for actions to keep the pins current.
+- **Outcome (2026-10-27):** accepted without Dependabot, which updates pins through pull requests, against the owner's no-pull-request rule. Phase 5 Task 10 pins both actions to full commit hashes with their tags in comments, and sets `permissions: contents: read`; AGENTS.md has the pins checked and updated at each phase sign-off. PRD Decisions Log: CI supply chain.
 
 ### P5-07: Dependency audit
 
@@ -169,26 +173,36 @@ It's a protocol behaviour, so the owner decides (P5-05).
   - licences: an allow-list compatible with MIT distribution;
   - sources: crates.io only;
   - duplicate versions (`zbus` 5 and 6 will both appear from Phase 10; allow that one explicitly).
+- **Outcome (2026-10-27):** accepted: `cargo deny check` in CI from Phase 5, with `cargo-deny` from Arch's `extra` repository and a `deny.toml`. The `zbus` duplicate this finding expects from Phase 10 is unverified; `deny.toml` allows duplicates one at a time, each with its reason.
 
 ### P5-08: Guard cost
 
 - **Recommendation:** run the Rust checks only when the staged paths include `crates/`, `Cargo.toml`, `Cargo.lock`, `packaging/` or `scripts/`, and print which checks ran. CI still runs everything on every push.
+- **Outcome (2026-10-27):** accepted, with a longer path list: the tests read `docs/spec/frames/` and `docs/spec/dbus.md`, and `tools/oracle/`, `.githooks/` and `.github/` are code too, so those trigger the Rust checks as well. The privacy checks still run on every commit. Phase 5 Task 10; PRD Testing Strategy.
 
 ### P5-09: A deauthorized cooler after a killed test
 
 - **Recommendation:** at start, `odc-e2e` checks the LP360's `authorized` file and restores `1` with a printed note, before any probe. A deauthorized cooler is otherwise invisible to the probe, which would report it absent.
+- **Outcome (2026-10-27):** accepted: Phase 5 Task 9 adds the start-up step, which finds the USB device by its IDs as the reconnect check does, and a fake-tree test. The real reconnect check also confirms that the switched-off device stays listed with its IDs, which the step relies on.
 
 ### P5-10: Numeric ordering
 
 - **Recommendation:** parse the number after `hidraw` and compare integers. Add a fake-tree test with `hidraw9` and `hidraw10` both matching.
+- **Outcome (2026-10-27):** accepted: Phase 5 Task 7 compares the numbers and adds the test.
 
 ### P5-11: One ID for the LP series
 
 - **Recommendation:** one sentence in `protocol.md` (P3-05). No code change.
+- **Outcome (2026-10-27):** settled with P3-05: `protocol.md` Device has the sentence.
 
 ### P5-12: Parallel with Phase 6
 
 - **Recommendation:** see P4-01. Run Phase 6 after Phase 5's Tasks 1 and 7–10 are merged, or sequentially.
+- **Outcome (2026-10-27):** settled with P4-01: phases run one at a time, and Phase 6 depends on Phase 5.
+
+### P5-13: `03 08` on every new connection
+
+- **Outcome (2026-10-27):** no action, as a note: it follows the owner's decision of 2026-10-24.
 
 ## Questions for the owner
 

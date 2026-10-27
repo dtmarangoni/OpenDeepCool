@@ -32,7 +32,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 - From Phase 5 on, a change to a plan regenerates its HTML companion in the same commit (owner, 2026-10-27). During the solution-review cross-check, the companions are regenerated once, when it ends.
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
-- When a phase is done and signed off, push its branch and wait until its CI run passes, then fast-forward `main` to it and push; no pull requests (owner, 2026-10-23 and 2026-10-27). Its PRD row then becomes `complete`, with `-` in the PR column.
+- When a phase is done and signed off, push its branch and wait until its CI run passes, then fast-forward `main` to it and push; no pull requests (owner, 2026-10-23 and 2026-10-27). Its PRD row then becomes `complete`, with `-` in the PR column. At sign-off, CI's pinned actions are checked for newer releases and their hashes updated (owner, 2026-10-27).
 - Write what you learn about the hardware or DeepCreative into the spec (`docs/spec/`, from Phase 3), not only into code or chat.
 - When a rule or command changes, update this file in the same commit.
 

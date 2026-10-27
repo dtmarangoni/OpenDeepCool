@@ -55,6 +55,10 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Back from standby.** The monitor may turn off for inactivity, the screen may lock and the PC may sleep. The app needs no action afterwards: its preview follows the cooler again when frames return. No new screen.
 - **Numbers follow the spec's rounding.** Everything the mockups draw uses `docs/spec/display.md` Values: the nearest whole number, halves up, and °F rounded once from the exact °C.
 
+## Design brief (owner, 2026-10-27)
+
+- **Cooler found, but not usable.** When the service finds the cooler but can't open it (a permissions problem, such as a missing udev rule), the app says so in its own banner, distinct from "not connected", with the fix. The service gives the reason in its state, `CoolerState`: `connected`, `not-found`, `no-access` or `write-failed` (`docs/spec/settings.md` Status).
+
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–23; 23 is OpenDeepCool's Music → Dancer) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).
