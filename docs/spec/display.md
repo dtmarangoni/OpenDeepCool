@@ -36,7 +36,7 @@ Combined layouts exist in one order only, as listed. Evidence: code: LP page mod
 
 ## Values
 
-How a reading becomes the number drawn:
+How DeepCreative turns a reading into the number drawn. OpenDeepCool's own rules follow the table: no caps, the 9999 cap, and the nearest whole number for every measurement.
 
 | Metric | Number drawn | Evidence (reading → drawn) |
 |---|---|---|
@@ -52,7 +52,7 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
 - These limits are DeepCreative's own rules, not the hardware's: the PC draws every pixel, and the cooler's only limit is its 14 × 14 grid of on/off pixels ([protocol.md](protocol.md)).
 - With the 3 × 5 digits, the static layout fits two digits and a symbol, and the scrolling field three digits; DeepCreative caps or cuts everything longer.
 - OpenDeepCool draws every value in full, with the same glyphs (owner, 2026-10-24). Smaller glyphs were considered and rejected: the owner's trials on the cooler showed them hard to read.
-- **Every value is capped at 9999, everywhere in OpenDeepCool** (owner, 2026-10-25). A reading whose number would be 10 000 or more, in the unit drawn (for °F, after the conversion), is drawn as `9999`. So a value has at most four digits: `9999W` is 21 columns wide, with a 25-column cycle. 5537 °C gives `9998°F`; 5538 °C gives 10 000 °F, drawn `9999°F`. The same capped number is what the settings app's preview, the D-Bus interface and the service's journal show for that metric. The cooler's fan and pump speeds, shown only in the app, are capped the same way at 9999 RPM (owner, 2026-10-25). Dashes stay for unavailable, negative, not-a-number and infinite readings only.
+- **Every value is capped at 9999, everywhere in OpenDeepCool** (owner, 2026-10-25). A reading whose number would be 10 000 or more, in the unit drawn (for °F, after the conversion), is drawn as `9999`. So a value has at most four digits: `9999W` is 21 columns wide, with a 25-column cycle. With OpenDeepCool's rounding (below): 5536 °C gives `9997°F` (9996.8); 5537 °C gives `9999°F` (9998.6); from 5537.5 °C the number is 10 000 or more, drawn `9999°F`. The same capped number is what the settings app's preview, the D-Bus interface and the service's journal show for that metric. The cooler's fan and pump speeds, shown only in the app, are capped the same way at 9999 RPM (owner, 2026-10-25). Dashes stay for unavailable, negative, not-a-number and infinite readings only.
 - **Automatic scrolling, no setting:** every mode is static while its values fit (99 or less). When a value is 100 or more (`100%`, `100°C`, `100°F`, `100W`), the picture scrolls by itself, so no digit is lost. This applies to °F and power too, which DeepCreative always scrolls: `65W` and `98°F` are static in OpenDeepCool.
 - **One smooth movement, never reset** (owner, 2026-10-24). The static picture and the scrolling text are the same strip of columns: the static layout's spacing (digit, blank column, digit, blank column, symbol) is the scrolling layout's spacing.
   - **Digit places:** each digit takes a place of 4 columns (3 for the digit, 1 blank), followed by the symbol. In a two-value mode both values end at the same column, so their last digits line up.
@@ -65,7 +65,28 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
   - **A mode switch resets it** (owner, 2026-10-24): the new mode's picture appears at home on the next frame ([Mode switches](#mode-switches)). A temperature unit change and a rotation change reset it the same way.
   - **Two values whose lengths change while scrolling** (owner, 2026-10-24): the strip's first column, the first digit place of the longer value, stays put; the shorter value stays aligned to the longer one's right end, so it moves. This holds when the other value becomes the longer one, too.
 - **Music Mode:** only the value area (rows 2–6) scrolls; the spectrum below it keeps moving with the sound ([music.md](music.md#value-area-modes-1822)).
-- The expected frames in [frames/](frames/) follow these rules (regenerated 2026-10-24).
+- The expected frames in [frames/](frames/) follow these rules (regenerated 2026-10-24, and again on 2026-10-26 for the nearest rule).
+
+**OpenDeepCool: the nearest whole number, in exact whole-number arithmetic** (owner, 2026-10-26).
+- **Rounding:** every measurement rounds to the nearest whole number, halves up: usage, Memory Load, temperatures, power.
+- **°F** is rounded once, from the exact °C reading converted to °F.
+- **DeepCreative**, in the table above, rounds usage, temperature and power up, and for °F rounds the °C reading up, converts it, then drops the fraction. OpenDeepCool doesn't follow it here.
+- **Exact arithmetic:** every number drawn is computed from its source's own whole-number units, in integer arithmetic, never through floating point. Floating point can flip a rounding: 23 busy jiffies in 40 is exactly 57.5 %, which draws `58`, but `23/40 × 100` is `57.49999999999999` in IEEE doubles, which would draw `57`.
+
+| Metric | Source units | Number drawn, before the 9999 cap |
+|---|---|---|
+| CPU Usage | jiffies over the interval; busy = total − (idle + iowait) | (200 · busy + total) div (2 · total) |
+| Gpu usage | the driver's whole percent | as read |
+| Memory Load | kB; used = MemTotal − MemAvailable | (200 · used + total) div (2 · total) |
+| CPU Temperature, Gpu temperature in °C | millidegrees *m* (hwmon; NVML's whole °C as *m* = 1000 · °C) | (*m* + 500) div 1000, for *m* ≥ 0 |
+| The same in °F | the same *m* | (9 · *m* + 162 500) div 5000: 9/5 · *m*/1000 + 32, rounded once |
+| CPU Power, Gpu power, from an energy counter | µJ over an interval measured in whole µs | (2 · ΔµJ + Δµs) div (2 · Δµs) (µJ per µs is watts) |
+| Gpu power, from a power reading | µW (amdgpu), or mW (NVML) | (µW + 500 000) div 1 000 000; (mW + 500) div 1000 |
+
+- For example: 4 busy jiffies in 1000 is 0.4 % and draws `0` (DeepCreative: `1`); 37 200 m°C draws `37°C` (DeepCreative: `38°C`); 57 °C draws `135°F`, from 134.6 (DeepCreative: `134°F`).
+- A negative reading is drawn as dashes ([Unavailable values](#unavailable-values)).
+- The cooler's fan and pump speeds, shown only in the app, are whole RPM as read, capped at 9999.
+- Music's spectrum isn't a number drawn: its analysis stays in floating point ([music.md](music.md#opendeepcools-spectrum-precisely)).
 
 ## Glyphs
 
@@ -163,7 +184,7 @@ OpenDeepCool's own rule (owner, 2026-10-24). DeepCreative has no equivalent: und
 
 - **Static layout:** a dash in the tens place (columns 2–4) and in the units place (columns 6–8). The symbol stays: `--%`, `--°C`.
 - **Scrolling layout:** drawn like a two-digit number whose digits are both dashes: `--°F`, `--W`, in the same 21-column cycle.
-- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power) is in its first second after start-up and has only one sample. A reading no sensor can give, negative, not a number or infinite, is drawn as dashes too (owner, 2026-10-24), A reading of 10 000 or more isn't one of these: it is capped at 9999 ([Values](#values); owner, 2026-10-25).
+- **When it happens:** the reading is unavailable (no driver rule, no device, no permission), a read failed and the sensor is being found again, or a rate metric (CPU Usage, CPU Power, Gpu power from an energy counter) is in its first second after start-up, or after the PC wakes from sleep ([sensors.md](sensors.md#updates-and-rounding)), and has only one sample. A reading no sensor can give, negative, not a number or infinite, is drawn as dashes too (owner, 2026-10-24). With OpenDeepCool's exact whole-number readings, only a negative one can occur (owner, 2026-10-26). A reading of 10 000 or more isn't one of these: it is capped at 9999 ([Values](#values); owner, 2026-10-25).
 - In the settings app, a mode whose metric is persistently unavailable can't be chosen ([settings.md](settings.md#what-the-settings-app-must-offer)). Dashes on the cooler cover the cases the app can't prevent: the saved mode losing its reading after it was chosen, short read failures, and the first second.
 
 ## Mode switches
@@ -223,7 +244,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S4 | 100 or more → 99 or less → 100 or more, before home | Never stops; only the digits change; the position never jumps |
 | S5 | Static → 100 or more → 99 or less → 100 or more → 99 or less, every change before home | Stops at home after the last change |
 | S6 | 100 or more → 99 or less, one column after home (*k* = 1) | *L* − 1 more frames, then stops at home. Tested for every *k* from 0 to *L* − 1; at *k* = 0, still at home and not yet moved on, it stops at once |
-| S7 | Rounding at the limit | Usage 99.0 static, 99.01 → `100` scrolls (it rounds up); Memory Load 99.49 → `99`, 99.5 → `100`; °C 99.0 and 99.01; °F: 37 °C → `98°F` static, 37.01 °C → 38 → `100°F` scrolls; power 99 and 99.01 |
+| S7 | Rounding at the limit (the nearest whole number, halves up; owner, 2026-10-26) | Usage 99.49 → `99` static, 99.5 → `100` scrolls; Memory Load 99.49 → `99`, 99.5 → `100`; °C 99.49 and 99.5; °F: 37.49 °C → 99.48 → `99°F` static, 37.5 °C → 99.5 → `100°F` scrolls; power 99.49 and 99.5 |
 | S8 | Length changes while scrolling: 3 ↔ 4 digits (999 ↔ 1000), and past the cap (9999 → 10000 → 9999) | The first digit place stays put; the cycle grows or shrinks (21 ↔ 25); 10000 draws `9999`, so the frames are the same as at 9999; home is still reached and stopped at |
 | S9 | Length changes while static: 9 ↔ 10 | One value is re-centred: `9%` in columns 4–12, `10%` in 2–14. Two values stay ending at column 14 |
 | S10 | Two values, one 100 or more and the other 99 or less | Both scroll together, last digits aligned; then each of the two crosses the limit in turn, both at once, and one up while the other comes down on the same tick (it keeps scrolling) |
@@ -237,12 +258,12 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | ID | Scenario | Expected |
 |---|---|---|
 | S14 | A mode switch at every *k*, into each kind of mode (static, scrolling from home, Music Mode) and from each | The next frame is the new mode's picture at home; nothing of the old one |
-| S15 | A temperature unit change, static and scrolling (`57°C` → `134°F`) | In a mode that shows a temperature: like a mode switch. In any other mode: nothing changes on the cooler; the unit is saved and used by the next temperature mode |
+| S15 | A temperature unit change, static and scrolling (`57°C` → `135°F`) | In a mode that shows a temperature: like a mode switch. In any other mode: nothing changes on the cooler; the unit is saved and used by the next temperature mode |
 | S16 | A rotation change (each value, and Rotate Screen presses) while scrolling and while static | Like a mode switch: the next frame is the turned picture at home |
 | S17 | Start-up into each mode: values of 99 or less, 100 or more, and the first second's dashes turning into a value of 100 or more | The saved picture at home on the first frame after `03 08` |
-| S18 | The cooler disconnects while scrolling and comes back | The position follows the ticks while it's away; the first frame back starts with `03 08` |
-| S19 | Readings outside what a sensor can give: negative, not a number, infinite, in each band, static and scrolling | Never a crash; drawn as dashes, like an unavailable value |
-| S20 | Value rules at every length boundary, for every metric: 0, 0.001, 9 ↔ 10, 99 ↔ 100, 999 ↔ 1000, 9999 ↔ 10000; in °F, 5537 ↔ 5538 °C | Each number as the Values table gives it, in full up to 9999; 10000 and more are drawn `9999` |
+| S18 | The cooler disconnects while scrolling and comes back; and the PC wakes from standby, with the device node gone or still there (owner, 2026-10-26) | The position follows the ticks while it's away; the first frame back starts with `03 08`. After a wake-up, a new `03 08` comes before the next frame even when the node survived, and the rate metrics show dashes for their first second |
+| S19 | Readings outside what a sensor can give, in each band, static and scrolling: negative ones (with exact readings, not-a-number and infinite can't occur) | Never a crash; drawn as dashes, like an unavailable value |
+| S20 | Value rules at every length boundary, for every metric, on both sides of each rounding point: 0, 0.49 ↔ 0.5, 9.49 ↔ 9.5, 99.49 ↔ 99.5, 999.49 ↔ 999.5, 9999.49 ↔ 9999.5; in °F, 5536 ↔ 5537 °C (`9997°F` ↔ `9999°F`) and 5537.49 ↔ 5537.5 °C (`9999°F`, then 10 000 capped) | Each number as OpenDeepCool's rules give it, in full up to 9999; 10000 and more are drawn `9999` |
 | S21 | A reading change and a settings change on the same tick | The settings change wins: the new picture at home, with the new reading |
 | S22 | A tick whose deadline is missed (the frame is skipped) while scrolling | The strip moves one column per frame sent; nothing bunches up |
 | S23 | A change the service refuses (an unavailable mode, a later phase's mode) | Nothing changes on the cooler |

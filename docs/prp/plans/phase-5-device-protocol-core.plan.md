@@ -14,7 +14,7 @@
 
 **User outcome:**
 - A tested core turns any picture, in any of the four rotations, into the exact bytes DeepCreative sends, and writes them to the LP360 as an unprivileged user.
-- It finds the cooler on any PC by its USB ID, sends `03 08` before the first frame of every connection, and keeps finding it after a disconnect.
+- It finds the cooler on any PC by its USB ID, sends `03 08` before the first frame of every connection, keeps finding it after a disconnect, and starts a new conversation on request, which Phase 7 uses after every wake-up from standby.
 - Every test runs without a person, the real-cooler tests included.
 
 **Invariant:**
@@ -49,15 +49,17 @@
 
 **Reconnect owned by one struct, `Lp360<C: Connector>`.**
 - It owns three things: the open transport, the "need `03 08`" state, and the rescan on every call while disconnected. Each new connection sends `03 08` before its first frame (owner, 2026-10-24, `protocol.md` Disconnect and reconnect).
-- No timer and no background thread. The caller (Phase 7's scheduler, or a test) calls `show(frame)` once per 100 ms tick. A failed write drops the connection, and the next call rescans sysfs, which is a few small file reads.
+- No timer and no thread of its own. The caller paces it: in the service, Phase 7's device thread calls `show(frame)` with the newest frame each tick; in tests, the test does. A failed write drops the connection, and the next call rescans sysfs, which is a few small file reads.
+- A write can block for up to 5 s on a stalled device. `usbhid_output_report` sends through `usb_interrupt_msg(…, USB_CTRL_SET_TIMEOUT)`, and that constant is 5000 ms (kernel source). That's why the service never calls `show` from its tick thread (owner, 2026-10-26; solution review OV-03).
 - This avoids DeepCreative's behaviour of three tries, then giving up (`protocol.md` Disconnect and reconnect).
+- **A new conversation on request** (owner, 2026-10-26: OpenDeepCool must be back after standby; solution review P5-05). `reset_connection()` drops the open transport, so the next `show` rescans and sends `03 08` before its frame, even when the device node survived the sleep. Phase 7's device thread calls it after every wake-up (`protocol.md` Standby). Sending `03 08` to a cooler that kept power is what every DeepCreative start does.
 
 **The oracle is the spec, never Rust.**
 - Encoding is checked against the spec's bit table (`protocol.md` Frame) and the exact start-up bytes (`protocol.md` Start-up command). Locally, it's also checked byte for byte against every captured DeepCreative message: the owner checked those pictures on the cooler in Phase 3.
 - Rotation is checked against the static cases of `docs/spec/frames/mode-001.txt` (`3%` and `42%`, whose `%` glyph shows any wrong turn or mirror).
 - On the real cooler, the recording of what was actually written is decoded and compared with the same expected frames. Nobody looks at the display.
 
-**The test-pattern binary in the PRD scope is dropped** (owner, 2026-10-24). It existed for the owner's look at the pump. The unattended real-device test now writes mode 1's static expected frames in all four rotations and checks every report.
+**The test-pattern binary in the PRD scope is dropped** (owner, 2026-10-24). It existed for the owner's look at the pump. The unattended real-device test now writes mode 1's `42%` expected frame, unrotated and in one rotation, and checks every report. All four rotations are checked in the unit tests (owner, 2026-10-26: one example of each test type on the real cooler).
 
 ### Evidence
 
@@ -78,6 +80,7 @@
   - hidraw `write()` takes the report ID as its first byte;
   - `hidraw_write` returns `-ENODEV` once the device is gone, and rejects writes longer than `HID_MAX_BUFFER_SIZE`;
   - `hid_uevent` prints `HID_ID=%04X:%08X:%08X`.
+  - `usbhid_output_report` (`drivers/hid/usbhid/hid-core.c`) sends an output report with `usb_interrupt_msg(…, USB_CTRL_SET_TIMEOUT)`, and `include/linux/usb.h` defines `USB_CTRL_SET_TIMEOUT` as 5000 (read 2026-10-26): a write to a stalled device can block for up to 5 s.
 - Community cross-check, read 2026-10-24: Nortank12/deepcool-digital-linux matches the LP Series as vendor 13875 (`0x3633`), product 12 (`0x000c`), and its README's udev rule matches `SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3633"`.
 - This PC, 2026-10-24 (the machine facts behind these observations are in `docs/local/`):
   - `udevadm info -a` on the LP360 node shows `ATTRS{idVendor}=="3633"` and `ATTRS{idProduct}=="000c"` on its USB parent.
@@ -129,7 +132,7 @@ flowchart LR
   Cap --> D
 ```
 
-Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency.
+Phase 7's device thread will call `DisplayPort::show` with each new frame, once per 100 ms tick; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency.
 
 ## Implementation Context
 
@@ -156,7 +159,7 @@ Phase 7's scheduler will call `DisplayPort::show` once per 100 ms tick; in Phase
 ### Integration points
 
 - `Cargo.toml` (new, repository root): the workspace that Phases 6–11 add crates to.
-- `odc_device::DisplayPort`: the port Phase 7's scheduler drives.
+- `odc_device::DisplayPort`: the port Phase 7's device thread drives.
 - `odc_testkit::{expected, diff, capture}`: what the renderer tests of Phases 7–9 compare against.
 - `packaging/udev/70-opendeepcool.rules`, `packaging/sysusers/opendeepcool.conf`: the product files Phase 7 (service user) and Phase 11 (package) build on.
 - `.github/workflows/ci.yml`: the CI every later phase relies on.
@@ -368,12 +371,14 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   3. **Any write error:** drop the transport and return `Disconnected`. The next `show` starts again at step 1, so every new connection gets `03 08` before its first frame.
 - There is no retry limit and no sleeping: the caller's tick paces rescans (`protocol.md` Disconnect and reconnect).
 - `Lp360::new(connector)`. `Lp360::state_changed()` reports whether the last `show` changed `Link`, so Phase 7 can log transitions without logging every tick.
+- `Lp360::reset_connection()`: drops the open transport, if there is one. The next `show` starts again at step 1, so it connects anew and writes `03 08` first (`protocol.md` Standby).
 
 **Tests** (integration, CI, `crates/odc-device/tests/reconnect.rs`, using `FakeConnector`)
 - **Absent at start:** `show` returns `Disconnected` and nothing is written; when the device appears, the first two writes are `03 08` then the frame.
 - **Steady:** three `show` calls give exactly one `03 08`, then three frames.
 - **Failure:** after a write fails, the next `show` rescans and writes `03 08` then the frame, on the new connection.
 - **Vanish and return:** the device is absent for N ticks, then returns. No writes happen while it's absent, and the returning connection starts with `03 08`.
+- **Reset:** with the device present all along, `reset_connection()` and then `show` connect once more and write `03 08`, then the frame. Without an open transport, `reset_connection()` changes nothing.
 - **Recording:** the file holds exactly the successful writes, in order. `odc_testkit::capture` plus `decode` read them back as `Startup`, `Frame(f)`, …
 - **Type check:** a `compile_fail` doctest shows that `Report` can't be built from raw bytes outside the crate.
 
@@ -482,13 +487,14 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - `Real` → the real device;
   - `Absent` → the same scenario through the fakes, with the mode recorded as fake: `HidrawConnector` over a fake tree (Phase 5 Task 7), or a `FakeConnector` for reconnect;
   - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
-- **`test_images_all_rotations`:**
+- **`test_images`** (one example of each test type on the real cooler; owner, 2026-10-26: all four rotations are checked in the unit tests, Task 3):
   - `Lp360` over `Recording<…>`, writing to `target/e2e/hardware-<unix ns>.log`;
-  - shows the pictures of mode 1's static cases (`3%`, then `42%`) in rotations 0, 1, 2, 3, each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
-  - every `show` must return `Connected`.
+  - shows the picture of mode 1's `42%` case unrotated, then turned 90° (rotation 1), each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
+  - every `show` must return `Connected`;
+  - every write's duration is recorded, and the summary prints its p50, p99 and maximum. Phase 7 sizes its device thread and watchdog from them.
   - Afterwards it reads the recording back:
     - the first message is `Startup`, and the only one;
-    - then come exactly the 160 frames, in order, each matching its expected case from `mode-001.txt` (`odc_testkit::diff`);
+    - then come exactly the 40 frames, in order, each matching its expected case from `mode-001.txt` (`odc_testkit::diff`);
     - nothing else was written.
 - **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`scripts/dev/reconnect.rules`).
   - Real:
@@ -499,6 +505,8 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
     A drop guard writes `1` to `authorized` on every exit path, so a failing check never leaves the cooler disconnected.
   - Fake: the same sequence with the device removed from, then restored to, a fake tree under a new hidraw number.
   - Either way, the recording must show `Startup`, frames, then a **second** `Startup` directly before the first frame after reconnecting.
+- **`reset`** (the device side of the wake-up from standby; owner, 2026-10-26): with `Lp360` real, show frames, call `reset_connection()`, then show frames again. Every `show` returns `Connected`, and the recording shows `Startup`, frames, then a second `Startup` directly before the first frame after the reset. Absent → the same with a `FakeConnector`.
+  - No automated test suspends the PC: it would put the owner's PC to sleep, and an unattended wake-up needs root (`/sys/class/rtc/rtc0/wakealarm` is root's, checked 2026-10-26). logind's signal is wired in Phase 7, with a fake.
 - Only `startup_report()` and `encode_frame` output reach the device; `Report` makes anything else impossible (rule 9).
 - The research rig must not run at the same time, because DeepCreative would write to the cooler too. `odc-e2e --help` says so.
 
@@ -546,13 +554,14 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - the real-device recording holds only start-up commands and frames (Tasks 4, 6, 9).
 3. **AC3 — Rotation:**
    - rotation property tests pass;
-   - mode 1's static cases (8 of 112) match `docs/spec/frames/` in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).
+   - mode 1's static cases (8 of 112) match `docs/spec/frames/` in all four rotations in unit tests, and one unrotated and one rotated example match on the real cooler (Tasks 2, 3, 9).
 4. **AC4 — Reusable oracle:**
    - every expected-frame file loads into typed cases (284 when Phase 5 runs);
    - a mismatch prints both pictures (Task 3).
 5. **AC5 — Start-up and reconnect:**
    - every connection starts with `03 08` before its first frame;
    - after the cooler disappears, `show` keeps rescanning and reconnects to it under a new hidraw number;
+   - after `reset_connection()`, the next frame starts a new conversation with `03 08`, even when the node survived (owner, 2026-10-26);
    - proven with fakes in CI and on the real cooler (Tasks 6, 7, 9).
 6. **AC6 — Without root:**
    - the layer 4 tests run as a member of `opendeepcool`, with no `sudo`;
@@ -587,7 +596,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 
 | Matrix cases | Layer | Where |
 |---|---|---|
-| Mode 1, static value sets 1–2 × rotations 0–3 (pictures read from the file) | 1 (unit), 4 (real cooler, or fakes where none is attached) | Task 3 `rotation_expected`, Task 9 |
+| Mode 1, static value sets 1–2 × rotations 0–3 (pictures read from the file) | 1 (unit): every case; 4 (real cooler, or fakes where none is attached): `42%` unrotated and in rotation 1 | Task 3 `rotation_expected`, Task 9 |
 | Every case present (284 sections when Phase 5 runs) | loader only | Task 3: every file parses into typed cases for Phases 7–9 |
 
 Rendering every matrix case belongs to Phases 7–9, which compare their output with the same loader and diff.
@@ -602,6 +611,8 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | GitHub CI exists after Task 10; AGENTS.md says to revisit merging without PRs then | Ask the owner at Phase 5 sign-off | AGENTS.md "How to work", owner 2026-10-23 | — |
 | Two writers: the research rig and the real-device test | Never run them together; the test doc says so | DeepCreative writes to the same node | Interleaved reports would fail the recording comparison, loudly |
 | `newgrp` is needed until the owner logs in again | Use `newgrp opendeepcool -c '…'` in the Task 9 command until then | Checked 2026-10-24: no password prompt | None after the next login |
+| A wake-up from standby can't be tested by a real suspend | The device side runs real (`reset`, Task 9); logind's signal is tested with a fake in Phase 7, and a real suspend is only in the optional attended tour | Waking an unattended PC needs root (`wakealarm`) | An automated suspend would sleep the owner's PC |
+| A write blocks for up to 5 s on a stalled device | Phase 7 runs `Lp360` on its own device thread; layer 4 records write durations (owner, 2026-10-26; solution review OV-03) | Kernel: `usbhid_output_report`, `USB_CTRL_SET_TIMEOUT` = 5000 ms | A write on the tick thread would stall every frame |
 
 ## Agent Notes
 

@@ -21,7 +21,7 @@ GPUS = [  # made-up product names and PCI addresses
 LIVE = {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}
 
 BASE = {
-    "theme": "omarchy", "page": "display", "service": True, "cooler": True, "audio": True, "readOnly": False,
+    "theme": "omarchy", "page": "display", "service": True, "cooler": True, "audio": True, "notAvailable": False,
     "mode": 9, "unit": "C", "rotation": 0, "gpus": GPUS, "gpu": 0, "gpuInUse": 0,
     "fans": FANS, "fan": 0, "pump": 1, "missing": {"fan": False, "pump": False},
     "unavailable": {}, "live": LIVE, "peaks": True, "barFall": 2, "peakFall": 1, "open": None,
@@ -54,8 +54,8 @@ PAGES = [
      cfg(mode=9, unavailable={"gpu_usage": "no reading for this GPU's driver", "cpu_power": "no permission to read it"})),
     ("reading-lost.html", "The saved mode lost a reading", "GPU temperature was chosen, then its reading went away: the mode stays selected, the preview shows dashes like the cooler, and the reason shows under the preview.",
      cfg(mode=8, unavailable={"gpu_temp": "the sensor is no longer found"})),
-    ("read-only.html", "View-only session", "A remote or inactive session: every value is shown, nothing can be changed, Refresh is disabled with its reason as a tooltip.",
-     cfg(readOnly=True, mode=4)),
+    ("not-available.html", "Not available in this session", "A remote or inactive session. The service refuses it every read, change and preview frame, so the window shows only this message: no values, no preview, no controls, no Refresh. The app tries again, without polling, when its window becomes active and when the service's bus name gets a new owner.",
+     cfg(notAvailable=True)),
     ("one-gpu.html", "One GPU", "With one GPU, dedicated or integrated, the configuration screen has no GPU control at all.",
      cfg(page="config", gpus=[GPUS[0]])),
     ("missing-input-gpu.html", "Saved fan input and GPU missing", "The saved pump input and the saved GPU aren't found: both say so, the GPU in use is named, and nothing shows another input's RPM.",

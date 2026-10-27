@@ -17,7 +17,7 @@
 
 **User outcome:**
 - **Installing:** `yay -S opendeepcool` (or any AUR helper), or `git clone` plus `makepkg -si`, installs OpenDeepCool. The cooler shows the default mode at once, with no extra step, and from then on at every boot.
-- **The install message** lists what was enabled and how to disable it.
+- **The install message** lists what was enabled and how to turn it off (`systemctl mask`).
 - **Uninstalling:** `pacman -R opendeepcool` removes everything OpenDeepCool installed or created: files, the account and group, enable links, udev access, saved settings, and an lm-sensors configuration that OpenDeepCool's detection created.
 - **The dev copy:** installing the package removes it first.
 - **v1:** the parity checklist runs whole against the installed package, v1 is tagged, published to the AUR, and DeepCreative is deleted from the owner's PC.
@@ -26,16 +26,18 @@
 - **A clean round trip:** install then uninstall leaves the system exactly as it was, every path, owner, mode, account, group and enable link. Only the documented exceptions remain: a loaded sensor driver until the next boot, the journal, pacman's own log and cache.
 - **The same package both ways:** the AUR and the GitHub clone build the identical package from the same PKGBUILD.
 - **No hidden copies:** no dev-copy file survives the package install or hides a packaged one.
-- **Ready after install, no further step:** the service is enabled and started at install.
+- **Ready after install, no further step:** the service is enabled by symlinks the package ships, and started by the package's post-transaction hook once systemd's hooks have created its account and reloaded systemd, udev and D-Bus (owner, 2026-10-26).
+- **Root trusts no file the service account can change:** the detection's record lives in its own root-only directory, and `post_remove` reads only its yes/no fields (owner, 2026-10-26).
 
 **Success signal:** The checklist is at 100 %, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC (PRD Phase 11).
 
 **Approach:**
-- **The package:** one PKGBUILD in `packaging/arch/`, plus an `.install` file:
-  - `post_install` removes a dev copy (from its manifest), then enables and starts the units;
-  - `pre_remove` stops and disables them;
-  - `post_remove` deletes the account, the state directory and what the detection created;
-  - systemd's own pacman hooks create the account and reload udev and systemd.
+- **The package:** one PKGBUILD in `packaging/arch/`, plus an `.install` file and three pacman hooks (owner, 2026-10-26; solution review OV-02):
+  - the units are enabled by symlinks the package ships under `/usr/lib/systemd/`, which pacman installs and removes;
+  - systemd's own pacman hooks create the account and reload systemd, udev and D-Bus;
+  - then the package's post-transaction hook starts the service on install, or restarts it on upgrade; a pre-transaction hook stops it before removal;
+  - `post_install` only removes a dev copy (from its manifest) and prints the message;
+  - `post_remove` deletes the account, the state directories, and what the detection's root-only record says it created.
 - **The test:** a small Rust program, `odc-pkg-test`. It builds a throwaway Arch root **rootless**, with `pacstrap -N` and `arch-chroot -N` (unshare mode as a regular user), so no password prompt ever interrupts a run. It then:
   1. snapshots the root;
   2. installs both ways (AUR-style and GitHub-style);
@@ -63,21 +65,51 @@
 - `20-systemd-sysusers.hook` (Install, Upgrade on `usr/lib/sysusers.d/*.conf`) creates `opendeepcool` from the packaged `sysusers.d` file;
 - `35-systemd-udev-reload.hook` (Install, Upgrade, Remove on `usr/lib/udev/rules.d/*`) reloads udev, so the cooler's access starts and ends at once;
 - `30-systemd-daemon-reload-system.hook` and `-user.hook` reload systemd.
+- `dbus-reload.hook` (Install, Upgrade, Remove on the D-Bus policy directories) reloads the bus, so the service may own its name. All of them are `When = PostTransaction` (read on this PC, 2026-10-26).
 
-**The `.install` file therefore does only what pacman can't:**
+**pacman runs an install script before those hooks, so nothing is started from it** (owner, 2026-10-26; solution review OV-02).
+- A transaction runs `post_install` first, then ":: Running post-transaction hooks…" (Arch Linux dev blog, "On scripts and hooks", 2026, with a transaction log).
+- A `systemctl enable --now` in `post_install` would start the service before its account, its udev rule and its D-Bus policy exist, and systemd's default start limit could then give up for good.
+- The same article advises keeping install scripts minimal ("it is probably advisable to minimize the custom code in the scripts as much as possible") and enabling units declaratively, by symlinks in `/usr/lib/systemd/` or by presets, instead of `systemctl enable` in a script.
+
+**Enabling: symlinks in the package.**
+- The package ships two enable links:
+  - `/usr/lib/systemd/system/multi-user.target.wants/opendeepcool.service` → `../opendeepcool.service`;
+  - `/usr/lib/systemd/user/default.target.wants/opendeepcool-audio.service` → `../opendeepcool-audio.service`, for every user.
+- pacman installs and removes them with the package: no script runs `systemctl enable` or `disable`, and no enable link is left behind in `/etc`.
+- The one-shots need no link: the service pulls them in with `Wants=`.
+- A user turns OpenDeepCool off with `systemctl mask --now opendeepcool.service` and `systemctl --global mask opendeepcool-audio.service`; the install message says so.
+
+**Starting, restarting and stopping: three small hooks and one script.**
+- **`/usr/share/libalpm/hooks/opendeepcool-install.hook`:** `Type = Path`, `Operation = Install`, `Target = usr/lib/opendeepcool/opendeepcoold`, `When = PostTransaction`. It runs `/usr/share/libalpm/scripts/opendeepcool-hook start`, which does `systemctl start --no-block opendeepcool.service` unless the unit is masked.
+- **`opendeepcool-upgrade.hook`:** the same, with `Operation = Upgrade`. It runs `opendeepcool-hook restart`, which does `systemctl try-restart --no-block opendeepcool.service`. The new binary runs at once, and a service the user stopped stays stopped.
+- **`opendeepcool-remove.hook`:** `Operation = Remove`, `When = PreTransaction`. It runs `opendeepcool-hook stop` before the files go. It also tries to stop each logged-in user's helper; that mechanism (`systemctl --user -M <user>@ stop`) is unverified, and Task 2 checks it.
+- **Order:** "Hooks are run in alphabetical order of their file name" (alpm-hooks(5)).
+  - `opendeepcool-…` sorts after systemd's numbered hooks and after `dbus-reload.hook`. So by the time it runs, the account exists, systemd has reloaded, udev has applied and triggered the rule, and the bus has the policy.
+  - The Arch article notes that hooks have no documented numbering yet. The service's restart backoff (Phase 7) is the safety net if anything is late.
+- **First install:** a post-transaction hook shipped in the package being installed runs in that same transaction; the article's log shows it on a first install. A pre-transaction hook doesn't, which is why the dev-copy removal stays in `post_install`.
+- **`--no-block`:** pacman never waits for the one-shots (sensor detection, GPU ranking).
+- **The script** skips its work in a chroot or when systemd isn't booted, the way systemd's own `systemd-hook` does.
+
+**The `.install` file keeps only what is specific to this package:**
 - **`post_install`:**
-  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file). It's the same logic as `scripts/dev/teardown.sh`, which shares the code.
-  2. `systemctl enable --now opendeepcool.service`.
-  3. `systemctl --global enable opendeepcool-audio.service`.
-  4. Print what was enabled and how to disable it (owner, 2026-10-25: enable at install, against Arch's convention that "Arch Linux … does not enable most services on installation", Arch Wiki, systemd).
-- **`pre_remove`:**
-  - `systemctl disable --now opendeepcool.service opendeepcool-sensors-detect.service`, `systemctl --global disable opendeepcool-audio.service`, and stopping the running audio helpers. Exactly how to stop every user's running helper from a root scriptlet is unverified; Task 2 checks `systemctl --user -M <user>@` and `loginctl`.
+  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file). It's the same logic as `scripts/dev/teardown.sh`, which shares the code. The detection's record in `/var/lib/opendeepcool-detect/` isn't in the manifest; the package takes it over.
+  2. Print what is enabled, how to turn it off with `systemctl mask`, and that Music sound starts at each user's next login (owner, 2026-10-25: enable at install, against Arch's convention that "Arch Linux … does not enable most services on installation", Arch Wiki, systemd).
+
+  It enables and starts nothing.
+- **`post_upgrade`:** a message only when there's something to say; the upgrade hook restarts the service. Upgrades never delete the account or the settings.
 - **`post_remove`:**
   - `userdel opendeepcool`, then the group if it's left, because pacman's sysusers hook only creates (Install and Upgrade only, above);
   - `rm -rf /var/lib/opendeepcool`;
-  - `/etc/conf.d/lm_sensors`, and the enable link of `lm_sensors.service`, only if `sensors-detect.json` (Phase 6) records that OpenDeepCool's detection created them. A configuration that existed before is never touched;
-  - re-trigger the LP360's and the powercap zones' udev events, so the group's access ends at once.
-- **Upgrades** run `post_upgrade` only. They never delete the account or the settings.
+  - the detection's record, `/var/lib/opendeepcool-detect/sensors-detect.json`, is read only if it's a regular file owned by root, never a symbolic link (solution review OV-01). From its yes/no fields only:
+    - remove `/etc/conf.d/lm_sensors` if `created_conf_d`;
+    - remove `/etc/modprobe.d/lm_sensors.conf` if `created_modprobe_d`;
+    - disable `lm_sensors.service` unless `lm_sensors_enabled_before`.
+
+    No path is ever taken from the record, and a configuration that existed before is never touched;
+  - `rm -rf /var/lib/opendeepcool-detect`.
+
+  systemd's hooks then reload systemd, udev (with its trigger) and D-Bus, so the group's device access ends at once. No script re-triggers udev itself.
 
 **The throwaway system is rootless, so the test stays unattended.**
 - **Spike, 2026-10-25,** on this PC (arch-install-scripts 31, unprivileged user namespaces on, subordinate ID ranges for the owner's account):
@@ -107,6 +139,11 @@
   - **AUR submission guidelines:** no binaries; not already in the official repositories; `-bin` for prebuilt; commits authored with the global git identity, so set it per repository;
   - **Arch package guidelines:** "never" install to `/usr/local/`; important messages through an `.install` file;
   - **systemd:** "does not enable most services on installation".
+- Arch Linux dev blog, "On scripts and hooks" (2026-08-09), read 2026-10-26:
+  - the transaction log: `post_install`, then the post-transaction hooks, including a hook shipped in the same package, on its first install;
+  - minimise custom code in install scripts;
+  - enable units by vendor symlinks or presets rather than `systemctl enable` in a script.
+- alpm-hooks(5), read 2026-10-26: "Hooks are run in alphabetical order of their file name, where the ordering ignores the suffix."
 - This PC, 2026-10-25:
   - the systemd pacman hooks listed above, with their targets and operations;
   - `pacstrap -N` and `arch-chroot -N` in their `-h` output;
@@ -174,7 +211,7 @@ flowchart LR
 
 ### In scope
 
-- The PKGBUILD (release build with `cargo build --release --locked`, `check()` running the layer 1 and layer 3 tests that need no hardware), the `.install` file, and the final file paths from the footprint.
+- The PKGBUILD (release build with `cargo build --release --locked`, `check()` running the layer 1 and layer 3 tests that need no hardware), the `.install` file, the three pacman hooks and their script, the enable symlinks, and the final file paths from the footprint.
 - NVIDIA device access in the unit, from NVIDIA's documentation (Phase 7 deferred it here).
 - `odc-pkg-test`: the rootless container, the snapshot, both install ways, uninstall, the comparison.
 - Install and uninstall documentation; the README footprint.
@@ -213,6 +250,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - binaries in `/usr/bin` (`opendeepcool`) and `/usr/lib/opendeepcool/` (`opendeepcoold`, `opendeepcool-audio`, the GPU-rank and detection helpers): the service binaries aren't for users to run, so they stay off `PATH`;
   - units in `/usr/lib/systemd/{system,user}`;
   - `sysusers.d`, `udev/rules.d`, `/usr/share/dbus-1/system.d`, `/usr/share/polkit-1/actions`, `/usr/share/applications`, `/usr/share/icons/hicolor/scalable/apps`, `/usr/share/licenses/opendeepcool/LICENSE`;
+  - the enable symlinks `/usr/lib/systemd/system/multi-user.target.wants/opendeepcool.service` and `/usr/lib/systemd/user/default.target.wants/opendeepcool-audio.service`;
+  - the pacman hooks `/usr/share/libalpm/hooks/opendeepcool-{install,upgrade,remove}.hook` and their script `/usr/share/libalpm/scripts/opendeepcool-hook`;
+  - created at run time: `/var/lib/opendeepcool` (the service's state directory) and `/var/lib/opendeepcool-detect` (root, 0700, the detection's), both removed by `post_remove`;
   - nothing in `/usr/local` (Arch package guidelines) and nothing in `/etc`.
 - **NVIDIA:** from NVIDIA's documentation for the device files NVML opens (`/dev/nvidiactl`, `/dev/nvidia<N>`), the unit adds `DeviceAllow=` entries.
   - It has to be safe on a PC without them. Which `DeviceAllow` form ignores absent devices (a path, or a `char-<group>` name from `/proc/devices`) is checked against `systemd.exec(5)`.
@@ -228,26 +268,30 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - `pkgname=opendeepcool`, `arch=(x86_64)`, `license=(MIT)`;
   - `depends=(gtk4 hwdata lm_sensors pipewire-audio polkit dbus systemd)`, `makedepends=(cargo git)`;
   - `source=` the tag's GitHub archive with `sha256sums`; a `pkgver()` only for a local working-tree build (`git describe`);
-  - `build()` runs `cargo build --release --locked`, `check()` runs the hardware-free tests, and `package()` installs `FILES.md`'s list;
+  - `build()` runs `cargo build --release --locked`, `check()` runs the hardware-free tests, and `package()` installs `FILES.md`'s list, the two enable symlinks included;
   - `install=opendeepcool.install`.
-- `packaging/arch/opendeepcool.install`: CREATE, with `post_install`, `post_upgrade`, `pre_remove` and `post_remove` as in the Recommendation.
+- `packaging/arch/opendeepcool.install`: CREATE, with `post_install`, `post_upgrade` and `post_remove` as in the Recommendation. There's no `pre_remove`: the remove hook stops the service.
+- `packaging/arch/hooks/opendeepcool-install.hook`, `opendeepcool-upgrade.hook`, `opendeepcool-remove.hook`, and their script `packaging/arch/hooks/opendeepcool-hook`: CREATE, as in the Recommendation.
 - `scripts/dev/lib-manifest.sh`: CREATE, the manifest removal shared by `teardown.sh` and `post_install`. The `.install` file carries a copy, because pacman scriptlets can't source repository files; a test checks the copies are identical.
 - `packaging/arch/.SRCINFO`: CREATE, generated by `makepkg --printsrcinfo`; a test checks it's current.
 
 **Implementation**
 - **`post_install` order:**
-  1. the dev-copy removal, while the packaged files are already on disk. pacman installs files before the scriptlet, and the dev copy's files are all in `/etc` and `/usr/local`, so no packaged file is touched;
-  2. `systemctl daemon-reload` (the hook does it too; harmless);
-  3. `systemctl enable --now opendeepcool.service`;
-  4. `systemctl --global enable opendeepcool-audio.service`;
-  5. the message.
-- **Inside a chroot,** `systemctl` skips the "now" start ("Skipped: Running in chroot", seen in the spike's hook output for the system bus reload; for `enable --now`, unverified, checked in Task 3). The scriptlet tolerates that.
-- **Stopping running helpers in `pre_remove`:** the per-user mechanism is checked here (`loginctl list-users` plus `systemctl --user -M <user>@ stop`). If it can't stop them, the helpers end on their own: the service is gone, so their pipe closes and `pw-record` exits (Phase 9), and the helper exits when its unit file is gone at the next login. The report says so.
+  1. the dev-copy removal, while the packaged files are already on disk. pacman installs files before the scriptlet, and the dev copy's files are all in `/etc` and `/usr/local`, so no packaged file is touched. systemd's hooks, which run after the scriptlet, then see only the packaged files;
+  2. the message.
+
+  It enables and starts nothing: the symlinks enable, and the install hook starts (Recommendation).
+- **Inside a chroot,** the hook script skips its work, as systemd's `systemd-hook` does ("Skipped: Running in chroot", seen in the spike's hook output). Task 3 checks it.
+- **Stopping running helpers in the remove hook:** the per-user mechanism is checked here (`loginctl list-users` plus `systemctl --user -M <user>@ stop`). If it can't stop them, the helpers end on their own: the service is gone, so their pipe closes and `pw-record` exits (Phase 9), and the helper exits when its unit file is gone at the next login. The report says so.
 - **`namcap` on the PKGBUILD and the built package:** no errors. Each warning is explained in the report.
 
 **Tests**
 - `makepkg -f` in a clean clone builds the package; `namcap` runs on both.
-- A shellcheck run on the `.install` file and `lib-manifest.sh`.
+- A shellcheck run on the `.install` file, `lib-manifest.sh` and the hook script.
+- Static checks:
+  - no scriptlet contains `systemctl enable`, `disable`, `start` or `restart`;
+  - the hooks' file names sort after `dbus-reload.hook` and systemd's numbered hooks;
+  - the two symlinks point at their units.
 - The two manifest-removal copies are identical, and `.SRCINFO` matches `makepkg --printsrcinfo`.
 
 **Validation**
@@ -275,7 +319,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
 - **After each install:**
   - every path of `FILES.md` exists with its owner and mode;
   - `getent passwd opendeepcool` is a locked, no-login system account;
-  - `opendeepcool.service` is enabled for `multi-user.target`, and the audio helper's link is in `/etc/systemd/user/default.target.wants/`;
+  - the enable symlinks exist under `/usr/lib/systemd/`, `systemctl is-enabled opendeepcool.service` reports it enabled, and nothing was added under `/etc/systemd`;
+  - the install hook ran and skipped its work in the chroot, starting nothing;
   - the install message was printed.
 - **A dev copy:** one run first installs the dev copy's files from a recorded manifest (Phase 5 format) into the root. After the package install, none of them remain.
 - **Uninstall:** `pacman -R --noconfirm opendeepcool`.
@@ -288,7 +333,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - `lm_sensors` and the other runtime dependencies, which are removed with `pacman -Rs` only when the test installed them.
   - Any other difference fails with a diff.
 - **Upgrade check:** install v(n), then v(n+1), and the account and `settings.toml` survive. v(n+1) is a test build with a raised `pkgrel`.
-- **The lm-sensors case:** with a made-up `sensors-detect.json` saying OpenDeepCool's detection created `/etc/conf.d/lm_sensors`, uninstall removes it. With the file present before install, uninstall leaves it untouched.
+- **The lm-sensors case:** with a made-up record in `/var/lib/opendeepcool-detect/sensors-detect.json` saying OpenDeepCool's detection created `/etc/conf.d/lm_sensors`, uninstall removes it. With the file present before install, uninstall leaves it untouched.
+- **A forged record** (solution review OV-01): a record that is a symbolic link, isn't owned by root, or has an unknown or path-valued field makes uninstall remove nothing it names.
 - **Fake mode:** `container` Absent fails with the fix ("enable unprivileged user namespaces and subordinate IDs, or install arch-install-scripts"). No fallback, because a package test needs a system to install into.
 
 **Validation**
@@ -312,9 +358,10 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
 **Implementation** (owner approves each privileged step, rule 7)
 1. Build the package from the release candidate.
-2. `sudo pacman -U` it. `post_install` removes the dev copy from its manifest, including the owner's dev group membership (PRD dev footprint), and keeps `/var/lib/opendeepcool` with the owner's settings.
-3. Check that nothing from the manifest remains, that `pacman -Qk opendeepcool` is clean, and that the start check passes against the packaged service (Phase 7, no reboot).
-4. The UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so it runs within Task 7's runtime drop-in.
+2. `sudo pacman -U` it. `post_install` removes the dev copy from its manifest, including the owner's dev group membership (PRD dev footprint), and keeps `/var/lib/opendeepcool` with the owner's settings. The detection's record in `/var/lib/opendeepcool-detect/` is taken over too.
+3. Right after `pacman -U` returns, with no manual step, `systemctl is-active opendeepcool.service` is `active`. That proves the install hook ran after systemd's hooks, which the container can't show.
+4. Check that nothing from the manifest remains, that `pacman -Qk opendeepcool` is clean, and that the start check passes against the packaged service (Phase 7, no reboot).
+5. The UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so it runs within Task 7's runtime drop-in.
 
 **Validation**
 - `pacman -Qk opendeepcool` reports no missing files.
@@ -342,13 +389,13 @@ Each task ends with its own commit (rule 4) after its tests pass.
 **Implementation**
 1. The owner approves one `pkexec` step that writes the runtime drop-in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` (adds `--dev`) and restarts the service.
 2. **The whole `odc-e2e`, every area, every `--require` that applies on the owner's PC** (the list in `docs/local/`):
-   - device;
+   - device (start-up, reconnect, and `reset`, the device side of the wake-up from standby);
    - sensors;
-   - service (every mode, scenario and rotation, the start check);
+   - service (on the real cooler, one example of each mode and of each test type, and the start check; every case of the matrix and every scenario run in-process; owner, 2026-10-26). It also checks access on the installed package: `GetState` from the owner's session passes, and the polkit policy holds `use`, `change-settings` and `feed-audio`, each `allow_active` only;
    - music (the delay);
    - app;
    - package.
-   It's unattended and takes hours. The summary prints each area's time.
+   It's unattended. The real-cooler part, one example of each kind, should take well under an hour (estimate); the summary prints each area's time.
 3. The drop-in is removed and the service restarted, by a drop guard. The summary confirms `/run/systemd/system/opendeepcool.service.d/` is empty again.
 4. **The parity checklist:** every row is mapped to the test that proved it, or to the owner decision that replaces it, as in the Phase 8–9 reports. The checklist must be at 100 %.
 
@@ -381,8 +428,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
 ## Acceptance
 
-1. **AC1 — Installs from the AUR and from GitHub:** both ways build the same package and install every file of `FILES.md` with its owner and mode; the service is enabled (and started on a real system) and the audio helper enabled for all users; the message says so (Tasks 2, 3, 6).
-2. **AC2 — Uninstall leaves nothing:** after install and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the account and settings; the lm-sensors configuration is removed only when OpenDeepCool's detection created it (Task 3).
+1. **AC1 — Installs from the AUR and from GitHub:** both ways build the same package and install every file of `FILES.md` with its owner and mode; the service is enabled by the package's symlinks and started by its install hook on a real system, after systemd's hooks; the audio helper is enabled for all users; the message says how to turn them off (Tasks 2, 3, 5, 6).
+2. **AC2 — Uninstall leaves nothing:** after install and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the account and settings; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 3).
 3. **AC3 — The dev copy disappears:** installing the package removes every path of the dev manifest, in the container and on the owner's PC, and keeps the owner's settings (Tasks 3, 5).
 4. **AC4 — Packaging rules:** nothing in `/usr/local` or `/etc`; `namcap` reports no errors; `.SRCINFO` is current; the AUR repository holds no binaries and no personal identity (Tasks 1, 2, 6).
 5. **AC5 — Parity at 100 %:** the full unattended run passes against the installed package; every checklist row is proven or replaced by a recorded owner decision; the runtime drop-in is gone afterwards (Task 7).
@@ -408,9 +455,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
 | AUR plus GitHub clone, tested in a container; enable at install; no boot tests (owner, 2026-10-25) | Done: the PRD records them | Decisions Log | — |
-| Enabling at install goes against Arch convention; AUR users may comment | Keep (owner); the install message states what was enabled and how to disable it | Arch Wiki, systemd | Users might ask for a no-enable option later |
-| `systemctl enable --now` inside the chroot | Tolerate the skipped start; Task 3 checks the exact behaviour | Spike: hooks print "Skipped: Running in chroot" | A scriptlet that fails in a chroot would also fail for some users' install media |
-| Stopping every user's running audio helper from `pre_remove` | Try the per-user stop; otherwise the helpers end with the service's pipe, and the report says so | Phase 9: the helper exits when `pw-record` ends | A helper process lingers until logout |
+| Enabling at install goes against Arch convention; AUR users may comment | Keep (owner); enabled declaratively by symlinks, as Arch's dev blog suggests; the install message says how to turn it off (`systemctl mask`) | Arch Wiki, systemd; Arch dev blog, 2026 | Users might ask for a no-enable option later |
+| Hook order rests on file names (alpm has no documented numbering yet) | Names that sort after systemd's numbered hooks and `dbus-reload.hook`. The service's restart backoff (Phase 7) recovers if anything is late, and Task 5 proves the order on a real system (owner, 2026-10-26) | alpm-hooks(5); Arch dev blog, 2026 | A start before the policies exist would only delay the service by a restart or two |
+| Stopping every user's running audio helper from the remove hook | Try the per-user stop; otherwise the helpers end with the service's pipe, and the report says so | Phase 9: the helper exits when `pw-record` ends | A helper process lingers until logout |
 | NVIDIA device access can't be tested on the owner's PC | From NVIDIA's documentation and `systemd.exec(5)`; never exercised, and the report says so | Owner's GPU is AMD (see `docs/local/`) | An NVIDIA user might see GPU metrics unavailable until fixed |
 | Committing the oracle generators changes the public repository | Ask the owner in Task 8; they read only the spec after the move | They currently read captures (local only) | Without them, the expected frames can't be regenerated after DeepCreative is deleted |
 | The final run needs one privileged step | One `pkexec` for the runtime drop-in, approved by the owner; `/run` vanishes at reboot anyway | Rule 7 | — |

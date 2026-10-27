@@ -25,6 +25,8 @@
 - Devices are found by name, driver or PCI address, never by hwmon or DRM index (rule 12).
 - Nothing is written to any device or sysfs file except by the two install-time pieces the owner approved: the udev rule (group read of the package energy counters) and the detection unit (lm-sensors' own configuration).
 - The long-running display service needs no GPU device node on amdgpu or Intel GPUs, and contains no `unsafe` code.
+- Root never reads or writes a file the `opendeepcool` account can change: the detection's record lives in `/var/lib/opendeepcool-detect/`, owned by root with mode 0700 (owner, 2026-10-26).
+- Readings are exact: each is a fraction of whole numbers in its source's own units, never a floating-point number (owner, 2026-10-26; `display.md` Values).
 
 **Success signal:**
 - Values match the system tools within each metric's resolution on the owner's PC.
@@ -39,7 +41,7 @@
 - **`odc-gpu-rank` (short-lived helper, owner's design 2026-10-24):** the only crate with `unsafe` code. It asks each GPU's driver whether the GPU is integrated, writes a ranking file, and exits.
   - It runs only when OpenDeepCool starts, and only when no ranking exists.
   - It never runs again once the user has chosen a GPU.
-- **`odc-sensors-detect` (root one-shot):** runs `sensors-detect --auto` once per motherboard, only when the PC has no lm-sensors configuration, and records what it created so uninstall can remove exactly that.
+- **`odc-sensors-detect` (root one-shot):** runs `sensors-detect --auto` once per motherboard, only when the PC has no lm-sensors configuration, and records what it created so uninstall can remove exactly that. The record lives in a root-only directory of its own, `/var/lib/opendeepcool-detect/`, so the unprivileged service account can't change what root later reads (owner, 2026-10-26; solution review OV-01).
 - **CPU power:** a line in OpenDeepCool's udev rule lets the `opendeepcool` group read the package energy counters (owner, 2026-10-24).
 - **Tests:**
   - fake sysfs/proc trees for every rule and every hardware case the PC doesn't have, including future coolers' fakes when they come;
@@ -52,6 +54,10 @@
 - The kernel standardises hwmon file names but not their meaning (docs.kernel.org, hwmon sysfs interface). So a rule is a row: metric, subsystem, match (`name`, label or driver), file and unit. One generic hwmon adapter executes every hwmon row.
 - Adding a driver later is one row plus one fake tree, with no new code path.
 - Every adapter takes a root directory, so the same code runs against `/` and against fake trees under `CARGO_TARGET_TMPDIR`.
+
+**Exact readings, never floating point** (owner, 2026-10-26; solution review OV-08).
+- Every source gives whole numbers: jiffies, kB, millidegrees, µW, mW, µJ, or a whole percent or °C. A reading keeps them as a fraction, `Exact { num, den }`, in the metric's unit, and `odc-render` applies the display rules in integer arithmetic (`display.md` Values).
+- Floating point can flip a rounding. Every measurement rounds to the nearest whole number (owner, 2026-10-26), and 23 busy jiffies out of 40 is exactly 57.5 %, which draws `58`. But `23/40 × 100` is 57.49999999999999 in doubles, which would draw `57`.
 
 **GPU kind from each driver's documented interface, in a separate process.**
 - Each driver documents the signal only as a query on the GPU's render node or through its library:
@@ -73,6 +79,7 @@
 - The "never overwrite, once per board, record what was created" logic must be tested, and uninstall (Phase 11) depends on the record.
 - `sensors-detect` writes `/etc/conf.d/lm_sensors` and, when driver options are needed, `/etc/modprobe.d/lm_sensors.conf`. It overwrites either one if present, then enables and starts `lm_sensors.service` (read in the script, 2026-10-24).
 - So the program runs it only when **both** files are absent, and records which of them appeared and whether the service was enabled before.
+- The record lives in the detection unit's own state directory, `/var/lib/opendeepcool-detect/`, owned by root with mode 0700 (solution review OV-01). The display service's directory belongs to the `opendeepcool` account, and systemd re-owns everything inside it to that account (systemd.exec, `StateDirectory=`). A compromised service could replace a record there, or turn it into a symbolic link, and root would act on it.
 
 ### Evidence
 
@@ -176,7 +183,7 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 - `odc_sensors::Readings`: the readings port Phase 7's scheduler calls once per second.
 - `odc_sensors::gpus()`, `GpuChoice`, `fan_inputs()`, `FanInput`: the lists and saved identities Phase 7 (settings file) and Phase 10 (pickers) use.
 - `/var/lib/opendeepcool/gpu-rank.json`: written by `odc-gpu-rank`, read by the registry, deleted by the service when the GPU set changes and the user hasn't chosen (Task 7).
-- `/var/lib/opendeepcool/sensors-detect.json`: the detection record that Phase 11's uninstall reads.
+- `/var/lib/opendeepcool-detect/sensors-detect.json` (root only): the detection record that Phase 11's uninstall reads.
 - `packaging/systemd/opendeepcool-gpu-rank.service`, `packaging/systemd/opendeepcool-sensors-detect.service`: ordered before `opendeepcool.service`, which Phase 7 creates.
 
 ## Scope
@@ -228,7 +235,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `docs/spec/parity-checklist.md`: UPDATE. S4 gets the chosen access; S10 gets the kind signals and the helper. Each row is "reviewed 2026-10-24: owner decision".
 - `docs/prp/prds/opendeepcool-lp360.prd.md`: UPDATE.
   - The open questions on the GPU kind signal and CPU power access are answered.
-  - System Footprint: the GPU-rank unit and helper; `/etc/modprobe.d/lm_sensors.conf` (only if created); the udev rule's powercap line; `gpu-rank.json` and `sensors-detect.json` in the state directory. Each is removed by the removal script.
+  - System Footprint: the GPU-rank unit and helper; `/etc/modprobe.d/lm_sensors.conf` (only if created); the udev rule's powercap line; `gpu-rank.json` in the service's state directory, and `sensors-detect.json` in the detection's own root-only directory, `/var/lib/opendeepcool-detect/`. Each is removed by the removal script.
   - What We're NOT Building: "Other DeepCool water coolers: after v1 (owner, 2026-10-24)".
 
 **Tests**
@@ -245,17 +252,23 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Implementation**
 - `Metric`: `CpuTemperature`, `CpuUsage`, `CpuPower`, `GpuTemperature`, `GpuUsage`, `GpuPower`, `MemoryLoad`. `Metric::spec_name()` returns DeepCreative's exact names (`CPU Temperature`, `Gpu usage`, …). These are the names `docs/spec/frames/` headings use, which Phase 7 maps.
-- `Reading`: `Value(f64)`, in °C, %, or W, with the fraction kept (`sensors.md` Updates and rounding), or `Unavailable(Unavailable)`.
+- `Reading`: `Value(Exact)` or `Unavailable(Unavailable)` (owner, 2026-10-26: no floating point between a source and a digit; `display.md` Values, `sensors.md` Updates and rounding).
+  - `Exact { num: i64, den: u64 }`, with `den > 0`, is the reading's exact value as a fraction of whole numbers, in °C, %, W or RPM.
+  - Adapters build it from their source's integer units: millidegrees → `m / 1000`; jiffies → `100 · busy / total`; kB → `100 · used / total`; µW → `µW / 1 000 000`; mW → `mW / 1000`; energy → `ΔµJ / Δµs`; a whole percent, °C or RPM → `n / 1`.
+  - `Exact` has no conversion from or to `f64` on the service's path. The end-to-end comparisons with `sensors -j` convert only to compare.
   - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`.
   - `Display` gives the one-line reason the app shows (`settings.md:66-69`).
 - `Snapshot`: one `Reading` per `Metric`, plus `cooler_fans` and `pump`, each a `Reading` in RPM, or `NotChosen`.
-- `trait Readings { fn snapshot(&mut self) -> Snapshot; }`
+- `trait Readings { fn snapshot(&mut self) -> Snapshot; fn restart_intervals(&mut self); }`
+  - `restart_intervals()` drops the last sample of every reading averaged over the interval: CPU Usage, and power from an energy counter (CPU Power, and Gpu power on i915 and xe). Their next reading is `NotYet` again, as at start-up.
+  - Phase 7 calls it after every wake-up from standby, so no average spans the sleep, whatever the counters did meanwhile (owner, 2026-10-26; `sensors.md` Updates and rounding).
 - `trait Clock { fn now(&self) -> Instant; }`, with `SystemClock`.
-- `FakeReadings`: public; scripted snapshots for Phase 7's tests.
+- `FakeReadings`: public; scripted snapshots for Phase 7's tests, and a count of `restart_intervals()` calls.
 
 **Tests**
 - `spec_name()` round-trips for all seven, and the names match the headings in `docs/spec/frames/` (read through `odc_testkit::expected`).
 - Each `Unavailable` reason has a non-empty one-line `Display`.
+- Integral sources give integral values: 57 000 m°C is exactly 57 °C; 2 000 000 µW is exactly 2 W.
 
 **Validation**
 - `cargo test -p odc-sensors`: passes.
@@ -298,7 +311,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `hwmon.rs`:
   - scans `<sys>/class/hwmon/*`, reads `name`;
   - for each `tempN_label` / `fanN_label` / `powerN_label` it pairs the channel's `_input` (or `_average`);
-  - reads with a scale: millidegrees → °C, microwatts → W.
+  - builds `Exact` from the integer it reads: millidegrees → `m / 1000` °C, microwatts → `µW / 1 000 000` W, never through floating point.
 - **CPU Temperature rows:**
   - coretemp, label `Package id 0`;
   - k10temp, label `Tdie`, else `Tctl`.
@@ -306,7 +319,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - Several CPU packages: rule 1 matches the first package by hwmon `name` order, and `Package id 0` is by definition package 0.
 
 **Tests** (integration, fake trees)
-- coretemp: 57000 → 57.0.
+- coretemp: 57000 → exactly 57 (`Exact { num: 57000, den: 1000 }`).
 - k10temp: `Tdie` is preferred over `Tctl`; with `Tctl` only → `Tctl`; family 0x15 → unavailable.
 - No CPU driver → `Unavailable(NoDevice)`.
 - An hwmon index change between scans (`hwmon2` → `hwmon5`) still binds by name.
@@ -323,15 +336,16 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 **Implementation**
 - **CPU Usage:**
   - parse the aggregate `cpu` line's first eight fields (user … steal). Guest time is already inside user and nice (`account_guest_time`).
-  - Busy share over the interval = 1 − Δ(idle + iowait) ÷ Δtotal (`sensors.md` driver rules).
-  - The first call returns `Unavailable(NotYet)`.
+  - busy = Δtotal − Δ(idle + iowait) over the interval, and CPU Usage = `Exact { num: 100 · busy, den: Δtotal }`, in whole numbers (`sensors.md` driver rules).
+  - The first call returns `Unavailable(NotYet)`, and so does the first call after `restart_intervals()`.
   - Δtotal = 0 → keep the previous value.
-- **Memory Load:** (MemTotal − MemAvailable) ÷ MemTotal × 100 from `/proc/meminfo` (kB). If `MemAvailable` is missing → `Unavailable(ReadFailed)`. It has been present since Linux 3.14; this rule is defensive only for malformed input.
+- **Memory Load:** `Exact { num: 100 · (MemTotal − MemAvailable), den: MemTotal }` from `/proc/meminfo` (kB). If `MemAvailable` is missing → `Unavailable(ReadFailed)`. It has been present since Linux 3.14; this rule is defensive only for malformed input.
 
 **Tests**
-- Hand-computed vectors: two `cpu` lines with known deltas → exact percentages: 0 %, 50 % and 100 %, and iowait counted as idle.
+- Hand-computed vectors: two `cpu` lines with known deltas → exact percentages: 0 %, 50 % and 100 %, and iowait counted as idle. 23 busy jiffies out of 40 → exactly 57.5, drawn `58%`; floating point would give 57.49999999999999, drawn `57%`.
 - Property test: the result always lies in [0, 100] for monotonically increasing counters.
-- meminfo: 31,000,000 kB total, 7,750,000 kB available → 75.0 %.
+- After `restart_intervals()`, the next call → `NotYet`, and the one after it uses only the new interval's counters.
+- meminfo: 31,000,000 kB total, 7,750,000 kB available → exactly 75 %.
 
 **Validation**
 - `cargo test -p odc-sensors --test procfs`: passes.
@@ -354,15 +368,16 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Implementation**
 - **Zones:** every `<sys>/class/powercap/*` whose resolved path's parent directory is `intel-rapl` (control type), whose `name` starts with `package-`, and which isn't a sub-zone.
-  - Power = Σ over zones of Δenergy ÷ Δt. Wrap: if a reading is lower than the last, add `max_energy_range_uj`.
-  - The first call → `NotYet`.
+  - Power = `Exact { num: Σ ΔµJ over the zones, den: Δµs }`: µJ per µs is watts, and Δµs is the monotonic interval in whole microseconds. Wrap: if a reading is lower than the last, add `max_energy_range_uj`.
+  - The first call → `NotYet`, and so does the first call after `restart_intervals()`.
   - `EACCES` → `Unavailable(PermissionDenied { path })`.
 - `KERNEL=="intel-rapl:*"` excludes `intel-rapl-mmio:*`, and `ATTR{name}=="package-*"` excludes the `core`, `uncore` and `dram` sub-zones.
 
 **Tests** (fake trees)
-- One package: 2,000,000 µJ over 1.0 s of fake clock → 2.0 W.
+- One package: 2,000,000 µJ over 1,000,000 µs of fake clock → exactly 2 W.
 - Wrap-around → a correct positive power.
 - Two packages → the sum.
+- A counter that dropped to 0 during a sleep: after `restart_intervals()`, the next call → `NotYet`, never a power computed across the sleep (and never a false wrap-around).
 - An `intel-rapl-mmio:0` zone named `package-0` is ignored.
 - A `0400` file the test user can't read → `PermissionDenied`.
 - `udevadm verify --resolve-names=never` passes on the updated rule (guard and CI from Phase 5).
@@ -421,13 +436,13 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **amdgpu:**
   - temperature: label `edge`;
   - usage: `device/gpu_busy_percent`;
-  - power: `power1_average` else `power1_input`, in W. On a GPU ranked `Integrated` → `Unavailable(IntegratedGpuPower)`, because amdgpu's integrated reading includes the CPU (`sensors.md`, rule 11).
-- **i915:** temperature from `temp1_input`; power = Δ`energy1_input` ÷ Δt; usage → `Unavailable(NoRule)` with the reason "this GPU's driver doesn't report usage".
-- **xe:** temperature from `temp2_input` (package); power = Δ`energy1_input` (card) ÷ Δt; usage unavailable as for i915.
+  - power: `power1_average` else `power1_input`, as `µW / 1 000 000` W. On a GPU ranked `Integrated` → `Unavailable(IntegratedGpuPower)`, because amdgpu's integrated reading includes the CPU (`sensors.md`, rule 11).
+- **i915:** temperature from `temp1_input`; power = `ΔµJ / Δµs` from `energy1_input`, `NotYet` on the first call and after `restart_intervals()`; usage → `Unavailable(NoRule)` with the reason "this GPU's driver doesn't report usage".
+- **xe:** temperature from `temp2_input` (package); power = `ΔµJ / Δµs` from `energy1_input` (card); usage unavailable as for i915.
 - **NVIDIA proprietary** (driver `nvidia`): through `NvmlSource`, matched by `pci_info().bus_id` to the chosen PCI address.
-  - temperature: `temperature(Gpu)`;
-  - usage: `utilization_rates().gpu`;
-  - power: `power_usage()` ÷ 1000.
+  - temperature: `temperature(Gpu)`, whole °C, as `n / 1`;
+  - usage: `utilization_rates().gpu`, whole percent, as `n / 1`;
+  - power: `power_usage()` in mW, as `mW / 1000`.
   - NVML failing to load → `Unavailable(NoRule { driver: "nvidia" })`, with the reason naming NVML.
 - **Any other driver** → all three `Unavailable(NoRule { driver })`.
 
@@ -486,21 +501,27 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `crates/odc-sensors-detect/`: CREATE, a binary. `lints.workspace = true`; `std` only.
 - `packaging/systemd/opendeepcool-sensors-detect.service`: CREATE.
   - `Type=oneshot`; runs as root (the only root part, PRD Service model);
+  - `StateDirectory=opendeepcool-detect` and `StateDirectoryMode=0700`: its own root-only directory for the record (solution review OV-01);
   - `ConditionPathExists=!/etc/conf.d/lm_sensors`;
   - `ConditionPathExists=!/etc/modprobe.d/lm_sensors.conf`;
   - `Before=opendeepcool.service`, `WantedBy=opendeepcool.service`;
   - stdout and stderr go to the journal.
 
 **Implementation**
-- Paths come from flags with real defaults (`--etc`, `--sys`, `--state-dir`, `--sensors-detect`), so the tests use fake roots and a fake script.
+- Paths come from flags with real defaults (`--etc`, `--sys`, `--state-dir` defaulting to `/var/lib/opendeepcool-detect`, `--sensors-detect`), so the tests use fake roots and a fake script.
+- **The state directory is root's alone** (owner, 2026-10-26; solution review OV-01):
+  - it's owned by root with mode 0700;
+  - the program creates it so when it's missing, since it also runs outside the unit (the end-to-end run below), and refuses to run when it exists with another owner or mode;
+  - it refuses a record that is a symbolic link;
+  - it writes a new record through a temporary file created exclusively (`create_new`) in the same directory, then `rename`s it.
 - **Steps:**
   1. If either lm-sensors file exists → record nothing and exit 0. The unit's conditions normally prevent this; the check is repeated here because the binary can be run on its own.
   2. Read the board identity from `<sys>/class/dmi/id/board_vendor`, `board_name` and `board_version`. If `sensors-detect.json` already lists this identity → exit 0 (once per motherboard).
   3. Note whether `lm_sensors.service` is enabled (`systemctl is-enabled`, path injectable).
   4. Run `sensors-detect --auto`.
-  5. Write `sensors-detect.json`: the identity, the date, which of the two files now exist (`created`), and whether the service was enabled before.
+  5. Write `sensors-detect.json` with fixed fields only: the board identity, the date, `created_conf_d` and `created_modprobe_d` (yes/no: did this run create `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`), and `lm_sensors_enabled_before` (yes/no). It never holds a path.
 
-  Phase 11's removal script removes only what `created` lists, and disables the service only if it wasn't enabled before.
+  Phase 11's removal script acts only on those yes/no fields, on the two fixed paths, and disables the service only if it wasn't enabled before.
 - `sensors-detect` exiting non-zero is logged, and the record is still written, so it doesn't run again at every boot (`sensors.md` driver rules).
 
 **Tests** (integration; the fake `sensors-detect` is a shell script that writes the files a scenario needs)
@@ -510,13 +531,17 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **A run that also writes `modprobe.d`** → both files are recorded.
 - **A different board identity** (motherboard replaced) with both files absent → it runs again.
 - **The fake script fails** → the record is still written.
+- **A state directory that isn't root's alone** (another owner, or mode 0755) → refused; nothing runs and nothing is written.
+- **A record that is a symbolic link** → refused; the link's target is never read or written.
+- **The record's fields** are the identity, the date and the three booleans; a test parses it with an exact schema that has no path-valued field.
 
 **Validation**
 - `cargo test -p odc-sensors-detect`: passes.
 - **End to end (owner approved 2026-10-24, a system change done once):**
-  - shown to the owner, then `pkexec target/debug/odc-sensors-detect --state-dir /var/lib/opendeepcool`;
+  - shown to the owner, then `pkexec target/debug/odc-sensors-detect` (its state directory defaults to `/var/lib/opendeepcool-detect`);
   - afterwards, unattended: `/etc/conf.d/lm_sensors` exists, `lm_sensors.service` is enabled, the record lists what was created, and the board's fan chip appears in `/sys/class/hwmon` after the next boot without a manual `modprobe`.
   - The PRD dev footprint lists the created files and the enabled service, until Phase 11's package takes over.
+  - The record in `/var/lib/opendeepcool-detect/` isn't part of the dev manifest. The Phase 11 package takes it over, so its uninstall still knows what the detection created.
 
 ### 11. Layer 4 end to end: real sensors where the PC has them, fakes where it doesn't
 
@@ -580,7 +605,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
    - rules for coretemp, k10temp, amdgpu, i915, xe and NVIDIA (NVML) pass their fake-tree tests;
    - devices bind by name, driver or PCI address, never by index;
    - a missing driver gives `Unavailable` with a reason (Tasks 3–8).
-3. **AC3 — Rates over the interval:** CPU Usage and CPU Power are averages between two samples. The first sample is `NotYet`, and energy wrap-around is handled (Tasks 5, 6).
+3. **AC3 — Rates over the interval, exact:** CPU Usage and CPU Power are averages between two samples. The first sample is `NotYet`, and so is the first after `restart_intervals()` (a wake-up from standby); energy wrap-around is handled. Every reading is an exact fraction of whole numbers: 23 busy jiffies out of 40 read exactly 57.5 (Tasks 2, 5, 6).
 4. **AC4 — CPU power without root, for the group only:**
    - the udev rule grants group `opendeepcool` read access to the `intel-rapl` package zones only;
    - the real-PC test reads CPU Power as a group member (Tasks 6, 11).
@@ -595,7 +620,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
    - its struct mirrors match the kernel headers (Task 9).
 7. **AC7 — Detection never overwrites:**
    - `odc-sensors-detect` runs `sensors-detect --auto` only when both lm-sensors files are absent, once per board;
-   - it records exactly what it created;
+   - it records exactly what it created, as yes/no facts, in its own root-only directory, and refuses a record or a directory that isn't root's alone;
    - on the owner's PC the board fan driver loads at boot afterwards (Task 10).
 8. **AC8 — Fan inputs:**
    - every hwmon fan input except a graphics card's is listed;
@@ -621,7 +646,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 | Units | `systemd-analyze verify packaging/systemd/opendeepcool-gpu-rank.service packaging/systemd/opendeepcool-sensors-detect.service`, run locally; it reports the missing `opendeepcool.service` until Phase 7, which is expected and listed | AC6, AC7 (unit syntax) |
 | Dev access | `scripts/dev/check.sh` | AC4 |
 | GPU helper, layer 4 | `cargo run -p odc-e2e -- --only gpu-rank` | AC6 |
-| Detection, once | `pkexec target/debug/odc-sensors-detect --state-dir /var/lib/opendeepcool`, then the Task 10 checks | AC7 |
+| Detection, once | `pkexec target/debug/odc-sensors-detect`, then the Task 10 checks | AC7 |
 | Sensors, layer 4 | `cargo run -p odc-e2e -- --only sensors` | AC4, AC9 |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |
 
@@ -653,7 +678,7 @@ Phase 6 draws no frames, so it covers none of the 112 display cases. Its own mat
 | `sensors-detect` probing on other PCs | Run only when both lm-sensors files are absent, once per board; output to the journal | lm-sensors' own warning and default skips (`sensors.md`) | A board that misbehaves when probed; the PRD's risk table already lists it |
 | The CPU usage formula treats iowait as idle | Keep; `proc_stat(5)` calls iowait unreliable, and the e2e test compares with `top` | `sensors.md` driver rules; parity S3 checked against `top` | A few points' difference from tools that count iowait as busy |
 | `systemd-analyze verify` warns about the not-yet-existing `opendeepcool.service` | Expected until Phase 7; the gate lists the expected warning | Units are ordered before a service Phase 7 creates | — |
-| The dev state directory `/var/lib/opendeepcool` doesn't exist before Phase 7's `StateDirectory=` | `scripts/dev/setup.sh` creates it (`root:opendeepcool 2770`) and teardown removes it; in the dev footprint | Needed by Tasks 9–10 locally | — |
+| The dev state directory `/var/lib/opendeepcool` doesn't exist before Phase 7's `StateDirectory=` | `scripts/dev/setup.sh` creates it (`root:opendeepcool 2770`) and teardown removes it; in the dev footprint. Task 10's detection no longer uses it: its record has its own root-only directory (solution review OV-01) | Needed by Task 9 locally | — |
 
 ## Agent Notes
 

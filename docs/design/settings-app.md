@@ -32,7 +32,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
 - **Tiles:** fixed made-up sample values, drawn locally.
-- **Refresh in a view-only session:** shown but disabled, with the reason as a tooltip.
+- **Remote or inactive session** (owner, 2026-10-26, replacing pass 1's view-only session): the window shows one message and nothing else ([Not available in this session](#not-available-in-this-session)). No control is ever shown disabled for lack of rights.
 - **Rotation:** four direct choices.
 - **Temperature unit:** once, at the top of the Display page.
 - **Service not running:** the app explains, shows the start command, and has no start button.
@@ -47,8 +47,8 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 ## Window
 
 ```
-┌ GtkApplicationWindow ─────────────────────────────────────────────────────┐
-│ GtkHeaderBar   [OpenDeepCool]     [ Display | Configuration ]   [⟳ Refresh] │
+┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
+│ GtkHeaderBar   [OpenDeepCool]    [ Display | Configuration ]   [⟳ Refresh] │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Banner (GtkRevealer > GtkBox): only when needed                            │
 ├──────────────────────┬─────────────────────────────────────────────────────┤
@@ -65,6 +65,7 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
   - window buttons follow the desktop's decoration layout (GtkHeaderBar's default);
   - Refresh is a `GtkButton` with an icon and the label "Refresh", packed at the end.
 - **No motion in the chrome.** `GtkStack` uses `GTK_STACK_TRANSITION_TYPE_NONE`, and the app's stylesheet sets `transition: none` on everything. The preview is the only thing that moves.
+- **Remote or inactive session:** the header bar keeps only the app name, and the body holds only one message ([Not available in this session](#not-available-in-this-session)).
 
 ## Preview column
 
@@ -72,10 +73,10 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 
 - **Preview:** a `GtkDrawingArea`, 226 × 226 px, in a frame with the surface colour.
   - It draws 14 × 14 round dots: lit dots in `--fg`, unlit dots in `--fg` at 0.12 alpha.
-  - It draws the frame the service publishes over D-Bus, the same frame written to the cooler, so rotation, scrolling, dashes, the 9999 cap, the spectrum with its peak and fall settings, the emoji loops and the Dancer are exactly the cooler's.
+  - It draws the frame the service sends the app over D-Bus, in a signal addressed to it alone ([Talking to the service](#talking-to-the-service)). It's the same frame written to the cooler, so rotation, scrolling, dashes, rounding, the 9999 cap, the spectrum with its peak and fall settings, the emoji loops and the Dancer are exactly the cooler's.
   - `queue_draw()` runs only when a new frame differs from the last one. A static picture costs nothing; a moving one redraws at the cooler's 100 ms tick.
   - It also redraws once on a theme change.
-  - The app subscribes to frames only while the window is mapped, and stops when it's hidden or minimised.
+  - The app watches frames (`WatchFrames()`) only while the window is mapped, and stops watching when it's hidden or minimised.
 - **Caption:** the current mode, `<group> · <option>` (for example "Temperature · CPU + GPU"). Below it, one of:
   - "Shown on the cooler now";
   - "Not on the cooler: it isn't connected";
@@ -174,8 +175,7 @@ A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `Gt
 
 | Banner | When | Text | Effect on the window |
 |---|---|---|---|
-| Service (error) | the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner | "The OpenDeepCool service isn't running. The cooler shows nothing until it starts. Start it from a terminal:" `sudo systemctl start opendeepcool.service` (a selectable monospace label) "The app connects by itself once it runs." A "Copy" button copies the command | The switcher and Refresh are insensitive. The pages are replaced by a centred message: "Settings appear here when the service runs". The preview is all unlit, and the status says "Cooler: unknown" and "Service not running". The app watches `NameOwnerChanged` and fills in by itself; it doesn't poll |
-| View only (info) | the caller isn't authorized to change settings (remote or inactive session) | "View only. Settings can be changed only from the session at the PC." | Every control shows its value but is insensitive, dimmed less than usual (the `view-only` style class). Refresh is insensitive, with the tooltip "Only the session at the PC can refresh the display" |
+| Service (error) | the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner | "The OpenDeepCool service isn't running. The cooler shows nothing until it starts. Start it from a terminal:" `sudo systemctl start opendeepcool.service` (a selectable monospace label) "The app connects by itself once it runs." A "Copy" button copies the command | The switcher and Refresh are insensitive. The pages are replaced by a centred message: "Settings appear here when the service runs". The preview is all unlit, and the status says "Cooler: unknown" and "Service not running". The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll |
 | Cooler (warning) | `CoolerConnected` is false | "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back." | Nothing is disabled. The preview keeps mirroring the service's picture, captioned "Not on the cooler: it isn't connected" |
 
 The saved mode's lost reading gets no banner. It shows under the preview and on its tile.
@@ -184,7 +184,55 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 
 - It calls `Refresh()`: fresh readings, and the picture restarts from home (display.md, Mode switches).
 - A small confirmation label, "Refreshed", shows in a `GtkOverlay` for about 1.5 s, without animation. A static picture often looks the same after a refresh, so the user needs this confirmation.
-- In a view-only session the button is insensitive, and the tooltip carries the reason. Whether GTK4 shows tooltips on insensitive widgets is **unverified**; the view-only banner states the same reason in any case.
+- Refresh shows only where OpenDeepCool can be used: it's absent when the app is [not available in this session](#not-available-in-this-session), and insensitive while the service isn't running. If the service refuses it anyway (`NotAuthorized`, for example under an administrator's own polkit rule that allows reading but refuses changes), that's shown like any [refused change](#refused-changes).
+
+## Refused changes
+
+- A control shows a new value only once the service confirms it (`StateChanged`), so the app never shows a change the service refused.
+- When the service refuses a change or a Refresh, the control stays on the saved value. The overlay label that says "Refreshed" says instead, with a warning icon, "Not changed." or "Not refreshed." followed by the reason, for about 5 s, without animation.
+  - The reason is the service's error message. For `NotAuthorized` it's the app's own text: "This session may not change settings."
+  - Screen readers get the same text (`gtk_accessible_announce`, since GTK 4.14, verified).
+- There's no separate state for it. An administrator's own polkit rule that allows reading but refuses changes simply ends every change this way.
+
+## Not available in this session
+
+**When:** the service refuses `GetState()` with `NotAuthorized`, because the app runs in a remote or inactive session (owner, 2026-10-26). The service refuses such a session every read, change and preview frame (polkit `allow_active` only), so the app has nothing to show. This state replaces the view-only state, which no longer exists.
+
+```
+┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
+│ GtkHeaderBar   [OpenDeepCool]                                              │
+├────────────────────────────────────────────────────────────────────────────┤
+│                                                                            │
+│                                                                            │
+│          OpenDeepCool can be used only from the session at the PC          │
+│                This session is remote or not the active one.               │
+│                                                                            │
+│                                                                            │
+└────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Text:** the heading "OpenDeepCool can be used only from the session at the PC", and under it, in `--muted`, "This session is remote or not the active one."
+- **Widgets**, all plain GTK4 (no libadwaita, so no `AdwStatusPage`):
+  - the same `GtkHeaderBar`, with only the app name. The switcher and Refresh are hidden (`visible` false), not just insensitive. The window buttons stay, following the desktop's decoration layout;
+  - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the service state's "Settings appear here when the service runs";
+  - nothing else: no banner, no preview column, no pages, no status, no RPM, nothing that could show a value.
+- **Keyboard and screen readers:** nothing in the content takes focus. Ctrl+W and Ctrl+Q still close the window; the page and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
+- **Trying again,** without polling: when the window becomes active again (`notify::is-active` on `GtkWindow:is-active`, verified) and when the service's bus name gets a new owner (`NameOwnerChanged`). If `GetState()` succeeds then, the normal screens appear with the current state.
+- **The service not running comes first.** Without the service, the app can't tell whether this session may use OpenDeepCool, so it shows the service state, which holds no settings and no picture.
+- **An administrator's own polkit rule** might allow reading but refuse changes. That's no separate state: the app shows the normal screens, and each change fails with `NotAuthorized`, shown like any [refused change](#refused-changes).
+
+## Talking to the service
+
+The D-Bus system bus (settings.md, Status). Only the user of the active local session can use OpenDeepCool: the service refuses every other session each read, watch and change (polkit `allow_active` only; owner, 2026-10-26). It offers no D-Bus properties, and nothing is broadcast.
+
+- **Connecting:** the app starts watching the state (`Watch()`) and reads all of it (`GetState()`). The plan fixes the order, so that no change falls between the two. Then the window shows:
+  - the [service banner](#banners), when the bus name has no owner;
+  - [not available in this session](#not-available-in-this-session), when the service refuses with `NotAuthorized`;
+  - otherwise, the normal screens with that state.
+- **Connecting again,** one call at a time and never polling: whenever the bus name gets a new owner (`NameOwnerChanged`), and whenever the window becomes active (`notify::is-active`). This also renews any watch the service dropped meanwhile, for example while this session was inactive.
+- **Updates** come as `StateChanged` signals addressed to this app alone, and preview frames the same way after `WatchFrames()`, only while the window is mapped ([Preview column](#preview-column)).
+- **State names:** `CoolerConnected`, `AudioConnected`, `UnavailableReasons`, `FanInputs`, `Gpus` and `ChosenGpu` in this document are the names in the Phase 7–9 contract. They now come in `GetState()` and `StateChanged`, not as properties, and the Phase 10 plan sets their final shape.
+- **Back from standby** (owner, 2026-10-26): no screen of its own, and nothing for the user to do. While the monitor is off or the screen is locked, the session stays active, so nothing changes for the app. After a sleep, the service takes up the cooler again by itself (PRD, Service model), and the preview follows the cooler as soon as frames come back. If the cooler or the sound takes a moment to return, the cooler banner and the sound status show it as usual.
 
 ## States
 
@@ -199,12 +247,14 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 | Service not running | Service banner with the command; pages replaced by a message; nothing changeable | [service-not-running.html](mockups/service-not-running.html) |
 | Metric unavailable | Tiles disabled with "Unavailable"; each group lists its reasons once | [unavailable-metric.html](mockups/unavailable-metric.html) |
 | The saved mode lost a reading | Tile still selected with "Reading lost"; dashes in the preview; reason under the preview | [reading-lost.html](mockups/reading-lost.html) |
-| View-only session | View-only banner; every control insensitive; Refresh disabled with a tooltip | [read-only.html](mockups/read-only.html) |
+| Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no Refresh | [not-available.html](mockups/not-available.html) |
 | One GPU | No GPU row at all | [one-gpu.html](mockups/one-gpu.html) |
 | Saved fan input or GPU missing | "— not found" on the control, a hint, and the GPU in use named | [missing-input-gpu.html](mockups/missing-input-gpu.html) |
 | No fan sensors | Both pickers insensitive with a note; the preview column says "No fan sensors found" | [no-fan-sensors.html](mockups/no-fan-sensors.html) |
 | A GPU without a reading rule chosen | GPU tiles disabled with "no reading for this GPU's driver"; a hint under the GPU dropdown | [configuration.html](mockups/configuration.html): choose "Unknown type · othergpu · 0000:07:00.0" |
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
+| A change refused | The control stays on the saved value; the overlay label says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
+| Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
 | Live theme switch | Colours change in place, with no restart and the same page and scroll position | every mockup: the theme buttons above the window |
 | Default theme (no Omarchy theme) | The default dark palette | every mockup: "Default theme, dark" or "Default theme, light" |
 
@@ -291,6 +341,7 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 - **Dropdowns:** Enter or Space opens; arrows move; Enter chooses; Escape closes.
 - **Scales:** Left and Right move one stop; Home and End go to Slower and Faster.
 - **Switch:** Space toggles.
+- **Not available in this session:** nothing in the window takes focus but the window buttons, and only Ctrl+W and Ctrl+Q work; the page and Refresh actions are disabled.
 - **Shortcuts** (`GtkApplication` accelerators):
 
   | Keys | Action |
@@ -307,10 +358,11 @@ The Phase 10 tests drive the app through AT-SPI, so every interactive widget get
 | Widget | GTK4 widget | Accessible name | State and description |
 |---|---|---|---|
 | Page switcher buttons | `GtkStackSwitcher` (or grouped `GtkToggleButton`) | `Display`, `Configuration` | selected or checked |
-| Refresh | `GtkButton` | `Refresh display` | disabled in view-only; description "Only the session at the PC can refresh the display" |
+| Refresh | `GtkButton` | `Refresh display` | insensitive while the service isn't running; absent when not available in this session |
+| Refresh and refusal label | `GtkLabel` in the `GtkOverlay` | `Change feedback` | its text ("Refreshed", or "Not changed." and the reason) |
 | Service banner | `GtkBox` in `GtkRevealer` | `Service banner` | its text |
 | Copy command | `GtkButton` | `Copy start command` | — |
-| View-only banner | `GtkBox` in `GtkRevealer` | `View-only banner` | its text |
+| Not-available message | `GtkBox` holding two `GtkLabel`s | `Not available in this session` | its text |
 | Cooler banner | `GtkBox` in `GtkRevealer` | `Cooler banner` | its text |
 | Preview | `GtkDrawingArea` | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
 | Reason under the preview | `GtkLabel` | `Unavailable reading` | its text |
@@ -341,17 +393,18 @@ How to give a `GtkScale` a named value text (Slower … Faster) for AT-SPI is **
 
 ## What the Phase 10 plan must add to the D-Bus contract
 
-The design depends on these. The first two were agreed on 2026-10-25.
+The design depends on these. The first two were agreed on 2026-10-25. The service offers no D-Bus properties (owner, 2026-10-26), so each item is part of the state that `GetState()` returns and `StateChanged` updates, or a signal addressed to one watcher ([Talking to the service](#talking-to-the-service)).
 
-1. **The current frame:** a signal (or property) carrying the frame exactly as written to the cooler, rotation included. It is published only while at least one client watches, and only when the frame changes. Its encoding (the 28 pixel bytes or 196 booleans) is chosen in the plan.
-2. **Live RPM for every fan input:** RPM in `FanInputs`, or a separate map, updated about once a second.
+1. **The current frame:** a signal, addressed to each authorized watcher alone after `WatchFrames()` and never broadcast, carrying the frame exactly as written to the cooler, rotation included. It's sent only while the app watches, and only when the frame changes. Its encoding (the 28 pixel bytes or 196 booleans) is chosen in the plan.
+2. **Live RPM for every fan input:** RPM in the state's fan inputs (`FanInputs`), or a separate map, updated about once a second while the app watches.
 3. **GPU names:**
    - either the service sends each GPU's PCI vendor and device ID, so the app can look up `/usr/share/hwdata/pci.ids`, or the service sends the name;
    - the current `Gpus` (`a(sss)`: address, driver, kind) has neither;
    - it also needs a "no reading rule" flag per GPU.
 4. **The GPU in use as well as the saved one:** needed for the "saved GPU missing" hint. `ChosenGpu` is only the saved choice.
 5. **Whether the saved fan and pump inputs are present:** for "not found". The app could infer it by matching `FanInputs`, but an explicit flag avoids two rules.
-6. **Whether this client may change settings:** for the view-only state before any click. One way is for the app to ask polkit for its own process (a `unix-process` subject, non-interactive), the same `change-settings` action. The plan chooses.
+6. **How the app learns it's in a remote or inactive session:** `GetState()` refused with `NotAuthorized` ([Not available in this session](#not-available-in-this-session)). There's no `CanChangeSettings()` and no separate check: the refusal that protects the state is what tells the app.
+7. **Watches that can be renewed:** calling `Watch()` or `WatchFrames()` again does no harm, because the app renews its watches each time it connects again, including on every window activation ([Talking to the service](#talking-to-the-service)).
 
 ## Coverage check
 
@@ -378,14 +431,16 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Peak dots on or off | Configuration → Music | configuration |
 | Bar fall, peak fall, five stops, defaults | Configuration → Music | configuration |
 | Configuration screen holds everything but mode and unit | Configuration page | configuration |
-| Refresh, only for users who may change settings | Header bar | display, read-only |
+| Refresh, only for the user at the PC | Header bar; absent when not available in this session; a refusal shows as a refused change | display, not-available |
 | Status: cooler connected | Status line; cooler banner | cooler-disconnected |
 | Status: service running | Status line; service banner | service-not-running |
 | Status: Music sound (`AudioConnected`) | Status line, Music modes only | display-music |
 | Availability: disabled with a one-line reason; device vs single metric | Tiles plus group reason lines | unavailable-metric |
 | The saved mode losing a reading: stays selected, dashes, reason | Tile flag, preview, reason line | reading-lost |
-| Read-only session | View-only banner; insensitive controls | read-only |
+| Only the user at the PC: a remote or inactive session gets one message and nothing else | The whole window ([Not available in this session](#not-available-in-this-session)) | not-available |
+| Back from standby: no action and no new screen | The preview follows the frames when they return ([Talking to the service](#talking-to-the-service)) | — |
 | Live preview with rotation, scrolling, dashes, full values to 9999, the spectrum settings | Preview column (mirrors the service's frame) | configuration (90°), display-scrolling, reading-lost |
+| Numbers rounded as display.md Values: the nearest whole number, halves up; °F once from the exact °C | Preview (the service's frame); tiles (`odc_render`) | display-scrolling (°F tiles) |
 | Instant apply, no Apply button | Every control | — |
 | Omarchy theme followed live; opacity and blur untouched; `shell.toml` alphas on controls | Theme | every mockup's theme switch |
 | Default theme, dark and light | Theme | every mockup's theme switch |
@@ -407,7 +462,8 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 ## Unverified, for the Phase 10 plan to check
 
 - Whether Hyprland honours a GTK window's minimum size when tiling.
-- Whether GTK4 shows tooltips on insensitive widgets (Refresh in view-only, unavailable tiles). The design doesn't depend on it.
+- Whether GTK4 shows tooltips on insensitive widgets (unavailable tiles). The design doesn't depend on it.
+- Whether `GtkWindow:is-active` turns true again when the user comes back to this session after another user's (a session switch) under Hyprland. If it doesn't, logind's change signal for the session's `Active` property (org.freedesktop.login1, read 2026-10-26) could be a third trigger for connecting again, still without polling.
 - Arrow-key movement between grouped `GtkToggleButton`s.
 - Live-updating RPM figures inside an open `GtkDropDown` popover.
 - `GtkScale` snapping to whole stops while dragging, and a named value text for AT-SPI.

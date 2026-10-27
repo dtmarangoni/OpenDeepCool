@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Phase 5 plan: device and protocol core</title>
+<title>Phase 5: frames reach the LP360 byte-exact, without root, and keep reaching it after a reconnect</title>
 <style>
 /* prp-companion default theme. Always pasted first; $PRP_DIR/companion.css, when present,
    follows it and overrides any of these custom properties. */
@@ -122,7 +122,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
 
 <h2>The steps</h2>
 <div class="grid">
-  <div class="card" id="S1"><span class="step-n">1</span>The workspace builds, and its commands are documented<div class="files">Cargo.toml · crates/odc-protocol/ · crates/odc-device/ · crates/odc-testkit/ · AGENTS.md · README.md</div></div>
+  <div class="card" id="S1"><span class="step-n">1</span>The workspace builds, and its commands are documented<div class="files">Cargo.toml · crates/odc-protocol/ · AGENTS.md:109-112 · AGENTS.md · README.md:43-57</div></div>
   <div class="card" id="S2"><span class="step-n">2</span>A picture is a <code>Frame</code>, and rotation turns it clockwise<span class="chip">first test</span><div class="files">frame.rs · lib.rs</div></div>
   <div class="card" id="S3"><span class="step-n">3</span>Tests can load every expected frame and print a clear picture diff<div class="files">expected.rs · diff.rs · rotation_expected.rs</div></div>
   <div class="card" id="S4"><span class="step-n">4</span>Frames and the start-up command become the exact 64-byte reports<div class="files">report.rs</div></div>
@@ -130,7 +130,7 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
   <div class="card" id="S6"><span class="step-n">6</span><code>Lp360</code> keeps the cooler fed: <code>03 08</code> first on every connection, rescan after any failure<div class="files">port.rs · lp360.rs · record.rs · fake.rs</div></div>
   <div class="card" id="S7"><span class="step-n">7</span>The hidraw adapter finds the LP360 by USB ID under any node name<div class="files">hidraw.rs</div></div>
   <div class="card" id="S8"><span class="step-n">8</span>The udev rule and group are product files; dev scripts install and remove the dev copies<div class="files">70-opendeepcool.rules · opendeepcool.conf · reconnect.rules · setup.sh · teardown.sh · check.sh · opendeepcool-lp360.prd.md</div></div>
-  <div class="card" id="S9"><span class="step-n">9</span>Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)<div class="files">hardware.rs (odc-testkit) · crates/odc-e2e/ · device.rs</div></div>
+  <div class="card" id="S9"><span class="step-n">9</span>Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)<div class="files">hardware.rs · crates/odc-e2e/</div></div>
   <div class="card" id="S10"><span class="step-n">10</span>CI and the commit guard run the automated layers<div class="files">ci.yml · pre-commit · AGENTS.md</div></div>
 </div>
 
@@ -142,15 +142,17 @@ footer { margin-top: 2.5rem; color: var(--faint); font-size: .8rem; }
   <div class="card k" id="K4"><dl><dt>Decision or risk</dt><dd>GitHub CI exists after Task 10; AGENTS.md says to revisit merging without PRs then</dd><dt>Recommendation</dt><dd>Ask the owner at Phase 5 sign-off</dd><dt>Evidence / mitigation</dt><dd>AGENTS.md "How to work", owner 2026-10-23</dd><dt>Consequence if different</dt><dd>—</dd></dl></div>
   <div class="card k" id="K5"><dl><dt>Decision or risk</dt><dd>Two writers: the research rig and the real-device test</dd><dt>Recommendation</dt><dd>Never run them together; the test doc says so</dd><dt>Evidence / mitigation</dt><dd>DeepCreative writes to the same node</dd><dt>Consequence if different</dt><dd>Interleaved reports would fail the recording comparison, loudly</dd></dl></div>
   <div class="card k" id="K6"><dl><dt>Decision or risk</dt><dd><code>newgrp</code> is needed until the owner logs in again</dd><dt>Recommendation</dt><dd>Use <code>newgrp opendeepcool -c '…'</code> in the Task 9 command until then</dd><dt>Evidence / mitigation</dt><dd>Checked 2026-10-24: no password prompt</dd><dt>Consequence if different</dt><dd>None after the next login</dd></dl></div>
+  <div class="card k" id="K7"><dl><dt>Decision or risk</dt><dd>A wake-up from standby can't be tested by a real suspend</dd><dt>Recommendation</dt><dd>The device side runs real (<code>reset</code>, Task 9); logind's signal is tested with a fake in Phase 7, and a real suspend is only in the optional attended tour</dd><dt>Evidence / mitigation</dt><dd>Waking an unattended PC needs root (<code>wakealarm</code>)</dd><dt>Consequence if different</dt><dd>An automated suspend would sleep the owner's PC</dd></dl></div>
+  <div class="card k" id="K8"><dl><dt>Decision or risk</dt><dd>A write blocks for up to 5 s on a stalled device</dd><dt>Recommendation</dt><dd>Phase 7 runs <code>Lp360</code> on its own device thread; layer 4 records write durations (owner, 2026-10-26; solution review OV-03)</dd><dt>Evidence / mitigation</dt><dd>Kernel: <code>usbhid_output_report</code>, <code>USB_CTRL_SET_TIMEOUT</code> = 5000 ms</dd><dt>Consequence if different</dt><dd>A write on the tick thread would stall every frame</dd></dl></div>
 </div>
-<p class="quiet">Not building: the test-pattern binary · frame pacing, the scheduler, the service, logging to the journal, the settings file · renderers · sensors · the service account (<code>u!</code> line), packaging and the uninstall removal script · a uhid virtual device · several LP360s on one PC</p>
+<p class="quiet">Not building: The test-pattern binary · Frame pacing, the scheduler, the service, logging to the journal, the settings file · Renderers · Sensors · The service account (<code>u!</code> line), packaging and the uninstall removal script · A uhid virtual device · Several LP360s on one PC</p>
 
 <h2>Acceptance</h2>
 <div class="card" id="AC1"><strong>AC1 — Byte-exact encoding:</strong><ul><li>the spec vectors pass in CI;</li><li>every captured DeepCreative message (all of <code>research/logs/lp360-hidraw.log</code> and <code>reconnect-20261024.log</code>) decodes and re-encodes to the identical 64 bytes (Tasks 4–5).</li></ul></div>
 <div class="card" id="AC2"><strong>AC2 — Only documented messages:</strong><ul><li>outside <code>odc-protocol</code>, a <code>Report</code> can only come from <code>startup_report()</code> or <code>encode_frame</code> (a <code>compile_fail</code> test);</li><li>the real-device recording holds only start-up commands and frames (Tasks 4, 6, 9).</li></ul></div>
-<div class="card" id="AC3"><strong>AC3 — Rotation:</strong><ul><li>rotation property tests pass;</li><li>mode 1's static cases (8 of 112) match <code>docs/spec/frames/</code> in all four rotations, in unit tests and on the real cooler (Tasks 2, 3, 9).</li></ul></div>
+<div class="card" id="AC3"><strong>AC3 — Rotation:</strong><ul><li>rotation property tests pass;</li><li>mode 1's static cases (8 of 112) match <code>docs/spec/frames/</code> in all four rotations in unit tests, and one unrotated and one rotated example match on the real cooler (Tasks 2, 3, 9).</li></ul></div>
 <div class="card" id="AC4"><strong>AC4 — Reusable oracle:</strong><ul><li>every expected-frame file loads into typed cases (284 when Phase 5 runs);</li><li>a mismatch prints both pictures (Task 3).</li></ul></div>
-<div class="card" id="AC5"><strong>AC5 — Start-up and reconnect:</strong><ul><li>every connection starts with <code>03 08</code> before its first frame;</li><li>after the cooler disappears, <code>show</code> keeps rescanning and reconnects to it under a new hidraw number;</li><li>proven with fakes in CI and on the real cooler (Tasks 6, 7, 9).</li></ul></div>
+<div class="card" id="AC5"><strong>AC5 — Start-up and reconnect:</strong><ul><li>every connection starts with <code>03 08</code> before its first frame;</li><li>after the cooler disappears, <code>show</code> keeps rescanning and reconnects to it under a new hidraw number;</li><li>after <code>reset_connection()</code>, the next frame starts a new conversation with <code>03 08</code>, even when the node survived (owner, 2026-10-26);</li><li>proven with fakes in CI and on the real cooler (Tasks 6, 7, 9).</li></ul></div>
 <div class="card" id="AC6"><strong>AC6 — Without root:</strong><ul><li>the layer 4 tests run as a member of <code>opendeepcool</code>, with no <code>sudo</code>;</li><li>both udev rules pass <code>udevadm verify</code>;</li><li><code>scripts/dev/check.sh</code> passes before and after a reconnect (Tasks 8, 9).</li></ul></div>
 <div class="card" id="AC7"><strong>AC7 — Unattended:</strong><ul><li>every layer runs with no person;</li><li>CI and the pre-commit guard run layers 1 and 3;</li><li>layers 2 and 4 have documented local commands (Task 10).</li></ul></div>
 <div class="card" id="AC8"><strong>AC8 — Real where present, fake where absent:</strong><ul><li>the layer 4 run probes each capability on the PC it runs on;</li><li>present and usable means real; absent means the same checks against fakes; present but unusable fails with the setup fix;</li><li>capabilities named in <code>odc-e2e --require</code> must run real;</li><li>every run prints which mode each capability used (Task 9).</li></ul></div>

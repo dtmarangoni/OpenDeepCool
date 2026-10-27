@@ -46,20 +46,21 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 |---|---|---|---|---|
 | CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C | owner's PC |
 | CPU Temperature | hwmon | `name` is `k10temp`; the channel labelled `Tdie` if there is one, else `Tctl` | `tempN_input`, millidegrees C | kernel docs: `Tdie` is the real die temperature where it differs from `Tctl`. On CPUs older than family 17h, `Tctl` isn't a physical temperature, so the metric is unavailable there |
-| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy share = 1 − (idle + iowait) ÷ total, over the interval | owner's PC |
-| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = difference ÷ time; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) | owner's PC (Intel). AMD: the same zone since kernel 5.8 (5.11 for family 19h) according to Scaphandre's documentation; **unverified** until Phase 6 checks the kernel source |
+| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy = total − (idle + iowait) over the interval, kept as whole numbers ([display.md](display.md#values), exact whole-number arithmetic) | owner's PC |
+| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = ΔµJ ÷ Δµs, kept as whole numbers; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) | owner's PC (Intel). AMD: the same zone since kernel 5.8 (5.11 for family 19h) according to Scaphandre's documentation; **unverified** until Phase 6 checks the kernel source |
 | Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C | owner's PC |
 | Gpu usage | DRM | the chosen GPU's card, device driver `amdgpu` | `device/gpu_busy_percent`, percent | owner's PC |
 | Gpu power | hwmon | `name` is `amdgpu`: `power1_average` (labelled `PPT` on the owner's PC), else `power1_input` | microwatts | owner's PC for `power1_average`; `power1_input` (instantaneous power) from the amdgpu docs. On integrated AMD graphics this reading includes the CPU (amdgpu docs), so Gpu power is unavailable there (rule 11) |
 | Gpu temperature, usage, power | NVML | NVIDIA GPUs | NVIDIA's library | **unverified**: NVIDIA's driver has no hwmon interface (a pull request to add one exists, NVIDIA open-gpu-kernel-modules #1169, status unverified). Phase 6 chooses the NVML calls from NVIDIA's documentation |
 | Gpu metrics | — | other GPU drivers, such as Intel `i915` and `xe`, or `nouveau` | — | no rule yet: Phase 6 researches what their documentation offers; until then unavailable |
-| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal | owner's PC |
+| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal, kept as whole numbers | owner's PC |
 | Cooler fans (CPU Fan I/O), pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
 
 - **Board sensor driver:** a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
   - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
   - `sensors-detect` probes the board's sensor chips, writes that file, then enables and starts `lm_sensors.service`, which loads the listed drivers at every boot.
   - An existing configuration is never overwritten.
+  - Its record of what it created, and for which board, lives in a root-only directory of its own, `/var/lib/opendeepcool-detect/`, never in the display service's (owner, 2026-10-26). The record holds yes/no facts, never paths.
   - lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems"; by default it skips that probing when a Super I/O chip already provides voltages, fans and temperatures, except on ASUS, Tyan and Supermicro boards. When it finds no sensors, it writes nothing; the once-per-motherboard record stops it from running again at every boot.
   - Evidence: system: the `sensors-detect` script of lm_sensors 3.6.2, read 2026-10-23 (its chip table maps the owner's sensor chip to `nct6683`); Arch Wiki, lm_sensors.
 - **Evidence:** system: every rule marked owner's PC matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org (hwmon sysfs interface, coretemp, k10temp, amdgpu thermal, powercap).
@@ -69,8 +70,9 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 
 - **Refresh:** OpenDeepCool reads every metric once per second, as DeepCreative does. CPU usage and CPU power are averages over that second, computed from two counter readings. Gpu usage is the driver's own percentage, shown as read; the window it covers isn't documented (**unverified**). System: on the owner's PC it rose from 2 % to 99–100 % within 2 s of a GPU load (an `ffmpeg` Vulkan filter) and was back at 2 % about 3 s after it stopped, 2026-10-23.
 - **Gpu power** is likewise the driver's own value (`power1_average`), shown as read; the window it averages over isn't documented (**unverified**). System: `sensors` reads the same file (a read right after `sensors` matched it 7 times out of 8). At idle it held steady; under a full GPU load, reads a fraction of a second apart differed by up to about a third, so the once-per-second value moves by tens of watts, 2026-10-23.
-- **Rounding:** the reading keeps its fraction until it's drawn. [display.md](display.md#values) defines the rounding per metric (usage and temperature round up, Memory Load rounds to nearest, and so on).
+- **Rounding:** every reading keeps its source's whole-number units (jiffies, kB, millidegrees, µW, mW, µJ over µs) until it's drawn. [display.md](display.md#values) defines the rounding: every measurement rounds to the nearest whole number, halves up, in integer arithmetic only (owner, 2026-10-26). DeepCreative rounds usage, temperature and power up.
 - **Units:** temperatures are read in °C; °F is a display conversion ([display.md](display.md#values)).
+- **After standby** (owner, 2026-10-26): when the PC wakes from sleep, every reading averaged over the interval starts a new one, as at start-up: CPU usage, and power from an energy counter (CPU power, and Gpu power on Intel graphics). So no average spans the sleep; until that first second has passed, the cooler shows dashes for them. What the counters do during sleep then doesn't matter (**unverified**).
 
 ## GPU choice
 

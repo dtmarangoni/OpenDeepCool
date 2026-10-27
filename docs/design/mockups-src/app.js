@@ -66,12 +66,14 @@ const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "...
   ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
   ".....#.#......", ".....#.#......", ".....#.#......", ".....#.#......"];
 
+// display.md, Values (owner, 2026-10-26): every measurement rounds to the nearest whole number, halves up
+// (usage, RAM, °C, power); °F is rounded once from the exact °C; every number is capped at 9999; a negative,
+// missing or non-finite reading draws dashes. The service works in whole-number units; the mockups' sample
+// readings are whole numbers, so floating point is fine here.
+const nearest = x => Math.floor(x + 0.5); // halves up: 57.5 → 58, 99.5 → 100
 function numberFor(metric, v, unit) {
   if (v === null || v === undefined || !isFinite(v) || v < 0) return null;
-  let n;
-  if (metric === "ram") n = Math.floor(v + 0.5);
-  else if (metric.endsWith("temp") && unit === "F") n = Math.floor(Math.ceil(v) * 9 / 5 + 32);
-  else n = Math.ceil(v);
+  const n = metric.endsWith("temp") && unit === "F" ? nearest(v * 9 / 5 + 32) : nearest(v);
   return Math.min(n, 9999);
 }
 function symFor(metric, unit) {
@@ -195,7 +197,7 @@ const ICON = {
 // ---------- view ----------
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 const fmt = n => n.toLocaleString("en-US");
-const canChange = () => S.service && !S.readOnly;
+const canChange = () => S.service;
 const dis = () => (canChange() ? "" : " disabled");
 
 function gpuLabel(g) { return g.name ? `${g.kind} · ${g.name}` : `${g.kind} · ${g.driver} · ${g.pci}`; }
@@ -217,21 +219,21 @@ function banners() {
       <button class="btn" aria-label="Copy start command" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div>`;
     return out;
   }
-  if (S.readOnly) out += `<div class="banner info" role="status" aria-label="View-only banner">${ICON.info}
-      <div class="banner-text"><strong>View only.</strong> Settings can be changed only from the session at the PC.</div></div>`;
   if (!S.cooler) out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
       <div class="banner-text"><strong>The cooler isn't connected.</strong> Changes are still saved, and the cooler shows them when it's back.</div></div>`;
   return out;
 }
 
 function header() {
+  const name = `<div class="hb-start"><span class="app-name">OpenDeepCool</span></div>`;
+  // Not available in this session: the header bar keeps only the app name (no switcher, no Refresh).
+  if (S.notAvailable) return `<header class="hb bare">${name}</header>`;
   const tab = (id, text) => `<button role="tab" class="seg${S.page === id ? " on" : ""}" aria-selected="${S.page === id}"
       aria-label="${text}"${S.service ? "" : " disabled"} onclick="go('${id}')">${text}</button>`;
-  const roTip = S.readOnly ? "Only the session at the PC can refresh the display" : "Refresh the display: fresh readings, picture from the start";
   return `<header class="hb">
-    <div class="hb-start"><span class="app-name">OpenDeepCool</span></div>
+    ${name}
     <div class="segs" role="tablist" aria-label="Pages">${tab("display", "Display")}${tab("config", "Configuration")}</div>
-    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="${roTip}"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
+    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="Refresh the display: fresh readings, picture from the start"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
   </header>`;
 }
 
@@ -383,10 +385,19 @@ function emptyPage() {
   return `<div class="page empty"><div><h2>Settings appear here when the service runs</h2>
     <p class="muted">The service keeps the settings for the whole PC; the app only shows and changes them.</p></div></div>`;
 }
+// Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
+// and nothing else: no banner, no preview column, no pages, no status, no RPM, no controls.
+function notAvailablePage() {
+  return `<div class="body"><main class="content only">
+    <div class="page empty" role="status" aria-label="Not available in this session"><div>
+      <h2>OpenDeepCool can be used only from the session at the PC</h2>
+      <p class="muted">This session is remote or not the active one.</p></div></div></main></div>`;
+}
 
 function render() {
   const win = document.getElementById("win");
-  win.className = "window" + (S.readOnly ? " view-only" : "");
+  win.className = "window";
+  if (S.notAvailable) { win.innerHTML = header() + notAvailablePage(); return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
     !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div><div id="toast" class="toast" role="status"></div>`;
   paintAll();

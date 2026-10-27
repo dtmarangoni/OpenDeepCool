@@ -65,12 +65,12 @@ button { font: inherit; color: inherit; }
 .seg.on, .tile.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :disabled { cursor: default; opacity: .45; }
-.view-only :disabled { opacity: .8; }
 .tile.on:disabled { opacity: 1; }
 
 .hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 8px 12px; gap: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .app-name { font-weight: 600; }
+.hb.bare { padding-top: 14px; padding-bottom: 14px; } /* no buttons: same height as the full header bar */
 .hb-end { justify-self: end; }
 .segs { display: inline-flex; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
@@ -82,7 +82,6 @@ button { font: inherit; color: inherit; }
 .banner svg { margin-top: 2px; }
 .banner.error { background: color-mix(in srgb, var(--red) 16%, var(--bg)); } .banner.error > svg { color: var(--red); }
 .banner.warn { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); } .banner.warn > svg { color: var(--yellow); }
-.banner.info { background: color-mix(in srgb, var(--accent) 12%, var(--bg)); } .banner.info > svg { color: var(--accent); }
 .banner-text { flex: 1; }
 .banner code { display: block; margin: 6px 0; font: 13px ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
 
@@ -142,6 +141,9 @@ button { font: inherit; color: inherit; }
 .marks span.on { color: var(--fg); font-weight: 600; }
 .empty { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 400px; }
 .empty h2 { font-size: 17px; margin: 0 0 6px; }
+/* Not available in this session: the message alone, centred in the whole window body */
+.content.only { display: flex; }
+.content.only .empty { flex: 1; }
 .toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--surface); color: var(--fg);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius); display: none; }
 .toast.show { display: block; }
@@ -158,12 +160,12 @@ button { font: inherit; color: inherit; }
       <button data-t="dark" onclick="setTheme('dark')">Default theme, dark</button>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
-  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-picker-open.html">Configuration, fan picker open</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="service-not-running.html">Service not running</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="read-only.html">View-only session</a><a href="one-gpu.html">One GPU</a><a href="missing-input-gpu.html">Saved fan input and GPU missing</a><a href="no-fan-sensors.html">No fan sensors</a></nav>
+  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-picker-open.html">Configuration, fan picker open</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="service-not-running.html">Service not running</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="missing-input-gpu.html">Saved fan input and GPU missing</a><a href="no-fan-sensors.html">No fan sensors</a></nav>
   <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up.</p>
 </div>
 <div id="win" class="window"></div>
 <script>
-const CONFIG = {"theme": "omarchy", "page": "config", "service": true, "cooler": true, "audio": true, "readOnly": false, "mode": 9, "unit": "C", "rotation": 0, "gpus": [{"kind": "Dedicated", "name": "Contoso Graphics R870", "driver": "exgpu", "pci": "0000:03:00.0"}], "gpu": 0, "gpuInUse": 0, "fans": [{"chip": "acme6000", "label": "", "input": 1, "rpm": 1180}, {"chip": "acme6000", "label": "", "input": 2, "rpm": 2750}, {"chip": "acme6000", "label": "", "input": 3, "rpm": 940}, {"chip": "acme6000", "label": "", "input": 4, "rpm": 0}, {"chip": "acme6000", "label": "", "input": 5, "rpm": 1620}, {"chip": "acme-ec", "label": "Rear Fan", "input": 1, "rpm": 860}], "fan": 0, "pump": 1, "missing": {"fan": false, "pump": false}, "unavailable": {}, "live": {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}, "peaks": true, "barFall": 2, "peakFall": 1, "open": null};
+const CONFIG = {"theme": "omarchy", "page": "config", "service": true, "cooler": true, "audio": true, "notAvailable": false, "mode": 9, "unit": "C", "rotation": 0, "gpus": [{"kind": "Dedicated", "name": "Contoso Graphics R870", "driver": "exgpu", "pci": "0000:03:00.0"}], "gpu": 0, "gpuInUse": 0, "fans": [{"chip": "acme6000", "label": "", "input": 1, "rpm": 1180}, {"chip": "acme6000", "label": "", "input": 2, "rpm": 2750}, {"chip": "acme6000", "label": "", "input": 3, "rpm": 940}, {"chip": "acme6000", "label": "", "input": 4, "rpm": 0}, {"chip": "acme6000", "label": "", "input": 5, "rpm": 1620}, {"chip": "acme-ec", "label": "Rear Fan", "input": 1, "rpm": 860}], "fan": 0, "pump": 1, "missing": {"fan": false, "pump": false}, "unavailable": {}, "live": {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}, "peaks": true, "barFall": 2, "peakFall": 1, "open": null};
 "use strict";
 // OpenDeepCool settings app mockup. All readings, chips and GPU names are made up.
 const S = JSON.parse(JSON.stringify(CONFIG));
@@ -232,12 +234,14 @@ const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "...
   ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
   ".....#.#......", ".....#.#......", ".....#.#......", ".....#.#......"];
 
+// display.md, Values (owner, 2026-10-26): every measurement rounds to the nearest whole number, halves up
+// (usage, RAM, °C, power); °F is rounded once from the exact °C; every number is capped at 9999; a negative,
+// missing or non-finite reading draws dashes. The service works in whole-number units; the mockups' sample
+// readings are whole numbers, so floating point is fine here.
+const nearest = x => Math.floor(x + 0.5); // halves up: 57.5 → 58, 99.5 → 100
 function numberFor(metric, v, unit) {
   if (v === null || v === undefined || !isFinite(v) || v < 0) return null;
-  let n;
-  if (metric === "ram") n = Math.floor(v + 0.5);
-  else if (metric.endsWith("temp") && unit === "F") n = Math.floor(Math.ceil(v) * 9 / 5 + 32);
-  else n = Math.ceil(v);
+  const n = metric.endsWith("temp") && unit === "F" ? nearest(v * 9 / 5 + 32) : nearest(v);
   return Math.min(n, 9999);
 }
 function symFor(metric, unit) {
@@ -361,7 +365,7 @@ const ICON = {
 // ---------- view ----------
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
 const fmt = n => n.toLocaleString("en-US");
-const canChange = () => S.service && !S.readOnly;
+const canChange = () => S.service;
 const dis = () => (canChange() ? "" : " disabled");
 
 function gpuLabel(g) { return g.name ? `${g.kind} · ${g.name}` : `${g.kind} · ${g.driver} · ${g.pci}`; }
@@ -383,21 +387,21 @@ function banners() {
       <button class="btn" aria-label="Copy start command" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div>`;
     return out;
   }
-  if (S.readOnly) out += `<div class="banner info" role="status" aria-label="View-only banner">${ICON.info}
-      <div class="banner-text"><strong>View only.</strong> Settings can be changed only from the session at the PC.</div></div>`;
   if (!S.cooler) out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
       <div class="banner-text"><strong>The cooler isn't connected.</strong> Changes are still saved, and the cooler shows them when it's back.</div></div>`;
   return out;
 }
 
 function header() {
+  const name = `<div class="hb-start"><span class="app-name">OpenDeepCool</span></div>`;
+  // Not available in this session: the header bar keeps only the app name (no switcher, no Refresh).
+  if (S.notAvailable) return `<header class="hb bare">${name}</header>`;
   const tab = (id, text) => `<button role="tab" class="seg${S.page === id ? " on" : ""}" aria-selected="${S.page === id}"
       aria-label="${text}"${S.service ? "" : " disabled"} onclick="go('${id}')">${text}</button>`;
-  const roTip = S.readOnly ? "Only the session at the PC can refresh the display" : "Refresh the display: fresh readings, picture from the start";
   return `<header class="hb">
-    <div class="hb-start"><span class="app-name">OpenDeepCool</span></div>
+    ${name}
     <div class="segs" role="tablist" aria-label="Pages">${tab("display", "Display")}${tab("config", "Configuration")}</div>
-    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="${roTip}"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
+    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="Refresh the display: fresh readings, picture from the start"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
   </header>`;
 }
 
@@ -549,10 +553,19 @@ function emptyPage() {
   return `<div class="page empty"><div><h2>Settings appear here when the service runs</h2>
     <p class="muted">The service keeps the settings for the whole PC; the app only shows and changes them.</p></div></div>`;
 }
+// Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
+// and nothing else: no banner, no preview column, no pages, no status, no RPM, no controls.
+function notAvailablePage() {
+  return `<div class="body"><main class="content only">
+    <div class="page empty" role="status" aria-label="Not available in this session"><div>
+      <h2>OpenDeepCool can be used only from the session at the PC</h2>
+      <p class="muted">This session is remote or not the active one.</p></div></div></main></div>`;
+}
 
 function render() {
   const win = document.getElementById("win");
-  win.className = "window" + (S.readOnly ? " view-only" : "");
+  win.className = "window";
+  if (S.notAvailable) { win.innerHTML = header() + notAvailablePage(); return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
     !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div><div id="toast" class="toast" role="status"></div>`;
   paintAll();

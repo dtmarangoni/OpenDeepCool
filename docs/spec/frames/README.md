@@ -2,13 +2,19 @@
 
 The frame OpenDeepCool must send to the LP360 for every case of the test matrix: every mode × the four rotations × °C and °F where a temperature is shown, with three value sets per case. The Rust tests compare their output with these files (PRD, Testing Strategy).
 
-They're drawn from the spec's rules alone ([display.md](../display.md), [music.md](../music.md)): OpenDeepCool's rules, which differ from DeepCreative's on purpose in a few places (owner decisions of 2026-10-24):
+They're drawn from the spec's rules alone ([display.md](../display.md), [music.md](../music.md)): OpenDeepCool's rules, which differ from DeepCreative's on purpose in a few places (owner decisions of 2026-10-24, and the rounding of 2026-10-26):
 - every value in full, never capped;
 - static while every value is 99 or less, scrolling while one is 100 or more, °F and power included;
 - one value centred, two values ending at column 14;
-- where DeepCreative shows the wrong metric, the metric the mode names (AGENTS.md rule 11), for example the CPU Temperature in mode 18 in °F.
+- where DeepCreative shows the wrong metric, the metric the mode names (AGENTS.md rule 11), for example the CPU Temperature in mode 18 in °F;
+- every measurement rounded to the nearest whole number, halves up, and °F rounded once from the exact °C reading.
 
 Where the two sets of rules agree (for example two-digit usage, or two-digit °C in one band), the same cases reproduce DeepCreative's captured frames pixel for pixel. Regenerated on 2026-10-24 with these rules: 172 of the 292 cases changed.
+
+**Regenerated again on 2026-10-26** for the nearest rule (owner, `display.md` Values): 24 of the 284 cases changed, all in °F.
+- 57 °C now draws `135°F` and 7 °C draws `45°F`, where DeepCreative's rule gives `134°F` and `44°F`.
+- They're in modes 7 and 18 (CPU Temperature 57), modes 8 and 19 (Gpu temperature 7), and mode 9 (both), each in all four rotations.
+- The other 260 cases are unchanged, byte for byte: every other reading is a whole number, and its °F conversion rounds the same either way.
 
 ## Format
 

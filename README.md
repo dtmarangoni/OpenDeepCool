@@ -31,6 +31,7 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 | Document | What it covers |
 |---|---|
 | [PRD](docs/prp/prds/opendeepcool-lp360.prd.md) | Problem, scope, decisions, phases, planned system footprint |
+| [Solution reviews](docs/prp/solution-reviews/README.md) | Architecture, best-practice and security reviews of the whole solution and of each phase's plan, done after planning and before implementation |
 | [Phase 1 report](docs/research/phase1-wine-spike.md) | Wine spike, USB message format, full list of display modes |
 | [LP360 notes](docs/hardware/deepcool-lp360.md) | Wiring, identity, what the manual does and doesn't say |
 | [Reference documents](docs/reference/README.md) | Vendor manuals kept locally (not in git) and where to get them |

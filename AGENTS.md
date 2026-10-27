@@ -16,13 +16,17 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 ## Start of every session
 
 1. Read the PRD at `docs/prp/prds/opendeepcool-lp360.prd.md`. Its **Implementation Phases** table is the only record of progress.
-2. Find the current phase: the first row whose status isn't `complete` and whose dependencies are all `complete`. Open its plan (Plan column) and its latest report, if there is one.
+2. Find the current phase: the first row whose status isn't `complete` and whose dependencies are all `complete`. Open its plan (Plan column), its solution review in `docs/prp/solution-reviews/`, and its latest report, if they exist.
 3. Run `git status` and `git log --oneline -15` to see where the work stopped.
 4. Before changing anything, tell the owner in one or two lines which phase and step you're on.
 
 ## How to work
 
 - Work only on the current phase, and only on the steps in its plan. Get the owner's OK before adding scope, switching phases or skipping a step.
+- **Solution review, between plan and implementation:** once a phase's plan exists, and before implementing it, review it for architecture, best practices, security, bottlenecks and coherence with the PRD and other plans.
+  - Write the review to `docs/prp/solution-reviews/phase-N-<slug>.review.md`, and update `project-overview.review.md` there when the architecture changes.
+  - A review only reports; it never edits the PRD, a plan, the spec or code.
+  - Cross its findings with the PRD and the plan together with the owner, and put the agreed changes into those documents before writing code ([how](docs/prp/solution-reviews/README.md)).
 - After a context compaction or a long pause, re-read the current plan step before continuing.
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
@@ -47,11 +51,11 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - Use Conventional Commits style (`feat:`, `fix:`, `test:`, `docs:`, `chore:`, `refactor:`).
    - Never commit failing tests or a broken build.
 5. **Tests with every step, every combination automated** (details: PRD, Testing Strategy):
-   - cover the whole test matrix (every mode × rotation × unit, scrolling included), never samples; give every metric its own distinct, non-zero value in each case;
+   - cover the whole test matrix (every mode × rotation × unit, scrolling included) and every scenario in the in-process layers (unit and integration), never samples; give every metric its own distinct, non-zero value in each case;
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
-   - e2e: an unattended run compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `odc-e2e --require <list>` names what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24). Test options are program flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24).
+   - e2e: an unattended run on the real cooler takes one example of each mode and of each test type (owner, 2026-10-26: the whole cross would take days in real time, and runs in-process instead), and compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `odc-e2e --require <list>` names what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24). Test options are program flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
    - Keep all of it outside the repository; `.gitignore` excludes it.
@@ -97,6 +101,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/prp/prds/` | PRD: scope, decisions, phase status |
 | `docs/prp/plans/` | One plan per phase (from Phase 3), with its HTML companion |
 | `docs/prp/reports/` | Implementation reports |
+| `docs/prp/solution-reviews/` | Solution reviews: the whole solution and each phase's plan, reviewed after planning and before implementation; their findings are crossed with the owner before any code |
 | `docs/spec/` | Functionality and protocol spec (from Phase 3) |
 | `docs/design/` | The settings app's design, its mockups and the mockup generator (`mockups-src/gen.py`); a UI change updates them before the code |
 | `docs/research/` | Spike and research reports (e.g. `phase1-wine-spike.md`) |

@@ -39,7 +39,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Dashes on the cooler.** When the saved mode loses a reading after it was chosen, the cooler shows dashes (`--%`, `--°C`) and the app keeps that mode selected and shows the reason. The preview must draw the same dashes (`docs/spec/display.md`, Unavailable values).
 - **GPU list order.** Dedicated first, then integrated, then GPUs whose driver doesn't say; a GPU with no reading rule is listed last, and choosing it disables the GPU modes.
 - **Intel GPUs report no usage.** Modes showing Gpu usage are disabled on them.
-- **Talking to the service.** The app uses the D-Bus system bus; in a remote or inactive session it shows the settings read-only (polkit).
+- **Talking to the service.** The app uses the D-Bus system bus. (Its read-only view for remote or inactive sessions was replaced on 2026-10-26: see below.)
 - **Mode names: Load, Temperature, Power, Music.** Short names only. Never "Guardian", and no "Mode" after the name, in any label, menu or heading.
 - **Refresh button.** One button that syncs the display: fresh readings at once, and the picture restarts from its home position. Only for users who may change settings.
 - **Unit and GPU choices.** Changing the temperature unit while a mode without temperatures is shown changes nothing on the cooler; it's saved for the temperature modes. Choosing another GPU restarts the picture like a mode change.
@@ -48,6 +48,12 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 
 - **Configuration screen** (owner, 2026-10-25). Every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay on the screen where the mode is chosen. That screen holds the rotation, the GPU choice, the fan and pump inputs, and the Music settings.
 - **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a bar fall slider and a peak fall slider, each with Winamp's five stops: slower, slow, moderate, fast, faster (defaults moderate for bars, slow for peaks). The preview's spectrum follows them (`docs/spec/music.md`, OpenDeepCool's spectrum, precisely).
+
+## Design brief (owner, 2026-10-26)
+
+- **Only the user at the PC.** No remote or inactive session can use OpenDeepCool, only the user of the active local session. The service refuses such a session every read, change and preview frame, so the app there shows one short message that OpenDeepCool is used from the session at the PC, and nothing else: no values, no preview, no controls. There's no view-only state any more.
+- **Back from standby.** The monitor may turn off for inactivity, the screen may lock and the PC may sleep. The app needs no action afterwards: its preview follows the cooler again when frames return. No new screen.
+- **Numbers follow the spec's rounding.** Everything the mockups draw uses `docs/spec/display.md` Values: the nearest whole number, halves up, and °F rounded once from the exact °C.
 
 ## Constraints
 
@@ -61,7 +67,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
   - the PC has one GPU (no GPU control) or more than one (the dropdown);
   - a saved fan input or GPU is missing;
   - no fan sensors were found for the cooler's fans and pump;
-  - the user may only view the settings (a remote or inactive session).
+  - the app is opened in a remote or inactive session: it can't use OpenDeepCool there, and says so in one message, showing nothing else (owner, 2026-10-26).
 - **Settings app scope** (PRD Phase 10):
   - screens for all modes and settings;
   - a live preview of the 14×14 display, rotation included;

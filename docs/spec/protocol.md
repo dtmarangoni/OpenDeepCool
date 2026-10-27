@@ -91,7 +91,20 @@ Tested on 2026-10-24: DeepCreative ran under Wine, sending frames, while the coo
 - it keeps looking for the cooler for as long as it runs, instead of giving up after a few tries;
 - after every reconnect, it sends `03 08` before the first frame, exactly as at start-up. A reconnect is a new start of the conversation with the cooler, and `03 08` is the only thing DeepCreative was seen sending first.
 
+## Standby
+
+Not tested with DeepCreative. What a USB device goes through while the PC sleeps (suspend or hibernate) depends on the board: it may keep power, lose it, or be removed and added again on wake-up (**unverified** for the LP360).
+
+- Removed and added again: that's a reconnect ([above](#disconnect-and-reconnect)).
+- If its device node survives, no write fails, so nothing shows that the cooler may have lost power.
+
+**OpenDeepCool** (owner, 2026-10-26: when the PC comes back from standby, OpenDeepCool must be back):
+- after every wake-up it starts a new conversation with the cooler, as after a reconnect: it closes the device node, finds the cooler again by its USB ID, and sends `03 08` before the next frame. Sending `03 08` to a cooler that kept power is what every DeepCreative start does ([Start-up command](#start-up-command)).
+- It learns of the wake-up from logind's `PrepareForSleep` signal with the argument false, sent right after suspend or hibernation (org.freedesktop.login1(5)). A gap in time can't show it: the monotonic clock doesn't count the time the PC sleeps (clock_gettime(2)).
+- The monitor turning off or the screen locking isn't standby: the PC keeps running and the cooler keeps showing live values.
+
 ## Open
 
 - What `03 08` does, and whether the display works without it: unverified. OpenDeepCool sends it as DeepCreative does, so this doesn't block Phase 5.
 - Whether DeepCreative sends `03 08` again after a reconnect: unverified ([Disconnect and reconnect](#disconnect-and-reconnect)). OpenDeepCool does.
+- What the LP360 goes through while the PC sleeps: unverified ([Standby](#standby)). OpenDeepCool starts a new conversation after every wake-up either way.

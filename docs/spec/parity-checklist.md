@@ -19,6 +19,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | P7 | - | At exit DeepCreative sends no special message | [protocol](protocol.md#session-end-and-the-display-without-frames) | capture: clean quit, 2026-10-22 | reviewed 2026-10-23: evidence re-run on all 8 captures |
 | P8 | - | Without frames the cooler keeps the last picture for about 10 s, then goes blank | [protocol](protocol.md#session-end-and-the-display-without-frames) | owner: 2026-10-22 | ok 2026-10-22: last picture, then blank after about 10 s |
 | P9 | - | When the cooler disappears, DeepCreative retries 3 times in about 1.8 s, then drops it; the cooler returns under another hidraw number. Whether DeepCreative sends `03 08` after a reconnect is unverified; OpenDeepCool keeps looking and sends `03 08` before the first frame after every reconnect | [protocol](protocol.md#disconnect-and-reconnect) | capture: reconnect test, 2026-10-24, three cycles | reviewed 2026-10-24: owner chose to send `03 08` after every reconnect |
+| P10 | - | After every wake-up from standby, OpenDeepCool starts a new conversation with the cooler: it opens it again and sends `03 08` before the next frame, even when the device node survived. DeepCreative's behaviour after standby wasn't tested | [protocol](protocol.md#standby) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision (solution reviews P3-04, P5-05, OV-19) |
 
 ## Display: grid, values and glyphs
 
@@ -72,6 +73,8 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D39 | - | Static alignment: one value centred in 14 columns (with an odd number of spare columns, the extra one goes on the left); two values both end at column 14. DeepCreative uses fixed columns for both (units 6–8, symbol from 10). A unit change resets the picture like a mode switch (confirmed) | [display](display.md#static-layout-usage-and-temperature-in-c) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision |
 | D40 | - | A rotation change resets the picture to home like a mode switch; a strip still at home stops at once when the values fit; in two-value modes the longer value's first digit stays put; negative, not-a-number and infinite readings draw dashes | [display](display.md#values) | owner: 2026-10-24 | reviewed 2026-10-24: owner decisions |
 | D41 | - | Choosing what's already set changes nothing; a unit change in a mode without a temperature is only saved; choosing another GPU resets like a mode switch; the app's Refresh takes fresh readings and restarts the picture from home. DeepCreative has no Refresh | [display](display.md#mode-switches) | owner: 2026-10-24 | reviewed 2026-10-24: owner decisions |
+| D42 | - | Every number drawn is computed in integer arithmetic from its source's whole-number units, with no floating point between a sensor and a digit, so an exact 57.5 % draws `58%` | [display](display.md#values) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision (solution review OV-08) |
+| D43 | - | Every measurement rounds to the nearest whole number, halves up: usage, Memory Load, temperatures, power, and °F rounded once from the exact °C reading. DeepCreative rounds usage, temperature and power up, and drops °F's fraction (D3, D5–D7), so 57 °C draws `135°F` where DeepCreative drew `134°F` | [display](display.md#values) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision |
 
 ## Music Mode
 
@@ -97,6 +100,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | M18 | - | Delay from sound to frame: at most 150 ms for 95 % of frames | [music](music.md#opendeepcools-spectrum-precisely) | owner: 2026-10-25 | reviewed 2026-10-25: owner decision |
 | M19 | 14–17 | A reset restarts the emoji loop from its first picture | [music](music.md#emoji-animations-modes-1417) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner decision |
 | M20 | 23 | Music → Dancer (OpenDeepCool's own): a stick figure on the whole grid, standing still in silence, moving to its next pose on each bass beat (sways when soft, big moves when loud) | [music](music.md#dancer-mode-23-opendeepcools-own) | owner: 2026-10-25, on the preview page | reviewed 2026-10-25: owner approved |
+| M21 | 13–23 | Sound is taken only while a Music mode is shown; in every other mode nothing is captured | [music](music.md#spectrum-analysis-opendeepcools-own) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision (solution review OV-05) |
 
 ## Sensors
 
@@ -112,6 +116,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | S8 | - | Memory Load: (MemTotal − MemAvailable) ÷ MemTotal | [sensors](sensors.md#metrics) | code: HWiNFO sample; system | reviewed 2026-10-23: used ÷ total, where used = total − available |
 | S9 | - | Cooler fans (DeepCreative's CPU Fan I/O) and pump: the user picks a fan input for each, from every sensor chip except a graphics card's, with none chosen by default; their RPM shows in the settings app, never on the cooler | [sensors](sensors.md#fan-and-pump-speed) | code: LP page settings, helper's fan list (traced 2026-10-23) | reviewed 2026-10-23: owner decision |
 | S10 | - | GPU choice: dedicated before integrated; a dropdown only with more than one GPU, set to the dedicated one at first; kept across reboots | [sensors](sensors.md#gpu-choice) | owner: 2026-10-23 decision | reviewed 2026-10-23: owner decision |
+| S11 | - | After a wake-up from standby, every reading averaged over the interval starts a new one, as at start-up, with dashes for its first second | [sensors](sensors.md#updates-and-rounding) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision |
 
 ## Settings
 
@@ -122,7 +127,8 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | T3 | - | Rotate Screen is one button: each press adds a quarter turn clockwise, 3 wraps to 0 | [settings](settings.md#settings) | code: LP page (`rotatingScreenfun`); capture: 2026-10-23, the button pressed 4 times on `23%` | reviewed 2026-10-23: every frame matched the rendered `23%` turned 90°, 180°, 270°, then upright again, about 0.3 s after each press |
 | T4 | - | Temperature unit is one global setting; the device options' field of the same name has no effect | [settings](settings.md#settings) | capture: field at 1, global Celsius, mode 7 drew `57°C` | reviewed 2026-10-23: global unit seen switching every temperature mode; the device field is a hidden setting, not sent again (AGENTS.md rule 8) |
 | T6 | - | Start-up: `03 08`, then the saved picture at once; OpenDeepCool skips DeepCreative's 3 s blank before a scrolling mode | [settings](settings.md#start-up) | capture: restarts of 2026-10-22 and 2026-10-23, window on the home page; owner watched the cooler | ok 2026-10-23 |
+| T7 | - | Only the active local session uses OpenDeepCool: reads, the preview and changes. A remote or inactive session gets nothing, and nothing the service sends is broadcast | [settings](settings.md#what-the-settings-app-must-offer) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision (solution review P10-01) |
 
 ## Sign-off
 
-Signed off by the owner on 2026-10-23: all 73 rows checked, on the cooler or by reviewing their evidence. P9 was added on 2026-10-24 and reviewed by the owner the same day.
+Signed off by the owner on 2026-10-23: all 73 rows checked, on the cooler or by reviewing their evidence. P9 was added on 2026-10-24 and reviewed by the owner the same day. D42, D43, M21, P10, S11 and T7 were added on 2026-10-26, as owner decisions from the solution review.

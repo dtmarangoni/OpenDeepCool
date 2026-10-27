@@ -25,6 +25,7 @@
   - peak dots hold above them, then drop.
 - **Timing:** sound reaches the cooler within 150 ms for 95 % of frames.
 - **No setup:** it starts at login. Before anyone logs in, or while the session isn't the active local one, the spectrum is the silent floor line.
+- **Sound only when it's used** (owner, 2026-10-26; solution review OV-05): sound is taken only while a Music mode is shown. In every other mode nothing is captured, and no capture stream exists.
 
 **Invariant:**
 - **Spectrum:** every spectrum frame is the result of `music.md` "OpenDeepCool's spectrum, precisely" applied to the last 2048 mono samples at that tick: bands, loudness, bar fall, peak dots and continuity.
@@ -33,7 +34,7 @@
   - the emoji loops are exact, and restart on a reset;
   - the value area (rows 2–6) follows `display.md` for its metric and unit, the 9999 cap and dashes included, and only it scrolls.
 - **Dancer:** mode 23's pose at every tick is the one `music.md` Dancer gives for the column levels so far. In silence he stands still and straight.
-- **Sources of sound:** the service takes audio only from a caller polkit authorizes as being in the active local session. Losing that authorization stops the sound within one second.
+- **Sources of sound:** the service takes audio only from a caller polkit authorizes as being in the active local session. Losing that authorization stops the sound within one second. It takes audio only while a Music mode is shown: leaving Music closes the pipe at once.
 - **Timing:** one frame per 100 ms tick. Music never delays a frame or changes a non-Music mode.
 
 **Success signal:** These modes' checklist items pass (M1–M20), and the measured delay from sound to frame is at most 150 ms for 95 % of frames (PRD Phase 9; owner, 2026-10-25), on the real cooler, unattended.
@@ -47,20 +48,31 @@
   - the dancer.
 - **A tiny user-session helper**, `opendeepcool-audio`:
   - asks the service for a pipe over D-Bus;
-  - runs PipeWire's own `pw-record` on the default output's monitor, writing raw samples straight into that pipe.
+  - runs PipeWire's own `pw-record` on the default output's monitor, writing raw samples straight into that pipe;
+  - does both only while the service says it wants sound (`AudioWanted`, true exactly in Music modes), and waits for events rather than polling.
 - **polkit authorizes the helper**, through a new `feed-audio` action (`allow_active` only).
-- **Three new settings** (peak dots, bar fall, peak fall) join settings v1, with D-Bus properties and setters for Phase 10's configuration screen.
+- **Three new settings** (peak dots, bar fall, peak fall) join settings v1, as state keys with setters for Phase 10's configuration screen (Phase 7: no D-Bus properties; owner, 2026-10-26).
 
 ## Recommendation
 
 **The service analyses; the helper only connects the sound.**
 - The PRD left open where the FFT runs (PRD, Music Mode). Putting it in the service keeps every rule that decides a pixel in one pure crate, next to `picture` and `Marquee`. The same rules then serve the preview (Phase 10) and the tests.
-- **The helper has no logic to test:**
-  1. `AttachAudio()` returns the write end of a pipe the service created.
-  2. The helper starts `pw-record --raw --format f32 --rate 48000 --channels 2 --latency 20ms -P '{ "stream.capture.sink": true, "node.name": "opendeepcool-audio" }' -`, with that pipe as its standard output.
-  3. It waits for `pw-record` to exit.
-  4. It retries every 2 s.
-- **When the service stops reading, `pw-record` ends.** If the service closes the pipe (restart, lost authorization, a newer helper attached), `pw-record` gets `SIGPIPE` and exits. So the helper never needs to know why.
+- **The helper only follows events** (owner, 2026-10-26; solution review OV-05):
+  1. It watches three things on the system bus:
+     - the service's `AudioWanted` state key, which reaches it in `StateChanged` after `Watch()` (Phase 7: polkit `use`, active local session only; a refused `Watch()` is retried like a refused attach);
+     - whether the service's bus name has an owner;
+     - logind's seat0, the PC's only seat, which announces when its `ActiveSession` changes (org.freedesktop.login1(5)). The PC has one user at a time, so there's no multi-seat handling (owner, 2026-10-26).
+  2. While `AudioWanted` is true, it calls `AttachAudio()`, which returns the write end of a pipe the service created.
+  3. It starts `pw-record --raw --format f32 --rate 48000 --channels 2 --latency 20ms -P '{ "stream.capture.sink": true, "node.name": "opendeepcool-audio" }' -`, with that pipe as its standard output, and waits for it to exit.
+  4. When `AudioWanted` turns false, the service closes the pipe and `pw-record` ends; the helper also stops it.
+  5. A refused attach, from an inactive or remote session, is retried only when one of the watched things changes. While `AudioWanted` stays true there's also a slow fallback timer, backing off from 2 s to 60 s.
+  6. It logs only changes of state (attached, refused, waiting for Music, `pw-record` missing), never every attempt.
+  7. Its unit has `ConditionUser=!@system`, so system accounts never run it, for example a display manager's greeter (systemd.unit(5): `@system` matches the system user range).
+- **When the service stops reading, `pw-record` ends.** If the service closes the pipe (restart, lost authorization, a newer helper attached, leaving Music), `pw-record` gets `SIGPIPE` and exits. So the helper never needs to know why.
+- **Sound only in Music modes** (owner, 2026-10-26):
+  - the service's `AudioWanted` (b) is true exactly while the mode is 13–23;
+  - leaving Music closes the pipe at once, and `AttachAudio()` outside Music is refused with `AudioNotWanted`;
+  - on entering Music, the helper attaches within a few hundred milliseconds. The spectrum starts from level 0 anyway (`music.md` point 8).
 - **Checked on this PC, 2026-10-25:**
   - `pw-record` with `stream.capture.sink` linked to the default sink's monitor and wrote 24 000 raw stereo frames to standard output;
   - WirePlumber's `linking.follow-default-target` is on by default ("Streams connected to the default device follow when default changes", `/usr/share/wireplumber/wireplumber.conf`), so the capture follows a change of default output with no code.
@@ -74,8 +86,9 @@
 **Authorization through polkit, as for settings.**
 - `AttachAudio` checks a new action, `io.github.dtmarangoni.OpenDeepCool1.feed-audio`: `allow_active` yes, `allow_inactive` no, `allow_any` no.
 - **Checked on this PC, 2026-10-25:** a process in a systemd user unit (cgroup `user@1000.service/app.slice/…`, outside the login session's scope) passed `pkcheck` for an `allow_active`-only action exactly like a terminal process did (polkit 128, exit 0 both). So polkit gives a user-unit process its user's active session.
-- **Re-check every second:** on every 10th tick, off the engine thread, the D-Bus side checks the attached caller again. When it fails (a user switch made the session inactive), it closes the pipe. The new active session's helper attaches on its next retry. This needs no logind code.
+- **Re-check every second:** in Phase 7's one-second re-check, never on the engine thread, the D-Bus side checks the attached caller again. When it fails (a user switch made the session inactive), it closes the pipe. The new active session's helper attaches on its next retry. This needs no logind code.
 - **The latest authorized attach wins:** a new `AttachAudio` from an authorized caller replaces the current pipe. Only active-session callers pass, so this covers a helper restart without a race.
+- **Back from standby** (owner, 2026-10-26: when the PC comes back, OpenDeepCool must be back): nothing special is needed. If `pw-record` ended during the sleep while `AudioWanted` is still true, the helper starts it again, first after 2 s; a pipe the service closed is attached anew. The helper's watch survives the sleep, because the bus connection does.
 
 **Pure spectrum code with an independent oracle.**
 - `music.md` "OpenDeepCool's spectrum, precisely" fixes every step:
@@ -130,7 +143,9 @@
   - W3C Web Audio API 1.1, AnalyserNode: the Blackman window (α = 0.16) and X[k] = (1/N) Σ … (read 2026-10-25);
   - Webamp `packages/webamp/js/components/VisPainter.ts` (read 2026-10-25): Winamp's bar and peak falloff options, the source of the peak recurrence's shape;
   - zbus (Context7, 2026-10-25): file descriptors pass as `Fd`/`OwnedFd`, D-Bus type `h`.
-- **DeepCreative's Music captures,** compared with OpenDeepCool's rules by a scratch check on 2026-10-25 (session scratchpad, not kept). **79 steps agree** in the top area:
+  - org.freedesktop.login1(5), read 2026-10-26: "Whenever ActiveSession, Sessions, CanGraphical, CanTTY, or the idle state changes, PropertyChanged signals are sent out" for a seat.
+  - systemd.unit(5), read 2026-10-26: `ConditionUser=` takes "the special value `@system`", which "can be used to check if the user id is within the system user range".
+- **DeepCreative's Music captures,** compared with OpenDeepCool's rules by a scratch check on 2026-10-25 (session scratchpad, not kept). **79 steps agree** in the top area. Recounted on 2026-10-26 with the nearest rule and the regenerated frames by `research/hook/diffcount-music.py` (local), which first reproduced the old count: still 79, and every one matches the capture. No Music step's numbers change with the rounding:
 
   | Mode | Steps that agree | What agrees |
   |---|---|---|
@@ -161,10 +176,11 @@
 ```mermaid
 flowchart LR
   subgraph session["The user's session (systemd user unit)"]
-    H["opendeepcool-audio (new)<br/>AttachAudio → pipe"] -->|spawns, stdout = pipe| R["pw-record<br/>default output's monitor"]
+    H["opendeepcool-audio (new)<br/>while AudioWanted: AttachAudio → pipe"] -->|spawns, stdout = pipe| R["pw-record<br/>default output's monitor<br/>(Music modes only)"]
   end
   R -->|raw f32 stereo, 48 kHz| PIPE((pipe))
-  H -->|AttachAudio| DB["D-Bus (Phase 7)<br/>+ AttachAudio, Music settings"]
+  H -->|AttachAudio| DB["D-Bus (Phase 7)<br/>+ AttachAudio, AudioWanted, Music settings"]
+  DB -.->|"AudioWanted changes"| H
   DB -->|CheckAuthorization feed-audio,<br/>again every second| PK[[polkit]]
   DB -->|creates| PIPE
   subgraph svc["opendeepcoold (Phase 7)"]
@@ -226,8 +242,8 @@ flowchart LR
 
 ### Not building
 
-- **The settings app and its configuration screen:** Phase 10. Its contract (the new properties and setters) ships here.
-- **Choosing an audio source other than the default output's monitor:** not asked for. The helper's `--target` flag exists only for the end-to-end test.
+- **The settings app and its configuration screen:** Phase 10. Its contract (the new state keys and setters) ships here.
+- **Choosing an audio source other than the default output's monitor:** not asked for by the user. The owner does want to try capturing only the sound tagged as music; Task 0 researches it first. The helper's `--target` flag exists only for the end-to-end test.
 - **Tuning the bands or the loudness range:** they're spec values (`music.md` points 2–3). Changing them is a spec change with the owner.
 - **Audio before login:** silence, as the spec says.
 
@@ -237,12 +253,32 @@ flowchart LR
 |---|---|
 | Compatibility / migration | Settings v1 gains three fields with defaults; an existing file without them loads with the defaults, and the next store writes them (Task 3 test) |
 | Rollout / reversibility | The dev copy adds the helper binary, `/etc/systemd/user/opendeepcool-audio.service` and its global enable, all in the manifest; `teardown.sh` removes them, `systemctl --global disable` included. Each `pkexec` run is shown to the owner first (rule 7) |
-| Observability | The journal logs, without any sample data: each attach (the caller's unit name, from the bus name's PID), each refusal or lost authorization with its reason, and the pipe closing. `AudioConnected` tells the app whether sound is coming in |
+| Observability | The journal logs, without any sample data: each attach (the caller's unit name, from the bus name's PID), each refusal or lost authorization with its reason, and the pipe closing. The helper logs only changes of state. `AudioConnected` tells the app whether sound is coming in |
 | Documentation | README: what the helper is and how to see it (`systemctl --user status opendeepcool-audio`); the PRD System Footprint: the helper binary, the user unit's dev path and the polkit action (Task 10) |
 
 ## Implementation
 
 Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 are one commit per mode, eleven in all: implement it, run all its tests, including the unattended run on the cooler, then commit.
+
+### 0. Research: can the helper take only the sound tagged as music?
+
+The owner wants to try it (2026-10-26; solution review OV-06). This task only researches and reports; the owner decides before Task 1, and this plan is updated to match.
+
+**Questions**
+- Which common players and browsers tag their PipeWire streams with `media.role` Music, and what do the others set? Players to check include mpv, VLC, Spotify, Firefox and Chromium. The property exists in PipeWire's `keys.h` ("Role: Movie, Music, Camera, Screen, Communication, Game, Notification, …"); which applications set it is unverified.
+- Can the helper capture only those streams? Options: `pw-record --target` aimed at each stream, or a small PipeWire client that links to tagged streams as they appear and disappear. Does a native binding then become necessary?
+- Does the delay target (150 ms for 95 % of frames) still hold?
+- What happens when nothing tagged Music plays: silence, or a fall-back to the monitor?
+
+**Method**
+- Read the tags with `pw-dump` while each player plays a test tone.
+- Try a capture limited to tagged streams in a throwaway program in the session scratchpad, never committed.
+- Read PipeWire's and WirePlumber's documentation for the linking rules.
+
+**Result**
+- A report in `docs/research/` with the evidence and a recommendation.
+- The owner's decision recorded in `music.md` (Source), the PRD (Open Questions, Decisions Log: Audio source), and this plan.
+- Until the decision, the source stays the default output's monitor.
 
 ### 1. The oracle gets the spectrum, the emoji resets and the Music scenarios
 
@@ -283,7 +319,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
 
 **Tests**
 - The generator's own checks:
-  - the existing `mode-*.txt` cases are reproduced unchanged;
+  - the existing `mode-*.txt` cases are reproduced unchanged (as regenerated on 2026-10-26 with the nearest rule);
   - a −20 dBFS tone at a column's centre lights that column and no column two or more away;
   - with peaks off, every frame meets the DeepCreative layout (solid bars, floor lit);
   - with peaks on, at most one lit pixel above each bar.
@@ -350,10 +386,10 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
   - **Methods:**
     - `AttachAudio() -> h`, polkit `feed-audio`;
     - `SetMusicPeaks(b)`, `SetMusicBarFall(s)` and `SetMusicPeakFall(s)`, each stop by its name, polkit `change-settings`.
-  - **Properties:** `MusicPeaks` (b), `MusicBarFall` (s), `MusicPeakFall` (s), `AudioConnected` (b).
-  - **The dev interface:** `OverrideAudio(h)`, cleared by `ClearOverride`.
+  - **Properties:** `MusicPeaks` (b), `MusicBarFall` (s), `MusicPeakFall` (s), `AudioConnected` (b), `AudioWanted` (b: true exactly in Music modes 13–23).
+  - **The dev interface:** `OverrideAudio(h)`, cleared by `ClearOverride`, at the dev object path, with Phase 7's three checks.
   - **The action:** `…OpenDeepCool1.feed-audio`.
-  - **Errors:** `InvalidArgument` for a name that isn't one of the five stops.
+  - **Errors:** `InvalidArgument` for a name that isn't one of the five stops; `AudioNotWanted` for `AttachAudio` outside a Music mode.
 - `crates/odc-service/src/audio.rs`: CREATE.
   - `trait AudioSource` keeps the latest 2048 mono samples, each with the monotonic time it was read.
   - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels.
@@ -364,14 +400,15 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
 
 **Implementation**
 - **`AttachAudio`:**
-  1. Authorize `header.sender()` for `feed-audio`.
-  2. Create a pipe (`O_CLOEXEC`).
-  3. Hand the read end to `PipeAudio`, closing any previous one.
-  4. Return the write end.
-  5. Log the attach, and set `AudioConnected`.
-- **Re-check:** every 10th tick, the D-Bus side checks the current sender again on its own thread. It also listens for `NameOwnerChanged` of that sender.
+  1. Outside a Music mode → `AudioNotWanted` (owner, 2026-10-26: sound only in Music modes).
+  2. Authorize `header.sender()` for `feed-audio`.
+  3. Create a pipe (`O_CLOEXEC`).
+  4. Hand the read end to `PipeAudio`, closing any previous one.
+  5. Return the write end.
+  6. Log the attach, and set `AudioConnected`.
+- **Re-check:** every second, on its own timer, the D-Bus side checks the current sender again. It also listens for `NameOwnerChanged` of that sender.
   - Failing the check or losing the name closes the read end and logs why. The spectrum then hears silence.
-- **The reader** drains the pipe all the time, so `pw-record` never blocks. The engine uses the window only in a Music mode.
+- **The reader** drains the pipe for as long as it's attached, so `pw-record` never blocks. It's attached only in Music modes: when the mode leaves 13–23, the D-Bus side closes the read end, sets `AudioConnected` and `AudioWanted` false, and logs it. Entering 13–23 sets `AudioWanted` true.
   - A read error or end of file closes the pipe, sets `AudioConnected` false, and leaves silence.
 - **Engine:**
   - entering 13–22 from another mode calls `Spectrum::enter`;
@@ -387,7 +424,11 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
   - denied → `NotAuthorized` and no pipe.
 - **Re-check:** the authorizer flips to "no" → the pipe is closed within 10 ticks, and the spectrum falls to the floor at its bar fall rate.
 - **Attachments:** a second authorized attach replaces the first, whose writer gets `EPIPE`. The caller leaving the bus closes the pipe.
-- **Setters:** each Music setter validates, stores and emits `PropertiesChanged`. A value already set changes nothing. A change while mode 1 is shown changes no frame.
+- **Only in Music:**
+  - in mode 1, `AttachAudio` → `AudioNotWanted`, and no pipe;
+  - switching from mode 13 to mode 1 closes the pipe within one tick and sets `AudioWanted` false;
+  - switching back sets it true and sends `StateChanged` to the watchers.
+- **Setters:** each Music setter validates, stores and sends `StateChanged` to the watchers. A value already set changes nothing. A change while mode 1 is shown changes no frame.
 - **Old settings file:** a v1 file without the Music fields loads with the defaults.
 - **"Audio file → frames"** (PRD layer 3): `FakeAudio` plays each signal of `spectrum/signals.txt` through the engine. The recorded frames' spectrum rows match `expected.txt` tick for tick. This needs mode 13 drawable, so it lands with Task 6 and is written here against a test-only switch.
 - **The `PipeAudio` reader:** a pipe that delivers half a frame then the rest; a writer that closes; a burst of a whole second at once. None loses or duplicates a sample.
@@ -401,36 +442,47 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
 - `crates/odc-audio/`: CREATE, the binary `opendeepcool-audio` (zbus blocking, no other dependency).
 - `packaging/systemd-user/opendeepcool-audio.service`: CREATE.
   - `ExecStart=` the helper; `Restart=on-failure`;
+  - `ConditionUser=!@system`: never for system accounts (owner, 2026-10-26);
   - `WantedBy=default.target`;
   - `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `RestrictAddressFamilies=AF_UNIX`, `LockPersonality=yes`, `RestrictRealtime=no` (PipeWire's client may ask for realtime scheduling: unverified, so not restricted).
 - `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
   - **setup** installs the helper to `/usr/local/libexec/opendeepcool-dev/` and the unit to `/etc/systemd/user/`, with `ExecStart` pointing there, then runs `systemctl --global enable opendeepcool-audio.service`, all recorded in the manifest.
   - **teardown** runs `systemctl --global disable` and removes them.
-  - **check** verifies, in the owner's session, `systemctl --user is-active opendeepcool-audio` and `AudioConnected = true`.
+  - **check** verifies, in the owner's session, `systemctl --user is-active opendeepcool-audio` and, while a Music mode is shown, `AudioConnected = true`.
 
 **Implementation**
-- **Loop:**
-  1. Connect to the system bus.
-  2. Call `AttachAudio`. On an error, log it in one line and wait 2 s.
-  3. Spawn `pw-record --raw --format f32 --rate 48000 --channels 2 --latency 20ms -P '{ "stream.capture.sink": true, "node.name": "opendeepcool-audio", "node.description": "OpenDeepCool cooler display" }' -`, with standard output set to the returned descriptor.
-  4. Close the helper's own copy of the descriptor.
-  5. Wait for the child, then go back to step 2.
+- **Loop** (events, not polling; owner, 2026-10-26):
+  1. Connect to the system bus and subscribe to three things:
+     - the service's `StateChanged` (`AudioWanted`), after a `Watch()` that passed;
+     - `NameOwnerChanged` for the service's name;
+     - logind's seat `PropertiesChanged` (`ActiveSession`).
+  2. While `AudioWanted` is true and nothing is attached, call `AttachAudio`. On success:
+     - spawn `pw-record --raw --format f32 --rate 48000 --channels 2 --latency 20ms -P '{ "stream.capture.sink": true, "node.name": "opendeepcool-audio", "node.description": "OpenDeepCool cooler display" }' -`, with standard output set to the returned descriptor;
+     - close the helper's own copy of the descriptor.
+  3. When `AudioWanted` turns false, or the service leaves the bus, stop `pw-record`. The service closes its end too.
+  4. A refused attach waits for the next watched change, or for the fallback timer (2 s, doubling to 60 s) while `AudioWanted` stays true.
+  5. Log only changes of state.
 - **Flags:**
   - `--target <node>` passes `--target` to `pw-record`, for the end-to-end test only;
   - anything else is an error.
-- **Missing `pw-record`:** the helper logs "pw-record not found (package pipewire-audio)" and retries every 30 s.
+- **Missing `pw-record`:** the helper logs "pw-record not found (package pipewire-audio)" once, then waits for the next watched change, or the fallback timer while `AudioWanted` is true.
 
 **Tests**
 - **Unit tests** cover:
   - the exact `pw-record` argument list;
   - flag parsing.
-- **A fake `pw-record` script**, placed first on `PATH` in the test, writes known floats. Through a p2p fake service, they arrive in the pipe. When the fake service closes the pipe, the child exits and the helper calls `AttachAudio` again.
+- **A fake `pw-record` script**, placed first on `PATH` in the test, writes known floats. Through a p2p fake service, they arrive in the pipe. When the fake service closes the pipe, the child exits, and the helper attaches again only if `AudioWanted` is still true.
+- **Events, not polling:**
+  - with `AudioWanted` false, no `pw-record` runs; turning it true attaches and starts the fake one; turning it false stops it within one second;
+  - a refused attach logs one line, then retries only on a watched change or the fallback timer: a minute of refusals writes one line, not 30;
+  - a change of seat0's `ActiveSession` triggers an immediate retry, of a refused `Watch()` too;
+  - after a wake-up: a fake `pw-record` that exits while `AudioWanted` stays true is started again within 2 s, and attaches anew if the service closed the pipe.
 - `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service` passes.
 
 **Validation**
 - After the owner approves the `pkexec scripts/dev/setup.sh` run:
   - `scripts/dev/check.sh` exits 0;
-  - `busctl get-property … AudioConnected` prints `b true` while the owner is logged in.
+  - `busctl call … GetState` shows `AudioConnected` as `b true` while the owner is logged in and a Music mode is shown. In mode 1 it shows `b false`, and no `opendeepcool-audio` node exists.
 
 ### 5. Layer 4 tools: the virtual output, the real capture check and the delay measurement
 
@@ -446,8 +498,9 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
   4. Afterwards: stop it, `pactl unload-module <index>`, `systemctl --user start opendeepcool-audio`.
 
   The owner's own sound keeps playing on their output, unchanged, during the run.
+- **Only in Music:** in mode 1, `pw-dump` shows no `opendeepcool-audio` node. Switching to mode 13 creates it within 1 s, and switching back to mode 1 removes it within 1 s.
 - **Real capture check:**
-  - `pw-play --raw --format f32 --rate 48000 --channels 2 --latency 10ms --target odc-e2e -` plays each signal of `spectrum/signals.txt`, fed from `odc-e2e` in 5 ms chunks paced by the monotonic clock;
+  - `pw-play --raw --format f32 --rate 48000 --channels 2 --latency 10ms --target odc-e2e -` plays one example signal of `spectrum/signals.txt`, a steady −20 dBFS tone at column 7's centre, then silence. It's fed from `odc-e2e` in 5 ms chunks paced by the monotonic clock. Every signal runs in-process (Task 3) (owner, 2026-10-26: one example of each test type on the real cooler);
   - in mode 13, the recorded frames must show the expected spectrum rows for each steady tone (the tone segments' middle ticks), and the floor line in silence.
 - **Delay measurement:**
   - 200 bursts of a −20 dBFS tone at column 7's centre, 400 ms apart, after silence;
@@ -483,8 +536,8 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 6–9 ar
   - entering 13 from Load starts the levels at 0.
 - **D-Bus:** `SetMode(13)` succeeds; the `NotYetAvailable` test moves to mode 14.
 - **Layer 4:**
-  - `odc-e2e --only service --modes 13`: the matrix through `OverrideAudio` with silence and with the signals;
-  - `odc-e2e --only music`: the real capture check and **the delay measurement**;
+  - `odc-e2e --only service --modes 13`: one case of mode 13 through `OverrideAudio`, in silence and with one signal, plus one example of each test type it adds;
+  - `odc-e2e --only music`: the real capture check, with one signal, and **the delay measurement**, whose 200 bursts are one test that needs that many samples for its 95th percentile;
   - the tour gains mode 13 with the burst train, peaks on and off, and the slowest and fastest stops.
 
 **Validation**
@@ -530,7 +583,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - S25: another GPU resets 19 and 21;
   - availability: `AvailableModes` drops the mode with its metric's reason, as in Phase 8;
   - every ordered switch with the modes drawable before it.
-- **Layer 4:** `--modes 18` … `--modes 22`. The tour gains each mode with a `100%` or `134°F` value scrolling over the burst train.
+- **Layer 4:** `--modes 18` … `--modes 22`. The tour gains each mode with a `100%` or `135°F` value scrolling over the burst train.
 
 ### 9. Music, the Dancer (mode 23)
 
@@ -553,8 +606,8 @@ Five sub-steps, **each its own commit** (rule 4):
   - `SetMode(23)` succeeds. Every mode in the table is now drawable, so `NotYetAvailable` is no longer returned; its test becomes a mode outside the table (0, 24, 100) → `InvalidArgument`.
 - **Layer 2:** none: DeepCreative has no Dancer.
 - **Layer 4:**
-  - `--modes 23`: the matrix through `OverrideAudio` with silence and the dancer signals;
-  - then one full `--only service` and `--only music` run;
+  - `--modes 23`: one case of mode 23 through `OverrideAudio`, in silence and with one dancer signal;
+  - then one `--only service` run with no `--modes`, one example of each mode 1–23 and of each test type, and one `--only music` run;
   - the tour gains the Dancer with the demo burst train, soft then loud, then silence.
 
 ### 10. Records
@@ -593,20 +646,22 @@ Five sub-steps, **each its own commit** (rule 4):
    - a change shows on the next frame without a reset;
    - in other modes it's only saved;
    - an older v1 file gets the defaults (Task 3).
-4. **AC4 — Sound only from the active local session:**
+4. **AC4 — Sound only from the active local session, and only in Music modes:**
    - `AttachAudio` needs polkit `feed-audio`;
+   - outside a Music mode, `AttachAudio` is refused, the pipe is closed and no capture stream exists;
    - losing it closes the pipe within one second;
    - a newer authorized attach replaces the old one;
    - before login the spectrum is the floor line (Tasks 3–4).
 5. **AC5 — The helper:**
-   - it starts at login for every user in the dev copy;
+   - it starts at login for every user except system accounts, in the dev copy, and captures only while `AudioWanted` is true;
+   - a refused attach is retried on events, not every 2 s, and logged once;
    - it captures the default output's monitor through `pw-record`, and follows a change of default output;
-   - it reconnects after a service restart with no action (Task 4).
+   - it reconnects after a service restart, and after a wake-up from standby, with no action (Task 4).
 6. **AC6 — Movement and resets:**
    - every scenario that applies passes for modes 13–23, in both units for 18–19, in all four rotations, at every listed cycle or loop position;
    - all 506 ordered mode switches among 1–23 show the new top area at home on the next frame;
    - the spectrum's levels continue between Music modes and start at 0 when entering from another family (Tasks 1, 6–9).
-7. **AC7 — DeepCreative's captures:** the 79 agreeing steps match in the top area (0 differing pixels, emoji and scrolling steps in order), every Music frame captured meets the layout with peaks off, and every other step is listed with its reason (Tasks 6–8).
+7. **AC7 — DeepCreative's captures:** the agreeing steps (79, unchanged by the nearest rule, recounted 2026-10-26) match in the top area (0 differing pixels, emoji and scrolling steps in order), every Music frame captured meets the layout with peaks off, and every other step is listed with its reason (Tasks 6–8).
 8. **AC8 — Real cooler, unattended:**
    - each mode's `--modes` run passes before its commit;
    - the real capture through a virtual output draws the expected spectrum;
@@ -623,7 +678,7 @@ Five sub-steps, **each its own commit** (rule 4):
 | Layers 1 + 3 | `cargo test --workspace` | AC1, AC2, AC3, AC4, AC6 |
 | Layer 2 (local) | `cargo test -p odc-render --test differential_music -- --ignored` | AC7 |
 | User unit | `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service`; `xmllint --noout packaging/polkit/*.policy` | AC5 (syntax), AC4 (policy) |
-| Dev copy | `scripts/dev/check.sh`; `busctl get-property … AudioConnected` | AC5 |
+| Dev copy | `scripts/dev/check.sh`; `busctl call … GetState` (`AudioConnected`) | AC5 |
 | Layer 4, per mode (local, unattended) | `cargo run -p odc-e2e -- --only service --modes <n> --require dev-service` | AC8, before each mode's commit |
 | Layer 4, sound and delay (local, unattended) | `cargo run -p odc-e2e -- --only music --require dev-service,pipewire` | AC5, AC8 (delay) |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended --modes 13-23` | The owner's own look; never a gate |
@@ -633,11 +688,11 @@ Five sub-steps, **each its own commit** (rule 4):
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 13–23 × rotations 0–3 (× °C/°F for 18–19) × value sets (52 of the 112 combinations) | `matrix_music`, spectrum in silence and with the signals | the 79 steps that agree, top area | the dev service through `OverrideAudio`, or fakes |
-| Spectrum signals × *H* 12/6 × peaks on/off × 5 bar fall stops × 5 peak fall stops | `spectrum` unit tests; the engine from samples | — (OpenDeepCool's own analysis) | the real capture through a virtual output |
-| Movement scenarios for 18–22, and S14–S18 for 13–17 and 23, × 4 rotations | `scenarios_music` | — | every scenario in every rotation |
-| Dancer sequences: signals, beat trains around each threshold, resets | `dancer` unit tests; the engine from samples | — (OpenDeepCool's own) | the dev service through `OverrideAudio` |
-| Mode switches: 506 ordered pairs among 1–23, continuity of the spectrum | `engine` | — | every scenario in every rotation |
+| Modes 13–23 × rotations 0–3 (× °C/°F for 18–19) × value sets (52 of the 112 combinations) | `matrix_music`, spectrum in silence and with the signals | the steps that agree (79 under the old rounding; recounted), top area | one case per mode, through `OverrideAudio` on the dev service, or fakes |
+| Spectrum signals × *H* 12/6 × peaks on/off × 5 bar fall stops × 5 peak fall stops | `spectrum` unit tests; the engine from samples | — (OpenDeepCool's own analysis) | one signal through a virtual output, for the real capture |
+| Movement scenarios for 18–22, and S14–S18 for 13–17 and 23, × 4 rotations | `scenarios_music` | — | one variant of each scenario type |
+| Dancer sequences: signals, beat trains around each threshold, resets | `dancer` unit tests; the engine from samples | — (OpenDeepCool's own) | one dancer signal through `OverrideAudio` on the dev service |
+| Mode switches: 506 ordered pairs among 1–23, continuity of the spectrum | `engine` | — | one example of a switch into and out of Music |
 | Delay: 200 bursts | — | — | `--only music` |
 
 After this phase, all 112 matrix combinations are covered.
@@ -654,6 +709,7 @@ After this phase, all 112 matrix combinations are covered.
 | The null sink's monitor node name for `--target` is unverified | Task 5 reads it from `pw-dump` and records it in the report | `pw-cat(1)`: `--target` takes a `node.name` or `object.serial` | — |
 | `RestrictRealtime` for the helper | Leave it unset until a run shows whether PipeWire's client asks for realtime; record the finding | Unverified | A setting that breaks capture would show as `AudioConnected` false |
 | `pw-record` is a program, not a library | Keep: it ships with PipeWire, follows the default output by WirePlumber's rule, and avoids a libclang build dependency | Checked on this PC, 2026-10-25 | The `pipewire` crate would add `bindgen` and a native binding |
+| Capture starts a few hundred milliseconds after entering Music | Accept: the spectrum starts from level 0 on entering Music anyway (`music.md` point 8) | Owner, 2026-10-26 (sound only in Music modes) | — |
 | A polkit check every second for the attached helper | Cheap (one call per second, on the D-Bus thread, never on the tick) | Phase 7: the engine never waits on D-Bus | — |
 
 ## Related Plans

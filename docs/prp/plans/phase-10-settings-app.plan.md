@@ -12,7 +12,7 @@
 
 **Affected user:**
 - The owner, and any user at the PC: the settings belong to the PC.
-- Users in a remote or inactive session, who may only look.
+- Nobody in a remote or inactive session: OpenDeepCool is used only from the active session at the PC (owner, 2026-10-26). There the app says so and shows nothing else.
 
 **User outcome:**
 - `OpenDeepCool` opens from the launcher onto the current settings.
@@ -25,7 +25,7 @@
 **Invariant:**
 - **Every mode and setting is reachable:** each control maps to exactly one D-Bus call, and each tile to exactly one spec mode (rule 11).
 - **The preview is the cooler:** it shows only frames the service publishes.
-- **Changes are the service's:** the app never writes settings itself, never shows a change the service refused, and changes nothing in a view-only session.
+- **Changes are the service's:** the app never writes settings itself and never shows a change the service refused. In a remote or inactive session it reads and changes nothing, because the service refuses it everything.
 - **No other hardware:** no hardware information beyond the display's pictures and the cooler's fan and pump RPM (rule 8).
 - **Theme:** colours come from the current Omarchy theme or the default theme, never hard-coded in widgets. The app never sets window opacity or blur.
 - **Idle cost:** no polling. The preview redraws only on a changed frame.
@@ -37,13 +37,14 @@
   - a pure **view model** turns the service's state into what each screen shows;
   - a pure **theme** module turns `colors.toml` and `shell.toml` into one CSS string;
   - a thin GTK layer builds the design's widgets.
-- **The service gains the six additions the design needs:**
-  1. the current frame as a signal, while watched;
+- **The service gains the five additions the design needs:**
+  1. the current frame as a signal addressed to each watcher, while watched;
   2. the RPM per fan input;
   3. GPU IDs and a rule flag;
   4. the GPU in use;
-  5. whether each saved input is present;
-  6. `CanChangeSettings()`.
+  5. whether each saved input is present.
+
+  There's no `CanChangeSettings()` (owner, 2026-10-26): only the active local session can use the service, so a refused `GetState()` tells the app it's in another session.
 - **Tests, in the PRD's layers:**
   - layer 1: the view model and the theme, pure Rust;
   - layer 3: the app's widgets in-process, in headless weston, against fakes;
@@ -58,25 +59,28 @@
 
 **The view model is the app's logic, and it is pure.**
 - `odc_app::model::view(&ServiceState, &Ui) -> View` returns a plain description of what is shown: tiles (enabled, selected, flagged, reason), banners, captions, status items, dropdown entries and control states.
-- `ServiceState` is everything the service publishes: properties, the frame, and whether the bus name has an owner.
+- `ServiceState` is everything the service publishes: the state from `GetState()` and `StateChanged`, the frame, whether the bus name has an owner, and whether the service refused this session.
 - The GTK layer only renders a `View` and turns clicks into `odc-ipc` calls. So every state in the design's States table is a unit test with no display.
-- **Instant apply works the same way.** A click sends the call, and nothing changes on screen until the service's `PropertiesChanged` arrives. So the app never shows a change the service refused.
+- **Instant apply works the same way.** A click sends the call, and nothing changes on screen until the service's `StateChanged` arrives. So the app never shows a change the service refused.
 
 **The preview mirrors the service; tiles are drawn locally.**
 - **The preview:** the service gains `WatchFrames()` and `UnwatchFrames()`, and a `Frame(ay)` signal: 196 bytes, 0 or 1, row-major, exactly the frame written to the cooler after rotation.
   - It is emitted only while at least one watcher holds a watch, and only when the frame differs from the last one sent.
+  - Each `Frame` is addressed to one watcher alone, never broadcast, and only to watchers that pass Phase 7's one-second check (polkit `use`, the active local session; owner, 2026-10-26).
   - Watches end when the watcher leaves the bus (`NameOwnerChanged`), so a crashed app can't keep the service sending.
   - At most 10 signals a second, so the cost is nil while nobody watches.
   - The preview is then exactly the cooler, spectrum and Dancer included, with no second copy of the engine.
+- **Back from standby** (owner, 2026-10-26): nothing in the app. Its bus connection and its watches survive a sleep, the session stays active while the screen is off or locked, and the preview follows the frames as soon as they come back.
 - **The tiles** are drawn by the app with `odc_render::picture` and `odc_render::music` from fixed sample values (design, Display page). That is the same code the service uses, with no audio and no clock.
 
 **The other contract additions, each the smallest shape that serves the design:**
-- `FanInputs` becomes `a(ssusd)`: chip, device path, input, label, RPM (capped at 9999, like every value; owner, 2026-10-25). `PropertiesChanged` for it is emitted once a second only while a frame watch exists, so an app that isn't open costs nothing.
+- `FanInputs` becomes `a(ssusd)`: chip, device path, input, label, RPM (capped at 9999, like every value; owner, 2026-10-25). `StateChanged` with it goes once a second only to frame watchers, so an app that isn't open costs nothing.
 - `Gpus` becomes `a(sssqqb)`: PCI address, driver, kind, PCI vendor ID, PCI device ID, has a reading rule. The app looks up the product name in `/usr/share/hwdata/pci.ids` (package `hwdata`, present on this PC, 2026-10-25). The service, which is sandboxed, reads nothing new.
 - `GpuInUse` (s): the GPU the readings come from, next to `ChosenGpu`, the saved choice.
 - `CoolerFanInputPresent` and `PumpInputPresent` (b).
-- `CanChangeSettings() -> b`: the service asks polkit about the caller for `change-settings`, without interaction. This is the same path every change takes, so the app's view-only state can't disagree with the service.
-  - The app asks at start and each time its window becomes active, which is when a user switch could have changed the answer.
+- **Not available in this session** (owner, 2026-10-26): when `GetState()` is refused with `NotAuthorized`, the app is in a remote or inactive session and shows only the design's not-available state.
+  - It tries again when its window becomes active and when the service's name gets a new owner, with no polling.
+  - An admin's polkit rule could allow reads but refuse changes; a change then fails with `NotAuthorized`, shown like any refused change.
 
 **The UI tests drive the real app through AT-SPI, in headless weston.**
 - **Spike, 2026-10-25,** on this PC (GTK 4.24.1, at-spi2-core 2.62.1, weston 15.0.1; throwaway code in the session scratchpad, not kept):
@@ -143,7 +147,7 @@ flowchart LR
   end
   OM[("~/.local/state/omarchy/current/theme")] -->|GFileMonitor| TH
   HW[("/usr/share/hwdata/pci.ids")] --> VM
-  CL <-->|system bus| SVC["opendeepcoold (Phases 7–9)<br/>+ WatchFrames, Frame signal, FanInputs RPM,<br/>Gpus IDs, GpuInUse, inputs present, CanChangeSettings"]
+  CL <-->|system bus| SVC["opendeepcoold (Phases 7–9)<br/>+ WatchFrames, Frame signal, FanInputs RPM,<br/>Gpus IDs, GpuInUse, inputs present;<br/>frames and state addressed to each watcher"]
   SVC -->|CheckAuthorization| PK[[polkit]]
   subgraph tests["UI tests (new)"]
     E2E["odc-ui-e2e (atspi, zbus 5)"] -->|AT-SPI actions and reads| A11Y[(a11y bus)]
@@ -169,13 +173,13 @@ flowchart LR
 ### Existing patterns and primitives
 
 - **Pure core, thin I/O:** `odc-render`'s `picture` and `Marquee` (Phase 7). The view model and the theme module follow it.
-- **The change steps:** authorize, validate, store, apply, emit (Phase 7 Task 7). The new service members follow it; `CanChangeSettings` reuses `Authorizer`.
+- **The change steps:** authorize, validate, store, apply, emit (Phase 7 Task 7). The new service members follow it; frame watches check `Authorizer` with `Use`, like every read.
 - **Fakes on p2p D-Bus:** Phase 7 Task 7's tests. The fake service of layer 4 implements the same `odc-ipc` interface on a private `dbus-daemon`.
 - **`odc-e2e` areas and flags** (Phases 5–9): this phase adds `--only app`.
 
 ### Integration points
 
-- `odc_ipc`: the new members, and the property shape changes of `FanInputs` and `Gpus`. Everything is still `v1`: Phase 10 runs before any release, so nothing outside the repository depends on the old shapes.
+- `odc_ipc`: the new members, and the state-key shape changes of `FanInputs` and `Gpus`. Everything is still `v1`: Phase 10 runs before any release, so nothing outside the repository depends on the old shapes.
 - `odc_render::{picture, music}`: called by the app for the tiles.
 - `scripts/dev/setup.sh`, `teardown.sh`: the app binary, the desktop entry and the icon in the dev copy.
 
@@ -226,7 +230,8 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - whether `gtk_style_context_add_provider_for_display` is deprecated, and its replacement;
   - the GTK 4.24 switch for a dark or light base;
   - gradient border colours in GTK CSS;
-  - whether Hyprland honours the window's minimum size when it tiles. Check it in the owner's session with the throwaway window for a few seconds, or mark it unverified if it can't be checked unattended.
+  - whether Hyprland honours the window's minimum size when it tiles. Check it in the owner's session with the throwaway window for a few seconds, or mark it unverified if it can't be checked unattended;
+  - whether `GtkWindow:is-active` turns true again when the user switches back to their session under Hyprland (design, Not available in this session). If it doesn't, the app also follows logind's change signal for its session's `Active` property, still without polling.
 - **When a check fails, the design's fallback is taken:**
   - each toggle button a Tab stop;
   - RPM refreshed when the dropdown reopens;
@@ -247,16 +252,15 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 
 **Implementation**
 - **Frame watching:**
-  - `WatchFrames()` and `UnwatchFrames()`: read-only actions, open to every caller as reads are, because the frame is what anyone near the PC can see;
+  - `WatchFrames()` and `UnwatchFrames()`: reads, checked with polkit `use` like every read (Phase 7), so only the active local session watches frames (owner, 2026-10-26; solution review P10-01). Frame watchers count toward Phase 7's watcher caps (8 per user, 32 in all) and its one-second re-check;
   - the `Frame(ay)` signal, 196 bytes, 0 or 1, row-major, after rotation;
   - the engine hands each written frame to the D-Bus side over a bounded channel of 1, newest wins, so a slow bus never delays a tick;
-  - the D-Bus side emits only while watchers exist and only on change;
+  - the D-Bus side sends each `Frame` to each authorized watcher alone, only while watchers exist and only on change;
   - watchers are tracked by unique name and dropped on `NameOwnerChanged`.
-- **New and changed properties:**
-  - `FanInputs` `a(ssusd)` (RPM added, capped at 9999), `PropertiesChanged` once a second only while a watch exists;
+- **New and changed state keys:**
+  - `FanInputs` `a(ssusd)` (RPM added, capped at 9999), in `StateChanged` once a second only to frame watchers;
   - `Gpus` `a(sssqqb)` (vendor ID, device ID, has rule; from the Phase 6 `Registry`, whose GPU scan already reads the PCI device);
   - `GpuInUse` (s); `CoolerFanInputPresent`, `PumpInputPresent` (b).
-- **`CanChangeSettings() -> b`:** `Authorizer::allowed(sender)`, the call every change makes, without interaction.
 
 **Tests** (layer 3, p2p D-Bus with a fake `Authorizer`, as Phase 7 Task 7)
 - **No watcher:** no `Frame` signal at all over 50 ticks.
@@ -264,15 +268,16 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - exactly one signal per changed frame, the bytes equal to the frame `Lp360` wrote, rotation included;
   - none for unchanged frames;
   - a `100%` scroll gives 10 a second;
-  - the watcher leaving the bus stops them.
+  - the watcher leaving the bus stops them;
+  - a second `WatchFrames()` from the same watcher changes nothing (the app repeats it on every window activation).
 - **Two watchers:** one leaving keeps the signal for the other.
+- **Only authorized watchers:** `WatchFrames` from a refused caller → `NotAuthorized`; a watcher the authorizer stops allowing gets no frames until it passes again. On a private `dbus-daemon`, a connection with a match rule for `Frame` but no watch receives nothing.
 - **The frame channel:** a blocked bus connection never delays the engine's tick (fake clock: frames stay on the 100 ms grid).
-- **Properties:**
+- **State keys:**
   - `FanInputs` RPM follows `FakeReadings`;
   - the `Gpus` IDs and rule flag come from a fake sysfs tree (Phase 6 fixtures);
   - `GpuInUse` differs from `ChosenGpu` when the saved GPU is missing;
   - the present flags follow a fan input vanishing.
-- `CanChangeSettings` mirrors the fake authorizer and changes nothing.
 
 **Validation**
 - `cargo test -p odc-ipc -p odc-service`: passes.
@@ -297,7 +302,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - the caption and status items, with "Music sound" only in Music modes;
   - fan and pump rows: RPM, "Choose input", "Input not found", "No fan sensors found", "—";
   - the GPU row only with more than one GPU, or when the saved GPU is missing; labels `<kind> · <product>` or `<kind> · <driver> · <address>`; the order dedicated, integrated, unknown, no-rule last;
-  - view-only: everything insensitive.
+  - not available in this session (a refused `GetState()`): only the design's message, with no values, no preview and no controls.
 - **The theme:**
   - the token table of the design;
   - alphas computed into `rgba()` literals;
@@ -340,7 +345,8 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - updates reach the GTK main loop through a `glib` channel (gtk4-rs book, the main event loop);
   - service ownership is watched with `NameOwnerChanged`;
   - `WatchFrames` while the window is mapped, `UnwatchFrames` when it isn't;
-  - `CanChangeSettings` at start and on each activation of the window.
+  - `Watch()`, then `GetState()`, so no change falls between them; the reply and the `StateChanged` signals are applied in the order they arrive (design, Talking to the service);
+  - again on each activation of the window and whenever the service's name gets a new owner, in every state, not only after a refusal: both calls are harmless to repeat, and this renews a watch after a session switch;
 - **The window:**
   - header bar with the switcher (Ctrl+1/2), Refresh (F5, Ctrl+R) and the "Refreshed" confirmation;
   - the preview column;
@@ -354,7 +360,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - each case of `docs/spec/frames/mode-001.txt`, `mode-010.txt` (scrolling) and `mode-013.txt` (silence), fed as `Frame`s in all four rotations, rendered to a texture through `gtk::WidgetPaintable` and a cairo `gsk::Renderer`;
   - the colour at each dot's centre is lit or unlit exactly as the frame says;
   - an unchanged frame causes no redraw (a draw counter).
-- **Banners:** the service, view-only and cooler banners show exactly in the design's states, in its order, with its text.
+- **Banners and states:** the service and cooler banners, and the not-available state, show exactly in the design's states, in its order, with its text. With the service gone, the service state shows first, whatever the session.
 - **The names table:** every accessible name and role in the design's table is set (`gtk::Accessible` reads in-process).
 
 **Validation**
@@ -450,9 +456,9 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - the keyboard shortcuts (Ctrl+1/2, F5) through AT-SPI's key events. If key events need input synthesis on headless weston (unverified), they stay covered by layer 3 only, and the report says so.
 - **Every state** set through the fake's state file, then read through AT-SPI:
   - service not running (the fake leaves the bus) → the service banner text and insensitive controls; the fake returning → the pages come back with no action;
-  - view-only (`CanChangeSettings` false) → every control insensitive and no call reaches the fake when pressed;
+  - not available (the fake refuses `GetState`) → only the not-available message, no control and no preview, and no call reaches the fake; the fake allowing it again and the window activated → the pages come back;
   - cooler disconnected; an unavailable metric (reason lines once per group); the reading lost; one GPU; missing input and missing GPU; no fan sensors; first start.
-- **Instant apply:** after each press, the control's new state appears only after the fake's `PropertiesChanged`. A fake that refuses (`ModeUnavailable`) leaves the old selection.
+- **Instant apply:** after each press, the control's new state appears only after the fake's `StateChanged`. A fake that refuses (`ModeUnavailable`) leaves the old selection, and the feedback label says "Not changed." with the service's reason; a refused Refresh says "Not refreshed."; `NotAuthorized` gives the app's own reason, "This session may not change settings." (design, Refused changes).
 - **Theme:** start with no Omarchy folder → the log says default; create the fixture by staging and moving → the log says reloaded, and the window is still there with the same page.
 - **Fake mode** (`weston` Absent): the area fails with "install weston (pacman -S weston)". It doesn't fall back, because a UI test without a display proves nothing (rule 5: present but unusable fails with its fix; here the tool itself is the requirement).
 
@@ -502,14 +508,14 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 ## Acceptance
 
 1. **AC1 — Everything reachable:** every row of the design's coverage check is reached through the real app in layer 4, with the exact D-Bus call logged by the fake, and each tile maps to exactly one mode (Tasks 3, 5, 6, 8).
-2. **AC2 — Instant apply, the service's word:** a control shows its new state only after the service confirms it; a refused change leaves the old state; a view-only session sends no change at all (Tasks 3, 8).
-3. **AC3 — The preview is the cooler:** the preview draws exactly the frames the service writes, in every rotation, scrolling, Music and the Dancer included. With no watcher the service sends no frames (Tasks 2, 4, 9).
+2. **AC2 — Instant apply, the service's word:** a control shows its new state only after the service confirms it; a refused change leaves the old state; a remote or inactive session shows only the not-available state and sends nothing (Tasks 3, 8).
+3. **AC3 — The preview is the cooler:** the preview draws exactly the frames the service writes, in every rotation, scrolling, Music and the Dancer included. With no watcher the service sends no frames, and frames reach only authorized watchers, never broadcast (Tasks 2, 4, 9).
 4. **AC4 — Every state as designed:** each row of the design's States table shows its banners, captions, reason lines, insensitive controls and labels, in unit tests and through AT-SPI (Tasks 3, 4, 8).
 5. **AC5 — Theme:**
    - the Omarchy theme's colours apply and follow an `omarchy-theme-set`-style folder move within a second, keeping the page;
    - with no Omarchy theme the default dark theme applies; a missing key falls back alone and is logged;
    - no window opacity is ever set (Tasks 3, 7, 8).
-6. **AC6 — Contract additions:** `WatchFrames`/`Frame`, the RPM in `FanInputs`, the `Gpus` IDs and rule flag, `GpuInUse`, the present flags and `CanChangeSettings` behave as Task 2 specifies, and settings.md lists them (Task 2).
+6. **AC6 — Contract additions:** `WatchFrames`/`Frame`, the RPM in `FanInputs`, the `Gpus` IDs and rule flag, `GpuInUse` and the present flags behave as Task 2 specifies, frames go to authorized watchers alone, and settings.md lists them (Task 2).
 7. **AC7 — Accessible and keyboard-usable:** every name in the design's table is set; focus never applies a tile; the shortcuts work (Tasks 4–6, 8).
 8. **AC8 — Real system, unattended:** on the owner's PC the real app changes the real dev service's frames, unattended and invisible (headless), and leaves the owner's settings as found. The launcher entry opens the app (Task 9).
 9. **AC9 — Records:** AGENTS.md, README, the PRD footprint, the design document's answered points and CI match what was built (Tasks 1, 10).
@@ -535,7 +541,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 | Keyboard shortcuts through AT-SPI on headless weston may need synthetic input (unverified) | Try AT-SPI key events in Task 1; otherwise layer 3 covers the shortcuts and the report says so | dogtail's need for a GNOME input daemon suggests input synthesis is the hard part on Wayland | Shortcuts proven in-process only |
 | `atspi` uses zbus 5, the workspace zbus 6 | A separate binary crate that never links `odc-ipc`; it talks to the fake through files | crates.io, 2026-10-25 | Linking both would compile two zbus versions into one binary |
 | CI's GTK must be 4.16 or newer | An `archlinux` container | Design, Theme: CSS custom properties since 4.16 | An older GTK would ignore the theme variables |
-| The `Frame` signal on the system bus is visible to any local process | Acceptable: it is the picture anyone near the PC sees; it carries no readings beyond what the cooler shows | settings.md: reads are open to every session | — |
+| Frames on the system bus | Each `Frame` is addressed to one authorized watcher (polkit `use`, the active local session only), never broadcast (owner, 2026-10-26; solution review P10-01) | D-Bus specification: a unicast signal reaches its destination only; dbus-broker has no eavesdropping | A broadcast would let any local process follow the picture, and in Music the active user's sound |
 | Hyprland might ignore the window's minimum size when tiling | Task 1 checks; the pages scroll and the tile rows reflow anyway | Design, Window | A cramped but working window on very small tiles |
 
 ## Related Plans

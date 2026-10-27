@@ -69,7 +69,9 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - "none" is the default;
   - a saved input that's missing shows as not found;
   - the app shows the cooler's fan and pump RPM from the chosen inputs, capped at 9,999 RPM like every other value: a faster reading shows `9,999 RPM` (owner, 2026-10-25). These speeds never reach the cooler's display.
-- **Shared settings:** one set for the whole PC, the same for every user. A user at the PC (an active local session) changes them without a password. In a remote or inactive session the app shows them read-only (PRD, Settings app ↔ service; owner, 2026-10-23).
+- **Shared settings:** one set for the whole PC, the same for every user. The user at the PC (the active local session) changes them without a password (PRD, Settings app ↔ service).
+- **Only the user at the PC** (owner, 2026-10-26, replacing the read-only view of 2026-10-23): a remote or inactive session can't use OpenDeepCool at all. The service refuses it every read, every change and the preview's frames, so the app there shows only that OpenDeepCool is used from the session at the PC. No other session receives the settings or the cooler's picture.
+- **Back from standby** (owner, 2026-10-26): the monitor may turn off for inactivity, the screen may lock and the PC may sleep. None of it needs anything from the user. While the PC is idle the cooler keeps showing live values, and after it wakes OpenDeepCool is back on its own: the cooler shows the saved mode again ([protocol.md](protocol.md#standby)), the preview follows it, and Music's sound returns.
 - **Availability** (owner, 2026-10-24):
   - A mode can't be chosen when a metric it shows is **persistently unavailable**: no driver rule, no device, no permission, or a reading the rules exclude (for example the power of integrated AMD graphics). The app shows it disabled, with the one-line reason.
   - When a whole device is missing (for example no usable GPU), every mode that shows any of its metrics is disabled: Load, Temperature and Power options, combined or separate, and Music variants with that metric.
@@ -81,14 +83,14 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 - **Status**, kept short:
   - whether the cooler is connected and whether the service is running;
   - in a Music mode, whether sound is coming in from the session at the PC (the service's `AudioConnected`; without it the spectrum is silent);
-  - the settings app talks to the service over the D-Bus system bus; polkit lets a user in an active local session change settings without a password, and other sessions only read (PRD, Settings app ↔ service);
+  - the settings app talks to the service over the D-Bus system bus; polkit lets the user of the active local session read and change settings without a password, and refuses every other session (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
   - in the fan and pump pickers, a note when no fan sensors were found.
 
   Details, such as which source each value comes from, go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. There's no theme setting in v1; choosing another desktop's theme comes after v1.
 - **Opacity and blur** (owner, 2026-10-23: the app takes the theme's opacity, blur and so on): on Omarchy, Hyprland applies window opacity and blur to every window by its own rules, so the app must not override them. Its own surfaces use the alpha values of the current theme's `shell.toml`: background, and the hover, focus, selected and pressed fills (PRD, Theme).
-- **Music Mode audio** comes from the session of the user at the PC. Before anyone logs in, the spectrum shows silence.
+- **Music Mode audio** comes from the session of the user at the PC. Before anyone logs in, the spectrum shows silence. Sound is taken only while a Music mode is shown (owner, 2026-10-26).
 
 ## DeepCreative interface quirks, not reproduced
 

@@ -10,6 +10,7 @@ Imported from the owner's git-ignored file (absent on other machines). Use it fo
 
 - **PRP workflow**:
   - `/prp-core:prp-plan` plans the current phase from the PRD.
+  - **Solution review** (no command of its own): after `/prp-core:prp-plan` and before `/prp-core:prp-implement`, review the plan into `docs/prp/solution-reviews/`, then cross its findings with the owner ([README](docs/prp/solution-reviews/README.md); AGENTS.md, How to work).
   - `/prp-core:prp-implement` carries out a plan and writes its report.
   - `/prp-core:prp-prd-update` records progress in the PRD table.
   - `/prp-core:prp-commit` makes commits.

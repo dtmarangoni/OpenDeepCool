@@ -35,7 +35,7 @@ We believe a Rust boot service plus an Omarchy-themed GTK4 app that reproduces D
 
 We'll know we're right when two things are true:
 
-- every item on the parity checklist (built from DeepCreative 1.2.14, checked by the owner in Phase 3) passes the unattended end-to-end run on the real LP360;
+- every item on the parity checklist (built from DeepCreative 1.2.14, checked by the owner in Phase 3) passes the unattended tests: every case in-process, and one example of each mode and test type on the real LP360 (owner, 2026-10-26);
 - after a cold boot, the display goes back to the configured mode with no action from the owner.
 
 ## What We're NOT Building
@@ -60,7 +60,7 @@ We'll know we're right when two things are true:
 
 | Metric | Target | How Measured |
 |---|---|---|
-| Parity with DeepCreative | 100% of parity-checklist items pass | The unattended end-to-end run on the real LP360 checks every item against the expected frames, which match DeepCreative's captures the owner checked in Phase 3 |
+| Parity with DeepCreative | 100% of parity-checklist items pass | Every item is checked against the expected frames, which match DeepCreative's captures the owner checked in Phase 3: every case in the in-process tests, and one example of each mode and test type in the unattended run on the real LP360 (owner, 2026-10-26) |
 | Starts with the system | Configured mode is on the display from boot, with no action and before anyone logs in | Not tested by booting. An unattended start check reads the running service's own start: its first written frame, after `03 08`, is the saved mode's picture, and the unit is enabled for `multi-user.target` with nothing tied to a login. No reboot (owner, 2026-10-25: no boot testing) |
 | Correct values | Displayed values match the system's own readings within each metric's resolution | Integration and e2e tests compare rendered values with the sensor sources and with `sensors` |
 | Same timing as DeepCreative | Refresh interval and animation timing per mode match DeepCreative | Compare frame timestamps against the Wine capture |
@@ -75,6 +75,7 @@ We'll know we're right when two things are true:
 - [ ] *After v1 (owner decision, 2026-10-22):* what the hidden settings `screenBrightness`, `screenStatus`, `noLoadScreen`, `rgbOptical` and `gyroStatus` do, and what the device reports DeepCreative doesn't use are for.
 - [x] On the owner's board, which fan input is the pump and which is the CPU fan? **Answered** (2026-10-23): a load test, the driver's register layout and the owner's BIOS check agree. The mapping is in `docs/local/machine.md`. It serves only the owner's hardware checks: the program lets the user pick the inputs on any PC.
 - [ ] Which signal tells a dedicated GPU from an integrated one, for each GPU driver? Phase 6 verifies it from primary sources; if a driver has none, the owner decides.
+- [ ] Can the audio helper take only the sound tagged as music, PipeWire streams whose `media.role` is Music, and do common players and browsers tag their streams? The owner wants to try it (2026-10-26). A research step before Phase 9 answers it; until then the source stays the default output's monitor.
 - [x] Theme: should the app install an Omarchy template in each user's `~/.config/omarchy/themed/`? **No** (2026-10-23): it reads the current theme's `colors.toml` directly, so nothing is installed per user, and uses its own default theme elsewhere (owner's theme requirements, Technical Approach → Theme).
 - [x] Which metrics does each mode use? For example, does Power Guardian use CPU power, and is CPU clock used anywhere? **Answered** (2026-10-23): `display.md` and `music.md` map every mode. Power Guardian shows CPU Power and Gpu power; no mode shows the CPU clock, so OpenDeepCool doesn't read it.
 - [x] Music Mode: how does DeepCreative turn audio into the spectrum? **Not copied** (owner decision, 2026-10-22). Under Wine its 14 columns cover only about 5–160 Hz; OpenDeepCool imitates Winamp's classic analyser over the whole audible range and keeps DeepCreative's layout ([display and music specs](../../spec/)).
@@ -147,7 +148,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 ### User Flow
 
 1. The PC boots and the OpenDeepCool system service starts, before anyone logs in. It reads the saved settings, opens the LP360 and draws the configured mode at each refresh interval. If the PC has no sensor configuration yet, the board's sensor detection runs first, once per motherboard.
-2. When someone logs in, their session's audio helper starts and feeds Music Mode. Until then, Music Mode shows silence.
+2. When someone logs in, their session's audio helper starts. While a Music mode is shown, it feeds the active session's sound to the service; in other modes no sound is taken. Until someone logs in, Music shows silence.
 3. To change the mode, any user at the PC opens OpenDeepCool from the launcher, picks a mode and options, which apply at once, with a live preview of the cooler. The service switches right away and saves the choice for the whole PC.
 
 ---
@@ -162,7 +163,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - protocol: frame encoding and checksum (pure code)
   - sensors
   - renderers: mode → 14×14 frames (pure code)
-  - service: device I/O, scheduling, IPC
+  - service: device I/O, sensor reading, scheduling and IPC, each in its own thread (owner, 2026-10-26)
   - GTK4 settings app
 
   The pure parts can be unit-tested without hardware.
@@ -188,6 +189,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   Look devices up by name or driver, never by hwmon/DRM index, because indexes change between boots.
 - **Sensor architecture: ports and adapters** (owner, 2026-10-22). The display logic never touches files or drivers, so a driver change or new hardware means a new rule row, not new display code.
   - **Display logic** (modes, renderers, scheduler) asks for one set of readings per second and sends frames. It depends only on two ports: a readings port and a display port.
+  - **Exact numbers** (owner, 2026-10-26): every reading keeps its source's whole-number units (jiffies, kB, millidegrees, µW, mW, µJ over µs), and every number drawn is computed from them in integer arithmetic and rounded to the nearest whole number, halves up, whatever the measurement. No floating point lies between a sensor and a digit ([display.md](../../spec/display.md#values)).
   - **Sensor registry:** scans hwmon, DRM, powercap and `/proc`, matches the driver rules, and binds one source per metric. It finds devices by name or driver on every scan and rescans when a read fails.
     - A metric with no matching source is reported as unavailable and logged, never drawn as a wrong number.
     - **Diagnostics** (owner, 2026-10-24, instead of a separate `doctor` command, since v1 has no command line): the service writes which source each metric is bound to into the journal at start and at every rebind, and a D-Bus method returns the same list (readable with `busctl`).
@@ -206,16 +208,25 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
     - It runs as a dedicated unprivileged system user, never as root, sandboxed by systemd: for example a read-only system (`ProtectSystem=strict`), no access to home folders (`ProtectHome=`), `NoNewPrivileges=`, no capabilities, and a closed device policy that allows only the LP360's hidraw node and the GPU devices it reads. The Phase 11 plan sets the exact settings.
     - `ProtectKernelTunables=` makes `/sys` read-only for the service (systemd.exec), so it can't change any hardware setting, even by mistake.
     - That leaves it fewer rights than any user account. A user service would run with all the rights of whoever logged in.
-    - It restarts on failure and reconnects if the USB device disappears.
+    - Each job runs in its own thread (owner, 2026-10-26): the 100 ms tick, which never waits for I/O; the cooler's writer; the sensor reader; D-Bus; and from Phase 9 the audio reader. A USB write that stalls (the kernel allows up to 5 s) or a slow sensor never delays a frame.
+    - systemd supervises it: any panic ends the whole process; a watchdog restarts it when the tick or a worker thread stops making progress; restarts back off but never give up. It reconnects by itself when the USB device disappears and comes back.
+    - **Back from standby** (owner, 2026-10-26): the monitor may turn off for inactivity and the PC may sleep; when it comes back, OpenDeepCool is back with no action. After every wake-up (logind's `PrepareForSleep(false)`), the service starts a new conversation with the cooler, `03 08` before the next frame, and starts its interval readings over. The monitor turning off or the screen locking changes nothing: the cooler keeps showing live values.
   - **Sensor detection:** a separate one-shot unit, the only part that runs as root.
     - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), it runs `sensors-detect --auto`, at most once per motherboard.
     - That writes the configuration and enables `lm_sensors.service`, which loads the detected drivers at every boot.
     - An existing configuration is never overwritten.
-  - **Audio helper:** audio belongs to each user's session. A small systemd user unit, enabled for all users at install (`systemctl --global enable`), captures the session's audio and passes it to the display service. The service accepts it only from the active local session. Nobody sets it up by hand.
-- **Music Mode**: the audio helper captures the monitor of the default audio output through PipeWire; the plan decides whether the FFT runs in the helper or the service, and chooses the crates. The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. The owner chose its behaviour on 2026-10-25 from a preview page: bars and peak dots that fall with Winamp's falloff stops and defaults (moderate bars, 0.6 s; slow peaks), both adjustable, and peaks that can be switched off ([music spec](../../spec/music.md#opendeepcools-spectrum-precisely)); the tests check it automatically. The bars' size and position follow DeepCreative's layout.
+    - Its record of what it created, and for which board, lives in its own root-only directory, `/var/lib/opendeepcool-detect/`, never in the display service's state directory, which the unprivileged account owns. The record holds only yes/no facts, never paths (owner, 2026-10-26).
+  - **Audio helper:** audio belongs to each user's session. A small systemd user unit captures the session's audio and passes it to the display service, **only while a Music mode is shown** (owner, 2026-10-26). It's enabled for all users at install, by a symlink the package ships (see Packaging).
+    - The service accepts sound only from the active local session. The PC has one user at a time on its one seat, so there's no handling for simultaneous users (owner, 2026-10-26).
+    - The helper waits for events (the service wanting sound, the service starting, the active session changing) instead of polling.
+    - It doesn't run for system accounts.
+    - Nobody sets it up by hand.
+- **Music Mode**: while a Music mode is shown, and only then (owner, 2026-10-26), the audio helper captures the monitor of the default audio output through PipeWire. The owner wants to try taking only the sound tagged as music (PipeWire `media.role` Music) instead of everything the PC plays; a research step before Phase 9 decides whether that's reliable (Open Questions). The plan decides whether the FFT runs in the helper or the service, and chooses the crates. The spectrum imitates Winamp's classic analyser: its bands span the whole audible range (user reports on the Winamp forums: tones up to about 15 kHz still show at its right edge), here across 14 columns. The owner chose its behaviour on 2026-10-25 from a preview page: bars and peak dots that fall with Winamp's falloff stops and defaults (moderate bars, 0.6 s; slow peaks), both adjustable, and peaks that can be switched off ([music spec](../../spec/music.md#opendeepcools-spectrum-precisely)); the tests check it automatically. The bars' size and position follow DeepCreative's layout.
 - **Settings app ↔ service**: the D-Bus system bus (owner, 2026-10-24), through the pure-Rust `zbus` crate. Before the app exists (Phases 7–9), settings are changed with the generic `busctl` tool, so OpenDeepCool needs no command line of its own. polkit identifies the caller by its bus name (`system-bus-name` subject).
-  - polkit authorizes changes. A user in an active local session changes settings without a password; remote and inactive sessions may only read them (polkit `allow_active`; owner, 2026-10-23).
+  - **Only the user at the PC uses OpenDeepCool** (owner, 2026-10-26, replacing the read-only access of 2026-10-23). The user of the active local session reads the state, sees the preview and changes settings without a password. A remote or inactive session can do nothing: polkit refuses it every read, watch and change (`allow_active` only). Nothing is broadcast: the service has no readable D-Bus properties, and its state changes and frames go as signals addressed to each authorized watcher alone, re-checked every second (Phase 7 and Phase 10 plans).
+  - One user at a time (owner, 2026-10-26): OpenDeepCool is for a PC with one seat, used by one person at a time. Only the active user needs access to the cooler, and nothing is designed for simultaneous users.
   - Settings live in the service's state directory: one set for the whole PC.
+  - Every argument is checked against the service's own state: a mode from its table, a rotation from 0 to 3, a known unit, and a GPU or fan input from the lists the service found itself. Strings have length limits, and no file path is ever built from a caller's string (owner, 2026-10-26).
 - **Theme** (owner, 2026-10-23: follow the current system theme; work on other desktops; no per-user setup):
   - **Omarchy:** the app takes its colours from the current theme's `~/.local/state/omarchy/current/theme/colors.toml`, which holds the semantic colours and the light/dark `mode`. It installs no template, so nothing goes into users' home folders.
   - **Live changes:** a theme switch builds the new theme in a staging folder, then moves it over `current/theme` (Omarchy's `omarchy-theme-set` script, read 2026-10-23). So the app watches the `current` folder, not a single file, and reloads its colours when the theme folder is replaced.
@@ -226,7 +237,10 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - **Elsewhere**, or when that file is missing or unreadable, the app uses OpenDeepCool's own default theme, designed with the screens in Phase 10.
   - **After v1, other desktops:** the XDG Desktop Portal's Settings interface gives a desktop's light/dark preference (`color-scheme`) and accent colour (`accent-color`), with a `SettingChanged` signal, on desktops that implement it. Setups without a standard need a theme folder that the user picks.
 - **Build and run**: `cargo build --release` produces native binaries, so running them needs no Rust toolchain. They link to the system GTK4, which Omarchy already ships.
-- **Packaging** (owner, 2026-10-25): one PKGBUILD, so pacman tracks every installed file, offered two ways: as an **AUR** package, and from **GitHub** by cloning the repository and running `makepkg -si`. Both are tested installing and uninstalling in a throwaway Arch container. The official repositories can only follow later, if the AUR package gets popular and an Arch Package Maintainer adopts it (Arch Wiki, Arch User Repository, read 2026-10-25). The package enables the service at install, and the audio helper for every user, although Arch convention is not to ("does not enable most services on installation", Arch Wiki, systemd, read 2026-10-25); its install message says what was enabled and how to disable it (owner, 2026-10-25).
+- **Packaging** (owner, 2026-10-25): one PKGBUILD, so pacman tracks every installed file, offered two ways: as an **AUR** package, and from **GitHub** by cloning the repository and running `makepkg -si`. Both are tested installing and uninstalling in a throwaway Arch container. The official repositories can only follow later, if the AUR package gets popular and an Arch Package Maintainer adopts it (Arch Wiki, Arch User Repository, read 2026-10-25). The package enables the service at install, and the audio helper for every user, although Arch convention is not to ("does not enable most services on installation", Arch Wiki, systemd, read 2026-10-25) (owner, 2026-10-25). How it does so (owner, 2026-10-26):
+  - the enable links are symlinks the package ships under `/usr/lib/systemd/`, so pacman installs and removes them;
+  - the service is started by the package's own post-transaction pacman hook. It runs after systemd's hooks have created the account and reloaded systemd, udev and D-Bus; pacman runs install scripts before those hooks (Arch Linux dev blog, "On scripts and hooks", 2026);
+  - turning it off takes `systemctl mask`, and the install message says so.
 - **Reverse-engineering environment** (development only, never shipped):
   - DeepCreative 1.2.14 is extracted from the owner's installer and run under Wine (11.17 in Phase 1, 11.20 in Phase 3) in its own prefix, with networking blocked.
   - Its Electron build honours Node inspector arguments (fuse `EnableNodeCliInspectArguments`), so a small hook can log every USB write for each mode.
@@ -255,12 +269,14 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
   - mode switches, and settings such as rotation changed while it runs;
   - reconnecting after the device disappears.
 - **Layer 4, end to end on the real LP360:**
-  - **automated:** the service drives the real cooler through the whole matrix, records every report it actually wrote, and compares them with the expected frames. Unattended.
+  - **automated:** the service drives the real cooler through one example of each mode and of each test type (owner, 2026-10-26), records every report it actually wrote, and compares them with the expected frames. Unattended.
+    - The test types are a scenario type, rotation, scrolling, dashes, a mode switch, reconnect, the wake-up from standby, start-up and Music's delay.
+    - The whole matrix, and every scenario at every position and rotation, runs in layers 1 and 3. There the clock is fake and the cross takes seconds; on the real cooler, at the real 100 ms tick, it would take days.
   - **real where present, fake where absent** (owner, 2026-10-24: the dev program runs on other computers too): the run probes the PC it runs on, for the cooler, the CPU and GPU drivers and the board fans.
     - A device that is present and usable is tested for real.
     - An absent one gets the same checks against fakes.
     - One that is present but unusable (for example without the dev access setup) fails with its fix, never falls back.
-    - `odc-e2e --require <list>` names what must run real on a given PC (on the owner's PC, the list comes from `docs/local/`). Layer 4 is the `odc-e2e` program, with its options as flags given at start, never environment variables (owner, 2026-10-24); it runs the whole cross, unattended, every time.
+    - `odc-e2e --require <list>` names what must run real on a given PC (on the owner's PC, the list comes from `docs/local/`). Layer 4 is the `odc-e2e` program, with its options as flags given at start, never environment variables (owner, 2026-10-24); it runs all its examples, unattended, every time.
     - Every run prints which mode each device used.
   - **attended tour, optional** (owner, 2026-10-24): `odc-e2e --attended` shows one case of each kind and of each edge case on the cooler and asks the owner to confirm each; it's for the owner's own look and never gates anything.
   - **no person (rule 3):** nobody looks at the cooler. Layer 2's byte-for-byte match with the captures the owner checked in Phase 3 proves bytes → picture and orientation.
@@ -281,6 +297,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 | A driver behaves differently from its documentation on hardware we can't test | M | Rules come from kernel docs and are tested with fake trees; a reading that fails shows as unavailable, never as a wrong number; the spec marks such rules "not tested on hardware" |
 | No reliable way to tell a dedicated GPU from an integrated one for some driver | M | Phase 6 verifies a signal per driver from primary sources; where none exists, the owner decides |
 | hwmon/DRM index changes between boots | H | Look up by name or driver, never by index |
+| A USB write or a sensor read blocks (the kernel allows a USB write up to 5 s) | M | Device writes and sensor reads run in their own threads, so the tick never waits; a systemd watchdog restarts the service when a thread stops making progress (owner, 2026-10-26) |
 | Omarchy changes where or how it stores the current theme | L | The app falls back to its default theme and logs why; the spec records which files it reads |
 | Automated e2e tests need hardware or root (`/dev/uhid` is root-only) | M | Fake transport in CI; the automated real-device run (Testing Strategy, layer 4) uses the udev rule's group, so it needs no root and no person |
 
@@ -313,6 +330,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - Work only on the current plan step.
   - Re-read the step after a context compaction or long pause.
   - If a plan is wrong, stop, ask the owner, and fix the document first.
+  - After a phase's plan, and before implementing it, review it into `docs/prp/solution-reviews/` and cross its findings with the owner. Only accepted findings change the PRD, the plan or the spec (owner, 2026-10-26).
   - Update the phase table whenever a phase changes state.
 - **Enforcement**: Claude Code's docs say instruction files are context, not enforced configuration. A git pre-commit guard therefore backs up the critical rules for any agent or person:
   - from Phase 2, it rejects DeepCool material and oversized files;
@@ -394,12 +412,12 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 5: Device & protocol core**
 - **Goal**: Reliable frames to the LP360 without root.
-- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects; the udev rule; dev scripts that install and remove the development access setup. The developer test-pattern binary is dropped: the unattended real-device test writes expected frames instead (owner, 2026-10-24).
+- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects, and starts a new conversation on request (for the wake-up from standby); the udev rule; dev scripts that install and remove the development access setup. The developer test-pattern binary is dropped: the unattended real-device test writes expected frames instead (owner, 2026-10-24).
 - **Tests**:
   - unit: encoding, checksum, rotation (property tests); the expected-frame loader and picture diff the later phases reuse
   - integration: fake transport and fake sysfs trees (a virtual `uhid` device needs root, so it isn't used)
   - differential: every captured DeepCreative message re-encoded byte for byte
-  - e2e, unattended: mode 1's static expected frames written to the real cooler in all four rotations, every written report recorded and compared with the expected frames; a disconnect and reconnect of the real cooler
+  - e2e, unattended: mode 1's `42%` written to the real cooler unrotated and in one rotation, every written report recorded and compared with the expected frames; a disconnect and reconnect of the real cooler, and a new conversation on the same connection (the device side of the wake-up). All four rotations are checked in the unit tests (owner, 2026-10-26: one example of each test type on the cooler)
   - CI: GitHub Actions and the pre-commit guard run layers 1 and 3
 - **Success signal**: All test layers pass unattended, on the real cooler, without root.
 
@@ -423,7 +441,8 @@ This project spans many sessions and possibly several coding agents, so the way 
 - **Goal**: Deliver the MVP.
 - **Scope**:
   - systemd system service (dedicated user, sandboxed) and the settings file in its state directory
-  - the D-Bus interface and polkit authorization the settings app will use (the app's side is Phase 10)
+  - the D-Bus interface and polkit authorization the settings app will use (the app's side is Phase 10), for the active local session only, reads included (owner, 2026-10-26)
+  - back from standby: after every wake-up, a new conversation with the cooler and new reading intervals (owner, 2026-10-26)
   - Load Mode as defined in the spec: modes 1–6, Separate (CPU, GPU, RAM usage) and Combined (CPU/GPU, CPU/RAM, GPU/RAM) ([display.md](../../spec/display.md#modes)); temperatures are Temperature Guardian (Phase 8) and Full/Split Screen is Music Mode (Phase 9)
   - the 100 ms tick, mode switches, unavailable values drawn as dashes ([display.md](../../spec/display.md#unavailable-values))
   - the dev copy of the service on the owner's PC, for the unattended end-to-end tests
@@ -431,7 +450,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - unit: renderers against the expected frames for every Load Mode matrix case
   - differential: DeepCreative's Load Mode captures, 0 differing pixels
   - integration: service → fake device
-  - e2e, unattended: the matrix run on the cooler; the start check: the running service's first frame, after `03 08`, is the configured mode, checked from the service state and the recorded frames (no reboot; owner, 2026-10-25)
+  - e2e, unattended: one example of each Load mode and of each test type on the cooler; the start check: the running service's first frame, after `03 08`, is the configured mode, checked from the service state and the recorded frames (no reboot; owner, 2026-10-25)
 - **Success signal**: The service, enabled for boot and running with nobody logged in, shows the configured mode with no action, as the start check proves (no reboot; owner, 2026-10-25).
 
 **Phase 8: Temperature & Power**
@@ -441,7 +460,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - unit: renderers against the expected frames for every Temperature and Power matrix case, and values of one to four digits, plus 10 000 and more (capped at 9999)
   - differential: DeepCreative's Temperature Guardian and Power Guardian captures, 0 differing pixels
   - integration: service with simulated sensor values
-  - e2e, unattended: the matrix run on the cooler
+  - e2e, unattended: one example of each mode and of each new test type on the cooler
 - **Success signal**: These modes' checklist items pass.
 
 **Phase 9: Music**
@@ -451,7 +470,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - unit: spectrum from synthetic signals; emoji and value areas against the expected frames in every rotation and unit; spectrum layout rules
   - differential: DeepCreative's Music Mode captures, top areas only
   - integration: audio file → frames
-  - e2e, unattended: the matrix run on the cooler, with test audio played through a virtual output
+  - e2e, unattended: one example of each mode on the cooler, with test audio played through a virtual output, and the delay measurement
 - **Success signal**: These modes' checklist items pass, and the measured delay from sound to frame is at most 150 ms for 95 % of frames (owner, 2026-10-25).
 
 **Phase 10: Settings app**
@@ -466,10 +485,10 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 11: Packaging & final validation**
 - **Goal**: Clean install and uninstall, plus full parity sign-off.
-- **Scope**: one PKGBUILD, published to the AUR and usable from a GitHub clone with `makepkg -si` (owner, 2026-10-25), with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24).
+- **Scope**: one PKGBUILD, published to the AUR and usable from a GitHub clone with `makepkg -si` (owner, 2026-10-25), with the system user, units, udev rule and polkit policy; install and uninstall docs listing every file; release build; a full unattended checklist run; an uninstall that removes everything (System Footprint); the package's install script removes the development copy listed in its manifest before installing its own files (owner, 2026-10-24). The package enables its units with symlinks it ships, and starts the service from its own post-transaction pacman hook, after systemd's hooks (owner, 2026-10-26).
 - **Tests**:
   - integration: install → uninstall, both from the AUR and from a GitHub clone, in a throwaway Arch container (built rootless with `pacstrap -N`, entered with `arch-chroot -N`, never booted; owner, 2026-10-25) leaves it exactly as before: files, users, groups, udev rules, enabled units, permissions and saved data
-  - e2e, unattended: the package installed on the owner's PC; the service the package started passes the start check, and the full checklist run passes against it. No reboot (owner, 2026-10-25)
+  - e2e, unattended: the package installed on the owner's PC; the service the package started passes the start check, and the full checklist run passes against it: every case in-process, one example of each mode and test type on the cooler. No reboot (owner, 2026-10-25)
 - **Last step of v1** (owner, 2026-10-23): delete DeepCreative completely from the owner's PC: the Wine prefix (`research/wine/`), the extracted app, the captures, the static-analysis extracts and the research tools that only work with it (all in `research/`), and the installer copy. The owner confirms the list before anything is deleted.
 - **Success signal**: The checklist is at 100%, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC.
 
@@ -483,7 +502,7 @@ Phases 1–4 run in sequence because each feeds the next. Phases 5 and 6 touch s
 
 The owner asked for every installed or created item to be listed. Paths are proposed and get finalised in the Phase 11 plan.
 
-**Uninstalling removes everything** (owner, 2026-10-24). pacman removes the files the package installed. It doesn't remove what was created after install: accounts (`pacman -R` runs no `userdel`; Arch forum, unverified until the Phase 11 test), saved data, enable links. The package's removal script removes those, in the "Removed by" column below. An automated test installs and uninstalls in a throwaway system and requires it to end exactly as it started. Only two things outlast the uninstall: a sensor driver loaded by lm-sensors stays loaded until the next reboot, and old journal lines stay until the journal rotates them (they can't be deleted without deleting everyone's logs).
+**Uninstalling removes everything** (owner, 2026-10-24). pacman removes the files the package installed. It doesn't remove what was created after install: accounts (`pacman -R` runs no `userdel`; Arch forum, unverified until the Phase 11 test) and saved data. The package's removal script removes those, in the "Removed by" column below. The enable links are files of the package itself, symlinks under `/usr/lib/systemd/`, so pacman removes them (owner, 2026-10-26). An automated test installs and uninstalls in a throwaway system and requires it to end exactly as it started. Only two things outlast the uninstall: a sensor driver loaded by lm-sensors stays loaded until the next reboot, and old journal lines stay until the journal rotates them (they can't be deleted without deleting everyone's logs).
 
 **Finished app**
 
@@ -492,16 +511,17 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Service and settings-app binaries | `/usr/bin/` | The app | `pacman -R` |
 | System user and group | `/usr/lib/sysusers.d/opendeepcool.conf` | The unprivileged account the display service runs as | `pacman -R` removes the file; the removal script deletes the account and group |
 | udev rule | `/usr/lib/udev/rules.d/70-opendeepcool.rules` | LP360 access for the service's group, plus read access to the CPU power counter if Phase 6 chooses a rule for it | `pacman -R`; the removal script reloads udev so the access ends at once, not at the next reboot |
-| systemd system unit | `/usr/lib/systemd/system/opendeepcool.service`, enabled at install | Starts the display service at boot | The removal script stops and disables it; `pacman -R` |
-| Sensor detection unit | `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` (one-shot, runs as root) | Runs `sensors-detect --auto` when the PC has no lm-sensors configuration | The removal script disables it; `pacman -R` |
+| systemd system unit | `/usr/lib/systemd/system/opendeepcool.service`, enabled by the package's symlink `/usr/lib/systemd/system/multi-user.target.wants/opendeepcool.service` | Starts the display service at boot | A pre-removal pacman hook stops it; `pacman -R` removes the unit and its symlink |
+| Sensor detection unit | `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` (one-shot, runs as root; pulled in by the display service, never enabled on its own) | Runs `sensors-detect --auto` when the PC has no lm-sensors configuration | `pacman -R` |
 | lm-sensors | the `lm_sensors` package, as a dependency | Provides `sensors-detect` and `lm_sensors.service` | `pacman -Rs`, if nothing else needs it |
 | lm-sensors configuration | `/etc/conf.d/lm_sensors`, with `lm_sensors.service` enabled | Written by `sensors-detect`; loads the board's sensor drivers at every boot | The removal script, only if OpenDeepCool's detection created them; a configuration that existed before is never touched |
-| Audio helper | `/usr/lib/systemd/user/opendeepcool-audio.service`, enabled for all users (`systemctl --global enable`) | Music Mode audio from the active session | The removal script (`systemctl --global disable`); `pacman -R` |
-| polkit policy | `/usr/share/polkit-1/actions/` (file name set in the plan) | Lets users at the PC change settings | `pacman -R` |
+| Audio helper | `/usr/lib/systemd/user/opendeepcool-audio.service`, enabled for all users by the package's symlink `/usr/lib/systemd/user/default.target.wants/opendeepcool-audio.service` | Music audio from the active session, only while a Music mode is shown | `pacman -R` removes the unit and its symlink |
+| pacman hooks | `/usr/share/libalpm/hooks/opendeepcool-install.hook`, `opendeepcool-upgrade.hook` and `opendeepcool-remove.hook`, with their script `/usr/share/libalpm/scripts/opendeepcool-hook` | Start the service after systemd's hooks on install, restart it on upgrade, stop it before removal | `pacman -R` |
+| polkit policy | `/usr/share/polkit-1/actions/` (file name set in the plan) | Lets the user at the PC use OpenDeepCool: actions `use`, `change-settings` and `feed-audio`, each for the active local session only | `pacman -R` |
 | D-Bus policy | `/usr/share/dbus-1/system.d/` | Lets the settings app reach the service | `pacman -R` |
 | Desktop entry and icon | `/usr/share/applications/`, `/usr/share/icons/` | Launch from the app menu, on Omarchy or any desktop | `pacman -R` |
 | Settings file | `/var/lib/opendeepcool/`, the service's state directory | One set of choices for the whole PC | The removal script |
-| Detection record | the same state directory | Which motherboard the sensor detection last ran for | The removal script |
+| Detection record | `/var/lib/opendeepcool-detect/` (root only, mode 0700), the detection unit's own state directory | What the detection created (yes/no facts, no paths) and which motherboard it last ran for. It's root's alone, so the display service's account can't change it | The removal script, after removing what the record says the detection created |
 | Logs | System journal | Diagnostics | journald rotation |
 
 **Development and research only (never shipped)**
@@ -519,7 +539,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Group `opendeepcool` (dev copy) | `/etc/sysusers.d/opendeepcool.conf` (`g opendeepcool -`), applied with `systemd-sysusers`; installed 2026-10-24 with the owner's OK | Lets the unattended tests reach the cooler without root (AGENTS.md rule 3). Undo: `groupdel opendeepcool` and delete the file. Must be deleted before the Phase 11 package installs, because a file in `/etc` hides the packaged one of the same name in `/usr/lib` |
 | udev rule (dev copy) | `/etc/udev/rules.d/70-opendeepcool.rules`: the LP360's hidraw node (`3633:000c`) gets group `opendeepcool`, mode `0660`; installed 2026-10-24 | The rule the product ships, proven on the cooler: it followed the cooler to a new hidraw number after a reconnect. Undo: delete the file, `udevadm control --reload`, re-trigger the node. Same Phase 11 note as above |
 | The owner's account in group `opendeepcool` | `/etc/group`; added 2026-10-24 | Development only: tests and research tools run as the owner. The finished app never adds a person to the group. Undo: `gpasswd -d <user> opendeepcool` |
-| Dev copy of the display service (from Phase 7) | binary in `/usr/local/libexec/opendeepcool-dev/`; unit `/etc/systemd/system/opendeepcool.service`, enabled at boot; the service account (`u! opendeepcool` in the sysusers file above); D-Bus policy in `/etc/dbus-1/system.d/`; polkit action in `/etc`; drop-in `/etc/systemd/system/opendeepcool.service.d/dev.conf` that starts it with `--dev`, which adds a readings override for the tests and records every frame sent (tests only) | The real service must run on the owner's PC from the MVP on, to test boot, sandbox, device access, D-Bus and polkit unattended. The sandbox hides home folders, so the binary can't run from the repository |
+| Dev copy of the display service (from Phase 7) | binary in `/usr/local/libexec/opendeepcool-dev/`; unit `/etc/systemd/system/opendeepcool.service`, enabled at boot; the service account (`u! opendeepcool` in the sysusers file above); D-Bus policy in `/etc/dbus-1/system.d/`; polkit action in `/etc`; drop-in `/etc/systemd/system/opendeepcool.service.d/dev.conf` that starts it with `--dev`, which adds a readings override for the tests and records every frame sent (tests only). The override's D-Bus interface sits at its own object path, and every call checks that the caller is in group `opendeepcool`, besides the D-Bus policy and polkit (owner, 2026-10-26) | The real service must run on the owner's PC from the MVP on, to test boot, sandbox, device access, D-Bus and polkit unattended. The sandbox hides home folders, so the binary can't run from the repository |
 | Dev manifest | `/var/lib/opendeepcool-dev/manifest` | Written by `scripts/dev/setup.sh`: every file, account, group membership and enabled unit the dev setup created. `scripts/dev/teardown.sh` removes exactly those. **The Phase 11 package's install script runs the same removal before installing its own files**, so no dev copy survives or hides a packaged file (owner, 2026-10-24) |
 
 ---
@@ -547,12 +567,12 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Sensor architecture | Ports and adapters: display logic behind a readings port; a registry binds one source per metric from built-in driver rules | Display code reading sysfs directly; a user-editable rules file | Owner decision 2026-10-22: a driver change or new hardware must not touch display code; rules stay built in and tested |
 | Hardware coverage | Any PC with an LP360 on Arch Linux, Omarchy first: rules for the common CPU, GPU and board-sensor drivers; a driver without a rule leaves its metric unavailable | Only the owner's PC | Owner, 2026-10-23 |
 | GPU | Only the GPU metrics the display shows. A dedicated GPU before an integrated one; a dropdown only when the PC has more than one GPU, set to the dedicated one at first; the choice kept across reboots | DeepCreative's GPU list on every PC; wider GPU monitoring | Owner, 2026-10-23: the cooler needs no GPU monitoring beyond its display |
-| Who may change settings | Users in an active local session, without a password (polkit `allow_active`); remote and inactive sessions only read | Any local user; an admin password for every change | Owner, 2026-10-23: best practice for settings shared by the whole PC |
+| Who may use OpenDeepCool | Only the user of the active local session, without a password: reads, the preview and changes (polkit `allow_active` only); remote and inactive sessions can't use it, and nothing is broadcast | Remote and inactive sessions read only (owner, 2026-10-23, replaced); any local user; an admin password for every change | Owner, 2026-10-23: best practice for settings shared by the whole PC; owner, 2026-10-26: only the current logged-in user uses the service |
 | Driver names in the repository | Allowed for every driver the rules cover (names, module names, sensor labels) in code, tests, packaging and spec; part models and other machine facts still banned | Naming only the owner's drivers | Owner decisions 2026-10-22 (the kernel doesn't standardise what each input means, so rules must name the driver; AGENTS.md rule 10 exception) and 2026-10-23 (sensors work on any PC) |
 | Metric shown by each mode | Always the metric the mode names (CPU as CPU, GPU as GPU), everywhere in the implementation | Copy DeepCreative's swaps | Owner decision 2026-10-22, after DeepCreative was found drawing the GPU temperature in Music Mode → Temperature + Spectrum → CPU in °F (mode 18) |
-| Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy) | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice) | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't |
+| Testing | Every combination tested automatically against expected frames, in four layers (unit, differential, integration, end to end); from Phase 5 on, no test needs a person (Testing Strategy). The whole cross runs in-process; on the real cooler, one example of each mode and of each test type | Owner checks every combination by hand; owner checks test patterns and samples (the 2026-10-22 choice); the whole cross on the real cooler every run | Owner requirements, 2026-10-22: by hand would mean hundreds of checks, repeated after every change; 2026-10-24: discovery needed the owner, implementation doesn't. Owner, 2026-10-26 (solution review OV-04): at the real 100 ms tick the whole cross would take days, and it repeats the in-process tests of the same code |
 | Distribution | One PKGBUILD: an AUR package, and clone + `makepkg -si` from GitHub; both tested in a container | Official repositories directly (not possible: they need a Package Maintainer); a GitHub release with a prebuilt package; an install script without pacman | Owner, 2026-10-25 |
-| Service at install | Enabled and started at install, with the audio helper enabled for all users; the install message explains | Print the enable command only, as Arch convention prefers | Owner, 2026-10-25: the cooler must work with no extra step |
+| Service at install | Enabled and started at install, with the audio helper enabled for all users; the install message explains. Enabled by symlinks the package ships under `/usr/lib/systemd/`; started by the package's post-transaction pacman hook, after systemd's hooks; turned off with `systemctl mask` | Print the enable command only, as Arch convention prefers; `systemctl enable --now` in the install script | Owner, 2026-10-25: the cooler must work with no extra step. Owner, 2026-10-26 (solution review OV-02): pacman runs install scripts before its hooks, so a start there would come before the account and policies exist; Arch's guidance is to keep install scripts minimal and enable units declaratively |
 | Boot testing | None: no real, VM or container boots. Starting at boot is proven by the unit's enablement and the running service's start check | Five cold boots; a VM or container boot series | Owner, 2026-10-25 |
 | Uninstall | Removes everything OpenDeepCool installed or created: files, the system user and group, udev rules, enabled units, permissions and settings; proven by an automated test | Keep the account or the saved data | Owner, 2026-10-24 |
 | Settings app ↔ service | D-Bus system bus (`zbus`), polkit by bus name; diagnostics through the journal and a D-Bus method, no command line | Unix socket with our own protocol and client tool | Owner, 2026-10-24: the standard for system services with polkit; usable with `busctl` before the app exists |
@@ -565,6 +585,16 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Frame timing | One 100 ms tick: one frame, one scroll step, one animation step per tick | 104 ms frames (the median of DeepCreative's single gaps) | Owner, 2026-10-24: DeepCreative's long-run rate is 100.0 ms and its text moves one column per frame (protocol.md, display.md) |
 | Values that can't be read | The cooler shows dashes in their place; the app disables every mode that shows a persistently unavailable metric, and every mode of a missing device | Draw 0 (as DeepCreative under Wine); blank; switch to a fallback mode | Owner, 2026-10-24: never a wrong number; the saved choice isn't changed behind the user's back |
 | Development copy | The dev setup installs the service's files in administrator locations and keeps a manifest; teardown and the package's install script remove exactly what it lists | Run the service from the repository; leave cleanup to the developer | Owner, 2026-10-24 |
+| Detection record | In the detection's own root-only directory, `/var/lib/opendeepcool-detect/`; yes/no facts only, never paths | In the display service's state directory | Owner, 2026-10-26 (solution review OV-01): root must never trust a file the unprivileged service account can change |
+| Service threads and supervision | One thread per job: the tick (no I/O), the cooler writer, the sensor reader, D-Bus, later the audio reader. A panic ends the process; a systemd watchdog; restarts back off and never give up | One engine thread doing the I/O; systemd's default restart limit | Owner, 2026-10-26 (solution review OV-03): a stalled USB write or a slow sensor must never stop the display, and a hang must end in a restart |
+| Audio capture | Only while a Music mode is shown; the helper waits for events and doesn't run for system accounts | Capture whenever the active user is logged in; retry every 2 s | Owner, 2026-10-26 (solution review OV-05): no sound flows when nothing uses it |
+| Users | One user at a time, on a PC with one seat; only the active user needs access to the cooler; no design for simultaneous users | Multi-seat and simultaneous active users | Owner, 2026-10-26: OpenDeepCool is for PCs, which have one user at a time |
+| Audio source | Try taking only the streams tagged as music (PipeWire `media.role` Music); a research step before Phase 9 decides; until then the default output's monitor | Everything the PC plays, calls and notifications included | Owner, 2026-10-26 (solution review OV-06): the spectrum is for music |
+| Numbers drawn | Exact integer arithmetic on each source's whole-number units; no floating point between a sensor and a digit | Floating-point readings | Owner, 2026-10-26 (solution review OV-08): floating point can flip a rounding. An exact 57.5 % computed as `23/40 × 100` is 57.49999999999999 in doubles |
+| Rounding | Every measurement rounds to the nearest whole number, halves up: usage, Memory Load, temperatures in °C, power, and °F, which is rounded once from the exact °C reading | DeepCreative's rules: round up for usage, temperature and power; for °F, round the °C up, convert, then drop the fraction | Owner, 2026-10-26: the nearest whole number is the closest to the reading |
+| Dev test interface | Kept in the shipped binary, off unless started with `--dev`; its own object path; each call checks the caller is in group `opendeepcool`, besides the D-Bus policy and polkit | Left out of the shipped build by a cargo feature | Owner, 2026-10-26 (solution review OV-13): the final parity run then tests the binary that ships |
+| D-Bus arguments | Checked against the service's own lists, with length limits; no path built from a caller's string | Checked for non-empty only | Owner, 2026-10-26 (solution review OV-14) |
+| Standby | After every wake-up, a new conversation with the cooler (`03 08` before the next frame) and new reading intervals; monitor off or screen lock changes nothing | Nothing special: a device node that survives the sleep would get no `03 08` | Owner, 2026-10-26: when the PC comes back, OpenDeepCool must be back (solution reviews P3-04, P5-05, OV-19) |
 | PRP documents | Kept in the repository under `docs/prp/` (the PRP store under `~/.prp/` links there) | PRP default store outside the repo | Owner wants the PRP documents in git |
 | DeepCool material | Never committed; captures stay local | — | Copyright; the repository is public |
 | Agent instructions | `AGENTS.md` is the single source; `CLAUDE.md` imports it (`@AGENTS.md`) and adds Claude-only notes; critical rules also enforced by a git pre-commit guard | `CLAUDE.md` only; two separate copies | Works for any coding agent, avoids drift between two copies, and follows Claude Code's documented import pattern. Instruction files are context, not enforcement, so the guard backs up the critical rules |

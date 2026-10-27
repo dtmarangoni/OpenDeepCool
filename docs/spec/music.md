@@ -37,7 +37,9 @@ Evidence: capture: 2026-10-22, the loud-chord pass reached rows 3 and 9 but neve
 DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; see the PRD).
 - **What DeepCreative does under Wine:** its 14 columns each cover one band about 10.8 Hz wide, so the whole display spans only about 5–160 Hz. Alternate frames also show a weaker copy at half the frequency, which may be a Wine artefact. Capture: test tones and a sweep, 2026-10-22.
 - **What OpenDeepCool does instead:** imitate Winamp's classic analyser, with bands spread across the whole audible range over the 14 columns. The rules below were chosen by the owner on 2026-10-25, after watching them on a preview page that drew the 14 × 14 grid at the cooler's 100 ms tick.
-- **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one.
+- **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one. Sound is taken only while a Music mode (13–23) is shown. In every other mode nothing is captured (owner, 2026-10-26).
+  - **Planned** (owner, 2026-10-26): take only the sound tagged as music, PipeWire streams whose `media.role` is Music, instead of everything the PC plays.
+  - A research step before Phase 9 checks whether common players and browsers tag their streams, and how to capture just those. Until it decides, the source is the monitor above.
 
 ### OpenDeepCool's spectrum, precisely
 
@@ -77,7 +79,7 @@ The value is drawn in rows 2–6 with the [display rules](display.md):
 
 Examples: `57°C`, `38°C`, `42%`, `7%`, `63%`; in °F, modes 18 and 19 scroll. Capture: 2026-10-22, with injected values.
 
-**OpenDeepCool: no caps** (owner, 2026-10-24). The value area is static while the value fits (99 or less, °F included) and scrolls by itself when it's 100 or more, for example `100%` or `134°F`, in rows 2–6. Only the value scrolls; the spectrum bars below it never do ([display.md](display.md#values), OpenDeepCool: no caps).
+**OpenDeepCool: no caps** (owner, 2026-10-24). The value area is static while the value fits (99 or less, °F included) and scrolls by itself when it's 100 or more, for example `100%` or `135°F`, in rows 2–6. Only the value scrolls; the spectrum bars below it never do ([display.md](display.md#values), OpenDeepCool: no caps).
 
 **DeepCreative quirk, not reproduced:** in mode 18 with °F, DeepCreative draws the **Gpu temperature**, not the CPU Temperature the option names. With CPU 57 °C and GPU 38 °C it scrolled `100°F` (the GPU) instead of `134°F`; with the GPU at 0 it scrolled `32°F`. Mode 18 in °C and mode 19 in both units draw the right metric. Capture: music sweep step `MusicLoud 18`, unit 1, and the matrix sweep, in all four rotations; owner: 2026-10-22, `32°F` and then `100°F` on the cooler.
 
