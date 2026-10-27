@@ -212,7 +212,7 @@ flowchart LR
 
 - `odc_ipc`: the contract Phase 10's app compiles against: names, the state keys and method list, error names, as `docs/spec/dbus.md` describes them.
 - `odc_render::{Mode, mode_info, picture, Marquee}`: Phases 8–9 add their modes' pictures; the strip and the movement serve them unchanged. The app's preview (Phase 10) reuses `picture` and `Marquee`.
-- `opendeepcool.service`: `Wants=` and `After=` on `opendeepcool-gpu-rank.service` and `opendeepcool-sensors-detect.service` (Phase 6).
+- `opendeepcool.service`: `Wants=` both Phase 6 one-shots; `After=` only `opendeepcool-gpu-rank.service` and `lm_sensors.service` (ordering only), never the detection, so a slow probe never delays the cooler (owner, 2026-10-27; solution review P6-02, P6-03, P6-04).
 - `settings.toml` v1: Phases 8–10 add fields with defaults; nothing else writes it.
 
 ## Scope
@@ -376,7 +376,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `Mode` (u), `Rotation` (y), `TemperatureUnit` (s: `celsius` or `fahrenheit`);
   - `CoolerConnected` (b), and `CoolerState` (s: `connected`, `not-found`, `no-access` or `write-failed`), from Phase 5's `Link` and its reason (owner, 2026-10-27; solution review P5-02, P7-14);
   - `AvailableModes` (au) and `UnavailableReasons` (a{us}: mode → one-line reason);
-  - `Gpus` (a(sss): PCI address, driver, kind, in rank order) and `ChosenGpu` (s, empty when none was chosen);
+  - `Gpus` (a(sss): PCI address, driver, kind, in rank order; kind is `dedicated`, `integrated`, `unknown` or `query-failed`, the last ranked as unknown, owner, 2026-10-27, solution review P6-07) and `ChosenGpu` (s, empty when none was chosen);
   - `FanInputs` (a(ssus): chip, device path, input, label);
   - `CoolerFanInput` and `PumpInput` (ssu each, empty when unset);
   - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable, capped at 9999 like every value; owner, 2026-10-25).
@@ -452,7 +452,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **nothing:** a choice that is already set; a unit change while the mode shows no temperature (the unit is only saved). The D-Bus side doesn't even send these (Task 7).
   - When a settings change and new readings land on the same tick, the reset wins, drawn with the new readings (S21).
 - **Start-up:** the first tick shows the saved mode at once. `Lp360` sends `03 08` first (Phase 5). The first second's rate metrics are `NotYet` → dashes (`display.md` Unavailable values).
-- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied` or `IntegratedGpuPower`.
+- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower` or `DriverUpdated`. `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
   - `AvailableModes` = the modes whose every metric is available; the rest carry their first reason.
   - A missing device makes all of its metrics unavailable, and so all of its modes (`settings.md` Availability).
 - **Unavailable values** in the current mode → dashes; the mode stays.
@@ -479,6 +479,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - a changed reading shows within 10 ticks;
   - `NotYet` → dashes, then digits;
   - a GPU metric becoming `NoDevice` mid-run → dashes; mode 4 stays the mode, and `AvailableModes` drops 2, 4 and 6.
+  - **Late sources** (P6-04, fake clock): Gpu usage `NoDevice` at start and found 30 s later → modes 2, 4 and 6 never leave `AvailableModes`; still missing after two minutes → they leave it, and come back when the source is found later.
 - **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Wake-up (S18; owner, 2026-10-26):** with the device present all along, a `Wake` while `100%` scrolls. The next report is `03 08`, then that tick's frame; the strip's position continues; `FakeReadings` counts one `restart_intervals()`, and the rate metrics it then reports as `NotYet` show dashes for their first second, then values. A `Wake` while the device is absent changes nothing but the readings.
 - **Stale GPU ranking:** the rank file is deleted only when the set changed and no choice exists.
@@ -567,7 +568,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `Type=notify`, `NotifyAccess=main`, `WatchdogSec=15`;
   - `User=opendeepcool`, `Group=opendeepcool`, `StateDirectory=opendeepcool`;
   - `Restart=on-failure`, `RestartSec=1`, `RestartSteps=5`, `RestartMaxDelaySec=30`, and `StartLimitIntervalSec=0` in `[Unit]` (Recommendation, Supervision);
-  - `Wants=`/`After=` the two Phase 6 one-shots; `WantedBy=multi-user.target`;
+  - `Wants=` the two Phase 6 one-shots; `After=opendeepcool-gpu-rank.service lm_sensors.service`, not the detection (P6-02, P6-04); `WantedBy=multi-user.target`;
   - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`;
   - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 11 after verification (Phase 6).
 - `packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf`: CREATE. Every rule names `send_destination`, paired with `send_interface` or `send_path`, because the interface field of a message is optional (dbus-daemon(1)):
@@ -585,7 +586,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 **Tests**
 - `systemd-analyze verify packaging/systemd/opendeepcool.service` passes.
-- A unit test reads `opendeepcool.service` and checks the supervision values: `Type=notify`, `WatchdogSec=15`, `StartLimitIntervalSec=0`, `RestartSteps=5`, `RestartMaxDelaySec=30`.
+- A unit test reads `opendeepcool.service` and checks the supervision values: `Type=notify`, `WatchdogSec=15`, `StartLimitIntervalSec=0`, `RestartSteps=5`, `RestartMaxDelaySec=30`. It also checks the ordering: `After=` the rank helper and `lm_sensors.service`, never the detection (P6-02, P6-04).
 - `systemd-analyze security opendeepcool.service` on the dev copy gives an exposure level of "OK" or better. The output is pasted into the task's report, and any setting that can't be tightened is explained there.
 - `xmllint --noout` on the D-Bus and polkit files. They're validated against their DTDs where the DTDs are installed; otherwise the check is "well-formed" only, and the report says so.
 

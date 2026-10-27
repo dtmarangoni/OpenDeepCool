@@ -79,7 +79,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - This applies to every metric, not only the GPU's.
   - A short read failure, or the first second after the service starts, doesn't disable anything; the cooler shows dashes meanwhile ([display.md](display.md#unavailable-values)).
   - If the saved mode loses a reading after it was chosen, it stays the saved mode: the cooler shows dashes and the app shows the reason.
-- **GPU list order** (owner, 2026-10-24): dedicated GPUs first, then integrated, then GPUs whose driver doesn't say, each group by PCI address. A GPU whose driver has no reading rule is still listed, last; choosing it disables the GPU modes with the reason "no reading for this GPU's driver" ([sensors.md](sensors.md#gpu-choice)).
+- **GPU list order** (owner, 2026-10-24): dedicated GPUs first, then integrated, then GPUs whose driver doesn't say, each group by PCI address. A GPU whose driver has no reading rule is still listed, last; choosing it disables the GPU modes with the reason "no reading for this GPU's driver" ([sensors.md](sensors.md#gpu-choice)). A GPU whose kind couldn't be asked, because the query failed, is listed with the unknown ones, with a short note saying so (owner, 2026-10-27; solution review P6-07).
 - **Status**, kept short:
   - whether the cooler is connected and whether the service is running. A cooler that's plugged in but that the service can't open (a permissions problem, such as a missing udev rule) is told apart from one that isn't connected, with what to do about it (owner, 2026-10-27; solution review P5-02);
   - in a Music mode, whether sound is coming in from the session at the PC (the service's `AudioConnected`; without it the spectrum is silent);

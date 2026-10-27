@@ -117,7 +117,7 @@ These can't be tested here, so the project doesn't target them: owners of other 
 |---|---|---|
 | Must | Starts at boot and shows the configured mode with live data, before anyone logs in and for every user | Owner requirement: keeps working after every restart; a system service: owner, 2026-10-23 |
 | Must | Talks to the LP360 over USB without root | The service runs as its own unprivileged system user |
-| Must | Works on any PC: finds the sensors behind the display's values and the cooler's fan and pump inputs itself, and runs the board's sensor detection when the PC has none configured | Owner, 2026-10-23 |
+| Must | Works on any PC: finds the sensors behind the display's values and the cooler's fan and pump inputs itself, and, when the PC has no lm-sensors configuration and no fan reading yet, runs the detection of the board chip that measures the cooler's fans and pump | Owner, 2026-10-23; made safer 2026-10-27 (solution review P6-02) |
 | Must | Load Mode: Combined and Separate display with CPU usage, GPU usage and RAM used | DeepCreative LP360 options; the owner's MVP |
 | Must | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | DeepCreative LP360 modes |
 | Must | Music Mode: emoji animation + spectrum, temperature + spectrum, usage + spectrum | DeepCreative LP360 modes |
@@ -191,7 +191,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
 - **Sensor architecture: ports and adapters** (owner, 2026-10-22). The display logic never touches files or drivers, so a driver change or new hardware means a new rule row, not new display code.
   - **Display logic** (modes, renderers, scheduler) asks for one set of readings per second and sends frames. It depends only on two ports: a readings port and a display port.
   - **Exact numbers** (owner, 2026-10-26): every reading keeps its source's whole-number units (jiffies, kB, millidegrees, µW, mW, µJ over µs), and every number drawn is computed from them in integer arithmetic and rounded to the nearest whole number, halves up, whatever the measurement. No floating point lies between a sensor and a digit ([display.md](../../spec/display.md#values)).
-  - **Sensor registry:** scans hwmon, DRM, powercap and `/proc`, matches the driver rules, and binds one source per metric. It finds devices by name or driver on every scan and rescans when a read fails.
+  - **Sensor registry:** scans hwmon, DRM, powercap and `/proc`, matches the driver rules, and binds one source per metric. It finds devices by name or driver on every scan and rescans when a read fails. A metric without a source is looked for again every 5 s for the first two minutes after start-up or a wake-up, then every 60 s, so a driver that loads late is found without a restart (owner, 2026-10-27; solution review P6-04).
     - A metric with no matching source is reported as unavailable and logged, never drawn as a wrong number.
     - **Diagnostics** (owner, 2026-10-24, instead of a separate `doctor` command, since v1 has no command line): the service writes which source each metric is bound to into the journal at start and at every rebind, and a D-Bus method returns the same list (readable with `busctl`).
   - **Adapters**, each small and tested against fake sysfs trees:
@@ -213,7 +213,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
     - systemd supervises it: any panic ends the whole process; a watchdog restarts it when the tick or a worker thread stops making progress; restarts back off but never give up. It reconnects by itself when the USB device disappears and comes back.
     - **Back from standby** (owner, 2026-10-26): the monitor may turn off for inactivity and the PC may sleep; when it comes back, OpenDeepCool is back with no action. After every wake-up (logind's `PrepareForSleep(false)`), the service starts a new conversation with the cooler, `03 08` before the next frame, and starts its interval readings over. The monitor turning off or the screen locking changes nothing: the cooler keeps showing live values.
   - **Sensor detection:** a separate one-shot unit, the only part that runs as root.
-    - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), it runs `sensors-detect --auto`, at most once per motherboard.
+    - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), it runs `sensors-detect --auto`, at most once per motherboard. It doesn't run when a fan reading already exists, it has 120 s to finish, and the display service doesn't wait for it (owner, 2026-10-27; solution review P6-02, P6-03, P6-13).
     - That writes the configuration and enables `lm_sensors.service`, which loads the detected drivers at every boot.
     - An existing configuration is never overwritten.
     - Its record of what it created, and for which board, lives in its own root-only directory, `/var/lib/opendeepcool-detect/`, never in the display service's state directory, which the unprivileged account owns. The record holds only yes/no facts, never paths (owner, 2026-10-26).
@@ -296,7 +296,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 | DeepCreative tries to update itself or the firmware | L | Network blocked during the Wine run; decline any prompt |
 | Wrong fan input chosen as the cooler's pump or fans | L | No default: the user picks both inputs, as in DeepCreative, and the settings app shows each input's live RPM |
 | CPU power counter is root-only (kernel fix for CVE-2020-8694) | H (certain) | An install-time change lets only the display service's account read it; Phase 6 decides how |
-| `sensors-detect` probes hardware; lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems" | L | Runs only when the PC has no lm-sensors configuration, once per motherboard; never overwrites a configuration; its output goes to the journal |
+| `sensors-detect` probes hardware; lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems" | L | Runs only when the PC has no lm-sensors configuration and no fan reading yet, once per motherboard, within 120 s, without the display service waiting; never overwrites a configuration; its output goes to the journal; the install docs say beforehand that installing probes the sensor buses (owner, 2026-10-27) |
 | A driver behaves differently from its documentation on hardware we can't test | M | Rules come from kernel docs and are tested with fake trees; a reading that fails shows as unavailable, never as a wrong number; the spec marks such rules "not tested on hardware" |
 | No reliable way to tell a dedicated GPU from an integrated one for some driver | M | Phase 6 verifies a signal per driver from primary sources; where none exists, the owner decides |
 | hwmon/DRM index changes between boots | H | Look up by name or driver, never by index |
@@ -614,6 +614,10 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Cooler status | Connected, not found, found but the service can't open it, or a failed write: in the journal, the service state (`CoolerState`) and the app | Connected or disconnected only | Owner, 2026-10-27 (solution review P5-02): a permissions problem must not look like a missing cable |
 | Dev setup | `setup.sh` builds as the user; only `install-root.sh` runs with `pkexec`, and it never builds | The whole setup under `pkexec` | Owner, 2026-10-27 (solution review P5-03): a build as root would run every dependency's build script as root |
 | CI supply chain | Actions pinned to full commit hashes, a read-only token, `cargo deny check`; the pins are checked at each phase sign-off | Tags; Dependabot, which works through pull requests | Owner, 2026-10-27 (solution review P5-06, P5-07): no pull requests (owner, 2026-10-23) |
+| Sensor detection | Automatic, made safer: it doesn't run when a fan reading already exists, has 120 s, and the display service doesn't wait for it; the install docs say so beforehand | Detection on request in the app, behind an admin password; automatic as planned on 2026-10-23 | Owner, 2026-10-27 (solution review P6-02): the cooler's fan and pump speeds come only from the board's sensor chip, whose driver often isn't loaded |
+| NVML in the service | Loaded only when the chosen GPU uses NVIDIA's driver; a test proves it never loads otherwise | A separate NVML reader process | Owner, 2026-10-27 (solution review P6-06): proportionate for v1, on hardware nobody here can test |
+| A failed GPU kind query | The GPU is unknown and ranks after an integrated one, as the ranking rule says; the failure is logged and named in the GPU list | Rank it as dedicated | Owner, 2026-10-27 (solution review P6-07): keeps the ranking rule; the user can pick in the dropdown |
+| Sources that appear late | Looked for again every 5 s for two minutes after start-up or a wake-up, then every 60 s; "no device" counts as lasting only after those two minutes; the service starts after `lm_sensors.service` | Bind once at start | Owner, 2026-10-27 (solution review P6-04): drivers can load after the service starts |
 
 ---
 

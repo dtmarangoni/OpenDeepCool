@@ -323,6 +323,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - `getent passwd opendeepcool` is a locked, no-login system account;
   - the enable symlinks exist under `/usr/lib/systemd/`, `systemctl is-enabled opendeepcool.service` reports it enabled, and nothing was added under `/etc/systemd`;
   - the install hook ran and skipped its work in the chroot, starting nothing;
+  - the installed rank helper unit has `StateDirectory=opendeepcool`, so its first run works on a fresh system, and both helper units have `TimeoutStartSec=` (unit inspection, since nothing boots here; solution review P6-03, P6-14);
   - the install message was printed.
 - **A dev copy:** one run first installs the dev copy's files from a recorded manifest (Phase 5 format) into the root. After the package install, none of them remain.
 - **A malformed manifest** (solution review P4-08): one with an empty line, `/`, a `..` component or a path outside the dev locations makes `post_install` remove nothing and say why; the install itself completes.
@@ -350,8 +351,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - Install: AUR (`yay -S opendeepcool` or any helper), or GitHub (`git clone …; cd OpenDeepCool/packaging/arch; makepkg -si`);
   - Uninstall: `sudo pacman -R opendeepcool`;
   - "Installed on your system": generated from `FILES.md` by a small script, so it can't drift;
-  - what the install enables and how to disable it.
-- `packaging/arch/README` for the AUR page: a short description, and a link to the repository.
+  - what the install enables and how to disable it;
+  - that, on a PC with no lm-sensors configuration and no fan reading yet, installing runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02).
+- `packaging/arch/README` for the AUR page: a short description, the same note about `sensors-detect`, and a link to the repository.
 - `AGENTS.md` Commands: `--only package`, and the release steps (Task 6).
 
 **Validation**

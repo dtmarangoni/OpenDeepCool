@@ -156,7 +156,7 @@ flowchart TD
   REG ==> RP[[Readings::snapshot → 7 metrics + 2 fan speeds]]
 ```
 
-The display service reads sysfs, procfs and NVML only. Render-node access and `unsafe` code exist only in `odc-gpu-rank`, which exits.
+The display service reads sysfs, procfs and NVML only. Render-node access and our own `unsafe` code exist only in `odc-gpu-rank`, which exits. The one exception is NVIDIA's closed NVML library, which the service loads only when the chosen GPU uses the `nvidia` driver (owner, 2026-10-27; solution review P6-06).
 
 ## Implementation Context
 
@@ -256,12 +256,13 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `Exact { num: i64, den: u64 }`, with `den > 0`, is the reading's exact value as a fraction of whole numbers, in °C, %, W or RPM.
   - Adapters build it from their source's integer units: millidegrees → `m / 1000`; jiffies → `100 · busy / total`; kB → `100 · used / total`; µW → `µW / 1 000 000`; mW → `mW / 1000`; energy → `ΔµJ / Δµs`; a whole percent, °C or RPM → `n / 1`.
   - `Exact` has no conversion from or to `f64` on the service's path. The end-to-end comparisons with `sensors -j` convert only to compare.
-  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`.
+  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`, `DriverUpdated` (the GPU driver changed since boot; a reboot fixes it; solution review P6-12).
   - `Display` gives the one-line reason the app shows (`settings.md` What the settings app must offer).
 - `Snapshot`: one `Reading` per `Metric`, plus `cooler_fans` and `pump`, each a `Reading` in RPM, or `NotChosen`.
 - `trait Readings { fn snapshot(&mut self) -> Snapshot; fn restart_intervals(&mut self); }`
   - `restart_intervals()` drops the last sample of every reading averaged over the interval: CPU Usage, and power from an energy counter (CPU Power, and Gpu power on i915 and xe). Their next reading is `NotYet` again, as at start-up.
   - Phase 7 calls it after every wake-up from standby, so no average spans the sleep, whatever the counters did meanwhile (owner, 2026-10-26; `sensors.md` Updates and rounding).
+- **Binding and rescans** (owner, 2026-10-27; solution review P6-04): the registry, which implements `Readings`, binds each metric's source at its first scan. A metric left without a source is looked for again every 5 s for the first two minutes after start-up or `restart_intervals()` (a wake-up), then every 60 s, so a driver that loads late (`lm_sensors.service`, a GPU driver) is found without a restart. A read that fails looks for that metric's source again at once. Each new binding shows in `bindings()`, which Phase 7 logs.
 - `trait Clock { fn now(&self) -> Instant; }`, with `SystemClock`.
 - `FakeReadings`: public; scripted snapshots for Phase 7's tests, and a count of `restart_intervals()` calls.
 
@@ -269,6 +270,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `spec_name()` round-trips for all seven, and the names match the headings in `docs/spec/frames/` (read through `odc_testkit::expected`).
 - Each `Unavailable` reason has a non-empty one-line `Display`.
 - Integral sources give integral values: 57 000 m°C is exactly 57 °C; 2 000 000 µW is exactly 2 W.
+- **Late sources** (P6-04), with a fake clock: a fake tree that gains the GPU's hwmon after 30 s binds it at the next 5 s scan; one that gains it after 3 minutes binds it at the next 60 s scan; a source that stays missing is looked for at exactly those times and no more often.
 
 **Validation**
 - `cargo test -p odc-sensors`: passes.
@@ -357,7 +359,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `packaging/udev/70-opendeepcool.rules`: UPDATE, adding:
 
   ```
-  SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", ATTR{name}=="package-*", RUN+="/usr/bin/chgrp opendeepcool /sys%p/energy_uj", RUN+="/usr/bin/chmod g+r /sys%p/energy_uj"
+  ACTION=="add|change", SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", ATTR{name}=="package-*", RUN+="/usr/bin/chgrp opendeepcool /sys%p/energy_uj", RUN+="/usr/bin/chmod g+r /sys%p/energy_uj"
   ```
 
 - `scripts/dev/setup.sh`, `teardown.sh` and `check.sh`: UPDATE.
@@ -396,7 +398,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **`gpus(root) -> Vec<Gpu>`:** every `<sys>/bus/pci/devices/*` whose `class` has base class `0x03` and that has a `driver` link.
   - `Gpu` holds: `pci` (domain:bus:device.function), `driver`, and `kind`.
   - `kind` comes from `gpu-rank.json` when listed there, else `Unknown`.
-- **`GpuKind`:** `Dedicated`, `Integrated` or `Unknown`.
+- **`GpuKind`:** `Dedicated`, `Integrated` or `Unknown`, and an `Unknown` says why: `NoSignal` (the driver has none, such as nouveau) or `QueryFailed { error }` (owner, 2026-10-27; solution review P6-07). Both rank as unknown; a failed query is logged as a warning and named in the GPU list.
   - Rank order: Dedicated, then Integrated, then Unknown; ties broken by PCI address (`sensors.md` GPU choice details).
   - NVIDIA's proprietary driver gets its kind from `odc-gpu-rank` (CUDA), like the others.
 - **`choose(gpus, saved: Option<PciAddr>) -> Option<&Gpu>`:**
@@ -414,6 +416,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **A dedicated amdgpu and an integrated i915** → the amdgpu is chosen.
 - **Two dedicated GPUs** → the lower PCI address wins.
 - **Unknown kinds:** nouveau plus an integrated amdgpu → the APU wins, and nouveau is listed last.
+- **A failed kind query** (P6-07): an NVIDIA GPU whose query failed plus an integrated i915 → the i915 is chosen, as the rule says; the NVIDIA GPU is `Unknown(QueryFailed)` with its error, distinct from nouveau's `NoSignal`.
 - **Saved choice missing** → the best ranked GPU, and the saved choice is kept.
 - **Stale ranking:** the GPU set changed and nothing was chosen → stale; the set changed but the user had chosen → not stale.
 - **Fans:**
@@ -428,7 +431,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Files and integration points**
 - `crates/odc-sensors/src/drm.rs`: CREATE, `gpu_busy_percent`.
-- `crates/odc-sensors/src/nvml.rs`: CREATE. `trait NvmlSource`, with `RealNvml`, which wraps `nvml_wrapper::Nvml` initialised once (lazy), and `FakeNvml`.
+- `crates/odc-sensors/src/nvml.rs`: CREATE. `trait NvmlSource`, with `RealNvml`, which wraps `nvml_wrapper::Nvml` initialised once, and only when the chosen GPU's driver is `nvidia` (owner, 2026-10-27; solution review P6-06), and `FakeNvml`.
 - `crates/odc-sensors/src/rules.rs`: UPDATE, the GPU rows.
 
 **Implementation**
@@ -443,12 +446,14 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - temperature: `temperature(Gpu)`, whole °C, as `n / 1`;
   - usage: `utilization_rates().gpu`, whole percent, as `n / 1`;
   - power: `power_usage()` in mW, as `mW / 1000`.
-  - NVML failing to load → `Unavailable(NoRule { driver: "nvidia" })`, with the reason naming NVML.
+  - NVML failures give their real cause (solution review P6-12): the library missing → `Unavailable(NoRule { driver: "nvidia" })`, with the reason naming NVML; NVML's driver/library version mismatch, after a driver update without a reboot → `DriverUpdated`; no permission → `PermissionDenied`, naming NVML. The exact `nvml-wrapper` error names are checked with Context7 when this is built.
 - **Any other driver** → all three `Unavailable(NoRule { driver })`.
 
 **Tests**
 - Fake trees for amdgpu dGPU, amdgpu APU (power unavailable), amdgpu with only `power1_input`, i915, xe and nouveau.
 - `FakeNvml` with a matching bus ID and a non-matching one.
+- **NVML only for NVIDIA** (P6-06): with a counting fake, a PC whose chosen GPU isn't NVIDIA's never initialises NVML, not even once.
+- **NVML's reasons** (P6-12): the fake's missing library, version mismatch and no-permission errors give `NoRule`, `DriverUpdated` and `PermissionDenied`.
 - Rule 11 check: in every fixture, each metric's value is distinct, and the test asserts each one comes from its own file. For example, an amdgpu fixture with `edge` 41 °C, `junction` 77 °C and `mem` 66 °C must read 41.
 
 **Validation**
@@ -467,12 +472,13 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
   It also holds the ioctl numbers, built as the headers build them. `libcuda` is used through `cuInit`, `cuDeviceGetCount`, `cuDeviceGet`, `cuDeviceGetAttribute(CU_DEVICE_ATTRIBUTE_INTEGRATED)` and `cuDeviceGetPCIBusId`.
 - `crates/odc-gpu-rank/src/main.rs`: CREATE. It lists GPUs (Task 7), queries each driver's signal, and writes `gpu-rank.json` atomically (temp file + rename) into `--state-dir`, which defaults to `/var/lib/opendeepcool`. The file holds the PCI set and each GPU's kind with the signal used. Then it exits.
-  - A GPU whose query fails, or whose driver has no signal (nouveau), is `Unknown`, with the reason in the file. The helper never fails the boot.
+  - A GPU whose query fails, or whose driver has no signal (nouveau), is `Unknown`, with the reason in the file, and the two stay apart: `query-failed` with its error, or `no-signal` (P6-07). A failed query is logged as a warning. The helper never fails the boot.
 - `packaging/systemd/opendeepcool-gpu-rank.service`: CREATE.
-  - `Type=oneshot`, `User=opendeepcool`;
+  - `Type=oneshot`, `User=opendeepcool`, `TimeoutStartSec=30` (a one-shot has no start time limit by default, systemd.service; solution review P6-03);
+  - `StateDirectory=opendeepcool`, so systemd creates the directory on a fresh install, before the display service ever ran (same user; solution review P6-14);
   - `ConditionPathExists=!/var/lib/opendeepcool/gpu-rank.json`;
   - `Before=opendeepcool.service`, `WantedBy=opendeepcool.service`;
-  - sandbox: `ProtectSystem=strict`, `ReadWritePaths=/var/lib/opendeepcool`, `ProtectHome=yes`, `NoNewPrivileges=yes`, `PrivateNetwork=yes`, `CapabilityBoundingSet=`, `DevicePolicy=closed`, `DeviceAllow=char-drm rw`, plus the NVIDIA device nodes (exact `DeviceAllow` entries unverified until checked against a PC with NVIDIA's driver, in Phase 11).
+  - sandbox: `ProtectSystem=strict` (the state directory stays writable), `ProtectHome=yes`, `NoNewPrivileges=yes`, `PrivateNetwork=yes`, `CapabilityBoundingSet=`, `DevicePolicy=closed`, `DeviceAllow=char-drm rw`, plus the NVIDIA device nodes (exact `DeviceAllow` entries unverified until checked against a PC with NVIDIA's driver, in Phase 11).
   - The exact set is re-checked in Phase 11. It's written now so Phase 7 can order it.
 
 **Tests**
@@ -481,8 +487,9 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **Integration:** a `KindSource` trait with a fake gives the JSON contents for:
   - one dGPU;
   - an iGPU plus a dGPU;
-  - a failed query;
-  - nouveau.
+  - a failed query, recorded as `query-failed` with its error;
+  - nouveau, recorded as `no-signal`.
+- **Unit files (CI):** a test reads both helper units: `TimeoutStartSec=` is set on each (30 s here, 120 s for detection), the rank helper has `StateDirectory=opendeepcool`, and the detection unit has no `Before=opendeepcool.service` (P6-02, P6-03, P6-14).
 - **End to end (local, `odc-e2e --only gpu-rank`, `crates/odc-e2e/src/gpu_rank.rs`):** the probe (Task 11) decides per GPU driver.
   - **Real GPUs:** `odc-gpu-rank --state-dir target/e2e/state` runs twice as a member of `opendeepcool`, against the real render nodes or NVIDIA's library.
     - Every PCI display device in sysfs gets a kind.
@@ -504,7 +511,8 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `StateDirectory=opendeepcool-detect` and `StateDirectoryMode=0700`: its own root-only directory for the record (solution review OV-01);
   - `ConditionPathExists=!/etc/conf.d/lm_sensors`;
   - `ConditionPathExists=!/etc/modprobe.d/lm_sensors.conf`;
-  - `Before=opendeepcool.service`, `WantedBy=opendeepcool.service`;
+  - `TimeoutStartSec=120`, so a probe that hangs ends (solution review P6-03);
+  - `WantedBy=opendeepcool.service`, with no `Before=`: the display service starts without waiting for it, at boot and inside `pacman` (owner, 2026-10-27; solution review P6-02). The cooler's fan and pump speeds appear once the driver is loaded, because the registry looks for them again (Task 2);
   - stdout and stderr go to the journal.
 
 **Implementation**
@@ -515,7 +523,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - it refuses a record that is a symbolic link;
   - it writes a new record through a temporary file created exclusively (`create_new`) in the same directory, then `rename`s it.
 - **Steps:**
-  1. If either lm-sensors file exists → record nothing and exit 0. The unit's conditions normally prevent this; the check is repeated here because the binary can be run on its own.
+  1. If either lm-sensors file exists → record nothing and exit 0. The unit's conditions normally prevent this; the check is repeated here because the binary can be run on its own. Likewise if a fan input outside a graphics card already exists (the fan picker's rule, Task 7): the chip that measures the cooler's fans and pump is already readable, so there's nothing to find (owner, 2026-10-27; solution review P6-13).
   2. Read the board identity from `<sys>/class/dmi/id/board_vendor`, `board_name` and `board_version`. If `sensors-detect.json` already lists this identity → exit 0 (once per motherboard).
   3. Note whether `lm_sensors.service` is enabled (`systemctl is-enabled`, path injectable).
   4. Run `sensors-detect --auto`.
@@ -526,6 +534,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Tests** (integration; the fake `sensors-detect` is a shell script that writes the files a scenario needs)
 - **Fresh PC** → it runs once, the record lists `/etc/conf.d/lm_sensors` as created, and a second run doesn't run it.
+- **Fan readings already exist** (a board chip with fan inputs in the fake tree, no lm-sensors files) → never run, nothing recorded (P6-13). An amdgpu fan alone doesn't count: then it runs.
 - **Existing `/etc/conf.d/lm_sensors`** → never run, nothing recorded, and the file is unchanged (byte-compared).
 - **Existing `/etc/modprobe.d/lm_sensors.conf` only** → never run; the file is unchanged.
 - **A run that also writes `modprobe.d`** → both files are recorded.
@@ -675,7 +684,7 @@ Phase 6 draws no frames, so it covers none of the 112 display cases. Its own mat
 | Crate names `odc-sensors`, `odc-gpu-rank`, `odc-sensors-detect` | Keep: same pattern as Phase 5 | PRD leaves names to the plans | Renames touch manifests and units |
 | The uAPI struct mirrors could drift from a newer kernel | Mirror only the leading fields we read; pass `return_size`; check sizes against the installed headers in Task 9 | The amdgpu INFO ioctl copies at most `return_size` bytes; the xe and i915 queries report the needed length first | A wrong size could corrupt the helper's memory. The helper is short-lived, sandboxed and unprivileged, and the display service is unaffected |
 | GPU kinds for i915, xe, NVIDIA and APUs are tested only with fakes | Accept; mark "not tested on hardware" in `sensors.md` | The owner's PC has one dedicated amdgpu GPU | A driver that behaves differently from its uAPI docs ranks wrongly; the user can still pick in the app |
-| `sensors-detect` probing on other PCs | Run only when both lm-sensors files are absent, once per board; output to the journal | lm-sensors' own warning and default skips (`sensors.md`) | A board that misbehaves when probed; the PRD's risk table already lists it |
+| `sensors-detect` probing on other PCs | Run only when both lm-sensors files are absent and no fan reading exists yet, once per board, within 120 s, without the display service waiting; output to the journal; the README and the AUR page say, before install, that installing probes the sensor buses (owner, 2026-10-27; solution review P6-02, P6-03, P6-13) | lm-sensors' own warning and default skips (`sensors.md`) | A board that misbehaves when probed; the PRD's risk table already lists it |
 | The CPU usage formula treats iowait as idle | Keep; `proc_stat(5)` calls iowait unreliable, and the e2e test compares with `top` | `sensors.md` driver rules; parity S3 checked against `top` | A few points' difference from tools that count iowait as busy |
 | `systemd-analyze verify` warns about the not-yet-existing `opendeepcool.service` | Expected until Phase 7; the gate lists the expected warning | Units are ordered before a service Phase 7 creates | — |
 | The dev state directory `/var/lib/opendeepcool` doesn't exist before Phase 7's `StateDirectory=` | `scripts/dev/setup.sh` creates it (`root:opendeepcool 2770`) and teardown removes it; in the dev footprint. Task 10's detection no longer uses it: its record has its own root-only directory (solution review OV-01) | Needed by Task 9 locally | — |

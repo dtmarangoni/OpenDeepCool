@@ -190,14 +190,17 @@ The plan's mitigations are good: only when no configuration exists, once per boa
 ### P6-02: Automatic detection
 
 - **Recommendation:** owner decision (overview Q2). If it stays automatic: skip it when fan inputs exist (P6-13), bound it with a timeout (P6-03), and say in the README and the AUR description, before install, that installing probes the PC's sensor buses.
+- **Outcome (2026-10-27):** kept automatic, made safer (owner, Q2), after a clarification: the cooler's fans and pump plug into the board's headers, so the board's sensor chip is the only place their speeds can be read, and detection exists only to load that chip's driver. It doesn't run when a fan reading already exists (P6-13), has 120 s (P6-03), and the display service no longer waits for it, so `pacman` and boot aren't held up; the README and the AUR page say beforehand that installing probes the sensor buses (Phase 11 Task 4). Phase 6 Task 10; Phase 7 unit; `sensors.md`; PRD (Must row, Service model, Technical Risks, Decisions Log: Sensor detection). This also settles OV-12.
 
 ### P6-03: One-shot timeouts
 
 - **Recommendation:** `TimeoutStartSec=120` on detection and `TimeoutStartSec=30` on ranking (values to tune). Drop the display service's `After=` on detection, or keep it with the timeout. Test with a fake `sensors-detect` that sleeps forever: the service still starts.
+- **Outcome (2026-10-27):** accepted: `TimeoutStartSec=120` on detection and `30` on the rank helper, and the display service is no longer ordered after detection. The sleep-forever test needs a running systemd, which no test here has (nothing boots, owner, 2026-10-25), so unit-file tests check the time limits and the ordering instead (Phase 6 Task 9, Phase 7 Task 8, Phase 11 Task 3).
 
 ### P6-04: Late devices
 
 - **Recommendation:** periodic rescans of unbound metrics, a grace period before `NoDevice` counts as persistent, and `After=lm_sensors.service` on the display service. Test with a fake tree that gains the GPU's hwmon after N ticks.
+- **Outcome (2026-10-27):** accepted. The plan didn't say when the registry scans at all; Phase 6 Task 2 now has the rule: a metric without a source is looked for every 5 s for two minutes after start-up or a wake-up, then every 60 s, with fake-clock tests. Phase 7 counts `NoDevice` as lasting only after those two minutes and starts after `lm_sensors.service`. `sensors.md`; PRD (Sensor registry, Decisions Log: Sources that appear late). This also settles the rest of P7-10, and most of OV-11.
 
 ### P6-05: Exact readings
 
@@ -207,30 +210,41 @@ The plan's mitigations are good: only when no configuration exists, once per boa
 ### P6-06: NVML in the service
 
 - **Recommendation:** load NVML only when the chosen GPU uses `nvidia`, and test that it isn't loaded otherwise. State the exception in `sensors.md` and in the plan's invariant. Revisit a reader helper if NVML proves incompatible with the sandbox.
+- **Outcome (2026-10-27):** accepted, NVIDIA PCs only (owner): NVML is initialised only when the chosen GPU uses `nvidia`, a counting fake proves it never loads otherwise, and the plan's invariant and `sensors.md` state the exception. Its sandbox compatibility stays with Phase 11 (P11-13).
 
 ### P6-07: CUDA failure ranking
 
 - **Recommendation:** record "query failed: <error>" separately from "no signal"; log it at warning level; add the CUDA device-node groups to the helper's `DeviceAllow=` once verified on NVIDIA hardware (Phase 11). Ask the owner how a failed NVIDIA query should rank (overview Q6).
+- **Outcome (2026-10-27):** unknown, made visible (owner, Q6): the GPU ranks after an integrated one, as the ranking rule says; `GpuKind::Unknown` keeps `QueryFailed { error }` apart from `NoSignal`; the failure is logged as a warning, the service's `Gpus` key marks it `query-failed`, and the app names it in the GPU list (`settings.md`, the designer's brief; the design agent adds it before Phase 10). The `DeviceAllow=` for CUDA stays with Phase 11 (P11-13).
 
 ### P6-09: The udev power line
 
 - **Recommendation:** add `ACTION=="add|change"` and keep `udevadm verify` in CI.
+- **Outcome (2026-10-27):** accepted: the rule in Phase 6 Task 6 starts with `ACTION=="add|change"`.
 
 ### P6-11: Board identity
 
 - **Recommendation:** accept, or include more DMI fields; document the placeholder case.
+- **Outcome (2026-10-27):** accepted and documented in `sensors.md`. It matters only when the lm-sensors configuration was removed between two boards, because detection never runs while a configuration exists.
 
 ### P6-12: NVML reasons
 
 - **Recommendation:** map library missing → `NoRule`; version mismatch → a reason naming the driver update; permission → `PermissionDenied`.
+- **Outcome (2026-10-27):** accepted: a new reason, `DriverUpdated` (persistent until a reboot, Phase 7), plus tests for all three; the exact `nvml-wrapper` error names are checked with Context7 at implementation.
 
 ### P6-13: Detection with working sensors
 
 - **Recommendation:** skip detection, without writing a record, when any non-GPU hwmon fan input exists. Test it with a fake tree.
+- **Outcome (2026-10-27):** accepted with P6-02: step 1 of Phase 6 Task 10 exits without a record when such an input exists, with a fake-tree test (a GPU fan alone doesn't count).
 
 ### P6-14: The rank helper's directory
 
 - **Recommendation:** `StateDirectory=opendeepcool` in the helper unit, the same user, instead of `ReadWritePaths=`. Phase 11's container test should check the helper's first run on a fresh root, at least by unit inspection, since nothing boots there.
+- **Outcome (2026-10-27):** accepted: the rank helper unit has `StateDirectory=opendeepcool` instead of `ReadWritePaths=` (systemd.exec: a state directory is exempt from `ProtectSystem=`, read 2026-10-27), and Phase 11 Task 3 inspects the installed unit.
+
+### P6-08 and P6-10: notes
+
+- **Outcome (2026-10-27):** no action. P6-08 is the trade-off the owner chose; P6-10 concerns laptops, not a desktop with an LP360.
 
 ## Questions for the owner
 

@@ -58,6 +58,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 ## Design brief (owner, 2026-10-27)
 
 - **Cooler found, but not usable.** When the service finds the cooler but can't open it (a permissions problem, such as a missing udev rule), the app says so in its own banner, distinct from "not connected", with the fix. The service gives the reason in its state, `CoolerState`: `connected`, `not-found`, `no-access` or `write-failed` (`docs/spec/settings.md` Status).
+- **A GPU of unknown kind because its query failed.** It's listed with the unknown GPUs, after an integrated one, with a short note that its driver couldn't be asked; the dropdown lets the user pick it. The service marks it `query-failed` (`docs/spec/settings.md` GPU list order).
 
 ## Constraints
 

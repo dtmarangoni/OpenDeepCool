@@ -216,7 +216,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 ### 1. Settle the GTK facts the design left unverified
 
 **Files and integration points**
-- `docs/design/settings-app.md` and the mockups: UPDATE first, by the `ui-ux-designer` agent: the cooler's "found, but the service can't open it" state (`CoolerState` `no-access`), its banner and its fix (owner, 2026-10-27; solution review P5-02). The States table and AC4 then cover it.
+- `docs/design/settings-app.md` and the mockups: UPDATE first, by the `ui-ux-designer` agent: the cooler's "found, but the service can't open it" state (`CoolerState` `no-access`), its banner and its fix (owner, 2026-10-27; solution review P5-02), and a GPU whose kind query failed, listed as unknown with a short note (`query-failed`; solution review P6-07). The States table and AC4 then cover them.
 - `docs/design/settings-app.md` "Unverified": UPDATE, each point answered with its source, or the design's fallback chosen.
 - A throwaway gtk4-rs program in the session scratchpad, never committed.
 

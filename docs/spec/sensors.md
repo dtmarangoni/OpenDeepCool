@@ -56,13 +56,18 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 | Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal, kept as whole numbers | owner's PC |
 | Cooler fans (CPU Fan I/O), pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
 
-- **Board sensor driver:** a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
+- **Board sensor driver** (the cooler's fans and pump plug into the board's headers, so the board's sensor chip is what measures them): a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
   - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
   - `sensors-detect` probes the board's sensor chips, writes that file, then enables and starts `lm_sensors.service`, which loads the listed drivers at every boot.
   - An existing configuration is never overwritten.
+  - It doesn't run when a fan input outside a graphics card already exists: the chip that measures the cooler's fans and pump is then already readable (owner, 2026-10-27; solution review P6-13).
+  - It has 120 s to finish, and the display service doesn't wait for it. The cooler's fan and pump speeds appear once the driver is loaded (owner, 2026-10-27; solution review P6-02, P6-03).
+  - "Once per motherboard" is judged from the board's DMI vendor, name and version. A board that reports placeholder strings there could pass for the previous one; that matters only if the lm-sensors configuration was removed in between, and is accepted (solution review P6-11).
   - Its record of what it created, and for which board, lives in a root-only directory of its own, `/var/lib/opendeepcool-detect/`, never in the display service's (owner, 2026-10-26). The record holds yes/no facts, never paths.
   - lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems"; by default it skips that probing when a Super I/O chip already provides voltages, fans and temperatures, except on ASUS, Tyan and Supermicro boards. When it finds no sensors, it writes nothing; the once-per-motherboard record stops it from running again at every boot.
   - Evidence: system: the `sensors-detect` script of lm_sensors 3.6.2, read 2026-10-23 (its chip table maps the owner's sensor chip to `nct6683`); Arch Wiki, lm_sensors.
+- **NVML in the display service** (owner, 2026-10-27; solution review P6-06): NVIDIA's closed library is the one piece of code that isn't OpenDeepCool's own inside the service. It's loaded only when the chosen GPU uses NVIDIA's `nvidia` driver, never on other PCs. Its failures name their cause: the library is missing, the driver was updated without a reboot, or no permission (solution review P6-12).
+- **Sources that appear late** (owner, 2026-10-27; solution review P6-04): a metric without a source is looked for again every 5 s for the first two minutes after start-up or a wake-up, then every 60 s. Only after those two minutes does "no device" count as lasting and disable its modes in the app.
 - **Evidence:** system: every rule marked owner's PC matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org (hwmon sysfs interface, coretemp, k10temp, amdgpu thermal, powercap).
 - **Unverified:** the CPU usage formula is the common definition of "busy". It's checked against `top` in Phase 6.
 
@@ -79,6 +84,7 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage and power. It doesn't monitor GPUs otherwise (owner, 2026-10-23: OpenDeepCool covers only the cooler).
 
 - **Kinds:** each GPU in the PC is either **dedicated** (a graphics card) or **integrated** (part of the CPU). Phase 6 verifies, from primary sources, which signal tells them apart for each driver; until then that is **unverified**. If a driver has no reliable signal, the owner decides.
+- **A failed kind query** (owner, 2026-10-27; solution review P6-07): when the query that tells a GPU's kind fails, the GPU is unknown and ranks after an integrated one, like any unknown GPU. The failure is logged as a warning and named in the GPU list, apart from a driver that simply has no signal.
 - **Rules** (owner, 2026-10-23):
   1. With one GPU, of either kind, OpenDeepCool reads it, and the settings app shows no GPU choice.
   2. With more than one, a dedicated GPU comes before an integrated one.
