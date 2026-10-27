@@ -104,7 +104,7 @@ Modes 10 and 12 need the package energy counter to be group-readable, which the 
 
 - **Evidence:** Phase 6 Task 8 (amdgpu power unavailable "on a GPU ranked `Integrated`"); `sensors.md` (integrated AMD power includes the CPU); P6-14 and P6-07 (ranking failures).
 - **Recommendation:** amdgpu Gpu power only when the GPU is ranked `Dedicated`; otherwise `Unavailable` with a reason that names the unknown kind. Add a fixture test: an APU with `Unknown` kind → mode 11 unavailable.
-- **Outcome (2026-10-27):** accepted (owner): amdgpu power is shown only on a GPU ranked dedicated; an unknown kind gives a new reason, `UnknownGpuKind`, which counts as lasting. Phase 6 Tasks 2 and 8, Phase 7 availability, Phase 8 mode 11 with a fixture test; `sensors.md`; PRD Decisions Log (AMD GPU power). Nothing changes on the owner's PC, whose card ranks dedicated. This settles the last part of OV-11.
+- **Outcome (2026-10-27):** accepted (owner): amdgpu power is shown only on a GPU ranked dedicated; an unknown kind gives a new reason, `UnknownGpuKind`, which counts as lasting. Phase 6 Tasks 2 and 8, Phase 7 availability, Phase 8 mode 11 with a fixture test; `sensors.md`; PRD Decisions Log (AMD GPU power). This settles the last part of OV-11.
 
 ### P8-08: Power modes right after install
 

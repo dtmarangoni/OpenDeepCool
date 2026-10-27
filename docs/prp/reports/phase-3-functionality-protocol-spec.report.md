@@ -5,7 +5,7 @@
 **Branch:** `phase-3-spec`
 **Status:** complete, 2026-10-23: the owner signed off the [parity checklist](../../spec/parity-checklist.md), and the branch was merged into `main` directly (no pull request, owner's decision).
 
-> **History.** Written before Creative Mode was removed (owner, 2026-10-25) and the phases renumbered: its Phase 12 is today's Phase 11. The PRD has today's phases, and the spec is the contract.
+> **History.** Written before Creative Mode was removed (owner, 2026-10-25) and the phases renumbered: its Phase 12 is today's Phase 11. Today's Phase 12, the releases, was added later (owner, 2026-10-27), and it now holds the deletion of DeepCreative's material that this report puts in its Phase 12, after `v1.0.0`. The PRD has today's phases, and the spec is the contract.
 
 ## Outcome
 

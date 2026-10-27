@@ -157,6 +157,7 @@
   - zbus 6.1.0 (docs.rs): `SignalEmitter::set_destination` unicasts a signal "to specific peers";
   - org.freedesktop.login1(5): `PrepareForSleep()` is sent "right before (with the argument 'true') or after (with the argument 'false')" suspend or hibernation (the manual's inner quotes shown as single quotes);
   - systemd `src/core/service.c`: the service watchdog timer runs on `CLOCK_MONOTONIC`.
+- systemd.exec(5), read 2026-10-27 (overview cross-check): with `SystemCallFilter=` set and `SystemCallErrorNumber=` "not used, … the process will be terminated immediately when the filter is triggered"; with it, the call returns that error instead.
 
 ### Alternatives considered
 
@@ -459,7 +460,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **nothing:** a choice that is already set; a unit change while the mode shows no temperature (the unit is only saved). The D-Bus side doesn't even send these (Task 7).
   - When a settings change and new readings land on the same tick, the reset wins, drawn with the new readings (S21).
 - **Start-up:** the first tick shows the saved mode at once. `Lp360` sends `03 08` first (Phase 5). The first second's rate metrics are `NotYet` → dashes (`display.md` Unavailable values).
-- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower`, `UnknownGpuKind` or `DriverUpdated`. `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
+- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower`, `UnknownGpuKind`, `DriverUpdated` or `LibraryFailed` (overview cross-check, 2026-10-27). `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
   - `AvailableModes` = the modes `draws` accepts whose every metric is available; the rest carry their first reason (P8-03).
   - A missing device makes all of its metrics unavailable, and so all of its modes (`settings.md` Availability).
 - **Unavailable values** in the current mode → dashes; the mode stays.
@@ -559,6 +560,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - a ninth watcher of one user, or a 33rd in all → `TooManyWatchers`; a watcher whose connection closes is dropped;
   - the fake `SleepWatcher`'s `PrepareForSleep(false)` → `Wake` reaches the device and sensor threads; `true` → nothing.
 - On a private `dbus-daemon` (as Phase 10's tests use): a second connection with a match rule for `StateChanged`, but no `Watch()`, receives nothing while a watcher receives every change.
+- **A faked wake-up** (overview cross-check, 2026-10-27; AGENTS.md rule 5): on a private `dbus-daemon`, the real `LogindSleepWatcher` gets `PrepareForSleep(false)` from a connection that doesn't own `org.freedesktop.login1` → no `Wake`; the same signal from the connection that owns the name → one `Wake`.
 - **`PolkitAuthorizer`:** a fake polkit object on a p2p connection checks the exact subject, action (both actions) and flags it is sent.
 
 **Validation**
@@ -580,8 +582,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `User=opendeepcool`, `Group=opendeepcool`, `StateDirectory=opendeepcool`;
   - `Restart=on-failure`, `RestartSec=1`, `RestartSteps=5`, `RestartMaxDelaySec=30`, and `StartLimitIntervalSec=0` in `[Unit]` (Recommendation, Supervision);
   - `Wants=` the two Phase 6 one-shots; `After=opendeepcool-gpu-rank.service lm_sensors.service`, not the detection (P6-02, P6-04); `WantedBy=multi-user.target`;
-  - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`;
-  - **tried one at a time** (owner, 2026-10-27; solution review P7-09), each kept only if `systemd-analyze security` and the real-cooler run still pass; the task's report lists every one dropped, with the reason: `PrivateNetwork=yes` (the system bus is a file-system socket and stays reachable, systemd.exec), `IPAddressDeny=any`, `RestrictSUIDSGID=yes`, `RemoveIPC=yes`, `UMask=0077`, `StateDirectoryMode=0700`, `SystemCallFilter=~@privileged @resources`, `SystemCallErrorNumber=EPERM`, and `ProtectProc=invisible`, since Phase 9 logs the audio helper from its D-Bus credentials, never another user's `/proc` entry (owner, 2026-10-27; solution review P9-11);
+  - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`, `SystemCallErrorNumber=EPERM`;
+  - `SystemCallErrorNumber=EPERM` is fixed (owner, 2026-10-27; overview cross-check): without it a call outside the filter kills the service at once (systemd.exec(5)). NVIDIA's NVML runs inside the service and is untested in this sandbox, so a call it makes outside the list must fail, not crash the service at every start on NVIDIA PCs;
+  - **tried one at a time** (owner, 2026-10-27; solution review P7-09), each kept only if `systemd-analyze security` and the real-cooler run still pass; the task's report lists every one dropped, with the reason: `PrivateNetwork=yes` (the system bus is a file-system socket and stays reachable, systemd.exec), `IPAddressDeny=any`, `RestrictSUIDSGID=yes`, `RemoveIPC=yes`, `UMask=0077`, `StateDirectoryMode=0700`, `SystemCallFilter=~@privileged @resources`, and `ProtectProc=invisible`, since Phase 9 logs the audio helper from its D-Bus credentials, never another user's `/proc` entry (owner, 2026-10-27; solution review P9-11);
   - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 11 after verification (Phase 6).
 - `packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf`: CREATE. Every rule names `send_destination`, paired with `send_interface` or `send_path`, because the interface field of a message is optional (dbus-daemon(1)):
   - user `opendeepcool` may own the name;
@@ -734,7 +737,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Threads add coordination | A one-slot mailbox, a newest-snapshot slot and the one-slot `Apply` mailbox; nothing shared mutably in both directions; engine tests with stalling fakes (owner, 2026-10-26) | Recommendation, one thread per job | — |
 | Reads need polkit too (owner, 2026-10-26) | `use`, `allow_active` only; the app reads once, then watches, so a polkit round trip of a few ms per call doesn't matter | polkit(8); Task 7 | Open reads would let remote and inactive sessions see the settings |
 | Signals addressed to each watcher | Keep: the bus delivers them to their destination only; root can still monitor the bus, and root is trusted anyway | D-Bus specification; dbus-broker has no eavesdropping | A broadcast would reach every local process |
-| A wake-up can't be tested by a real suspend, unattended | Fake `SleepWatcher` in CI; the device side real in Phase 5; a real suspend only in the optional attended tour | Waking an unattended PC needs root | — |
+| A wake-up can't be tested by a real suspend, unattended | Fake `SleepWatcher` in CI; the real watcher's sender check on a private bus; the device side real in Phase 5; a real suspend only in the optional attended tour | Waking an unattended PC needs root | — |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
 
 ## Agent Notes

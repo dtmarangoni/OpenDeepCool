@@ -124,6 +124,7 @@ Nothing checks the repository on the server side. The sensitive list must stay l
 - **Evidence:** README Status; PRD footer; AGENTS.md Verified facts.
 - **Recommendation:** an errata commit before Phase 5, with the owner's OK (the PRD is the owner's document).
 - **Outcome (2026-10-27):** accepted and applied. The AGENTS.md pointer was fixed with P1-02. README: Phase 2's date, Phase 4 done, what's now and next, the planned modes under OpenDeepCool's names, and Creative Mode as never. The PRD footer now reads "Status: in use". Also found and fixed (owner, 2026-10-27): the Phase 5 plan's "Not building" list put packaging in "Phases 7 and 12", but there's no Phase 12 since the phases were renumbered; it now reads "Phases 7 and 11". The Phase 3 plan's mentions of Phase 12 are history, left to P3-02.
+  - **Note (2026-10-27, Phase 11 review):** a Phase 12 exists again, for the releases. Packaging stays in Phases 7 and 11, so the Phase 5 plan's fix stands.
 
 ## Questions for the owner
 

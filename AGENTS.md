@@ -27,6 +27,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
   - Write the review to `docs/prp/solution-reviews/phase-N-<slug>.review.md`, and update `project-overview.review.md` there when the architecture changes.
   - A review only reports; it never edits the PRD, a plan, the spec or code.
   - Cross its findings with the PRD and the plan together with the owner, and put the agreed changes into those documents before writing code ([how](docs/prp/solution-reviews/README.md)).
+  - The owner's decisions, recorded as Outcome lines in the reviews, win over the PRD, the plans and the spec: where one disagrees with an outcome, correct it to match. A later outcome supersedes an earlier one (owner, 2026-10-27).
 - After a context compaction or a long pause, re-read the current plan step before continuing.
 - Before a phase's first task, compare its plan with what the earlier phases actually built (names, types, files, commands). Where they differ, update the plan with the owner's OK before writing code (owner, 2026-10-27).
 - From Phase 5 on, a change to a plan regenerates its HTML companion in the same commit (owner, 2026-10-27). During the solution-review cross-check, the companions are regenerated once, when it ends.
@@ -57,7 +58,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
-   - tests also cover what each entry point must refuse: callers and arguments the service must reject, forged or malformed files, impossible readings and samples. The threat model in `docs/prp/solution-reviews/project-overview.review.md` is the reference (owner, 2026-10-27);
+   - tests also cover what each entry point must refuse: callers and arguments the service must reject, forged or malformed files, impossible readings and samples. The entry-points table in `docs/prp/solution-reviews/project-overview.review.md` ("Entry points after the cross-check") is the reference (owner, 2026-10-27);
    - e2e: an unattended run on the real cooler takes one example of each mode and of each test type (owner, 2026-10-26: the whole cross would take days in real time, and runs in-process instead), and compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `odc-e2e --require <list>` names what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24). Test options are program flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.
@@ -87,6 +88,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
     - Put such facts in `docs/local/` (git-ignored) and refer to them only as "see `docs/local/`".
     - Commit with the repository's configured identity (GitHub no-reply email). Never change it.
     - **Exception** (owner, 2026-10-22): the kernel driver and module names and sensor labels that the sensor rules need may appear in code, tests, packaging and the spec. Part models, serials and all other machine facts still may not; test fixtures use made-up chip names.
+    - **Drivers tied to the owner's PC** (owner, 2026-10-27): nothing committed or outward-facing says which drivers, vendors or device kinds the owner's PC has, because they reveal its parts' makes. Reports and docs name its devices by role (for example "CPU temperature: real"); which drivers it uses stays in `docs/local/`.
 11. **Every metric shows itself.** A CPU reading is shown as the CPU, a GPU reading as the GPU, and so on, everywhere: renderers, settings, the app, tests. Never swap or mix metrics, even where DeepCreative does (owner, 2026-10-22). The spec marks each such DeepCreative quirk and what OpenDeepCool does instead.
 12. **Never rely on the owner's PC** (owner, 2026-10-23). The code must work on any PC with an LP360.
     - Find devices, drivers and sensors at runtime, from rules taken from primary documentation.

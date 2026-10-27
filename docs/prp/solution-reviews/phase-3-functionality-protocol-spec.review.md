@@ -112,6 +112,7 @@ Phase 11 maps each row "to the test that proved it, or to the owner decision tha
 - **Why it matters:** every test of Phases 5–11 compares against files this program writes. The program has no history, no review and one copy.
 - **Recommendation:** before Phase 7 extends it, move the spec-only generator to a committed folder (Phase 11 suggests `tools/oracle/`), with the owner's OK. Add a check, in CI or the guard, that regenerating `docs/spec/frames/` changes nothing. Keep the DeepCreative-reading parts in `research/`.
 - **Outcome (2026-10-27):** accepted, with a correction: the parts that read captures aren't separate files. `render-check.py`, which the generator loads for the glyphs, the emoji pictures and the drawing helpers, also holds DeepCreative's renderer and Creative Mode leftovers, so it's split first. Phase 5 Task 0 moves the generator to `tools/oracle/` (committed), and Task 10 adds the regeneration check to the guard and CI (AC4). Phases 7–9 now extend `tools/oracle/`, each change in the same commit as the frames it changes; Phase 11 Task 8 deletes only the DeepCreative parts left in `research/`. PRD: Testing Strategy, Phase 5, Decisions Log (Oracle generator). This also settles P1-03, P11-19 and OV-07.
+  - **Note (2026-10-27, Phase 11 review):** that deletion moved to Phase 12, after `v1.0.0`.
 
 ### P3-02: Spec errata
 

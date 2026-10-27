@@ -111,6 +111,7 @@
 - NVIDIA, read 2026-10-24: CUDA Driver API, `CU_DEVICE_ATTRIBUTE_INTEGRATED` "Device is integrated with host memory".
   - Arch `nvidia-utils` 615.78.08-1 ships `usr/lib/libcuda.so.1` and `usr/lib/libnvidia-ml.so.1`.
   - `nvml-wrapper` 0.13.0 (Context7) loads `libnvidia-ml.so.1` at run time. A missing library is `NvmlError::LibloadingError`.
+    - Read again 2026-10-27 (Context7): `LibloadingError` covers every failure to open the library, not only a missing one. `Nvml::init` can also fail with `FailedToLoadSymbol`, and with `DriverNotLoaded`, `NoPermission` or `Unknown` from `nvmlInit_v2`.
   - It offers `temperature(TemperatureSensor::Gpu)` (°C), `utilization_rates().gpu`, `power_usage()` (mW) and `pci_info().bus_id`.
 - `/usr/bin/sensors-detect` (lm_sensors, read 2026-10-24):
   - lines 7404-7423: `/etc/modprobe.d/lm_sensors.conf` is written when driver options are needed;
@@ -225,16 +226,17 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
     - AMD CPU power is verified in the kernel source (families 17h, 19h, 1Ah, Hygon 18h; zone `package-N`). Only zones under control type `intel-rapl` count, never `intel-rapl-mmio`.
     - Rows for i915 (`temp1_input`, `energy1_input` of hwmon `name` `i915`), xe (`temp2_input`, `energy1_input` of `xe`) and NVML (the calls above).
     - Intel Gpu usage: unavailable.
+    - No row says which rules ran on the owner's PC (rule 10; owner, 2026-10-27).
   - **GPU choice:**
-    - the kind signal per driver, with the uAPI names and the CUDA attribute;
+    - the kind signal per driver, with the uAPI names and the CUDA attribute (recorded at the overview review's cross-check, 2026-10-27: check it against what's built);
     - the `odc-gpu-rank` helper and when it runs;
     - the ranking order: dedicated, then integrated, then unknown, then by PCI address;
     - the hardware-change rule.
-  - **CPU power:** the decision (udev rule, group read).
+  - **CPU power:** the decision (udev rule, group read), recorded at the overview review's cross-check (2026-10-27): check it against what's built.
   - **Board sensor driver:** the second file `sensors-detect` may write; "runs only when both files are absent".
-- `docs/spec/parity-checklist.md`: UPDATE. S4 gets the chosen access; S10 gets the kind signals and the helper. Each row is "reviewed 2026-10-24: owner decision".
+- `docs/spec/parity-checklist.md`: UPDATE. S4's chosen access was recorded at the overview review's cross-check (2026-10-27); S10 gets the kind signals and the helper. Each row is "reviewed 2026-10-24: owner decision".
 - `docs/prp/prds/opendeepcool-lp360.prd.md`: UPDATE.
-  - The open questions on the GPU kind signal and CPU power access are answered.
+  - The open questions on the GPU kind signal and CPU power access were answered at the overview review's cross-check (2026-10-27): check that the answers still match what this phase builds.
   - System Footprint: the GPU-rank unit and helper; `/etc/modprobe.d/lm_sensors.conf` (only if created); the udev rule's powercap line; `gpu-rank.json` in the service's state directory, and `sensors-detect.json` in the detection's own root-only directory, `/var/lib/opendeepcool-detect/`. Each is removed by the removal script.
   - What We're NOT Building: "Other DeepCool water coolers: after v1 (owner, 2026-10-24)".
 
@@ -256,7 +258,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `Exact { num: i64, den: u64 }`, with `den > 0`, is the reading's exact value as a fraction of whole numbers, in °C, %, W or RPM.
   - Adapters build it from their source's integer units: millidegrees → `m / 1000`; jiffies → `100 · busy / total`; kB → `100 · used / total`; µW → `µW / 1 000 000`; mW → `mW / 1000`; energy → `ΔµJ / Δµs`; a whole percent, °C or RPM → `n / 1`.
   - `Exact` has no conversion from or to `f64` on the service's path. The end-to-end comparisons with `sensors -j` convert only to compare.
-  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`, `UnknownGpuKind` (an AMD GPU whose kind is unknown, so its power might include the CPU; solution review P8-06), `DriverUpdated` (the GPU driver changed since boot; a reboot fixes it; solution review P6-12).
+  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`, `UnknownGpuKind` (an AMD GPU whose kind is unknown, so its power might include the CPU; solution review P8-06), `DriverUpdated` (the GPU driver changed since boot; a reboot fixes it; solution review P6-12), `LibraryFailed { library, error }` (a driver's library that can't be loaded or started, with the loader's or the library's own message; NVML; overview cross-check, 2026-10-27).
   - `Display` gives the one-line reason the app shows (`settings.md` What the settings app must offer).
 - `Snapshot`: one `Reading` per `Metric`, plus `cooler_fans` and `pump`, each a `Reading` in RPM, or `NotChosen`.
 - `trait Readings { fn snapshot(&mut self) -> Snapshot; fn restart_intervals(&mut self); }`
@@ -406,6 +408,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - otherwise the best ranked. The saved choice is kept for when that GPU returns (rules 1–4 and details).
 - **`rank_is_stale(gpus, rank_file, user_has_chosen) -> bool`:** true when the set of PCI addresses differs from the one recorded in `gpu-rank.json` **and** the user hasn't chosen. The service then deletes the file, so the helper ranks again at the next start (owner, 2026-10-24).
   - If the user has chosen, the helper never reruns. A new GPU still appears in the list, as `Unknown`, ranked last.
+- **A broken ranking file** (overview cross-check, 2026-10-27; AGENTS.md rule 5): a `gpu-rank.json` that doesn't parse, or doesn't match its form (the PCI set, and for each GPU a well-formed address and a known kind), is treated as stale whether or not the user has chosen. The service logs it once and deletes it, so the helper ranks again at the next start. Until then every GPU's kind is `Unknown`, as for a GPU the file doesn't list.
 - **`fan_inputs(root) -> Vec<FanInput>`:**
   - every `fanN_input` of every hwmon device, except devices whose `device` parent is PCI base class `0x03` (`sensors.md` fan inputs);
   - `FanInput { chip: name, device_path, input: N, label: Option }`.
@@ -419,6 +422,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **A failed kind query** (P6-07): an NVIDIA GPU whose query failed plus an integrated i915 → the i915 is chosen, as the rule says; the NVIDIA GPU is `Unknown(QueryFailed)` with its error, distinct from nouveau's `NoSignal`.
 - **Saved choice missing** → the best ranked GPU, and the saved choice is kept.
 - **Stale ranking:** the GPU set changed and nothing was chosen → stale; the set changed but the user had chosen → not stale.
+- **A broken ranking file** (rule 5): truncated JSON, an unknown kind and a malformed PCI address are each logged and deleted, whether or not the user has chosen, and every GPU's kind is `Unknown` until the next ranking.
 - **Fans:**
   - a board chip with 3 inputs plus an amdgpu fan → 3 inputs, no amdgpu fan;
   - the board chip's hwmon index changes → the same `FanInput` reads the same file;
@@ -446,14 +450,20 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - temperature: `temperature(Gpu)`, whole °C, as `n / 1`;
   - usage: `utilization_rates().gpu`, whole percent, as `n / 1`;
   - power: `power_usage()` in mW, as `mW / 1000`.
-  - NVML failures give their real cause (solution review P6-12): the library missing → `Unavailable(NoRule { driver: "nvidia" })`, with the reason naming NVML; NVML's driver/library version mismatch, after a driver update without a reboot → `DriverUpdated`; no permission → `PermissionDenied`, naming NVML. The exact `nvml-wrapper` error names are checked with Context7 when this is built.
+  - NVML failures give their real cause (solution review P6-12; `nvml-wrapper`'s errors read with Context7, 2026-10-27):
+    - the library can't be loaded (`LibloadingError`, `FailedToLoadSymbol`) → `Unavailable(LibraryFailed { library: "NVML", error })`. One error covers both a missing library and one that is there but refused, for example by the service's sandbox, where NVML is untested (overview cross-check, 2026-10-27). The loader's own message, kept in `error`, tells them apart;
+    - `DriverNotLoaded` → `NoDevice`, and NVML is started again while the registry looks for late sources, so a driver that loads late is still found (solution review P6-04);
+    - `LibRmVersionMismatch`, after a driver update without a reboot → `DriverUpdated`;
+    - `NoPermission` → `PermissionDenied`, naming NVML;
+    - any other error starting NVML → `LibraryFailed`, with NVML's own message.
+    - The exact `nvml-wrapper` error names are checked again with Context7 when this is built.
 - **Any other driver** → all three `Unavailable(NoRule { driver })`.
 
 **Tests**
 - Fake trees for amdgpu dGPU, amdgpu APU (power unavailable), amdgpu of unknown kind (power `UnknownGpuKind`, P8-06), amdgpu with only `power1_input`, i915, xe and nouveau.
 - `FakeNvml` with a matching bus ID and a non-matching one.
 - **NVML only for NVIDIA** (P6-06): with a counting fake, a PC whose chosen GPU isn't NVIDIA's never initialises NVML, not even once.
-- **NVML's reasons** (P6-12): the fake's missing library, version mismatch and no-permission errors give `NoRule`, `DriverUpdated` and `PermissionDenied`.
+- **NVML's reasons** (P6-12; overview cross-check, 2026-10-27): the fake's two load errors, a missing library and a refused one, each give `LibraryFailed` with its own message; driver not loaded gives `NoDevice`; version mismatch and no permission give `DriverUpdated` and `PermissionDenied`; any other start error gives `LibraryFailed` with NVML's message.
 - Rule 11 check: in every fixture, each metric's value is distinct, and the test asserts each one comes from its own file. For example, an amdgpu fixture with `edge` 41 °C, `junction` 77 °C and `mem` 66 °C must read 41.
 
 **Validation**
@@ -663,19 +673,21 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 Phase 6 draws no frames, so it covers none of the 112 display cases. Its own matrix is the driver rules × hardware cases:
 
-| Rule | Fake-tree cases | Real on the owner's PC (any PC: where present) |
-|---|---|---|
-| coretemp | package, index change, foreign `Package id 0` | owner's PC |
-| k10temp | Tdie, Tctl only, pre-17h | — |
-| `/proc/stat`, `/proc/meminfo` | vectors, property | owner's PC |
-| powercap | one, two packages, wrap, mmio twin, denied | owner's PC (Intel) |
-| amdgpu | dGPU, APU, `power1_input` only | owner's PC (dGPU) |
-| i915, xe | temperature and energy, usage unavailable | — |
-| NVIDIA (NVML) | matching, non-matching bus ID, library missing | — |
-| nouveau, other | all unavailable, ranked last | — |
-| GPU choice | 1 GPU, dGPU + iGPU, 2 dGPU, unknown kinds, saved missing, stale | owner's PC (1 GPU) |
-| Fan inputs | board chip + GPU fan, index change, removed | owner's PC |
-| Detection | fresh, existing conf.d, existing modprobe.d, both written, new board, failure | owner's PC, once |
+| Rule | Fake-tree cases |
+|---|---|
+| coretemp | package, index change, foreign `Package id 0` |
+| k10temp | Tdie, Tctl only, pre-17h |
+| `/proc/stat`, `/proc/meminfo` | vectors, property |
+| powercap | one, two packages, wrap, mmio twin, denied |
+| amdgpu | dGPU, APU, `power1_input` only |
+| i915, xe | temperature and energy, usage unavailable |
+| NVIDIA (NVML) | matching, non-matching bus ID, library missing or refused |
+| nouveau, other | all unavailable, ranked last |
+| GPU choice | 1 GPU, dGPU + iGPU, 2 dGPU, unknown kinds, saved missing, stale, broken ranking file |
+| Fan inputs | board chip + GPU fan, index change, removed |
+| Detection | fresh, existing conf.d, existing modprobe.d, both written, new board, failure |
+
+Each rule also runs on real hardware wherever the PC running the tests has its device (rule 5). On the owner's PC, the `--require` list in `docs/local/` names what must run real, and detection runs real once (Task 10). Which rules that covers stays in `docs/local/`: the drivers a PC uses reveal its parts' makes (rule 10; owner, 2026-10-27).
 
 ## Risks and Decisions
 
@@ -683,7 +695,7 @@ Phase 6 draws no frames, so it covers none of the 112 display cases. Its own mat
 |---|---|---|---|
 | Crate names `odc-sensors`, `odc-gpu-rank`, `odc-sensors-detect` | Keep: same pattern as Phase 5 | PRD leaves names to the plans | Renames touch manifests and units |
 | The uAPI struct mirrors could drift from a newer kernel | Mirror only the leading fields we read; pass `return_size`; check sizes against the installed headers in Task 9 | The amdgpu INFO ioctl copies at most `return_size` bytes; the xe and i915 queries report the needed length first | A wrong size could corrupt the helper's memory. The helper is short-lived, sandboxed and unprivileged, and the display service is unaffected |
-| GPU kinds for i915, xe, NVIDIA and APUs are tested only with fakes | Accept; mark "not tested on hardware" in `sensors.md` | The owner's PC has one dedicated amdgpu GPU | A driver that behaves differently from its uAPI docs ranks wrongly; the user can still pick in the app |
+| GPU kinds are tested on hardware only for the drivers the test PC has | Accept: fakes cover every driver's integrated and dedicated answers; `sensors.md` doesn't say which drivers ran real (rule 10; owner, 2026-10-27) | The owner's GPU: `docs/local/` | A driver that behaves differently from its uAPI docs ranks wrongly; the user can still pick in the app |
 | `sensors-detect` probing on other PCs | Run only when both lm-sensors files are absent and no fan reading exists yet, once per board, within 120 s, without the display service waiting; output to the journal; the README and the AUR page say, before install, that installing probes the sensor buses (owner, 2026-10-27; solution review P6-02, P6-03, P6-13) | lm-sensors' own warning and default skips (`sensors.md`) | A board that misbehaves when probed; the PRD's risk table already lists it |
 | The CPU usage formula treats iowait as idle | Keep; `proc_stat(5)` calls iowait unreliable, and the e2e test compares with `top` | `sensors.md` driver rules; parity S3 checked against `top` | A few points' difference from tools that count iowait as busy |
 | `systemd-analyze verify` warns about the not-yet-existing `opendeepcool.service` | Expected until Phase 7; the gate lists the expected warning | Units are ordered before a service Phase 7 creates | — |

@@ -38,25 +38,25 @@ Evidence:
 
 The built-in rules the sensor registry matches (PRD, Sensor architecture). They cover the common drivers on any PC (owner, 2026-10-23), each taken from its kernel documentation, and match by name or driver, never by index.
 
-- Rules marked **owner's PC** were checked on real hardware. The others are **not tested on hardware**, only against fake sysfs trees built from the documentation.
+- Every rule is tested against fake sysfs trees built from its documentation. Some were also checked on real hardware, on the owner's PC; which ones is a machine fact, kept in `docs/local/`, because the drivers a PC uses reveal its parts' makes (AGENTS.md rule 10; owner, 2026-10-27).
 - A metric with no matching rule is unavailable, never drawn as a wrong number.
 - Driver and label names are allowed here by the AGENTS.md rule 10 exception.
 
-| Metric | Where | Match | File and unit | Checked |
+| Metric | Where | Match | File and unit | Notes |
 |---|---|---|---|---|
-| CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C | owner's PC |
+| CPU Temperature | hwmon | `name` is `coretemp`; the channel whose `tempN_label` is `Package id 0` | `tempN_input`, millidegrees C | — |
 | CPU Temperature | hwmon | `name` is `k10temp`; the channel labelled `Tdie` if there is one, else `Tctl` | `tempN_input`, millidegrees C | kernel docs: `Tdie` is the real die temperature where it differs from `Tctl`. On CPUs older than family 17h, `Tctl` isn't a physical temperature, so the metric is unavailable there |
-| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy = total − (idle + iowait) over the interval, kept as whole numbers ([display.md](display.md#values), exact whole-number arithmetic) | owner's PC |
-| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = ΔµJ ÷ Δµs, kept as whole numbers; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) | owner's PC (Intel). AMD: the same zone since kernel 5.8 (5.11 for family 19h) according to Scaphandre's documentation; **unverified** until Phase 6 checks the kernel source |
-| Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C | owner's PC |
-| Gpu usage | DRM | the chosen GPU's card, device driver `amdgpu` | `device/gpu_busy_percent`, percent | owner's PC |
-| Gpu power | hwmon | `name` is `amdgpu`: `power1_average` (labelled `PPT` on the owner's PC), else `power1_input` | microwatts | owner's PC for `power1_average`; `power1_input` (instantaneous power) from the amdgpu docs. On integrated AMD graphics this reading includes the CPU (amdgpu docs), so Gpu power is unavailable there (rule 11). OpenDeepCool shows it only for a GPU ranked dedicated; on an AMD GPU of unknown kind it's unavailable too, because that GPU might be integrated (owner, 2026-10-27; solution review P8-06) |
+| CPU Usage | `/proc/stat` | the aggregate `cpu` line | jiffies; busy = total − (idle + iowait) over the interval, kept as whole numbers ([display.md](display.md#values), exact whole-number arithmetic) | — |
+| CPU Power | powercap | the zone whose `name` is `package-0` | `energy_uj`, microjoules; power = ΔµJ ÷ Δµs, kept as whole numbers; wraps at `max_energy_range_uj`. Root-only, see [CPU power](#cpu-power) | AMD: the same zone since kernel 5.8 (5.11 for family 19h) according to Scaphandre's documentation; **unverified** until Phase 6 checks the kernel source |
+| Gpu temperature | hwmon | `name` is `amdgpu`; the channel whose `tempN_label` is `edge` | `tempN_input`, millidegrees C | — |
+| Gpu usage | DRM | the chosen GPU's card, device driver `amdgpu` | `device/gpu_busy_percent`, percent | — |
+| Gpu power | hwmon | `name` is `amdgpu`: `power1_average`, else `power1_input` | microwatts | `power1_input` (instantaneous power) from the amdgpu docs. On integrated AMD graphics this reading includes the CPU (amdgpu docs), so Gpu power is unavailable there (rule 11). OpenDeepCool shows it only for a GPU ranked dedicated; on an AMD GPU of unknown kind it's unavailable too, because that GPU might be integrated (owner, 2026-10-27; solution review P8-06) |
 | Gpu temperature, usage, power | NVML | NVIDIA GPUs | NVIDIA's library | **unverified**: NVIDIA's driver has no hwmon interface (a pull request to add one exists, NVIDIA open-gpu-kernel-modules #1169, status unverified). Phase 6 chooses the NVML calls from NVIDIA's documentation |
 | Gpu metrics | — | other GPU drivers, such as Intel `i915` and `xe`, or `nouveau` | — | no rule yet: Phase 6 researches what their documentation offers; until then unavailable |
-| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal, kept as whole numbers | owner's PC |
+| Memory Load | `/proc/meminfo` | `MemTotal`, `MemAvailable` | kB; load = (MemTotal − MemAvailable) ÷ MemTotal, kept as whole numbers | — |
 | Cooler fans (CPU Fan I/O), pump | hwmon | no rule: the user picks any `fanN_input` from any hwmon device except a graphics card's ([Fan and pump speed](#fan-and-pump-speed)) | RPM | — |
 
-- **Board sensor driver** (the cooler's fans and pump plug into the board's headers, so the board's sensor chip is what measures them): a motherboard's sensor-chip driver often isn't loaded automatically (on the owner's PC, `nct6683` isn't). OpenDeepCool doesn't name the driver; lm-sensors finds it.
+- **Board sensor driver** (the cooler's fans and pump plug into the board's headers, so the board's sensor chip is what measures them): a motherboard's sensor-chip driver often isn't loaded automatically. OpenDeepCool doesn't name the driver; lm-sensors finds it.
   - At boot, when the PC has no lm-sensors configuration (`/etc/conf.d/lm_sensors`), a root one-shot unit runs `sensors-detect --auto`, at most once per motherboard.
   - `sensors-detect` probes the board's sensor chips, writes that file, then enables and starts `lm_sensors.service`, which loads the listed drivers at every boot.
   - An existing configuration is never overwritten.
@@ -65,10 +65,10 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
   - "Once per motherboard" is judged from the board's DMI vendor, name and version. A board that reports placeholder strings there could pass for the previous one; that matters only if the lm-sensors configuration was removed in between, and is accepted (solution review P6-11).
   - Its record of what it created, and for which board, lives in a root-only directory of its own, `/var/lib/opendeepcool-detect/`, never in the display service's (owner, 2026-10-26). The record holds yes/no facts, never paths.
   - lm-sensors warns that its SMBus probing "has been reported to cause trouble on some systems"; by default it skips that probing when a Super I/O chip already provides voltages, fans and temperatures, except on ASUS, Tyan and Supermicro boards. When it finds no sensors, it writes nothing; the once-per-motherboard record stops it from running again at every boot.
-  - Evidence: system: the `sensors-detect` script of lm_sensors 3.6.2, read 2026-10-23 (its chip table maps the owner's sensor chip to `nct6683`); Arch Wiki, lm_sensors.
-- **NVML in the display service** (owner, 2026-10-27; solution review P6-06): NVIDIA's closed library is the one piece of code that isn't OpenDeepCool's own inside the service. It's loaded only when the chosen GPU uses NVIDIA's `nvidia` driver, never on other PCs. Its failures name their cause: the library is missing, the driver was updated without a reboot, or no permission (solution review P6-12).
+  - Evidence: system: the `sensors-detect` script of lm_sensors 3.6.2, read 2026-10-23 (its chip table maps each chip it knows to its driver; the owner's chip: `docs/local/`); Arch Wiki, lm_sensors.
+- **NVML in the display service** (owner, 2026-10-27; solution review P6-06): NVIDIA's closed library is the one piece of code that isn't OpenDeepCool's own inside the service. It's loaded only when the chosen GPU uses NVIDIA's `nvidia` driver, never on other PCs. Its failures name their cause: the library can't be loaded or started, with the loader's or NVML's own message, which tells a missing library from a refused one; the driver was updated without a reboot; or no permission (solution review P6-12). NVIDIA's driver not loaded yet counts as no device, so a driver that loads late is still found. NVML inside the service's sandbox is untested; a system call the sandbox refuses fails instead of stopping the service (owner, 2026-10-27; overview review's cross-check).
 - **Sources that appear late** (owner, 2026-10-27; solution review P6-04): a metric without a source is looked for again every 5 s for the first two minutes after start-up or a wake-up, then every 60 s. Only after those two minutes does "no device" count as lasting and disable its modes in the app.
-- **Evidence:** system: every rule marked owner's PC matched exactly one channel on the owner's PC, 2026-10-22, and its value agreed with `sensors`. File meanings and units: docs.kernel.org (hwmon sysfs interface, coretemp, k10temp, amdgpu thermal, powercap).
+- **Evidence:** system: each rule checked on the owner's PC matched exactly one channel there, 2026-10-22, and its value agreed with `sensors` (which rules: `docs/local/`). File meanings and units: docs.kernel.org (hwmon sysfs interface, coretemp, k10temp, amdgpu thermal, powercap).
 - **Unverified:** the CPU usage formula is the common definition of "busy". It's checked against `top` in Phase 6.
 
 ## Updates and rounding
@@ -83,7 +83,7 @@ The built-in rules the sensor registry matches (PRD, Sensor architecture). They 
 
 OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage and power. It doesn't monitor GPUs otherwise (owner, 2026-10-23: OpenDeepCool covers only the cooler).
 
-- **Kinds:** each GPU in the PC is either **dedicated** (a graphics card) or **integrated** (part of the CPU). Phase 6 verifies, from primary sources, which signal tells them apart for each driver; until then that is **unverified**. If a driver has no reliable signal, the owner decides.
+- **Kinds:** each GPU in the PC is either **dedicated** (a graphics card) or **integrated** (part of the CPU). Each driver's documented signal tells them apart (Phase 6 plan, read 2026-10-24): amdgpu's `AMDGPU_IDS_FLAGS_FUSION`, xe's `DRM_XE_QUERY_CONFIG_FLAG_HAS_VRAM`, i915's device-local memory region, and CUDA's `CU_DEVICE_ATTRIBUTE_INTEGRATED` for NVIDIA, asked by a short-lived helper. A driver without a signal, such as nouveau, gives an unknown kind, which ranks after an integrated GPU (owner, 2026-10-27; solution review P6-07).
 - **A failed kind query** (owner, 2026-10-27; solution review P6-07): when the query that tells a GPU's kind fails, the GPU is unknown and ranks after an integrated one, like any unknown GPU. The failure is logged as a warning and named in the GPU list, apart from a driver that simply has no signal.
 - **Rules** (owner, 2026-10-23):
   1. With one GPU, of either kind, OpenDeepCool reads it, and the settings app shows no GPU choice.
@@ -99,11 +99,11 @@ OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage 
 ## CPU power
 
 - Since a kernel security fix, the RAPL energy counters are readable by root only. Reading them lets any local user mount the "Platypus" power side-channel attack (CVE-2020-8694; Intel advisory INTEL-SA-00389, which names `/sys/class/powercap/intel-rapl*/*/energy_uj`). System: on the owner's PC the counter is root-only (2026-10-22).
-- So the display service, which runs as an unprivileged system user (PRD, Service model), can't read CPU power without an install-time change. Making the file readable by **every** user would reopen that attack for all local accounts. Options for Phase 6:
+- So the display service, which runs as an unprivileged system user (PRD, Service model), can't read CPU power without an install-time change. Making the file readable by **every** user would reopen that attack for all local accounts. The options were:
   - a rule that lets **only** the display service's account read it;
   - a small privileged helper that serves only the power value.
 
-  Phase 6 decides, with the owner. The PRD's open question "is CPU power readable without root?" is answered: **no**.
+  The owner chose the rule on 2026-10-24: a line in OpenDeepCool's udev rule lets the `opendeepcool` group read the package zones' `energy_uj` (Phase 6 Task 6). The PRD's open question "is CPU power readable without root?" is answered: **no**.
 
 ## Fan and pump speed
 
@@ -118,7 +118,7 @@ OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage 
   - Under Wine the list is empty: HWiNFO needs its Windows kernel driver to read the sensor chip (Phase 1 report).
 - OpenDeepCool does the same, on any PC:
   - the settings app lists every hwmon fan input from every sensor chip, with the chip's name, the driver's label (`fanN_label`) when it has one, and the live RPM;
-  - it leaves out a graphics card's own fans, as DeepCreative does (owner, 2026-10-23): a pump or radiator fan never connects to a GPU. The rule: skip an hwmon device whose `device` is a PCI display controller, PCI base class `0x03` (kernel `pci_ids.h`: `PCI_BASE_CLASS_DISPLAY`). System: on the owner's PC the `amdgpu` fan's device has class `0x030000`, while the board chip's is a platform device, 2026-10-23;
+  - it leaves out a graphics card's own fans, as DeepCreative does (owner, 2026-10-23): a pump or radiator fan never connects to a GPU. The rule: skip an hwmon device whose `device` is a PCI display controller, PCI base class `0x03` (kernel `pci_ids.h`: `PCI_BASE_CLASS_DISPLAY`). System, 2026-10-23 (details in `docs/local/`): a graphics card's fan device has PCI class `0x030000`, while the board chip's is a platform device;
   - the user picks one input for the cooler's fans (DeepCreative's CPU Fan I/O: the radiator fans sit on the board's CPU fan header) and one for its pump. None is chosen by default, as in DeepCreative. No rule could choose: the kernel's hwmon documentation says "There is no standard that ensures, for example, that … the second fan is on the CPU";
   - the choice is saved as the chip's name, its device path and the input number, never as an hwmon index, which changes between boots. If that input is missing, the app shows it as not found, never another input's RPM;
   - the settings app shows their RPM, and nothing reaches the display.

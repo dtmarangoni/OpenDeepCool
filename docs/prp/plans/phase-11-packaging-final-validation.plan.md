@@ -275,7 +275,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - nothing in `/usr/local` (Arch package guidelines) and nothing in `/etc`.
 - **NVIDIA:** from NVIDIA's documentation for the device files NVML opens (`/dev/nvidiactl`, `/dev/nvidia<N>`), the unit adds `DeviceAllow=` entries.
   - They use the `char-<group>` form, with the group names NVIDIA's driver registers in `/proc/devices`, taken from NVIDIA's documentation. systemd.resource-control(5) documents the form (read 2026-10-27; solution review P11-13): groups that don't resolve when the unit starts "are not added", so the entries are safe on a PC without NVIDIA's driver. They cover only a driver loaded before the service starts.
-  - Unverified on hardware: no NVIDIA card is available for testing (see `docs/local/`). Phase 6's fake trees and NVML fakes cover the reading. The report and the README say NVIDIA support is untested.
+  - Unverified on hardware (see `docs/local/`). Phase 6's fake trees and NVML fakes cover the reading. The report and the README say NVIDIA support is untested.
+  - NVML inside the service's sandbox is untested too: `MemoryDenyWriteExecute=yes` or `SystemCallFilter=@system-service` may refuse something it does (solution review P6-06, OV-15). The unit always sets `SystemCallErrorNumber=EPERM` (Phase 7), so a refused call fails instead of killing the service, and a library that can't be loaded or started gives its own message (Phase 6) (owner, 2026-10-27; overview review's cross-check).
 
 **Validation**
 - `systemd-analyze verify packaging/systemd/*.service` passes; every path in `FILES.md` exists in `packaging/` or is a build output.
@@ -384,7 +385,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - "Installed on your system": generated from `FILES.md` by a small script, so it can't drift;
   - what the install enables and how to disable it;
   - that, on a PC with no lm-sensors configuration and no fan reading yet, installing runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02);
-  - that NVIDIA support is untested on real hardware (solution review P11-13, OV-15).
+  - that NVIDIA support is untested on real hardware, NVML inside the service's sandbox included (solution review P11-13, OV-15).
 - `packaging/arch/README` for the AUR page: a short description, the same note about `sensors-detect`, and a link to the repository.
 - `AGENTS.md` Commands: `--only package`. The release steps come with Phase 12.
 
@@ -508,7 +509,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 | Restarting and stopping each user's audio helper from the hooks | `systemctl --user --machine=<user>@.host`, checked on the owner's PC in Task 5; if it fails there, the owner chooses between the helper exiting by itself and documenting it (owner, 2026-10-27) | systemctl(1), read 2026-10-27; Phase 9: the helper waits for the service | An old helper runs until the next login after an upgrade, or waits idle until logout after an uninstall |
 | The tests' access once the package replaces the dev copy | Re-added by one approved step, effective from the next login (owner, 2026-10-27) | The dev interface checks the caller's group; the reconnect test needs the dev rule (Phases 5, 7) | Without it, Task 7 can't reach the dev interface, the recording or the reconnect switch |
 | The source is a published tag through git, not GitHub's generated archive, and unsigned | makepkg's checksum over the tag's files (owner, 2026-10-27; solution review P11-06, P11-17) | makepkg's `git.sh`; GitHub Docs | A checksum over GitHub's archive would break when GitHub changes its compression |
-| NVIDIA device access can't be tested here | From NVIDIA's documentation and systemd.resource-control(5); never exercised, and the report and the README say so | See `docs/local/` | An NVIDIA user might see GPU metrics unavailable until fixed |
+| NVIDIA device access, and NVML inside the sandbox, are untested on hardware | From NVIDIA's documentation and systemd.resource-control(5); never exercised, and the report and the README say so. A call the system-call filter refuses fails instead of killing the service (`SystemCallErrorNumber=EPERM`), and a library that won't load or start names its cause | See `docs/local/` | An NVIDIA user might see GPU metrics unavailable, with the reason, until fixed |
 | The oracle generator in the public repository | Decided: committed in Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01) | It reads only the spec; the parts that read captures stay local | — |
 | The final run needs one privileged step | One `pkexec` for the runtime drop-in, approved by the owner; `/run` vanishes at reboot anyway | Rule 7 | — |
 

@@ -6,7 +6,7 @@
 **Source Issue:** `None`
 **Plan Publication:** `None`
 
-> **History.** Written before Creative Mode was removed (owner, 2026-10-25) and the phases renumbered: its Phase 10 was Creative Mode, since dropped, and its Phases 11 and 12 are today's Phases 10 and 11. The PRD has today's phases, and the spec is the contract.
+> **History.** Written before Creative Mode was removed (owner, 2026-10-25) and the phases renumbered: its Phase 10 was Creative Mode, since dropped, and its Phases 11 and 12 are today's Phases 10 and 11. Today's Phase 12, the releases, was added later (owner, 2026-10-27). The PRD has today's phases, and the spec is the contract.
 
 ## Outcome
 

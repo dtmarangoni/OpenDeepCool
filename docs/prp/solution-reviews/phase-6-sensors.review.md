@@ -211,6 +211,7 @@ The plan's mitigations are good: only when no configuration exists, once per boa
 
 - **Recommendation:** load NVML only when the chosen GPU uses `nvidia`, and test that it isn't loaded otherwise. State the exception in `sensors.md` and in the plan's invariant. Revisit a reader helper if NVML proves incompatible with the sandbox.
 - **Outcome (2026-10-27):** accepted, NVIDIA PCs only (owner): NVML is initialised only when the chosen GPU uses `nvidia`, a counting fake proves it never loads otherwise, and the plan's invariant and `sensors.md` state the exception. Its sandbox compatibility stays with Phase 11 (P11-13).
+  - **Note (2026-10-27, overview review's cross-check):** P11-13 settled only NVIDIA's device files. The sandbox part was decided with the overview (OV-15): `SystemCallErrorNumber=EPERM` is always set, and NVML's load and start failures give `LibraryFailed` with their own message.
 
 ### P6-07: CUDA failure ranking
 
@@ -231,6 +232,7 @@ The plan's mitigations are good: only when no configuration exists, once per boa
 
 - **Recommendation:** map library missing → `NoRule`; version mismatch → a reason naming the driver update; permission → `PermissionDenied`.
 - **Outcome (2026-10-27):** accepted: a new reason, `DriverUpdated` (persistent until a reboot, Phase 7), plus tests for all three; the exact `nvml-wrapper` error names are checked with Context7 at implementation.
+  - **Note (2026-10-27, overview review's cross-check):** a missing library now gives `LibraryFailed`, with the loader's message, instead of `NoRule`, because one `nvml-wrapper` error covers both a missing and a refused library (Context7, 2026-10-27). `DriverNotLoaded` gives `NoDevice`, so a driver that loads late is still found.
 
 ### P6-13: Detection with working sensors
 

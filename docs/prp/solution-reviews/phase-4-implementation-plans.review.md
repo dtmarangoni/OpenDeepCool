@@ -95,6 +95,7 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
   - Phase 10 depends on 7, 8 and 9;
   - parallel work only where files don't overlap. One option: Phase 10's pure view model and theme modules (Task 3) alongside Phase 9.
 - **Outcome (2026-10-27):** accepted, without the overlap: one phase at a time, 5 to 11 (owner). The PRD table's Parallel and Depends columns and its Parallelism Notes now match the plans; the notes' "all four" is gone, since only three phases were left in that group after Creative Mode was removed. Decisions Log: Phase order. This also settles P5-12 and OV-09.
+  - **Note (2026-10-27, Phase 11 review):** now 5 to 12, since Phase 12, the releases, was added.
 
 ### P4-02: Real-hardware run budget
 
@@ -139,6 +140,7 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
   - Phase 6 and Phase 11: a symlinked or forged detection record;
   - Phase 11: a manifest with `..`, `/`, an empty line or a path outside the dev locations.
 - **Outcome (2026-10-27):** accepted. The overview round had already added most of these: dev-interface calls from outside the group and without an interface field, unknown and path-like D-Bus arguments (Phase 7), forged detection records (Phases 6 and 11), and refused audio attaches (Phase 9). Added now: NaN and infinite samples count as 0, a rule the owner confirmed (`music.md`, Phase 9 Task 3), and a malformed dev manifest removes nothing (Phase 5 Task 8, Phase 11 Tasks 2 and 3), since root deletes what it lists from Phase 5 on. AGENTS.md rule 5 now asks for refusal tests at every entry point, with the overview's threat model as the reference. This also settles OV-25.
+  - **Note (2026-10-27, overview review's cross-check):** rule 5 now points to the overview's table of entry points (Entry points after the cross-check), which lists what each one must refuse, as decided.
 
 ## Questions for the owner
 
