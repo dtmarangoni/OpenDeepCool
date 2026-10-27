@@ -98,16 +98,23 @@ Modes 10 and 12 need the package energy counter to be group-readable, which the 
 ### P8-03: `draws(mode)`
 
 - **Recommendation:** `AvailableModes` (Phase 7) should also start from `draws`, so a mode that isn't drawable is never offered as available. Today the two are computed separately.
+- **Outcome (2026-10-27):** accepted, from Phase 7: the cross-check found that Phase 7's `AvailableModes` counts every mode whose readings work, so it would list Music mode 13 while refusing it. `draws(mode)` now comes with Phase 7's `odc-render`, and both the refusal and `AvailableModes` use it, with a test; Phase 8 only extends it.
 
 ### P8-06: Fail-safe for integrated AMD power
 
 - **Evidence:** Phase 6 Task 8 (amdgpu power unavailable "on a GPU ranked `Integrated`"); `sensors.md` (integrated AMD power includes the CPU); P6-14 and P6-07 (ranking failures).
 - **Recommendation:** amdgpu Gpu power only when the GPU is ranked `Dedicated`; otherwise `Unavailable` with a reason that names the unknown kind. Add a fixture test: an APU with `Unknown` kind → mode 11 unavailable.
+- **Outcome (2026-10-27):** accepted (owner): amdgpu power is shown only on a GPU ranked dedicated; an unknown kind gives a new reason, `UnknownGpuKind`, which counts as lasting. Phase 6 Tasks 2 and 8, Phase 7 availability, Phase 8 mode 11 with a fixture test; `sensors.md`; PRD Decisions Log (AMD GPU power). Nothing changes on the owner's PC, whose card ranks dedicated. This settles the last part of OV-11.
 
 ### P8-08: Power modes right after install
 
 - **Recommendation:** fix the install order (P11-01), and let `PermissionDenied` be re-tried by the periodic rescan (P6-04) instead of counting as persistent for the life of the process.
 - **Outcome (2026-10-26):** partly applied. The install order is fixed through OV-02: the service starts after systemd's udev hook has applied the rule. The re-try waits for OV-11.
+- **Outcome (2026-10-27):** the re-try settled with P6-04: the registry reads the power counter again at every snapshot and looks for its source again after a failed read, and `AvailableModes` follows the latest reading, so modes 10 and 12 return as soon as the permission is in place. No further change.
+
+### P8-04, P8-05 and P8-07: notes
+
+- **Outcome (2026-10-27):** no action; the plan already handles each as the finding says.
 
 ## Questions for the owner
 

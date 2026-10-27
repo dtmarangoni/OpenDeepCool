@@ -63,7 +63,7 @@
 
 **Lift the refusal through `odc-render`, not a list.**
 - Phase 7 refuses later-phase modes with `NotYetAvailable` (Phase 7 Task 7, step 3), and `picture` returns `Err(NotYetImplemented)` for them (Task 2).
-- The D-Bus check must ask `odc_render::draws(mode)`, true exactly where `picture` is implemented. Then each mode's commit makes that mode selectable, and nothing else has to be kept in step.
+- The D-Bus check and `AvailableModes` ask `odc_render::draws(mode)`, true exactly where `picture` is implemented; it exists from Phase 7 (owner, 2026-10-27; solution review P8-03). Then each mode's commit makes that mode selectable, and nothing else has to be kept in step.
 - If the Phase 7 code holds a separate list of implemented modes, this phase deletes it.
 
 **Differential tests for scrolling compare the whole cycle in order.**
@@ -237,7 +237,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - `crates/odc-render/src/glyph.rs`: UPDATE, adding `°C` (4 × 5), `°F` (5 × 5) and `W` (5 × 5, top row blank), typed as `#`/`.` rows from `display.md` Glyphs.
 - `crates/odc-render/src/value.rs`: UPDATE.
 - `crates/odc-render/src/picture.rs`: UPDATE. The symbol comes from the mode's kind and the unit: Load `%`, Temperature `°C` or `°F`, Power `W`.
-- `crates/odc-render/src/lib.rs`: UPDATE, adding `draws(mode) -> bool`, true exactly for the modes `picture` implements (1–6 until Task 4).
+- `crates/odc-render/src/lib.rs`: UPDATE. `draws(mode) -> bool` (from Phase 7, P8-03) follows `picture`: true for 1–6 until Task 4, then each mode's task makes it true for its mode.
 
 **Implementation**
 - **Temperature** (`display.md` Values), on the exact millidegrees *m*, in integers with `i128` intermediates:
@@ -398,7 +398,7 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
 
 - **Mode 11:** Gpu power of the chosen GPU, rows 6–10.
   - Matrix: all 12 cases of `mode-011.txt`.
-  - Availability: `AvailableModes` drops 11 on integrated AMD graphics (`IntegratedGpuPower`, reason "this GPU's power reading includes the CPU"), on a missing GPU, and on a driver without a power rule.
+  - Availability: `AvailableModes` drops 11 on integrated AMD graphics (`IntegratedGpuPower`, reason "this GPU's power reading includes the CPU"), on an AMD GPU of unknown kind (`UnknownGpuKind`, reason "this GPU's kind is unknown"; owner, 2026-10-27, solution review P8-06), on a missing GPU, and on a driver without a power rule. A fixture test pins the unknown-kind APU case, mode 12 included.
   - S25: another GPU resets.
   - Switch pairs with modes 1–10.
   - Layer 4: `--modes 11`.

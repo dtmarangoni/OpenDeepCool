@@ -256,7 +256,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `Exact { num: i64, den: u64 }`, with `den > 0`, is the reading's exact value as a fraction of whole numbers, in °C, %, W or RPM.
   - Adapters build it from their source's integer units: millidegrees → `m / 1000`; jiffies → `100 · busy / total`; kB → `100 · used / total`; µW → `µW / 1 000 000`; mW → `mW / 1000`; energy → `ΔµJ / Δµs`; a whole percent, °C or RPM → `n / 1`.
   - `Exact` has no conversion from or to `f64` on the service's path. The end-to-end comparisons with `sensors -j` convert only to compare.
-  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`, `DriverUpdated` (the GPU driver changed since boot; a reboot fixes it; solution review P6-12).
+  - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`, `UnknownGpuKind` (an AMD GPU whose kind is unknown, so its power might include the CPU; solution review P8-06), `DriverUpdated` (the GPU driver changed since boot; a reboot fixes it; solution review P6-12).
   - `Display` gives the one-line reason the app shows (`settings.md` What the settings app must offer).
 - `Snapshot`: one `Reading` per `Metric`, plus `cooler_fans` and `pump`, each a `Reading` in RPM, or `NotChosen`.
 - `trait Readings { fn snapshot(&mut self) -> Snapshot; fn restart_intervals(&mut self); }`
@@ -439,7 +439,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **amdgpu:**
   - temperature: label `edge`;
   - usage: `device/gpu_busy_percent`;
-  - power: `power1_average` else `power1_input`, as `µW / 1 000 000` W. On a GPU ranked `Integrated` → `Unavailable(IntegratedGpuPower)`, because amdgpu's integrated reading includes the CPU (`sensors.md`, rule 11).
+  - power: `power1_average` else `power1_input`, as `µW / 1 000 000` W. Shown only on a GPU ranked `Dedicated` (owner, 2026-10-27; solution review P8-06). On one ranked `Integrated` → `Unavailable(IntegratedGpuPower)`, because amdgpu's integrated reading includes the CPU (`sensors.md`, rule 11); on one of unknown kind → `Unavailable(UnknownGpuKind)`, because it might be integrated.
 - **i915:** temperature from `temp1_input`; power = `ΔµJ / Δµs` from `energy1_input`, `NotYet` on the first call and after `restart_intervals()`; usage → `Unavailable(NoRule)` with the reason "this GPU's driver doesn't report usage".
 - **xe:** temperature from `temp2_input` (package); power = `ΔµJ / Δµs` from `energy1_input` (card); usage unavailable as for i915.
 - **NVIDIA proprietary** (driver `nvidia`): through `NvmlSource`, matched by `pci_info().bus_id` to the chosen PCI address.
@@ -450,7 +450,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **Any other driver** → all three `Unavailable(NoRule { driver })`.
 
 **Tests**
-- Fake trees for amdgpu dGPU, amdgpu APU (power unavailable), amdgpu with only `power1_input`, i915, xe and nouveau.
+- Fake trees for amdgpu dGPU, amdgpu APU (power unavailable), amdgpu of unknown kind (power `UnknownGpuKind`, P8-06), amdgpu with only `power1_input`, i915, xe and nouveau.
 - `FakeNvml` with a matching bus ID and a non-matching one.
 - **NVML only for NVIDIA** (P6-06): with a counting fake, a PC whose chosen GPU isn't NVIDIA's never initialises NVML, not even once.
 - **NVML's reasons** (P6-12): the fake's missing library, version mismatch and no-permission errors give `NoRule`, `DriverUpdated` and `PermissionDenied`.

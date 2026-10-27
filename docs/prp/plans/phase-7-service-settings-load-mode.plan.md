@@ -298,7 +298,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 
 **Implementation**
 - **`Mode`:** the spec's numbers. `mode_info(mode) -> ModeInfo { metrics: &[Metric], kind: Load | Temperature | Power | Music }` for every mode in `display.md` and `music.md`.
-  - Phase 7 draws 1–6; `picture` returns `Err(NotYetImplemented)` for the rest.
+  - Phase 7 draws 1–6; `picture` returns `Err(NotYetImplemented)` for the rest. `draws(mode) -> bool` says which, true exactly where `picture` is implemented, and it's the one source for both the D-Bus refusal and `AvailableModes` (owner, 2026-10-27; solution review P8-03).
   - `Metric` is Phase 6's type.
 - **Value rules** (`display.md` Values: OpenDeepCool's no caps, and exact whole-number arithmetic), on Phase 6's exact readings (`Exact { num, den }`), in integer arithmetic only, with intermediates in `i128` so that no reading can overflow (owner, 2026-10-26; solution review OV-08):
   - usage and Memory Load: the nearest whole number, halves up, (2 · num + den) div (2 · den), no cap (owner, 2026-10-26: every measurement rounds to the nearest);
@@ -459,8 +459,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **nothing:** a choice that is already set; a unit change while the mode shows no temperature (the unit is only saved). The D-Bus side doesn't even send these (Task 7).
   - When a settings change and new readings land on the same tick, the reset wins, drawn with the new readings (S21).
 - **Start-up:** the first tick shows the saved mode at once. `Lp360` sends `03 08` first (Phase 5). The first second's rate metrics are `NotYet` → dashes (`display.md` Unavailable values).
-- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower` or `DriverUpdated`. `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
-  - `AvailableModes` = the modes whose every metric is available; the rest carry their first reason.
+- **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower`, `UnknownGpuKind` or `DriverUpdated`. `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
+  - `AvailableModes` = the modes `draws` accepts whose every metric is available; the rest carry their first reason (P8-03).
   - A missing device makes all of its metrics unavailable, and so all of its modes (`settings.md` Availability).
 - **Unavailable values** in the current mode → dashes; the mode stays.
 - **GPU:**
@@ -488,6 +488,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - a GPU metric becoming `NoDevice` mid-run → dashes; mode 4 stays the mode, and `AvailableModes` drops 2, 4 and 6.
   - **Late sources** (P6-04, fake clock): Gpu usage `NoDevice` at start and found 30 s later → modes 2, 4 and 6 never leave `AvailableModes`; still missing after two minutes → they leave it, and come back when the source is found later.
   - **Newest settings** (P7-15): two changes before one tick → only the second is adopted; mode 1 → 2 → 1 before one tick → no reset.
+  - **Drawable only** (P8-03): mode 13 is never in `AvailableModes`, even with every reading available, because `draws(13)` is false.
 - **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Wake-up (S18; owner, 2026-10-26):** with the device present all along, a `Wake` while `100%` scrolls. The next report is `03 08`, then that tick's frame; the strip's position continues; `FakeReadings` counts one `restart_intervals()`, and the rate metrics it then reports as `NotYet` show dashes for their first second, then values. A `Wake` while the device is absent changes nothing but the readings.
 - **Stale GPU ranking:** the rank file is deleted only when the set changed and no choice exists.
@@ -516,7 +517,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
      - a string over its limit (64 bytes; 1024 for a device path) is refused before any lookup.
 
      No file path is ever built from a caller's string: arguments are only compared with entries the service found itself.
-  3. A later-phase mode → `NotYetAvailable`; an unavailable mode → `ModeUnavailable(reason)`.
+  3. A mode `draws` doesn't accept → `NotYetAvailable`; an unavailable mode → `ModeUnavailable(reason)`.
   4. The value is already set → success, and nothing is stored, sent or emitted (`display.md`: choosing what is already set changes nothing).
   5. `SettingsStore::store`.
   6. Send `Apply` to the engine. A unit change while the mode shows no temperature is stored but sends nothing that touches the picture.
