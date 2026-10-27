@@ -53,7 +53,7 @@
   - A write can block for up to 5 s on a stalled USB device (Phase 5: the kernel's `USB_CTRL_SET_TIMEOUT`).
   - A frame posted meanwhile replaces the unsent one instead of queueing, so the tick keeps its grid and nothing bunches up.
 - **The sensor thread** owns the `Registry`. It takes a snapshot every second on its own monotonic timer, and at once when the engine asks (`Refresh`), and publishes the newest one. A slow driver delays only this thread.
-- **The D-Bus side** (zbus's thread) owns `SettingsStore` (validate, persist) and sends the engine an `Apply(Change)` message over a channel: new settings, or `Refresh`. The engine picks it up at the next tick, which is exactly the "switch on the next frame" rule (`display.md` Mode switches).
+- **The D-Bus side** (zbus's thread) owns `SettingsStore` (validate, persist) and puts the newest complete settings in a one-slot `Apply` mailbox, or raises its refresh flag (owner, 2026-10-27; solution review P7-15). The engine picks them up at the next tick, which is exactly the "switch on the next frame" rule (`display.md` Mode switches).
 - Status flows back through one `Arc<RwLock<Status>>`: connected, availability, bindings.
 - Nothing is shared mutably in both directions, so neither a slow polkit check, a stalled USB write nor a slow sensor can delay a frame.
 
@@ -118,7 +118,11 @@
   - polkit `change-settings`, as for every change.
 
   The interface stays in the shipped binary, off unless the service starts with `--dev`, so the final parity run (Phase 11) tests the binary that ships (owner, 2026-10-26).
-- it records every report written to `/var/lib/opendeepcool/dev-frames.log`, using Phase 5's `Recording`.
+- it records reports to `/var/lib/opendeepcool/dev-frames.log`, using Phase 5's `Recording` (owner, 2026-10-27; solution review P7-07):
+  - the service's first 100 reports after each start, always, for the start check;
+  - every report while a test session is held (Task 7), and nothing otherwise;
+  - each with its tick number and its monotonic write time (`CLOCK_MONOTONIC`, ns; P7-13);
+  - buffered, flushed once a second and at the end of each session, and rotated at 64 MB, keeping one previous file.
 
 ### Evidence
 
@@ -384,7 +388,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading, polkit `use`:** `GetState() -> a{sv}`; `Watch()` and `Unwatch()`; `Diagnostics() -> a(sss)`: metric, bound source, state.
 - **Signal:** `StateChanged(a{sv})`: the changed keys, or the whole state after a watcher passes its check again. It's addressed to each authorized watcher alone, never broadcast.
-- **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`, `…Error.TooManyWatchers`.
+- **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`, `…Error.TooManyWatchers`, `…Error.Busy` (dev copy only, while a test session is held; P7-16).
 - A `#[proxy]` client for the tests and Phase 10.
 
 **Tests**
@@ -413,8 +417,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - a fan input whose chip name has at most 64 bytes, whose device path is absolute, under `/sys/devices/`, without `.` or `..` components and at most 1024 bytes long, and whose input number is 1 or more.
 - **`SettingsStore::load(dir)`:**
   - a missing file → defaults, which are written;
-  - an unreadable or invalid file → renamed to `settings.toml.invalid-<unix time>`, with an error logged, then defaults.
-- **`store(&Settings)`:** temp file, `fsync`, rename.
+  - an unreadable or invalid file → renamed to `settings.toml.invalid-<unix time>`, with an error logged, then defaults. Only the last three such copies are kept (solution review P7-12).
+- **Unknown fields** (owner, 2026-10-27; solution review P7-12): a version 1 file may hold fields that a later build added, such as Phase 9's Music settings. They're kept and written back unchanged, so going back to an older build, as the alpha and beta may, and forward again loses nothing. Only a different `version` is rejected.
+- **`store(&Settings)`:** temp file, `fsync`, rename, then an `fsync` of the directory, so the rename itself survives a power cut (P7-12).
 
 **Tests** (temp dirs under `CARGO_TARGET_TMPDIR`)
 - Defaults on a fresh dir.
@@ -422,6 +427,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - An invalid file is moved aside, and defaults are used. That includes a malformed GPU address and a path-like device path (`/sys/devices/../../etc`).
 - A future `version = 2` file is rejected the same way, never silently downgraded.
 - An interrupted write (a temp file left behind) doesn't replace the good file.
+- A v1 file with a field this build doesn't know keeps that field, with its value unchanged, through a load and a store (P7-12).
+- A fourth invalid file removes the oldest of the three kept copies.
 
 **Validation**
 - `cargo test -p odc-service --lib settings`: passes.
@@ -440,7 +447,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   The engine owns neither port.
 - `Engine<C: Clock>` runs `loop { wait_until(deadline); tick(); deadline += 100 ms }`, with deadlines on the monotonic clock. It talks to the other threads only through the mailbox, the newest-snapshot slot and the `Apply` channel. A deadline missed by more than one tick is logged and skipped, and frames never bunch up.
 - **Each tick:**
-  1. Take any pending `Apply(Change)` and adopt it now.
+  1. Take the newest settings and the refresh flag from the `Apply` mailbox, if set, and adopt them now. Each change carries the complete settings, so only the newest matters, and a quick change and change back adopts nothing new (`display.md` D41; P7-15).
   2. Adopt the newest snapshot if a new one arrived. `Refresh` asks the sensor thread for a snapshot at once; its reset happens on the first tick that has the fresh snapshot, normally the next one.
   3. Build the `picture` from the mode, readings and unit; hand it to the `Marquee` as a reset or an update (below).
   4. `Marquee::tick()`, then `Frame::rotated(rotation)`, then post the frame, with its tick number, to the device mailbox.
@@ -480,6 +487,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `NotYet` → dashes, then digits;
   - a GPU metric becoming `NoDevice` mid-run → dashes; mode 4 stays the mode, and `AvailableModes` drops 2, 4 and 6.
   - **Late sources** (P6-04, fake clock): Gpu usage `NoDevice` at start and found 30 s later → modes 2, 4 and 6 never leave `AvailableModes`; still missing after two minutes → they leave it, and come back when the source is found later.
+  - **Newest settings** (P7-15): two changes before one tick → only the second is adopted; mode 1 → 2 → 1 before one tick → no reset.
 - **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Wake-up (S18; owner, 2026-10-26):** with the device present all along, a `Wake` while `100%` scrolls. The next report is `03 08`, then that tick's frame; the strip's position continues; `FakeReadings` counts one `restart_intervals()`, and the rate metrics it then reports as `NotYet` show dashes for their first second, then values. A `Wake` while the device is absent changes nothing but the readings.
 - **Stale GPU ranking:** the rank file is deleted only when the set changed and no choice exists.
@@ -521,6 +529,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **`Diagnostics`** returns `Registry::bindings()` plus each state. The same list goes to the journal at start and at each rebind (PRD Diagnostics).
 - **The dev interface** (only when started with `--dev`), at its own object path `/io/github/dtmarangoni/OpenDeepCool1/Dev`:
   - `OverrideReadings(a{s(xt)}, a{ss})`: exact values (metric → numerator and denominator, like Phase 6's `Exact`), and unavailable metrics with their reasons. They replace the sensor thread's snapshots until `ClearOverride()`;
+  - `BeginTest()` and `EndTest()`, a test session (owner, 2026-10-27; solution review P7-16, P7-07). While one caller holds it, every change from any other caller is refused with `…Error.Busy` ("a test is running on this dev copy"), and the frame recording runs. The session, every override and the recording end on `EndTest()` or when the holder's connection leaves the bus (`NameOwnerChanged`), so a killed test cleans up too. `OverrideReadings` needs the session;
   - authorization, three ways (owner, 2026-10-26; solution review OV-13):
     - the D-Bus policy (group `opendeepcool`);
     - a check inside each method of the caller's credentials: `GetConnectionCredentials`, whose `UnixGroupIDs` must contain the service's group, with a missing `UnixGroupIDs` meaning no. It sits behind a `Credentials` trait, like `Authorizer`, so tests use a fake;
@@ -540,6 +549,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - without `--dev`, the dev interface and its object path don't exist;
   - an unknown PCI address, a fan triple not in `FanInputs`, a path-like device path (`../../etc/shadow`) and an over-long string → `InvalidArgument`, with nothing stored or applied;
   - with `--dev`, a caller outside the group is refused, both through a normal call and through a raw method call without an interface field; a caller inside the group passes;
+  - **test session** (P7-16): during a session, another caller's `SetMode` → `Busy`; the holder's connection closing, as when the test is killed, clears the override and ends the session, and changes pass again; `OverrideReadings` without a session → refused;
   - the introspection data lists no properties;
   - the contract (solution review P4-04): the service's introspection equals the XML in `docs/spec/dbus.md`, and `GetState()` returns exactly its state table's keys, each with its type;
   - `CoolerState` follows the fake connector (P5-02): absent → `not-found`, an open error → `no-access`, a failed write → `write-failed`, then `connected` again; each change reaches watchers once, and the journal gets one line per change;
@@ -570,6 +580,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `Restart=on-failure`, `RestartSec=1`, `RestartSteps=5`, `RestartMaxDelaySec=30`, and `StartLimitIntervalSec=0` in `[Unit]` (Recommendation, Supervision);
   - `Wants=` the two Phase 6 one-shots; `After=opendeepcool-gpu-rank.service lm_sensors.service`, not the detection (P6-02, P6-04); `WantedBy=multi-user.target`;
   - sandbox: `ProtectSystem=strict`, `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `ProtectKernelTunables=yes`, `ProtectKernelModules=yes`, `ProtectKernelLogs=yes`, `ProtectControlGroups=yes`, `ProtectClock=yes`, `ProtectHostname=yes`, `RestrictAddressFamilies=AF_UNIX`, `RestrictNamespaces=yes`, `LockPersonality=yes`, `MemoryDenyWriteExecute=yes`, `RestrictRealtime=yes`, `SystemCallArchitectures=native`, `SystemCallFilter=@system-service`;
+  - **tried one at a time** (owner, 2026-10-27; solution review P7-09), each kept only if `systemd-analyze security` and the real-cooler run still pass; the task's report lists every one dropped, with the reason: `PrivateNetwork=yes` (the system bus is a file-system socket and stays reachable, systemd.exec), `IPAddressDeny=any`, `RestrictSUIDSGID=yes`, `RemoveIPC=yes`, `UMask=0077`, `StateDirectoryMode=0700`, `SystemCallFilter=~@privileged @resources`, `SystemCallErrorNumber=EPERM`. `ProtectProc=invisible` waits for P9-11, because Phase 9 logs the audio helper's unit from its process entry;
   - devices: `DevicePolicy=closed`, `DeviceAllow=char-hidraw rw`. NVIDIA nodes are added in Phase 11 after verification (Phase 6).
 - `packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf`: CREATE. Every rule names `send_destination`, paired with `send_interface` or `send_path`, because the interface field of a message is optional (dbus-daemon(1)):
   - user `opendeepcool` may own the name;
@@ -578,7 +589,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - nothing else is allowed for this destination.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
-- `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number (Task 9).
+- `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number and write time (Task 9). If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (P7-09), the drop-in relaxes them to `0027` and `0750`, so the tests, which run as the owner in group `opendeepcool`, can read the recording.
 - `scripts/dev/setup.sh`, `install-root.sh`, `teardown.sh`, `check.sh`: UPDATE.
   - **setup**, as the user, builds `--release` (solution review P5-03); then **install-root**, its only `pkexec` step, which never builds, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
   - **teardown** reverses all of it from the manifest.
@@ -605,6 +616,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 **Implementation**
 - **On the real cooler, one example of each mode and of each test type** (owner, 2026-10-26; solution review OV-04). The whole matrix and every scenario, at every position and in every rotation, run in-process in layers 1 and 3, where they take seconds; at the real 100 ms tick the whole cross would take many hours.
+- **One test session for the whole run** (P7-16): `BeginTest()` first; a drop guard calls `EndTest()`, and if the run is killed, the session ends with its connection.
+- **Timing** (owner, 2026-10-27; solution review P7-13): about 5 minutes of mode 1 at fixed readings, some 3,000 frames. The mean interval between write times lies within DeepCreative's captured 99.98–100.06 ms (`protocol.md` Timing); every interval lies between 50 and 150 ms, so no frame was dropped or doubled; the delay from `03 08` to the first frame is recorded. The summary prints the intervals' p50, p99 and maximum.
 - **Mode examples** (`DevService` Real):
   - for each of modes 1–6, one case (value set 2, rotation 0): `OverrideReadings`, then `SetMode` through `odc-ipc`'s proxy (the owner's active session passes polkit);
   - wait 3 ticks, then read the recorded frames since the call; the last 2 frames must match the expected case;
@@ -717,7 +730,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | D-Bus names use the GitHub account and the major version (`io.github.dtmarangoni.OpenDeepCool1`) | Keep (owner, 2026-10-24): the D-Bus spec's reversed-domain rule and its advice to version interface names; the account name is already public in `LICENSE` and the PRD | D-Bus specification, Bus names | Another prefix (for example `org.opendeepcool`) would claim a domain the project doesn't own |
 | The dev readings override lives in the shipped binary | Keep (owner, 2026-10-26): off unless the service starts with `--dev`, which only the dev drop-in passes; the packaged unit never sets it; at its own object path, checked by the D-Bus policy, inside each call and by polkit | Without it, real-service frames can't be compared with expected ones | Testing only in-process would leave the sandbox, D-Bus policy and boot path untested until Phase 11 |
 | `systemd-analyze security` may flag settings that zbus or hidraw need | Tighten everything else; document each exception in the report | `RestrictAddressFamilies=AF_UNIX` is needed for the system bus | A weaker rating, explained |
-| Threads add coordination | A one-slot mailbox, a newest-snapshot slot and the `Apply` channel; nothing shared mutably in both directions; engine tests with stalling fakes (owner, 2026-10-26) | Recommendation, one thread per job | — |
+| Threads add coordination | A one-slot mailbox, a newest-snapshot slot and the one-slot `Apply` mailbox; nothing shared mutably in both directions; engine tests with stalling fakes (owner, 2026-10-26) | Recommendation, one thread per job | — |
 | Reads need polkit too (owner, 2026-10-26) | `use`, `allow_active` only; the app reads once, then watches, so a polkit round trip of a few ms per call doesn't matter | polkit(8); Task 7 | Open reads would let remote and inactive sessions see the settings |
 | Signals addressed to each watcher | Keep: the bus delivers them to their destination only; root can still monitor the bus, and root is trusted anyway | D-Bus specification; dbus-broker has no eavesdropping | A broadcast would reach every local process |
 | A wake-up can't be tested by a real suspend, unattended | Fake `SleepWatcher` in CI; the device side real in Phase 5; a real suspend only in the optional attended tour | Waking an unattended PC needs root | — |

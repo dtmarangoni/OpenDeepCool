@@ -387,7 +387,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
     - `AttachAudio() -> h`, polkit `feed-audio`;
     - `SetMusicPeaks(b)`, `SetMusicBarFall(s)` and `SetMusicPeakFall(s)`, each stop by its name, polkit `change-settings`.
   - **State keys** (in `GetState` and `StateChanged`, Phase 7; the service has no D-Bus properties): `MusicPeaks` (b), `MusicBarFall` (s), `MusicPeakFall` (s), `AudioConnected` (b), `AudioWanted` (b: true exactly in Music modes 13–23).
-  - **The dev interface:** `OverrideAudio(h)`, cleared by `ClearOverride`, at the dev object path, with Phase 7's three checks.
+  - **The dev interface:** `OverrideAudio(h)`, cleared by `ClearOverride`, at the dev object path, with Phase 7's three checks. Like every override, it needs Phase 7's test session and ends with it, so a killed run doesn't leave it active (solution review P7-16, P9-10).
   - **The action:** `…OpenDeepCool1.feed-audio`.
   - **Errors:** `InvalidArgument` for a name that isn't one of the five stops; `AudioNotWanted` for `AttachAudio` outside a Music mode.
 - `docs/spec/dbus.md`: UPDATE, in the same commit: these members and state keys (solution review P4-04).
@@ -417,7 +417,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - a Music setting change is applied on the next tick with no reset;
   - the emoji loop restarts on every reset in the Phase 7 list.
 - **Settings v1:** the three fields with their defaults; validation of the stop names.
-- **Dev recording:** each report also carries its monotonic write time (`CLOCK_MONOTONIC`, ns), for the delay measurement in Task 5.
+- **Dev recording:** each report already carries its monotonic write time (Phase 7; solution review P7-13), which the delay measurement in Task 5 uses.
 
 **Tests** (layer 3, CI; p2p D-Bus and a fake `Authorizer`, as Phase 7 Task 7)
 - **`AttachAudio`:**

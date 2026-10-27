@@ -211,6 +211,7 @@ SystemCallErrorNumber=EPERM
 ### P7-07: Dev recording
 
 - **Recommendation:** a recording lease, a size cap, a buffered writer, and the instance's first N frames always kept for the start check.
+- **Outcome (2026-10-27):** accepted, with the lease being P7-16's test session: the dev copy records the first 100 reports after each start and every report while a session is held, buffered, rotated at 64 MB with one previous file kept. Phase 7 (Approach, Task 7); PRD dev footprint. This also settles OV-21.
 
 ### P7-08: Real-run duration
 
@@ -220,35 +221,47 @@ SystemCallErrorNumber=EPERM
 ### P7-09: Sandbox
 
 - **Recommendation:** try the additions above, one at a time, against `systemd-analyze security` and the layer 4 run; record each that had to be dropped and why.
+- **Outcome (2026-10-27):** accepted in Phase 7 Task 8, with two notes found at the cross-check: `UMask=0077` and `StateDirectoryMode=0700` would stop the dev tests, which run as the owner, from reading the recording, so the dev drop-in relaxes them to group-read if the product keeps them; and `ProtectProc=invisible` waits for P9-11, since Phase 9 logs the audio helper's unit from its process entry. The additions from OV-03 (`Type=notify`, the watchdog, the start limit) are already in the unit.
 
 ### P7-10: Readiness and ordering
 
 - **Recommendation:** `Type=notify` with `READY=1` after the bus name is owned; `After=lm_sensors.service`; together with Phase 6's periodic rescan (P6-04).
 - **Outcome (2026-10-26):** partly applied. `Type=notify` and `READY=1` came with OV-03; the ordering and the rescan wait for OV-11.
+- **Outcome (2026-10-27):** the rest settled with P6-04: the service starts after `lm_sensors.service`, missing sources are looked for again, and `NoDevice` counts as lasting only after two minutes.
 
 ### P7-12: Settings details
 
 - **Recommendation:** decide the unknown-field policy in `settings.md`; `fsync` the directory; keep at most three invalid copies.
+- **Outcome (2026-10-27):** accepted: unknown fields are kept and written back unchanged (owner), and only a different `version` is rejected; the directory is synced after the rename; the last three invalid copies are kept. Phase 7 Task 5; `settings.md` Where the settings live; PRD Decisions Log.
 
 ### P7-13: Timing metric
 
 - **Recommendation:** monotonic write timestamps in the dev recording from this phase on, and a layer 4 timing check: mean interval, p99 jitter, and the first frame's delay after `03 08`.
+- **Outcome (2026-10-27):** accepted: the recording carries write times from Phase 7 (Phase 9 reuses them), and Task 9 runs about 5 minutes of mode 1: the mean interval within the capture's 99.98–100.06 ms, every interval between 50 and 150 ms, the delay after `03 08` recorded. PRD Success Metrics and Testing Strategy (frame timing as a test type).
 
 ### P7-14: Cooler state
 
 - **Recommendation:** `CoolerState` (s) next to, or instead of, `CoolerConnected`, fed by P5-02's reason. Update `settings.md` and the design.
+- **Outcome (2026-10-27):** settled with P5-02: `CoolerState` next to `CoolerConnected`; `settings.md` and the designer's brief updated, and the design agent adds the banner before Phase 10.
 
 ### P7-15: `Apply` semantics
 
 - **Recommendation:** keep "the latest settings" plus a "refresh pending" flag rather than a queue. The engine adopts them at the next tick, which is S21's rule anyway.
+- **Outcome (2026-10-27):** accepted: a one-slot `Apply` mailbox with the newest complete settings and a refresh flag, plus tests (two changes before a tick, and a quick change and change back, which adopts nothing new, as D41 wants).
 
 ### P7-16: Exclusive, self-clearing test runs
 
 - **Recommendation:** a dev test-session lease, or detection of foreign changes; tie the override (and Phase 9's `OverrideAudio`) to the caller's bus name, cleared on `NameOwnerChanged`.
+- **Outcome (2026-10-27):** accepted, the test session (owner): `BeginTest()`/`EndTest()` on the dev interface; while held, other callers' changes get `Busy`; the session, every override (Phase 9's `OverrideAudio` too) and the recording end when the holder's connection leaves the bus. `odc-e2e` holds one session per run. Phase 7 Tasks 4, 7 and 9; Phase 9 Task 3; PRD dev footprint and Decisions Log. This also settles the override part of P9-10 and of OV-24.
 
 ### P7-17: Contract document
 
 - **Recommendation:** see P4-04.
+- **Outcome (2026-10-27):** settled with P4-04: `docs/spec/dbus.md`, created in Phase 7 Task 4 and tested against the service.
+
+### P7-11 and P7-18: notes
+
+- **Outcome (2026-10-27):** no action. P7-11 no longer applies: since the overview round, every read, `Diagnostics()` included, needs the polkit check for the active local session. P7-18 is the owner's decision of 2026-10-24.
 
 ### P7-19: Rounding up floating-point usage
 
