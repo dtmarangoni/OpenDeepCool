@@ -228,6 +228,7 @@ After a reboot, with no action from the owner, the LP360 shows the configured Lo
   - One user at a time (owner, 2026-10-26): OpenDeepCool is for a PC with one seat, used by one person at a time. Only the active user needs access to the cooler, and nothing is designed for simultaneous users.
   - Settings live in the service's state directory: one set for the whole PC.
   - Every argument is checked against the service's own state: a mode from its table, a rotation from 0 to 3, a known unit, and a GPU or fan input from the lists the service found itself. Strings have length limits, and no file path is ever built from a caller's string (owner, 2026-10-26).
+  - The contract is one committed document, `docs/spec/dbus.md`, which a layer-3 test checks against the running service. It's frozen at `v1.0.0`; after that, an incompatible change gets a new interface, `…OpenDeepCool2` (owner, 2026-10-27; solution review P4-04).
 - **Theme** (owner, 2026-10-23: follow the current system theme; work on other desktops; no per-user setup):
   - **Omarchy:** the app takes its colours from the current theme's `~/.local/state/omarchy/current/theme/colors.toml`, which holds the semantic colours and the light/dark `mode`. It installs no template, so nothing goes into users' home folders.
   - **Live changes:** a theme switch builds the new theme in a staging folder, then moves it over `current/theme` (Omarchy's `omarchy-theme-set` script, read 2026-10-23). So the app watches the `current` folder, not a single file, and reloads its colours when the theme folder is replaced.
@@ -283,7 +284,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
   - **attended tour, optional** (owner, 2026-10-24): `odc-e2e --attended` shows one case of each kind and of each edge case on the cooler and asks the owner to confirm each; it's for the owner's own look and never gates anything.
   - **no person (rule 3):** nobody looks at the cooler. Layer 2's byte-for-byte match with the captures the owner checked in Phase 3 proves bytes → picture and orientation.
 - **Music Mode spectrum:** OpenDeepCool's own analysis, so it isn't compared with DeepCreative. Synthetic tones must light the columns the Phase 9 design predicts, and every spectrum frame must follow the layout rules (solid bars from the bottom, bottom row lit, at most one peak dot above each bar, height limits) in every rotation.
-- **When they run:** layers 1 and 3 on every push (GitHub Actions) and in the pre-commit guard from Phase 5; layers 2 and 4 before each mode's commit (rule 4).
+- **When they run:** layers 1 and 3 on every push (GitHub Actions, in an Arch Linux container: owner, 2026-10-27; solution review P4-05) and in the pre-commit guard from Phase 5; layers 2 and 4 before each mode's commit (rule 4). The tests that start a headless weston are a target of their own, outside `cargo test --workspace` and the package's `check()`, so those need no display; CI runs them.
 
 **Technical Risks**
 
@@ -358,12 +359,12 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 2 | Repository bootstrap | git, README, MIT license, .gitignore, agent instructions (AGENTS.md, CLAUDE.md), commit guard, PRD and research docs, public GitHub repo | complete | - | 1 | - | - | - |
 | 3 | Functionality & protocol spec | Full spec of LP360 + DeepCreative + board sensors; parity checklist validated by the owner | complete | - | 1, 2 | [plan](../plans/phase-3-functionality-protocol-spec.plan.md) | [report](../reports/phase-3-functionality-protocol-spec.report.md) | - |
 | 4 | Implementation plans | One PRP plan per implementation phase (5–11) | complete | - | 3 | - | [report](../reports/phase-4-implementation-plans.report.md) | - |
-| 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer that reconnects, udev rule, dev access scripts | pending | with 6 | 4 | [plan](../plans/phase-5-device-protocol-core.plan.md) | - | - |
-| 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | pending | with 5 | 4 | [plan](../plans/phase-6-sensors.plan.md) | - | - |
+| 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer that reconnects, udev rule, dev access scripts | pending | - | 4 | [plan](../plans/phase-5-device-protocol-core.plan.md) | - | - |
+| 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | pending | - | 5 | [plan](../plans/phase-6-sensors.plan.md) | - | - |
 | 7 | Service, settings & Load (MVP) | System service, start at boot, saved settings, D-Bus and polkit, Load Mode (modes 1–6) | pending | - | 5, 6 | [plan](../plans/phase-7-service-settings-load-mode.plan.md) | - | - |
-| 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | with 9, 10 | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | - | - |
-| 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | pending | with 8, 10 | 7 | [plan](../plans/phase-9-music.plan.md) | - | - |
-| 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | pending | with 8, 9 | 7 | [plan](../plans/phase-10-settings-app.plan.md) | - | - |
+| 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | - | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | - | - |
+| 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | pending | - | 7, 8 | [plan](../plans/phase-9-music.plan.md) | - | - |
+| 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | pending | - | 7, 8, 9 | [plan](../plans/phase-10-settings-app.plan.md) | - | - |
 | 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | pending | - | 8, 9, 10 | [plan](../plans/phase-11-packaging-final-validation.plan.md) | - | - |
 
 ### Phase Details
@@ -497,7 +498,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 ### Parallelism Notes
 
-Phases 1–4 run in sequence because each feeds the next. Phases 5 and 6 touch separate code (device and sensors) and can run in separate worktrees. After the MVP (Phase 7), the remaining mode families (Phases 8, 9 and 10) are independent renderers. The settings app (Phase 10) can be built against the settings schema from Phase 7, so all four can run in parallel worktrees.
+Phases run one at a time, in order (owner, 2026-10-27; solution review P4-01): each plan builds on the one before. Phase 6 uses Phase 5's workspace, fake-tree builder, udev rule, dev scripts, hardware probe and CI; Phase 9 builds on Phase 8, and Phase 10 on Phases 8 and 9. Phases side by side would put two branches on the same files.
 
 ---
 
@@ -607,6 +608,9 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Merging a phase | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests | Fast-forward without waiting for CI; pull requests | Owner, 2026-10-23 (no pull requests) and 2026-10-27 (solution review P2-07): `main` stays green without pull requests |
 | Oracle generator | Committed in `tools/oracle/` from Phase 5, with a regeneration check in the guard and CI; DeepCreative's renderer and the capture checks stay local | Local in `research/` until Phase 11 | Owner, 2026-10-27 (solution review P3-01, OV-07): the ground truth of every test needs history, review and more than one copy |
 | Parity checklist at 100 % | Each row says how OpenDeepCool meets it: `test`, `replaced` (pointing at OpenDeepCool's rows) or `device`; 100 % means every `test` row passes and every `replaced` row points at rows that pass | Every row passes as written | Owner, 2026-10-27 (solution review P3-06): rows written at the sign-off describe DeepCreative's rules, several of which OpenDeepCool replaces on purpose |
+| Phase order | One phase at a time, 5 to 11 | Phases 5 and 6, and 8, 9 and 10, side by side in worktrees | Owner, 2026-10-27 (solution review P4-01): each plan builds on the one before |
+| D-Bus contract | One committed document, `docs/spec/dbus.md`: the interfaces' XML and the state keys; a layer-3 test checks the service against it; frozen at `v1.0.0`, then a new interface for any incompatible change | A code comment in `odc-ipc` | Owner, 2026-10-27 (solution review P4-04): one description that a test keeps true |
+| CI environment | Every CI job in the official `archlinux:base-devel` container from Phase 5; the weston tests behind their own cargo feature, outside `cargo test --workspace` and the package's `check()` | Ubuntu for most jobs, Arch for the UI and package jobs | Owner, 2026-10-27 (solution review P4-05): Arch is the only supported platform, with a current systemd and GTK |
 
 ---
 

@@ -210,7 +210,7 @@ flowchart LR
 
 ### Integration points
 
-- `odc_ipc`: the contract Phase 10's app compiles against: names, the state keys and method list, error names.
+- `odc_ipc`: the contract Phase 10's app compiles against: names, the state keys and method list, error names, as `docs/spec/dbus.md` describes them.
 - `odc_render::{Mode, mode_info, picture, Marquee}`: Phases 8–9 add their modes' pictures; the strip and the movement serve them unchanged. The app's preview (Phase 10) reuses `picture` and `Marquee`.
 - `opendeepcool.service`: `Wants=` and `After=` on `opendeepcool-gpu-rank.service` and `opendeepcool-sensors-detect.service` (Phase 6).
 - `settings.toml` v1: Phases 8–10 add fields with defaults; nothing else writes it.
@@ -360,6 +360,12 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 **Files and integration points**
 - `crates/odc-ipc/`: CREATE, a library: `serde`, `zbus = "6"`.
+- `docs/spec/dbus.md`: CREATE (owner, 2026-10-27; solution review P4-04). The contract, in one document:
+  - the introspection XML of both interfaces, every method and signal with its argument types;
+  - a table of the state keys with their types, which the XML can't show inside an `a{sv}`;
+  - the errors, and the polkit action each member needs.
+  - Later phases update it in the same commit as their code. From `v1.0.0` it's frozen: an incompatible change gets a new interface, `…OpenDeepCool2`.
+- `docs/spec/README.md`: UPDATE, the Documents table lists `dbus.md`.
 
 **Implementation**
 - **Names:**
@@ -382,7 +388,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - A `#[proxy]` client for the tests and Phase 10.
 
 **Tests**
-- The names are valid D-Bus names (zbus parsing). The state keys and the method list are written into a doc comment, and that list is what Phase 10's design reads.
+- The names are valid D-Bus names (zbus parsing). `docs/spec/dbus.md` holds the state keys and the member list, and it's what Phase 10's design reads.
 - `State` round-trips through `a{sv}`, and a dictionary with an unknown key still parses.
 
 **Validation**
@@ -534,6 +540,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - an unknown PCI address, a fan triple not in `FanInputs`, a path-like device path (`../../etc/shadow`) and an over-long string → `InvalidArgument`, with nothing stored or applied;
   - with `--dev`, a caller outside the group is refused, both through a normal call and through a raw method call without an interface field; a caller inside the group passes;
   - the introspection data lists no properties;
+  - the contract (solution review P4-04): the service's introspection equals the XML in `docs/spec/dbus.md`, and `GetState()` returns exactly its state table's keys, each with its type;
   - `GetState`, `Watch` and `Diagnostics` from a caller the fake authorizer refuses → `NotAuthorized`, and nothing is registered;
   - a watcher the authorizer stops allowing gets no `StateChanged`; once allowed again, it gets the whole state in one;
   - a ninth watcher of one user, or a 33rd in all → `TooManyWatchers`; a watcher whose connection closes is dropped;
@@ -719,4 +726,4 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - Installing or upgrading the dev copy is a `pkexec` system change. Show the owner the script's commands the first time; later upgrades of the same script follow the same approval (rule 7).
 - The end-to-end run changes the cooler's picture for a few minutes, then restores the owner's settings. It must never leave the override active (the drop guard calls `ClearOverride`).
 - Mode names in code and in anything a user reads (journal lines, D-Bus error texts, `--help`): Load, Temperature, Power, Music, never "Guardian" or "… Mode" (owner, 2026-10-24). DeepCreative's names appear only where the spec describes DeepCreative.
-- The D-Bus state keys and method list in `odc-ipc` are the settings app's contract. If it changes, update `docs/spec/settings.md` "What the settings app must offer" so the UI designer sees it (owner's rule, 2026-10-24).
+- The D-Bus state keys and method list in `odc-ipc` are the settings app's contract, described in `docs/spec/dbus.md`. If it changes, update `docs/spec/dbus.md` in the same commit, and `docs/spec/settings.md` "What the settings app must offer" so the UI designer sees it (owner's rule, 2026-10-24).

@@ -28,6 +28,8 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
   - A review only reports; it never edits the PRD, a plan, the spec or code.
   - Cross its findings with the PRD and the plan together with the owner, and put the agreed changes into those documents before writing code ([how](docs/prp/solution-reviews/README.md)).
 - After a context compaction or a long pause, re-read the current plan step before continuing.
+- Before a phase's first task, compare its plan with what the earlier phases actually built (names, types, files, commands). Where they differ, update the plan with the owner's OK before writing code (owner, 2026-10-27).
+- From Phase 5 on, a change to a plan regenerates its HTML companion in the same commit (owner, 2026-10-27). During the solution-review cross-check, the companions are regenerated once, when it ends.
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
 - When a phase is done and signed off, push its branch and wait until its CI run passes, then fast-forward `main` to it and push; no pull requests (owner, 2026-10-23 and 2026-10-27). Its PRD row then becomes `complete`, with `-` in the PR column.
@@ -55,6 +57,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - unit tests compare each case with the expected frames in `docs/spec/frames/`, plus property tests (rotation, scrolling, value rules);
    - differential tests replay DeepCreative's local captures and expect 0 differing pixels;
    - integration tests use fakes (fake sysfs trees, fake HID transport, fake clock and audio);
+   - tests also cover what each entry point must refuse: callers and arguments the service must reject, forged or malformed files, impossible readings and samples. The threat model in `docs/prp/solution-reviews/project-overview.review.md` is the reference (owner, 2026-10-27);
    - e2e: an unattended run on the real cooler takes one example of each mode and of each test type (owner, 2026-10-26: the whole cross would take days in real time, and runs in-process instead), and compares every written report with the expected frames (rule 3). It probes the PC it runs on: each device present and usable is tested for real, an absent one gets the same checks against fakes, and one present but unusable fails with its setup fix. `odc-e2e --require <list>` names what must run real on a given PC; every run reports which mode each device used (owner, 2026-10-24). Test options are program flags given at start, like the service's `--dev`, never environment variables (owner, 2026-10-24).
 6. **Never put DeepCool material in the repository.**
    - This covers the installer and its extracted files, their code (including decompiled code or bytecode), and raw USB captures of DeepCreative.

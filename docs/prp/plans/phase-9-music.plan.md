@@ -386,13 +386,14 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - **Methods:**
     - `AttachAudio() -> h`, polkit `feed-audio`;
     - `SetMusicPeaks(b)`, `SetMusicBarFall(s)` and `SetMusicPeakFall(s)`, each stop by its name, polkit `change-settings`.
-  - **Properties:** `MusicPeaks` (b), `MusicBarFall` (s), `MusicPeakFall` (s), `AudioConnected` (b), `AudioWanted` (b: true exactly in Music modes 13–23).
+  - **State keys** (in `GetState` and `StateChanged`, Phase 7; the service has no D-Bus properties): `MusicPeaks` (b), `MusicBarFall` (s), `MusicPeakFall` (s), `AudioConnected` (b), `AudioWanted` (b: true exactly in Music modes 13–23).
   - **The dev interface:** `OverrideAudio(h)`, cleared by `ClearOverride`, at the dev object path, with Phase 7's three checks.
   - **The action:** `…OpenDeepCool1.feed-audio`.
   - **Errors:** `InvalidArgument` for a name that isn't one of the five stops; `AudioNotWanted` for `AttachAudio` outside a Music mode.
+- `docs/spec/dbus.md`: UPDATE, in the same commit: these members and state keys (solution review P4-04).
 - `crates/odc-service/src/audio.rs`: CREATE.
   - `trait AudioSource` keeps the latest 2048 mono samples, each with the monotonic time it was read.
-  - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels.
+  - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels. A sample that is NaN or infinite counts as 0 (`music.md` Spectrum: analysis; solution review P4-08).
   - `FakeAudio` is for the tests.
 - `crates/odc-service/src/settings.rs`, `engine.rs`, `dbus.rs`, `polkit.rs`: UPDATE.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: UPDATE, adding `feed-audio` (`allow_active` yes, `allow_inactive` no, `allow_any` no).
@@ -432,6 +433,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Old settings file:** a v1 file without the Music fields loads with the defaults.
 - **"Audio file → frames"** (PRD layer 3): `FakeAudio` plays each signal of `spectrum/signals.txt` through the engine. The recorded frames' spectrum rows match `expected.txt` tick for tick. This needs mode 13 drawable, so it lands with Task 6 and is written here against a test-only switch.
 - **The `PipeAudio` reader:** a pipe that delivers half a frame then the rest; a writer that closes; a burst of a whole second at once. None loses or duplicates a sample.
+- **Samples that aren't numbers** (P4-08): NaN, +∞ and −∞ samples reach the window as 0; the frames stay valid under the spectrum's layout rules, and nothing panics.
 
 **Validation**
 - `cargo test -p odc-ipc -p odc-service`: passes.

@@ -40,6 +40,7 @@ DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; s
 - **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one. Sound is taken only while a Music mode (13–23) is shown. In every other mode nothing is captured (owner, 2026-10-26).
   - **Planned** (owner, 2026-10-26): take only the sound tagged as music, PipeWire streams whose `media.role` is Music, instead of everything the PC plays.
   - A research step before Phase 9 checks whether common players and browsers tag their streams, and how to capture just those. Until it decides, the source is the monitor above.
+- **Samples that aren't numbers** (OpenDeepCool, owner, 2026-10-27; solution review P4-08): a sample that is NaN or infinite counts as 0, so a broken stream draws silence, never a stuck bar.
 
 ### OpenDeepCool's spectrum, precisely
 

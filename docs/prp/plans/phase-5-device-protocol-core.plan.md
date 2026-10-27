@@ -63,18 +63,18 @@
 
 ### Evidence
 
-- `docs/spec/protocol.md:18-32`: 64-byte layout, checksum over bytes 1 … 4+N, terminator `0x16`, zero padding.
-- `docs/spec/protocol.md:38-43`: `03 08`, whole report `10 68 01 05 02 03 08 7b 16` + zeros, once before any frame.
-- `docs/spec/protocol.md:45-66`: frame bit table: row pairs → bits `0x10 0x20 0x40 0x80 0x01 0x02 0x04`; odd rows columns 1→14, even rows columns 14→1; bit `0x08` never set.
-- `docs/spec/protocol.md:68-80`: one frame per 100 ms tick, continuously (single gaps 96 or 104 ms; corrected 2026-10-24); the cooler blanks about 10 s after frames stop.
-- `docs/spec/protocol.md:80-91`: reconnect test of 2026-10-24.
+- `docs/spec/protocol.md` Message layout: 64-byte layout, checksum over bytes 1 … 4+N, terminator `0x16`, zero padding.
+- `docs/spec/protocol.md` Start-up command: `03 08`, whole report `10 68 01 05 02 03 08 7b 16` + zeros, once before any frame.
+- `docs/spec/protocol.md` Frame: frame bit table: row pairs → bits `0x10 0x20 0x40 0x80 0x01 0x02 0x04`; odd rows columns 1→14, even rows columns 14→1; bit `0x08` never set.
+- `docs/spec/protocol.md` Timing, and Session end and the display without frames: one frame per 100 ms tick, continuously (single gaps 96 or 104 ms; corrected 2026-10-24); the cooler blanks about 10 s after frames stop.
+- `docs/spec/protocol.md` Disconnect and reconnect: reconnect test of 2026-10-24.
   - The cooler returns under another hidraw number.
   - DeepCreative retries 3 times, then drops it.
   - OpenDeepCool keeps looking and sends `03 08` after every reconnect.
-- `docs/spec/display.md:143-156`: rotation value *r* turns the whole finished frame *r* × 90° clockwise; 0–3.
+- `docs/spec/display.md` Rotation: rotation value *r* turns the whole finished frame *r* × 90° clockwise; 0–3.
 - `docs/spec/frames/README.md`: expected-frame file format (static; scrolling, one cycle of 21 frames or more; emoji loops with durations; `?` wildcard).
   - 22 files (`mode-001` … `mode-022`), 284 `##` cases in all when Phase 5 runs (counted 2026-10-25). Phase 9 adds `mode-023.txt`.
-- `docs/spec/settings.md:25-33`: start-up sends `03 08`, then the saved picture at once.
+- `docs/spec/settings.md` Start-up: start-up sends `03 08`, then the saved picture at once.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`, Testing Strategy. Layer 2 includes the Phase 5 re-encode; layer 4 is unattended.
 - Kernel docs and source, read 2026-10-24:
   - hidraw `write()` takes the report ID as its first byte;
@@ -93,7 +93,7 @@
   - `proptest` 1.12.0;
   - `actions/checkout` v7 (7.0.1);
   - `jdx/mise-action` v5 (5.2.3). Since v5.0.0, an unpinned mise is the newest release at least 24 h old.
-- `mise.toml:3`: Rust 1.99 with clippy and rustfmt; `cargo 1.99.1` on this PC.
+- `mise.toml` `[tools]`: Rust 1.99 with clippy and rustfmt; `cargo 1.99.1` on this PC.
 - Local, git-ignored captures:
   - `research/logs/lp360-hidraw.log`: 176,110 messages, every one an `out 64` line in the format `<unix ns> <pid> <tid> out 64 <hex>`;
   - `research/logs/reconnect-20261024.log`: 244 messages.
@@ -140,22 +140,22 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 
 | File | Why it matters |
 |---|---|
-| `docs/spec/protocol.md:5-91` | The whole wire contract, timing, and the reconnect behaviour this plan implements |
-| `docs/spec/display.md:143-156` | Rotation semantics and which way is clockwise |
-| `docs/spec/frames/README.md:1-35` | Expected-frame file format the loader must parse |
+| `docs/spec/protocol.md`, Device to Standby | The whole wire contract, timing, and the reconnect behaviour this plan implements |
+| `docs/spec/display.md` Rotation | Rotation semantics and which way is clockwise |
+| `docs/spec/frames/README.md` Format | Expected-frame file format the loader must parse |
 | `docs/spec/frames/mode-001.txt`, `mode-010.txt`, `mode-014.txt` | One file of each shape: static and scrolling cases, a 25-frame cycle, emoji loop with durations |
-| `docs/spec/settings.md:25-33` | Start-up sequence: `03 08`, then the picture at once |
-| `docs/prp/prds/opendeepcool-lp360.prd.md:149-249` | Architecture (ports and adapters, display port, access without root) and the four test layers |
-| `AGENTS.md:33-70` | Rules 3 (no person), 4 (one commit per implementation), 5, 7, 9, 10, 12 |
-| `.githooks/pre-commit:1-75` | The guard this phase extends with fmt, clippy, tests and the udev check, the identity git will record, and binary files; `pre-push` shares its checks |
+| `docs/spec/settings.md` Start-up | Start-up sequence: `03 08`, then the picture at once |
+| `docs/prp/prds/opendeepcool-lp360.prd.md` Technical Approach (Architecture Notes, Testing Strategy) | Architecture (ports and adapters, display port, access without root) and the four test layers |
+| `AGENTS.md` Rules | Rules 3 (no person), 4 (one commit per implementation), 5, 7, 9, 10, 12 |
+| `.githooks/pre-commit` | The guard this phase extends with fmt, clippy, tests and the udev check, the identity git will record, and binary files; `pre-push` shares its checks |
 | `research/hook/expected-frames.py`, `odc_rules.py`, `render-check.py` (local) | The expected-frame generator Task 0 moves into `tools/oracle/` |
-| `research/hook/decode-frames.py:16-40` (local) | Our own decoder of the capture format: field layout of each log line |
+| `research/hook/decode-frames.py` `parse` (local) | Our own decoder of the capture format: field layout of each log line |
 
 ### Existing patterns and primitives
 
-- **Device lookup by USB ID:** `research/hook/launch-deepcreative.sh:27-33` (local) scans `/sys/class/hidraw/hidraw*/device/uevent` for `HID_ID=0003:00003633:0000000C`. The Rust connector does the same with injectable roots, and parses the three hex fields instead of matching text, so letter case can't matter.
-- **Capture line format:** `<unix ns> <pid> <tid> out <len> <hex>` (`research/hook/hidraw-log.c:9-12`, local). The capture-log reader parses this format. The recorder writes a compatible line, `<unix ns> 0 0 out 64 <hex>`, so one reader serves captures and recordings.
-- **Commit guard structure:** `.githooks/pre-commit:31-75` collects failures in `fail` and rejects at the end. The Rust checks are appended in the same style.
+- **Device lookup by USB ID:** `research/hook/launch-deepcreative.sh` (local) scans `/sys/class/hidraw/hidraw*/device/uevent` for `HID_ID=0003:00003633:0000000C`. The Rust connector does the same with injectable roots, and parses the three hex fields instead of matching text, so letter case can't matter.
+- **Capture line format:** `<unix ns> <pid> <tid> out <len> <hex>` (`research/hook/hidraw-log.c` header comment, local). The capture-log reader parses this format. The recorder writes a compatible line, `<unix ns> 0 0 out 64 <hex>`, so one reader serves captures and recordings.
+- **Commit guard structure:** `.githooks/pre-commit` collects failures in `fail` and rejects at the end. The Rust checks are appended in the same style.
 
 ### Integration points
 
@@ -229,9 +229,9 @@ The program that draws every expected frame gets history and review before any R
   - `odc-device` depends on `odc-protocol`.
   - `odc-testkit` depends on `odc-protocol`.
   - Every crate takes `odc-testkit` and `proptest` as dev-dependencies only.
-- `AGENTS.md:109-112`: UPDATE Commands with the exact commands in [Validation](#validation).
+- `AGENTS.md` Commands: UPDATE with the exact commands in [Validation](#validation).
 - `AGENTS.md`: UPDATE the Repository layout table: `crates/`, `packaging/`, `scripts/dev/`, `.github/workflows/`.
-- `README.md:43-57`: UPDATE Development: build and test commands, and the dev setup script.
+- `README.md` Development: UPDATE with the build and test commands, and the dev setup script.
 
 **Implementation**
 - No code beyond empty crates that compile. `Cargo.lock` is committed, since the workspace ships binaries later.
@@ -256,7 +256,7 @@ The program that draws every expected frame gets history and review before any R
   - `Debug` prints the picture.
 - `Rotation`: four values matching the setting 0–3 (`display.md` Rotation).
   - `Rotation::from_setting(u8) -> Option<Rotation>`.
-  - `Rotation::next()`: one press of Rotate Screen; 3 wraps to 0 (parity T3, `settings.md:9`).
+  - `Rotation::next()`: one press of Rotate Screen; 3 wraps to 0 (parity T3, `settings.md` Settings).
 - `Frame::rotated(Rotation) -> Frame`: turns the whole frame *r* × 90° clockwise, with value 1 = 90° clockwise. The direction is proven against `mode-001.txt` in Task 3, not asserted here from memory.
 
 **Tests** (unit, `proptest` for random frames)
@@ -323,7 +323,7 @@ The program that draws every expected frame gets history and review before any R
   - No `From<[u8; 64]>`, and no public `new`.
 - `startup_report() -> Report`: payload `03 08`.
 - `encode_frame(&Frame) -> Report`: payload `01` + 28 pixel bytes.
-- **Layout from `protocol.md:18-66`:**
+- **Layout from `protocol.md` Message layout and Frame:**
   - header `10 68 01 05`, then the payload length N;
   - the checksum is the sum of bytes 1 … 4+N mod 256, then `0x16`, then zeros;
   - pixel (*r*, *c*), with pair *k* = (*r*+1) div 2: odd *r* → bit *k* of pixel byte *c*; even *r* → bit *k* of pixel byte 29−*c*;
@@ -333,7 +333,7 @@ The program that draws every expected frame gets history and review before any R
   - Each rejection is a distinct `DecodeError` variant, so a failing capture line says why.
 
 **Tests** (unit; the vectors are typed from the spec, not computed by the encoder)
-- `startup_report()` is exactly `10 68 01 05 02 03 08 7b 16` followed by 55 zeros (`protocol.md:40`).
+- `startup_report()` is exactly `10 68 01 05 02 03 08 7b 16` followed by 55 zeros (`protocol.md` Start-up command).
 - Single-pixel frames, each giving exactly one set bit at the spec's position, with the checksum and terminator in place:
   - (1, 1) → pixel byte 1, `0x10`;
   - (2, 1) → pixel byte 28, `0x10`;
@@ -465,6 +465,8 @@ The program that draws every expected frame gets history and review before any R
   - adds `$PKEXEC_UID`'s user to the group;
   - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, so teardown, and later the Phase 11 package's install script, remove exactly those (owner, 2026-10-24).
 - `scripts/dev/teardown.sh`: CREATE, `pkexec`. It removes what the manifest lists, reversing every step: removes the three files, removes the user from the group, deletes the group, then reloads and re-triggers udev so access ends at once.
+  - Before removing anything, it checks every line of the manifest: each must be an entry of a kind `setup.sh` writes, an absolute file path under one of the dev locations the script lists, a group, or a membership. An empty line, `/`, a `..` component, a relative path or any other entry stops it with nothing removed (owner, 2026-10-27; solution review P4-08).
+  - `--check-only <manifest>` runs that check alone and removes nothing.
 - `scripts/dev/check.sh`: CREATE, unprivileged. It reports:
   - each installed file and whether it equals the repository copy;
   - the group and your membership;
@@ -484,6 +486,7 @@ The program that draws every expected frame gets history and review before any R
 **Tests**
 - `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` passes. It runs in the guard and in CI.
 - `bash -n` on the three scripts.
+- `teardown.sh --check-only` refuses a manifest with an empty line, `/`, a `..` component, a relative path or a path outside the dev locations, and accepts the manifest `setup.sh` wrote (P4-08).
 - After running `setup.sh`, `scripts/dev/check.sh` exits 0, including after an unattended reconnect (Task 9). This proves the `authorized` permission survives a deauthorize and authorize, which is unverified until then.
 
 **Validation**
@@ -548,13 +551,13 @@ The program that draws every expected frame gets history and review before any R
 ### 10. CI and the commit guard run the automated layers
 
 **Files and integration points**
-- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, `ubuntu-latest`:
+- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, every job runs in the official `archlinux:base-devel` container image (Docker Hub, read 2026-10-27; owner, 2026-10-27, solution review P4-05), after `pacman -Syu --noconfirm git python`, so the checkout is a full git clone:
   - `actions/checkout@v7`;
   - `jdx/mise-action@v5`, which installs the Rust pinned in `mise.toml`;
   - `cargo fmt --all --check`;
   - `cargo clippy --workspace --all-targets -- -D warnings`;
   - `cargo test --workspace`, layers 1 and 3: ignored tests don't run;
-  - `udevadm verify --resolve-names=never` on both rules files. This needs systemd 254 or later on the runner; if the runner's `udevadm` lacks `verify`, the task stops and asks rather than dropping the check;
+  - `udevadm verify --resolve-names=never` on both rules files. It needs systemd 254 or later, and the container's Arch systemd is current;
   - a `privacy` job (owner, 2026-10-27; solution review P2-02), with a full-depth checkout: every commit in the history has the no-reply address as author and committer, and no file in the tree is binary outside the guard's allow-list. The sensitive list stays on the PC, so CI checks only these.
   - a `frames` step (P3-01): `tools/oracle/expected-frames.py` regenerates the frames into a temporary folder, and any difference from `docs/spec/frames/` fails.
 - `.githooks/pre-commit`: UPDATE. After the existing checks, when `Cargo.toml` exists:
@@ -653,6 +656,7 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | The `authorized` permission may not survive a reconnect | Check it in Task 8/9 with `check.sh` after the real reconnect test | Deauthorize unconfigures the device but should keep the USB device itself (kernel authorization docs); unverified on this PC | If it's lost, the rule needs a different trigger, decided with the owner before Task 9 is committed |
 | The pre-commit guard tests the working tree, not the staged snapshot | Accept, and document it in the guard's header | Stashing unstaged work inside a hook risks losing it | A commit could pass with unstaged fixes present; CI catches it on push |
 | Merging once CI exists (after Task 10) | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests (owner, 2026-10-27; solution review P2-07) | AGENTS.md "How to work" | A failing CI run would land on `main` |
+| CI follows a rolling distribution | Accept: Arch is the only supported platform, and Rust stays pinned through `mise.toml` (P4-05) | Arch Linux is rolling | An update can break CI until it's fixed |
 | The push-time check is client-side too | Accept: `git push --no-verify` skips it; the CI `privacy` job still flags a wrong identity or a binary file, though only after the push | git-push(1): "With --no-verify, the hook is bypassed completely" | A leak would stay public until the pushed history is rewritten |
 | Two writers: the research rig and the real-device test | Never run them together; the test doc says so | DeepCreative writes to the same node | Interleaved reports would fail the recording comparison, loudly |
 | `newgrp` is needed until the owner logs in again | Use `newgrp opendeepcool -c '…'` in the Task 9 command until then | Checked 2026-10-24: no password prompt | None after the next login |

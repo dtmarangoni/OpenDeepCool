@@ -94,6 +94,7 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
   - Phase 9 depends on 7 and 8;
   - Phase 10 depends on 7, 8 and 9;
   - parallel work only where files don't overlap. One option: Phase 10's pure view model and theme modules (Task 3) alongside Phase 9.
+- **Outcome (2026-10-27):** accepted, without the overlap: one phase at a time, 5 to 11 (owner). The PRD table's Parallel and Depends columns and its Parallelism Notes now match the plans; the notes' "all four" is gone, since only three phases were left in that group after Creative Mode was removed. Decisions Log: Phase order. This also settles P5-12 and OV-09.
 
 ### P4-02: Real-hardware run budget
 
@@ -105,25 +106,30 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
 
 - **Evidence:** the examples above.
 - **Recommendation:** cite sections (`display.md` Rotation) as the Phase 7 plan does, and fix the stale ones at the cross-check.
+- **Outcome (2026-10-27):** accepted and applied: all 35 line-number references in the Phase 5 and 6 plans now name sections. Several had drifted onto other text, and `protocol.md:5-91` stopped before the Standby section that Phase 5 implements.
 
 ### P4-04: The D-Bus contract
 
 - **Evidence:** Phase 7 Task 4; Phase 9 Task 3; Phase 10 Task 2; `settings.md` What the settings app must offer; `settings-app.md` "What the Phase 10 plan must add to the D-Bus contract".
 - **Recommendation:** one committed description, either `docs/spec/dbus.md` or an introspection XML under `docs/spec/`. A layer-3 test compares it with the service's introspection. The contract is frozen at v1.0.0; any incompatible change after that gets `…OpenDeepCool2`, as Phase 7 already intends.
+- **Outcome (2026-10-27):** accepted, with a correction: since the overview round the service has no readable D-Bus properties, so the shapes Phase 10 changes are state keys. The contract is one document, `docs/spec/dbus.md`, created in Phase 7 Task 4: the interfaces' XML, the state keys with their types (the XML can't show them inside an `a{sv}`), the errors and each member's polkit action. Phase 7 Task 7 tests the service against it, Phases 9 and 10 update it in the same commit as their code, and it's frozen at `v1.0.0`. Phase 9 Task 3 still listed its keys as "Properties"; corrected. PRD: Settings app ↔ service, Decisions Log. This also settles P7-17, P10-11 and OV-20.
 
 ### P4-05: CI environment
 
 - **Evidence:** Phase 5 Task 10 (`ubuntu-latest`, `cargo test --workspace`); Phase 10 Task 10 (UI jobs in `archlinux`); Phase 11 Task 2 (`check()` runs the hardware-free tests).
 - **Recommendation:** run all CI in an `archlinux` container from Phase 5. It's the only supported platform, it has a current `systemd` for `udevadm verify`, and GTK is new enough. Mark the UI tests that need weston as their own target, outside `cargo test --workspace` and `check()` (P10-04, P11-08).
+- **Outcome (2026-10-27):** accepted. Every CI job runs in the official `archlinux:base-devel` container from Phase 5 (Docker Hub, read 2026-10-27), which also removes Phase 5's `udevadm verify` risk. The weston tests sit behind `odc-app`'s `weston-tests` feature, so `cargo test --workspace`, the guard and the PKGBUILD's `check()` need no display, and CI runs them in a job of their own. Phase 5 Task 10 and Risks; Phase 10 Tasks 3 and 10; Phase 11 Task 2; PRD Testing Strategy and Decisions Log. This also settles P10-03, P10-04, P11-08 and OV-10.
 
 ### P4-06: HTML companions
 
 - **Recommendation:** after any plan change from the cross-check, regenerate its companion (`/prp-core:prp-companion`) in the same commit.
+- **Outcome (2026-10-27):** accepted from Phase 5 on: a plan change regenerates its HTML companion in the same commit (AGENTS.md How to work; `CLAUDE.md` names the command). During the cross-check, the companions are still regenerated once, when it ends, as the owner decided on 2026-10-26.
 
 ### P4-07: Name checks between phases
 
 - **Evidence:** Phase 8 Risks ("Before Task 1, check this plan against the Phase 7 code").
 - **Recommendation:** add the same first step to Phases 9, 10 and 11.
+- **Outcome (2026-10-27):** accepted as one rule for every phase, since Phases 6 and 7 depend on earlier names too: before a phase's first task, its plan is compared with what the earlier phases built, and fixed with the owner's OK where they differ (AGENTS.md How to work). Phase 8's own risk row stays.
 
 ### P4-08: No threat model, no refusal tests
 
@@ -132,6 +138,7 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
   - Phase 9: NaN and infinite samples; an attach from an inactive session;
   - Phase 6 and Phase 11: a symlinked or forged detection record;
   - Phase 11: a manifest with `..`, `/`, an empty line or a path outside the dev locations.
+- **Outcome (2026-10-27):** accepted. The overview round had already added most of these: dev-interface calls from outside the group and without an interface field, unknown and path-like D-Bus arguments (Phase 7), forged detection records (Phases 6 and 11), and refused audio attaches (Phase 9). Added now: NaN and infinite samples count as 0, a rule the owner confirmed (`music.md`, Phase 9 Task 3), and a malformed dev manifest removes nothing (Phase 5 Task 8, Phase 11 Tasks 2 and 3), since root deletes what it lists from Phase 5 on. AGENTS.md rule 5 now asks for refusal tests at every entry point, with the overview's threat model as the reference. This also settles OV-25.
 
 ## Questions for the owner
 

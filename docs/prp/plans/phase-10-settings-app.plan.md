@@ -248,6 +248,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - `crates/odc-ipc/`: UPDATE.
 - `crates/odc-service/src/dbus.rs`, `engine.rs`, `status.rs`: UPDATE.
 - `docs/spec/settings.md` "What the settings app must offer": UPDATE (Phase 7 Agent Notes: the app's contract lives there for the designer).
+- `docs/spec/dbus.md`: UPDATE, in the same commit: `WatchFrames`, `UnwatchFrames`, `Frame`, and the new and changed state keys (solution review P4-04).
 - `README.md` `busctl` examples: UPDATE.
 
 **Implementation**
@@ -290,6 +291,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - `src/pci_ids.rs`: parses `pci.ids` vendor and device lines.
   - `src/theme.rs`: `colors.toml` + `shell.toml` → `Tokens` → CSS string; the default theme dark and light.
 - `crates/odc-testkit/src/weston.rs`: CREATE. `Weston::headless()` starts `weston --backend=headless --socket=odc-test-<pid>-<n>`, waits for the socket, and exposes `WAYLAND_DISPLAY`. Drop kills it and removes the socket. `Absent` when `weston` isn't installed, as a hardware capability (Phase 5 Task 9).
+  - Every test that starts it is behind `odc-app`'s `weston-tests` cargo feature (owner, 2026-10-27; solution review P4-05, P10-04). `cargo test --workspace`, the guard and the PKGBUILD's `check()` run without it and need no display; CI runs `cargo test -p odc-app --features weston-tests`.
 - `crates/odc-testkit/src/fake_service.rs`: CREATE. A fake `opendeepcoold`: the full `odc-ipc` interface served on a private `dbus-daemon --session --print-address` bus.
   - Its state comes from a JSON file the test writes.
   - Every call it receives goes to a log file the test reads.
@@ -491,9 +493,9 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 ### 10. CI and records
 
 **Files and integration points**
-- `.github/workflows/ci.yml`: UPDATE. The UI jobs (layers 1 and 3, and layer 4 against the fake service) run in an `archlinux` container, because Ubuntu's GTK may be older than 4.16, which the CSS custom properties need (design, Theme).
-  - Packages: `gtk4 weston at-spi2-core dbus hwdata`.
-  - It runs `cargo test --workspace` (layer 3 included, headless) and `cargo run -p odc-e2e -- --only app --require weston`.
+- `.github/workflows/ci.yml`: UPDATE. Every job already runs in the `archlinux:base-devel` container (Phase 5; solution review P4-05), whose GTK is new enough for the CSS custom properties (4.16 or later; design, Theme).
+  - Packages added: `gtk4 weston at-spi2-core dbus hwdata`.
+  - A UI job runs `cargo test -p odc-app --features weston-tests` (layer 3, headless) and `cargo run -p odc-e2e -- --only app --require weston`. `cargo test --workspace` stays display-free.
 - `AGENTS.md`:
   - Repository layout gains `docs/design/` (the app's design and mockups);
   - Commands gain the app's tests, `--only app`, and the rule that a UI change updates `docs/design/` first.
@@ -515,7 +517,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
    - the Omarchy theme's colours apply and follow an `omarchy-theme-set`-style folder move within a second, keeping the page;
    - with no Omarchy theme the default dark theme applies; a missing key falls back alone and is logged;
    - no window opacity is ever set (Tasks 3, 7, 8).
-6. **AC6 — Contract additions:** `WatchFrames`/`Frame`, the RPM in `FanInputs`, the `Gpus` IDs and rule flag, `GpuInUse` and the present flags behave as Task 2 specifies, frames go to authorized watchers alone, and settings.md lists them (Task 2).
+6. **AC6 — Contract additions:** `WatchFrames`/`Frame`, the RPM in `FanInputs`, the `Gpus` IDs and rule flag, `GpuInUse` and the present flags behave as Task 2 specifies, frames go to authorized watchers alone, and `docs/spec/dbus.md` and settings.md list them (Task 2).
 7. **AC7 — Accessible and keyboard-usable:** every name in the design's table is set; focus never applies a tile; the shortcuts work (Tasks 4–6, 8).
 8. **AC8 — Real system, unattended:** on the owner's PC the real app changes the real dev service's frames, unattended and invisible (headless), and leaves the owner's settings as found. The launcher entry opens the app (Task 9).
 9. **AC9 — Records:** AGENTS.md, README, the PRD footprint, the design document's answered points and CI match what was built (Tasks 1, 10).

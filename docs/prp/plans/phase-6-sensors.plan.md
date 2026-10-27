@@ -83,8 +83,8 @@
 
 ### Evidence
 
-- `docs/spec/sensors.md:16-35`: the seven metrics, their meanings, and DeepCreative's labels; the Linux source per metric.
-- `docs/spec/sensors.md:37-66`: driver rules.
+- `docs/spec/sensors.md` Metrics: the seven metrics, their meanings, and DeepCreative's labels; the Linux source per metric.
+- `docs/spec/sensors.md` Driver rules: driver rules.
   - coretemp `Package id 0`;
   - k10temp `Tdie` else `Tctl`, unavailable before family 17h;
   - `/proc/stat` busy share;
@@ -92,11 +92,11 @@
   - amdgpu `edge`, `gpu_busy_percent`, `power1_average` else `power1_input`, unavailable on integrated AMD;
   - NVML; other drivers;
   - `/proc/meminfo`.
-- `docs/spec/sensors.md:68-73`: once per second; CPU usage and power are averages over the interval; GPU values as read.
-- `docs/spec/sensors.md:75-89`: GPU choice rules 1–4, saved by PCI address, missing GPU handling.
-- `docs/spec/sensors.md:91-98`: CPU power is root-only; the options were a group rule or a helper; the owner chose the rule on 2026-10-24.
-- `docs/spec/sensors.md:100-118`: fan inputs. Every hwmon `fanN_input` except devices whose parent is PCI class `0x03`; saved as chip name + device path + input number; none by default.
-- `docs/prp/prds/opendeepcool-lp360.prd.md:168-193`: sensor sources and the ports-and-adapters architecture. `:194-204`: the service model (unprivileged, sandboxed; detection as a root one-shot).
+- `docs/spec/sensors.md` Updates and rounding: once per second; CPU usage and power are averages over the interval; GPU values as read.
+- `docs/spec/sensors.md` GPU choice: GPU choice rules 1–4, saved by PCI address, missing GPU handling.
+- `docs/spec/sensors.md` CPU power: CPU power is root-only; the options were a group rule or a helper; the owner chose the rule on 2026-10-24.
+- `docs/spec/sensors.md` Fan and pump speed: fan inputs. Every hwmon `fanN_input` except devices whose parent is PCI class `0x03`; saved as chip name + device path + input number; none by default.
+- `docs/prp/prds/opendeepcool-lp360.prd.md` Architecture Notes: Sensors and Sensor architecture (sensor sources, ports and adapters), and Service model (unprivileged, sandboxed; detection as a root one-shot).
 - Kernel sources, read 2026-10-24:
   - `drivers/powercap/intel_rapl_msr.c`: AMD families 17h, 19h, 1Ah and Hygon 18h use `rapl_defaults_amd`, under control type `"intel-rapl"`;
   - `drivers/powercap/intel_rapl_common.c`: package zones are named `package-%d`, or `package-%d-die-%d` on multi-die parts;
@@ -165,9 +165,9 @@ The display service reads sysfs, procfs and NVML only. Render-node access and `u
 | File | Why it matters |
 |---|---|
 | `docs/spec/sensors.md` (all) | Metrics, driver rules, refresh, GPU choice, CPU power, fan inputs: the contract this phase implements |
-| `docs/spec/display.md:35-47` | Values keep their fraction until drawn; rounding is Phase 7's |
-| `docs/spec/settings.md:5-23`, `:41-45`, `:47-73` | Fan inputs and GPU choice as settings; defaults; what the app shows (Phase 10 consumer) |
-| `docs/prp/prds/opendeepcool-lp360.prd.md:168-204` | Sensor sources, architecture, service model |
+| `docs/spec/display.md` Values | Values keep their fraction until drawn; rounding is Phase 7's |
+| `docs/spec/settings.md` Settings, OpenDeepCool's defaults, What the settings app must offer | Fan inputs and GPU choice as settings; defaults; what the app shows (Phase 10 consumer) |
+| `docs/prp/prds/opendeepcool-lp360.prd.md` Architecture Notes (Sensors, Sensor architecture, Service model) | Sensor sources, architecture, service model |
 | `docs/prp/plans/phase-5-device-protocol-core.plan.md` (Tasks 1, 8, 10) | Workspace, lints, `packaging/udev/70-opendeepcool.rules`, `scripts/dev/*`, CI and the guard this phase extends |
 | `AGENTS.md` rules 3, 7, 8, 10 (exception for driver names), 11, 12 | The constraints every task checks |
 | `docs/local/machine.md` (local only) | The owner's devices: only for the `odc-e2e --require` list on the owner's PC, never in code or commits |
@@ -257,7 +257,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - Adapters build it from their source's integer units: millidegrees → `m / 1000`; jiffies → `100 · busy / total`; kB → `100 · used / total`; µW → `µW / 1 000 000`; mW → `mW / 1000`; energy → `ΔµJ / Δµs`; a whole percent, °C or RPM → `n / 1`.
   - `Exact` has no conversion from or to `f64` on the service's path. The end-to-end comparisons with `sensors -j` convert only to compare.
   - The reasons are an enum: `NoRule { driver }`, `NoDevice`, `PermissionDenied { path }`, `ReadFailed { path }`, `NotYet` (the first sample of a rate metric), `IntegratedGpuPower`.
-  - `Display` gives the one-line reason the app shows (`settings.md:66-69`).
+  - `Display` gives the one-line reason the app shows (`settings.md` What the settings app must offer).
 - `Snapshot`: one `Reading` per `Metric`, plus `cooler_fans` and `pump`, each a `Reading` in RPM, or `NotChosen`.
 - `trait Readings { fn snapshot(&mut self) -> Snapshot; fn restart_intervals(&mut self); }`
   - `restart_intervals()` drops the last sample of every reading averaged over the interval: CPU Usage, and power from an energy counter (CPU Power, and Gpu power on i915 and xe). Their next reading is `NotYet` again, as at start-up.
