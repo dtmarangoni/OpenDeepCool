@@ -253,7 +253,7 @@ flowchart LR
 |---|---|
 | Compatibility / migration | Settings v1 gains three fields with defaults; an existing file without them loads with the defaults, and the next store writes them (Task 3 test) |
 | Rollout / reversibility | The dev copy adds the helper binary, `/etc/systemd/user/opendeepcool-audio.service` and its global enable, all in the manifest; `teardown.sh` removes them, `systemctl --global disable` included. Each `pkexec` run is shown to the owner first (rule 7) |
-| Observability | The journal logs, without any sample data: each attach (the caller's unit name, from the bus name's PID), each refusal or lost authorization with its reason, and the pipe closing. The helper logs only changes of state. `AudioConnected` tells the app whether sound is coming in |
+| Observability | The journal logs, without any sample data: each attach (the caller's Unix user and PID, from `GetConnectionCredentials`, never another user's `/proc` entry, so Phase 7 can use `ProtectProc=invisible`; owner, 2026-10-27, solution review P9-11), each refusal or lost authorization with its reason, and the pipe closing. The helper logs only changes of state. `AudioConnected` tells the app whether sound is coming in |
 | Documentation | README: what the helper is and how to see it (`systemctl --user status opendeepcool-audio`); the PRD System Footprint: the helper binary, the user unit's dev path and the polkit action (Task 10) |
 
 ## Implementation
@@ -393,7 +393,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `docs/spec/dbus.md`: UPDATE, in the same commit: these members and state keys (solution review P4-04).
 - `crates/odc-service/src/audio.rs`: CREATE.
   - `trait AudioSource` keeps the latest 2048 mono samples, each with the monotonic time it was read.
-  - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels. A sample that is NaN or infinite counts as 0 (`music.md` Spectrum: analysis; solution review P4-08).
+  - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels. A sample that is NaN or infinite counts as 0, and one beyond ±1 is clipped to ±1 (`music.md` Spectrum: analysis; solution review P4-08, P9-03). The pipe keeps the kernel's default capacity, 65,536 bytes (measured on this PC, 2026-10-27, with 4 KiB pages), about 170 ms of this 384 kB/s stream: a reader stalled longer makes `pw-record` overrun, never corrupts data, and `F_SETPIPE_SZ` can raise it (solution review P9-09).
   - `FakeAudio` is for the tests.
 - `crates/odc-service/src/settings.rs`, `engine.rs`, `dbus.rs`, `polkit.rs`: UPDATE.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: UPDATE, adding `feed-audio` (`allow_active` yes, `allow_inactive` no, `allow_any` no).
@@ -433,7 +433,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Old settings file:** a v1 file without the Music fields loads with the defaults.
 - **"Audio file → frames"** (PRD layer 3): `FakeAudio` plays each signal of `spectrum/signals.txt` through the engine. The recorded frames' spectrum rows match `expected.txt` tick for tick. This needs mode 13 drawable, so it lands with Task 6 and is written here against a test-only switch.
 - **The `PipeAudio` reader:** a pipe that delivers half a frame then the rest; a writer that closes; a burst of a whole second at once. None loses or duplicates a sample.
-- **Samples that aren't numbers** (P4-08): NaN, +∞ and −∞ samples reach the window as 0; the frames stay valid under the spectrum's layout rules, and nothing panics.
+- **Samples out of range** (P4-08, P9-03): NaN, +∞ and −∞ samples reach the window as 0, and samples of 10⁶ and −10⁶ as 1 and −1; the frames stay valid under the spectrum's layout rules, and nothing panics.
 
 **Validation**
 - `cargo test -p odc-ipc -p odc-service`: passes.
@@ -446,6 +446,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - `ExecStart=` the helper; `Restart=on-failure`;
   - `ConditionUser=!@system`: never for system accounts (owner, 2026-10-26);
   - `WantedBy=default.target`;
+  - in a user unit these settings imply `PrivateUsers=`, which needs unprivileged user namespaces (systemd.exec(5), read 2026-10-27). So the unit is tested as written: capture works, polkit passes, `AudioConnected` turns true; the report lists every setting that had to go, with its reason (solution review P9-04);
   - `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `RestrictAddressFamilies=AF_UNIX`, `LockPersonality=yes`, `RestrictRealtime=no` (PipeWire's client may ask for realtime scheduling: unverified, so not restricted).
 - `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
   - **setup** installs the helper to `/usr/local/libexec/opendeepcool-dev/` and the unit to `/etc/systemd/user/`, with `ExecStart` pointing there, then runs `systemctl --global enable opendeepcool-audio.service`, all recorded in the manifest.
@@ -493,6 +494,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `crates/odc-e2e/src/music.rs`: CREATE, run with `--only music`.
 
 **Implementation**
+- **At start, before the harness** (owner, 2026-10-27; solution review P9-10): a leftover null sink named `odc-e2e` is unloaded, and the owner's `opendeepcool-audio` is started if it's stopped, each with a printed note. A killed run skips the harness's drop guard, which would otherwise leave both behind; the audio override already ends with the test session (Phase 7).
 - **Harness** (`pipewire` Real), always restored by a drop guard:
   1. `pactl load-module module-null-sink sink_name=odc-e2e`, keeping the module index.
   2. `systemctl --user stop opendeepcool-audio`.
@@ -507,12 +509,12 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Delay measurement:**
   - 200 bursts of a −20 dBFS tone at column 7's centre, 400 ms apart, after silence;
   - for each burst, the delay is the dev recording's write time of the first frame where column 7 rises above the floor, minus the time `odc-e2e` wrote the burst's first sample;
-  - the run reports the median and 95th percentile, and **fails if the 95th percentile is above 150 ms**.
+  - the run reports the median, the 95th and 99th percentiles and the maximum, so the margin under the target shows (solution review P9-06), and **fails if the 95th percentile is above 150 ms**.
   - Writing ahead of playback can only make the measured value larger than the true one, so a pass is safe. The report states the pacing (10 ms or less queued).
 - **Fake mode** (`pipewire` Absent): the same signals through `FakeAudio` in an in-process engine. The delay check is reported as not run, never as passed.
 
 **Tests**
-- Parsing of the null sink's module index and of `pw-dump`'s monitor node; the drop guard restores the unit even when a check panics (tested with a fake `systemctl` and `pactl` on `PATH`).
+- Parsing of the null sink's module index and of `pw-dump`'s monitor node; the drop guard restores the unit even when a check panics (tested with a fake `systemctl` and `pactl` on `PATH`); and the start-up repair, with a fake `pactl` listing a leftover `odc-e2e` sink and a fake `systemctl` reporting the helper stopped (P9-10).
 
 **Validation**
 - `cargo test -p odc-e2e`: passes. The real run comes with Task 6.
@@ -629,7 +631,7 @@ Five sub-steps, **each its own commit** (rule 4):
 
 **Implementation**
 - **The Phase 9 report's parity table:** M1–M20, each with the test that proves it. Where DeepCreative differs (M1 with peaks, M10), the row says what OpenDeepCool does.
-- **The report also records:** the delay's measured median and 95th percentile; the null sink's monitor node name found in Task 5; and whether `RestrictRealtime` could be set.
+- **The report also records:** the delay's median, 95th and 99th percentiles and maximum; the null sink's monitor node name found in Task 5; whether `RestrictRealtime` could be set, and every other helper sandbox setting that had to go (P9-04).
 
 **Validation**
 - `.githooks/pre-commit` and CI pass.

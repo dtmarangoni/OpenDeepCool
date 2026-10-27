@@ -156,15 +156,18 @@ The music harness loads a null sink with `pactl`, stops the owner's helper and r
 ### P9-03: Sanitise samples
 
 - **Recommendation:** in `PipeAudio`, non-finite → 0, then clamp to [−1, 1]; tests with `NaN`, `±∞` and 10⁶ samples.
+- **Outcome (2026-10-27):** accepted. The non-finite rule came first, with P4-08 (owner-confirmed); the clip to ±1 is added now (owner), in `music.md` (Samples out of range) and Phase 9 Task 3, with tests for both.
 
 ### P9-04: The user unit's sandbox
 
 - **Evidence:** systemd.exec ("only available for system services, or for services running in per-user instances of the service manager in which case `PrivateUsers=` is implicitly enabled").
 - **Recommendation:** test the unit as written in Task 4 (capture works, polkit passes, `AudioConnected` is true), and record which options had to go.
+- **Outcome (2026-10-27):** accepted: Task 4 states the implied `PrivateUsers=` (systemd.exec(5), re-read 2026-10-27) and tests the unit as written; the report lists every setting that had to go, `RestrictRealtime` included.
 
 ### P9-06: Delay headroom
 
 - **Recommendation:** analyse right before each write; move I/O off the tick thread (P5-01, P7-06); report the delay distribution, not only the 95th percentile, so the margin is visible.
+- **Outcome (2026-10-27):** accepted. The first two parts came with OV-03: the engine draws the frame and hands it straight to its own device thread, so the analysis is already right before the write, and no I/O runs on the tick. The delay report now adds the 99th percentile and the maximum.
 
 ### P9-07: Two active seats
 
@@ -174,24 +177,33 @@ The music harness loads a null sink with `pactl`, stops the owner's helper and r
 ### P9-08: No PipeWire
 
 - **Recommendation:** with `pw-record` missing, log once and wait for a change instead of retrying every 30 s. Phase 11 lists `pipewire-audio` as a dependency, which makes this rare.
+- **Outcome (2026-10-27):** already in the plan since OV-05: with `pw-record` missing, the helper logs once and waits for the next watched change or its fallback timer; Phase 11's PKGBUILD depends on `pipewire-audio`. No change.
 
 ### P9-09: Pipe size
 
 - **Evidence:** 48,000 frames × 2 channels × 4 bytes is 384,000 bytes a second; the default pipe capacity is 65,536 bytes on a 4 KiB-page system (pipe(7)), about 170 ms.
 - **Note:** a reader that stalls longer than that blocks `pw-record` and causes capture overruns, not data corruption. Record the capacity as a design value; `F_SETPIPE_SZ` can raise it if the reader ever needs more slack.
+- **Outcome (2026-10-27):** recorded in Phase 9 Task 3 as a design value, measured on this PC (65,536 bytes with 4 KiB pages, `F_GETPIPE_SZ`), since pipe(7) isn't installed here to re-read.
 
 ### P9-10: Leftovers from a killed run
 
 - **Recommendation:** at start, `odc-e2e --only music` removes a leftover `odc-e2e` null sink and restarts the owner's helper if it's stopped. `OverrideAudio` ends with its caller (P7-16).
+- **Outcome (2026-10-27):** accepted. The override part was settled with P7-16 (it ends with the test session); Task 5 now repairs the leftover null sink and a stopped helper at start, with fake `pactl` and `systemctl` tests.
 
 ### P9-11: Logging the caller
 
 - **Recommendation:** log the Unix user and PID from `GetConnectionCredentials`, not the unit name.
+- **Outcome (2026-10-27):** accepted (owner): Phase 9 logs the caller's Unix user and PID from its D-Bus credentials, and Phase 7's sandbox list now tries `ProtectProc=invisible` with the other additions (P7-09).
 
 ### P9-13 and P9-14
 
 - See P4-01, P4-02 and overview Q1.
 - **Outcome for P9-14 (2026-10-26):** decided through OV-04. On the real cooler, one example of each Music mode and test type: one capture signal, and the 200-burst delay test as one test. The 506 switch pairs run in-process.
+- **Outcome for P9-13 (2026-10-27):** settled with P4-01: phases run one at a time, and Phase 9 depends on Phases 7 and 8.
+
+### P9-05 and P9-12: notes
+
+- **Outcome (2026-10-27):** no action. P9-05 no longer applies: since the overview round, frames go only to authorized watchers in the active local session (P10-01, OV-06). P9-12 is recorded in the plan's risks, with the optional attended tour for the owner's look.
 
 ### New from the overview cross-check (2026-10-26)
 
