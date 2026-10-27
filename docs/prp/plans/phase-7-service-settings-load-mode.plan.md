@@ -124,7 +124,7 @@
 
 - `docs/spec/display.md`: Modes (modes 1–6 and their metrics, top first), Values (DeepCreative rounds usage up and Memory Load to the nearest; OpenDeepCool rounds every measurement to the nearest, with no cap below 9999), Glyphs, Bands, Static layout. Line numbers changed with the 2026-10-24 decisions, so sections are named instead.
 - `docs/spec/display.md`: Updates; Unavailable values (dashes, added 2026-10-24); Values, OpenDeepCool: no caps (automatic scrolling, one smooth movement); Static layout, OpenDeepCool: alignment; Movement, precisely; Mode switches (a mode switch jumps to home); Test scenarios S1–S26; Rotation. All owner decisions of 2026-10-24.
-- `docs/spec/frames/` regenerated 2026-10-24 with OpenDeepCool's rules (172 of 292 cases changed), and again on 2026-10-26 with the nearest rule (24 °F cases of 284 changed); `research/hook/odc_rules.py` (local) draws them.
+- `docs/spec/frames/` regenerated 2026-10-24 with OpenDeepCool's rules (172 of 292 cases changed), and again on 2026-10-26 with the nearest rule (24 °F cases of 284 changed); `odc_rules.py` draws them, in `tools/oracle/` from Phase 5 Task 0.
 - `docs/spec/protocol.md` Timing: one frame per 100 ms tick, corrected 2026-10-24.
 - `docs/spec/settings.md`:
   - Settings: defaults are mode 1, rotation 0, Celsius, no fan inputs;
@@ -255,7 +255,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 ### 1. The oracle gets the dash cases and the movement scenarios
 
 **Files and integration points**
-- `research/hook/odc_rules.py` and `expected-frames.py` (local, never committed): UPDATE.
+- `tools/oracle/odc_rules.py` and `expected-frames.py` (committed since Phase 5 Task 0; owner, 2026-10-27, solution review P3-01): UPDATE, in the same commit as the frames they regenerate.
   - `odc_rules.py` already draws OpenDeepCool's pictures (it generated the 2026-10-24 frames). It gets the movement procedure of `display.md` "Movement, precisely" as a small state machine, written from the spec text, not from any Rust code.
   - Its value rules already use exact fractions (Python's `fractions.Fraction`), never floats, and round every measurement to the nearest whole number, halves up, as `display.md` Values requires (done 2026-10-26, at the owner's request). They agree with the spec's whole-number formulas on every millidegree from 0 to 6000 °C in both units, and on sampled jiffy, kB, energy and µW inputs.
   - With the nearest rule it regenerated `docs/spec/frames/` on 2026-10-26: exactly the 24 expected °F cases changed, 57 °C → `135°F` and 7 °C → `45°F`, and nothing else (`frames/README.md`).

@@ -13,6 +13,8 @@ How DeepCreative 1.2.14 talks to the LP360, and what the display does when nothi
 
 Find the device by its USB ID, never by its hidraw number: the number changes between boots (see `docs/local/`).
 
+The ID and its product string name the LP series, not the LP360 alone: the LP360's manual also covers the LP240, LP240 WH and LP360 WH ([LP360 notes](../hardware/deepcool-lp360.md)). Whether those models share the ID and the 14×14 display is unverified. They're out of scope (PRD), and OpenDeepCool drives any device with this ID as an LP360 (owner, 2026-10-27; solution review P3-05).
+
 The other reports (2–5, and input report 16) are not used by DeepCreative's LP page. They are after v1 in the PRD, and OpenDeepCool never sends them.
 
 ## Message layout

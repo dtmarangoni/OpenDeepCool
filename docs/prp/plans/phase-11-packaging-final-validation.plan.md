@@ -401,7 +401,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
    - package.
    It's unattended. The real-cooler part, one example of each kind, should take well under an hour (estimate); the summary prints each area's time.
 3. The drop-in is removed and the service restarted, by a drop guard. The summary confirms `/run/systemd/system/opendeepcool.service.d/` is empty again.
-4. **The parity checklist:** every row is mapped to the test that proved it, or to the owner decision that replaces it, as in the Phase 8–9 reports. The checklist must be at 100 %.
+4. **The parity checklist:** every row marked `test` gets the name of the test that proved it; every `replaced` row points at rows that passed; `device` rows need no test (the checklist's OpenDeepCool column; owner, 2026-10-27; solution review P3-06). The checklist must be at 100 %.
 
 **Validation**
 - The run passes. The Phase 11 report holds the checklist table at 100 % and every area's summary.
@@ -421,9 +421,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - any DeepCreative path outside `research/` that `docs/local/` names.
   - It's printed with sizes, and nothing is deleted until the owner says yes.
 - **Kept, because they're our own and work without DeepCreative:**
-  - the oracle generators (`odc_rules.py`, `expected-frames.py`), moved to `tools/oracle/` and committed, with `render-check.py`'s DeepCreative-only parts removed. Committing them is new: they were local only, because they read captures. After the move they read only the spec.
-  - This keeps the expected frames reproducible after DeepCreative is gone.
-  - It needs the owner's OK, because it changes what's in the public repository.
+  - the oracle generator, already in the repository, in `tools/oracle/`, since Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01, P11-19). This task deletes only what's left of it in `research/hook/`: `render-check.py`'s DeepCreative renderer and the capture checks.
+  - So the expected frames stay reproducible after DeepCreative is gone.
 - **Records:** the PRD's dev footprint rows for Wine, the prefix and the research workspace are marked removed, with the date.
 - **Phase 11's report;** the PRD table at `complete` through Phase 11, via `/prp-core:prp-prd-update`.
 
@@ -438,7 +437,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
 2. **AC2 — Uninstall leaves nothing:** after install and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the account and settings; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 3).
 3. **AC3 — The dev copy disappears:** installing the package removes every path of the dev manifest, in the container and on the owner's PC, and keeps the owner's settings (Tasks 3, 5).
 4. **AC4 — Packaging rules:** nothing in `/usr/local` or `/etc`; `namcap` reports no errors; `.SRCINFO` is current; the AUR repository holds no binaries and no personal identity (Tasks 1, 2, 6).
-5. **AC5 — Parity at 100 %:** the full unattended run passes against the installed package; every checklist row is proven or replaced by a recorded owner decision; the runtime drop-in is gone afterwards (Task 7).
+5. **AC5 — Parity at 100 %:** the full unattended run passes against the installed package; every checklist row is proven by a test, replaced by a recorded owner decision, or the cooler's own behaviour (its OpenDeepCool column); the runtime drop-in is gone afterwards (Task 7).
 6. **AC6 — v1 released:** `v1.0.0` tagged and pushed, the AUR package published, both ways tested against the published sources (Task 6).
 7. **AC7 — DeepCreative gone:** after the owner confirms the list, no DeepCreative material is left on the owner's PC, and the expected frames are still reproducible from committed tools (Task 8).
 8. **AC8 — Records:** README install, uninstall and footprint sections, `FILES.md`, the PRD footprint and table, AGENTS.md Commands, and the Phase 11 report match what was built (Tasks 1, 4, 8).
@@ -465,7 +464,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
 | Hook order rests on file names (alpm has no documented numbering yet) | Names that sort after systemd's numbered hooks and `dbus-reload.hook`. The service's restart backoff (Phase 7) recovers if anything is late, and Task 5 proves the order on a real system (owner, 2026-10-26) | alpm-hooks(5); Arch dev blog, 2026 | A start before the policies exist would only delay the service by a restart or two |
 | Stopping every user's running audio helper from the remove hook | Try the per-user stop; otherwise the helpers end with the service's pipe, and the report says so | Phase 9: the helper exits when `pw-record` ends | A helper process lingers until logout |
 | NVIDIA device access can't be tested on the owner's PC | From NVIDIA's documentation and `systemd.exec(5)`; never exercised, and the report says so | Owner's GPU is AMD (see `docs/local/`) | An NVIDIA user might see GPU metrics unavailable until fixed |
-| Committing the oracle generators changes the public repository | Ask the owner in Task 8; they read only the spec after the move | They currently read captures (local only) | Without them, the expected frames can't be regenerated after DeepCreative is deleted |
+| The oracle generator in the public repository | Decided: committed in Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01) | It reads only the spec; the parts that read captures stay local | — |
 | The final run needs one privileged step | One `pkexec` for the runtime drop-in, approved by the owner; `/run` vanishes at reboot anyway | Rule 7 | — |
 
 ## Related Plans

@@ -3,7 +3,7 @@
 The frame OpenDeepCool must send to the LP360 for every case of the test matrix: every mode × the four rotations × °C and °F where a temperature is shown, with three value sets per case. The Rust tests compare their output with these files (PRD, Testing Strategy).
 
 They're drawn from the spec's rules alone ([display.md](../display.md), [music.md](../music.md)): OpenDeepCool's rules, which differ from DeepCreative's on purpose in a few places (owner decisions of 2026-10-24, and the rounding of 2026-10-26):
-- every value in full, never capped;
+- every value in full up to 9999, never cut to DeepCreative's 99 or its last two digits; 10 000 and more are drawn `9999` (owner, 2026-10-25), which no case here reaches;
 - static while every value is 99 or less, scrolling while one is 100 or more, °F and power included;
 - one value centred, two values ending at column 14;
 - where DeepCreative shows the wrong metric, the metric the mode names (AGENTS.md rule 11), for example the CPU Temperature in mode 18 in °F;

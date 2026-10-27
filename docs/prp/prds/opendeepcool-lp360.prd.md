@@ -35,7 +35,7 @@ We believe a Rust boot service plus an Omarchy-themed GTK4 app that reproduces D
 
 We'll know we're right when two things are true:
 
-- every item on the parity checklist (built from DeepCreative 1.2.14, checked by the owner in Phase 3) passes the unattended tests: every case in-process, and one example of each mode and test type on the real LP360 (owner, 2026-10-26);
+- every item on the parity checklist (built from DeepCreative 1.2.14, checked by the owner in Phase 3) is met: each row marked `test` passes the unattended tests, every case in-process, and one example of each mode and test type on the real LP360 (owner, 2026-10-26); each row marked `replaced` points at rows that pass, and `device` rows record the cooler's own behaviour (owner, 2026-10-27);
 - after a cold boot, the display goes back to the configured mode with no action from the owner.
 
 ## What We're NOT Building
@@ -60,7 +60,7 @@ We'll know we're right when two things are true:
 
 | Metric | Target | How Measured |
 |---|---|---|
-| Parity with DeepCreative | 100% of parity-checklist items pass | Every item is checked against the expected frames, which match DeepCreative's captures the owner checked in Phase 3: every case in the in-process tests, and one example of each mode and test type in the unattended run on the real LP360 (owner, 2026-10-26) |
+| Parity with DeepCreative | 100% of parity-checklist items met: every `test` row passes, and every `replaced` row points at rows that pass | Every item is checked against the expected frames, which match DeepCreative's captures the owner checked in Phase 3: every case in the in-process tests, and one example of each mode and test type in the unattended run on the real LP360 (owner, 2026-10-26) |
 | Starts with the system | Configured mode is on the display from boot, with no action and before anyone logs in | Not tested by booting. An unattended start check reads the running service's own start: its first written frame, after `03 08`, is the saved mode's picture, and the unit is enabled for `multi-user.target` with nothing tied to a login. No reboot (owner, 2026-10-25: no boot testing) |
 | Correct values | Displayed values match the system's own readings within each metric's resolution | Integration and e2e tests compare rendered values with the sensor sources and with `sensors` |
 | Same timing as DeepCreative | Refresh interval and animation timing per mode match DeepCreative | Compare frame timestamps against the Wine capture |
@@ -255,7 +255,7 @@ The LP360 only shows the 14×14 picture each message carries; mode, metric, unit
 
 - **Test matrix:** every mode × the four rotations × °C/°F where a temperature is shown, scrolling included: 112 combinations (DeepCreative's modes 1–22 and OpenDeepCool's Dancer, mode 23), each with several values (Phase 3 plan, Test matrix). In every case each metric gets its own distinct, non-zero value, so a mode that draws the wrong metric fails.
 - **Movement scenarios** (owner, 2026-10-24): tests of the Rust implementation against OpenDeepCool's own rules, never against DeepCreative, which handles these cases differently. The display's behaviour over time is tested as scenarios S1–S19 in `docs/spec/display.md` (Test scenarios): values crossing 99/100 in every order and at every point of the cycle, length changes, dashes, mode, unit and rotation changes, start-up, reconnect and impossible readings. Every scenario runs in every mode that shows a value, both temperature units, single and combined values, and all four rotations; the modes without values run the switch, rotation, start-up and reconnect scenarios. The expected frame of every tick is generated from the spec's rules, like the expected frames.
-- **Expected frames:** `docs/spec/frames/` holds the expected frame of every matrix case as a text picture. Phase 3 generates it from the spec's rules and confirms it against DeepCreative's captures. It's the oracle for the layers below, so Rust output is never compared with Rust output.
+- **Expected frames:** `docs/spec/frames/` holds the expected frame of every matrix case as a text picture. Phase 3 generates it from the spec's rules and confirms it against DeepCreative's captures. It's the oracle for the layers below, so Rust output is never compared with Rust output. Its generator is committed in `tools/oracle/` from Phase 5, and a check in the guard and CI regenerates the frames and fails on any difference (owner, 2026-10-27; solution review P3-01).
 - **Layer 1, unit (CI):** drawing is pure, in two parts (2026-10-24): the picture is a pure function of mode, readings and unit, and its movement a pure state machine of the changes and ticks (`display.md` Movement, precisely). Tests run every matrix case and every movement scenario against the expected frames; a failure prints both pictures. Property tests add random inputs for these rules:
   - four quarter turns give back the original;
   - drawing with a rotation equals rotating the finished frame;
@@ -415,7 +415,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 **Phase 5: Device & protocol core**
 - **Goal**: Reliable frames to the LP360 without root.
-- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects, and starts a new conversation on request (for the wake-up from standby); the udev rule; dev scripts that install and remove the development access setup. The developer test-pattern binary is dropped: the unattended real-device test writes expected frames instead (owner, 2026-10-24).
+- **Scope**: the workspace; frame encoder and checksum; a USB writer that reconnects, and starts a new conversation on request (for the wake-up from standby); the udev rule; dev scripts that install and remove the development access setup. The developer test-pattern binary is dropped: the unattended real-device test writes expected frames instead (owner, 2026-10-24). The expected-frame generator moves into the repository, `tools/oracle/`, with a regeneration check (owner, 2026-10-27).
 - **Tests**:
   - unit: encoding, checksum, rotation (property tests); the expected-frame loader and picture diff the later phases reuse
   - integration: fake transport and fake sysfs trees (a virtual `uhid` device needs root, so it isn't used)
@@ -605,6 +605,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Commit guard | From Phase 5: checks the identity git will record (`git var`) and rejects binary files outside an allow-list; a push-time check re-checks every commit and tag; CI checks every commit's identity and the tree for binary files | The Phase 2 guard alone: the identity from `git config`, file types by extension, commits only | Owner, 2026-10-27 (solution review P2-01 to P2-03): identity overrides, rebases, merges and `--no-verify` slip past the Phase 2 guard (tested 2026-10-27) |
 | Privacy beyond git | Rule 10 also covers tag messages, release notes, the AUR, issues and published pages. Outside queries never carry personal identifiers or the login and disk setup, but may name a part or driver when a task needs it | Git only; no machine fact in any outside query unless the owner asks | Owner, 2026-10-27 (solution review P2-04, P2-05): research needs part and driver names; personal identifiers never leave the PC |
 | Merging a phase | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests | Fast-forward without waiting for CI; pull requests | Owner, 2026-10-23 (no pull requests) and 2026-10-27 (solution review P2-07): `main` stays green without pull requests |
+| Oracle generator | Committed in `tools/oracle/` from Phase 5, with a regeneration check in the guard and CI; DeepCreative's renderer and the capture checks stay local | Local in `research/` until Phase 11 | Owner, 2026-10-27 (solution review P3-01, OV-07): the ground truth of every test needs history, review and more than one copy |
+| Parity checklist at 100 % | Each row says how OpenDeepCool meets it: `test`, `replaced` (pointing at OpenDeepCool's rows) or `device`; 100 % means every `test` row passes and every `replaced` row points at rows that pass | Every row passes as written | Owner, 2026-10-27 (solution review P3-06): rows written at the sign-off describe DeepCreative's rules, several of which OpenDeepCool replaces on purpose |
 
 ---
 

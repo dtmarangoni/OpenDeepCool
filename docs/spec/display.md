@@ -11,7 +11,7 @@ What DeepCreative 1.2.14 draws on the LP360 in modes 1–12, precisely enough to
 
 ## Modes
 
-DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative's sensor readings; [sensors.md](sensors.md) (to come) maps them to Linux.
+DeepCreative's mode numbers. Each metric is named as it appears in DeepCreative's sensor readings; [sensors.md](sensors.md) maps them to Linux.
 
 | Mode | Page and option | Metric(s), top first | Kind |
 |---|---|---|---|

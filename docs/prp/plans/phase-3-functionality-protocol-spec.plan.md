@@ -6,6 +6,8 @@
 **Source Issue:** `None`
 **Plan Publication:** `None`
 
+> **History.** Written before Creative Mode was removed (owner, 2026-10-25) and the phases renumbered: its Phase 10 was Creative Mode, since dropped, and its Phases 11 and 12 are today's Phases 10 and 11. The PRD has today's phases, and the spec is the contract.
+
 ## Outcome
 
 **Problem:** Phases 4–12 must reproduce what DeepCreative 1.2.14 shows on the LP360, but much of that behaviour is still unknown. Phase 1 recorded every mode, but under Wine all temperature and power readings were 0, so value-dependent behaviour (three-digit values, °F, thresholds, scrolling real numbers) was never seen. The start-up command `03 08`, the scroll and transition rules, the Music Mode spectrum and the meaning of each metric are open questions (PRD lines 60–71, Phase 1 report lines 70–75). Building on that would mean guessing (AGENTS.md rule 1).

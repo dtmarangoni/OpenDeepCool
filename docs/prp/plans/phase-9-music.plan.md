@@ -205,7 +205,7 @@ flowchart LR
 | `docs/spec/frames/README.md`, `mode-013.txt`–`mode-022.txt` | The matrix and its `?` pixels |
 | `docs/prp/plans/phase-7-service-settings-load-mode.plan.md` Tasks 5–9 | Settings, engine, D-Bus change steps, polkit, the dev interface, the dev copy, `odc-e2e` |
 | `docs/prp/plans/phase-8-temperature-power.plan.md` Tasks 2–3 | `draws`, the temperature rules, `cycle_match`, `--modes` |
-| `research/hook/odc_rules.py`, `expected-frames.py`, `render-check.py` (local) | The oracle generator, and the DeepCreative renderer behind the differential skip reasons |
+| `tools/oracle/odc_rules.py`, `expected-frames.py`; `research/hook/render-check.py` (local) | The oracle generator (committed from Phase 5), and the DeepCreative renderer behind the differential skip reasons |
 | `man pw-cat` | The exact `pw-record` and `pw-play` options |
 
 ### Existing patterns and primitives
@@ -283,13 +283,13 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 ### 1. The oracle gets the spectrum, the emoji resets and the Music scenarios
 
 **Files and integration points**
-- `research/hook/odc_rules.py` (local): UPDATE, with the spectrum procedure of `music.md`, written from the spec text:
+- `tools/oracle/odc_rules.py` (committed since Phase 5 Task 0): UPDATE, with the spectrum procedure of `music.md`, written from the spec text:
   - a plain-Python radix-2 FFT;
   - the Blackman window;
   - the band edges and loudness;
   - the bar and peak state;
   - the emoji loop with its restart.
-- `research/hook/expected-frames.py` (local): UPDATE, writing the files below.
+- `tools/oracle/expected-frames.py`: UPDATE, writing the files below, in the same commit as them.
 - `docs/spec/frames/spectrum/signals.txt`: CREATE. The test signals as text, so the Rust tests synthesize the same samples. Each signal is a list of segments: frequency in Hz, peak amplitude in dBFS, length in ticks, or silence. A sample is `A · sin(2π f n / 48000)` computed in `f64`, then stored as `f32`, the same in both channels. The signals:
   - silence;
   - one tone at the centre of each column, at −20, −45 and −70 dBFS;
