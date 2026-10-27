@@ -81,41 +81,49 @@ Nothing checks the repository on the server side. The sensitive list must stay l
 
 - **Evidence:** `.githooks/pre-commit`, identity block (`git config user.name`, `git config user.email`).
 - **Recommendation:** check `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT` against the no-reply pattern and the sensitive list. Add a `pre-push` hook that re-checks every commit and tag in the pushed range, which also catches commits made with `--no-verify`.
+- **Outcome (2026-10-27):** accepted, and wider than written. A test in a throwaway repository (git 2.56) showed that the `git config` check also misses `git commit --author`, and that rebase, cherry-pick and merge commits never run `pre-commit`; `git var` reported the recorded identity in every case. Phase 5 Task 10 now checks the identity with `git var` and adds a push-time check, `.githooks/pre-push`, which re-checks every commit and tag before it leaves the PC, with a test of each case (AC10). PRD: Enforcement, Decisions Log (Commit guard).
 
 ### P2-02: No server-side safety net
 
 - **Evidence:** the guard runs only locally; CI starts in Phase 5 without a privacy job.
 - **Recommendation:** add a CI job that fails on generic patterns needing no private list (non-no-reply email addresses, `/home/` paths, raster images outside `docs/design/`), and check the author and committer of every pushed commit. Keep the private list local.
+- **Outcome (2026-10-27):** accepted in a smaller form. CI runs after the push, so it can only detect a leak; the push-time check (P2-01) is what prevents one. Phase 5 Task 10's CI gains a `privacy` job: every commit's author and committer is the no-reply address, and the tree holds no binary file outside the allow-list. The generic text patterns were left out, because today they match only false alarms: `/home/` in this review's own text, and a systemd unit name (`user@1000.service`) in the Phase 9 plan.
 
 ### P2-03: Binary files aren't scanned
 
 - **Evidence:** `grep -I` in the sensitive-value scan; `blocked_ext` has no image types.
 - **Recommendation:** block raster images by default, with an explicit allow-list for a design folder if the project ever needs them. Mockups are HTML today. Alternatively, strip and scan image metadata.
+- **Outcome (2026-10-27):** accepted in a broader form: every staged file git treats as binary is rejected unless its path is on an allow-list, empty for now (Phase 5 Task 10). The repository holds no binary file today, and the planned app icon is an SVG, which is text and gets scanned.
 
 ### P2-04: Tags, release notes and the AUR repository
 
 - **Evidence:** the hooks run on commits only; Phase 11 Task 6 creates a separate AUR git repository and a `v1.0.0` tag with release notes.
 - **Recommendation:** extend rule 10 to tag messages, release notes and the AUR repository. Generate the AUR files from the guarded main repository (Phase 11 already copies them) and run the same value check before every AUR push.
+- **Outcome (2026-10-27):** accepted. AGENTS.md rule 10 now covers tag messages, release notes, the AUR repository and its comments, issues and published pages; the push-time check (P2-01) checks tags; Phase 11 Task 6 runs the same checks before every AUR push. The alpha and beta stages (owner, 2026-10-27) add more tags and notes than planned.
 
 ### P2-05: Rule 10 covers only git
 
 - **Evidence:** `CLAUDE.md` imports `docs/local/machine.md`; AGENTS.md rule 10 names committed files, messages, PR texts and commit metadata.
 - **Recommendation:** add to rule 10: "Never send machine facts to an external service (web search, MCP servers, published pages, issues, the AUR) unless the owner asks."
+- **Outcome (2026-10-27):** accepted in a lighter form, the owner's choice. Outside queries never carry personal identifiers (name, email, usernames, serials, local paths) or the login and disk setup, but may name a part or driver when a task needs it, since research needs them. AGENTS.md rule 10; `CLAUDE.md`; PRD Privacy and Decisions Log (Privacy beyond git).
 
 ### P2-06: `.bin` is blocked
 
 - **Evidence:** `blocked_ext` includes `bin`.
 - **Note:** sensible for vendor firmware. If a test fixture ever needs a binary, give it another extension or an explicit allow-list entry, rather than weakening the rule.
+- **Outcome (2026-10-27):** no action. `.bin` stays blocked, P2-03's rule covers every other binary type, and no plan needs a `.bin` file.
 
 ### P2-07: Branch policy after CI
 
 - **Evidence:** AGENTS.md How to work ("Revisit once GitHub CI exists"); Phase 5 plan, Risks.
 - **Recommendation:** decide at Phase 5 sign-off. "Fast-forward `main` only after the branch's CI run is green" keeps the no-PR workflow.
+- **Outcome (2026-10-27):** decided now (owner): push the phase branch, wait until its CI run passes, then fast-forward `main` and push; still no pull requests. AGENTS.md How to work; PRD Decisions Log (Merging a phase); Phase 5 plan, Risks.
 
 ### P2-08: Record drift
 
 - **Evidence:** README Status; PRD footer; AGENTS.md Verified facts.
 - **Recommendation:** an errata commit before Phase 5, with the owner's OK (the PRD is the owner's document).
+- **Outcome (2026-10-27):** accepted and applied. The AGENTS.md pointer was fixed with P1-02. README: Phase 2's date, Phase 4 done, what's now and next, the planned modes under OpenDeepCool's names, and Creative Mode as never. The PRD footer now reads "Status: in use". Also found and fixed (owner, 2026-10-27): the Phase 5 plan's "Not building" list put packaging in "Phases 7 and 12", but there's no Phase 12 since the phases were renumbered; it now reads "Phases 7 and 11". The Phase 3 plan's mentions of Phase 12 are history, left to P3-02.
 
 ## Questions for the owner
 

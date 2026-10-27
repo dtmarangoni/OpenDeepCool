@@ -2,7 +2,7 @@
 
 ## Machine-specific facts (local only)
 
-Imported from the owner's git-ignored file (absent on other machines). Use it for implementation work, but never copy its contents into committed files, commit messages or PR texts (AGENTS.md rule 10):
+Imported from the owner's git-ignored file (absent on other machines). Use it for implementation work, but never copy its contents into committed files, commit messages, PR texts or other outward-facing text, and keep personal identifiers out of web searches and other outside queries (AGENTS.md rule 10):
 
 @docs/local/machine.md
 

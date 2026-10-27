@@ -328,6 +328,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - Nothing personal or specific to the owner's PC goes into git: no names or emails, serials, hardware models, BIOS/firmware, OS versions, login or disk setup, local paths.
   - Machine facts the implementation needs live in one git-ignored file, `docs/local/machine.md`. `AGENTS.md` references it, and `CLAUDE.md` imports it so agents always see it.
   - The commit guard rejects any commit containing the sensitive values listed in that file, and any commit made without the GitHub no-reply identity.
+  - The same holds for all other outward-facing text: tag messages, release notes, the AUR, issues and published pages. Queries to outside services, such as web searches, never carry personal identifiers (names, emails, usernames, serials, local paths) or the login and disk setup; they may name a part or driver when a task needs it (owner, 2026-10-27; solution review P2-04, P2-05).
 - **Staying on track**:
   - Work only on the current plan step.
   - Re-read the step after a context compaction or long pause.
@@ -336,7 +337,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - Update the phase table whenever a phase changes state.
 - **Enforcement**: Claude Code's docs say instruction files are context, not enforced configuration. A git pre-commit guard therefore backs up the critical rules for any agent or person:
   - from Phase 2, it rejects DeepCool material and oversized files;
-  - from Phase 5, it also runs format, lint and tests.
+  - from Phase 5, it also runs format, lint and tests, checks the identity git will record, and rejects binary files; a push-time check re-checks every commit and tag before it leaves the PC, and CI checks every commit's identity (owner, 2026-10-27; solution review P2-01 to P2-03).
 
 ---
 
@@ -420,7 +421,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - integration: fake transport and fake sysfs trees (a virtual `uhid` device needs root, so it isn't used)
   - differential: every captured DeepCreative message re-encoded byte for byte
   - e2e, unattended: mode 1's `42%` written to the real cooler unrotated and in one rotation, every written report recorded and compared with the expected frames; a disconnect and reconnect of the real cooler, and a new conversation on the same connection (the device side of the wake-up). All four rotations are checked in the unit tests (owner, 2026-10-26: one example of each test type on the cooler)
-  - CI: GitHub Actions and the pre-commit guard run layers 1 and 3
+  - CI: GitHub Actions and the pre-commit guard run layers 1 and 3; the guard, its push-time check and a CI job enforce the privacy rules
 - **Success signal**: All test layers pass unattended, on the real cooler, without root.
 
 **Phase 6: Sensors**
@@ -601,6 +602,9 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | PRP documents | Kept in the repository under `docs/prp/` (the PRP store under `~/.prp/` links there) | PRP default store outside the repo | Owner wants the PRP documents in git |
 | DeepCool material | Never committed; captures stay local | — | Copyright; the repository is public |
 | Agent instructions | `AGENTS.md` is the single source; `CLAUDE.md` imports it (`@AGENTS.md`) and adds Claude-only notes; critical rules also enforced by a git pre-commit guard | `CLAUDE.md` only; two separate copies | Works for any coding agent, avoids drift between two copies, and follows Claude Code's documented import pattern. Instruction files are context, not enforcement, so the guard backs up the critical rules |
+| Commit guard | From Phase 5: checks the identity git will record (`git var`) and rejects binary files outside an allow-list; a push-time check re-checks every commit and tag; CI checks every commit's identity and the tree for binary files | The Phase 2 guard alone: the identity from `git config`, file types by extension, commits only | Owner, 2026-10-27 (solution review P2-01 to P2-03): identity overrides, rebases, merges and `--no-verify` slip past the Phase 2 guard (tested 2026-10-27) |
+| Privacy beyond git | Rule 10 also covers tag messages, release notes, the AUR, issues and published pages. Outside queries never carry personal identifiers or the login and disk setup, but may name a part or driver when a task needs it | Git only; no machine fact in any outside query unless the owner asks | Owner, 2026-10-27 (solution review P2-04, P2-05): research needs part and driver names; personal identifiers never leave the PC |
+| Merging a phase | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests | Fast-forward without waiting for CI; pull requests | Owner, 2026-10-23 (no pull requests) and 2026-10-27 (solution review P2-07): `main` stays green without pull requests |
 
 ---
 
@@ -658,4 +662,4 @@ Other projects (philling-dev/deepcool-digital-linux, RahnRazamai/deepcool_digita
 ---
 
 *Generated: 2026-10-22*
-*Status: DRAFT - needs validation*
+*Status: in use; the owner's decisions are dated in the text, and the phase table records progress*

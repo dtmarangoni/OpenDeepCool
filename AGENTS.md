@@ -30,7 +30,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 - After a context compaction or a long pause, re-read the current plan step before continuing.
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
-- When a phase is done and signed off, merge its branch straight into `main` (fast-forward) and push; no pull requests (owner, 2026-10-23). Its PRD row then becomes `complete`, with `-` in the PR column. Revisit once GitHub CI exists.
+- When a phase is done and signed off, push its branch and wait until its CI run passes, then fast-forward `main` to it and push; no pull requests (owner, 2026-10-23 and 2026-10-27). Its PRD row then becomes `complete`, with `-` in the PR column.
 - Write what you learn about the hardware or DeepCreative into the spec (`docs/spec/`, from Phase 3), not only into code or chat.
 - When a rule or command changes, update this file in the same commit.
 
@@ -74,11 +74,13 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - Send the LP360 only messages documented in the spec.
    - Run DeepCreative for research only in its dedicated Wine prefix, with the network blocked.
    - Never accept a firmware update.
-10. **No personal or machine data in git.** The repository is public.
+10. **No personal or machine data in git or other public text.** The repository is public.
     - Committed files, commit messages, PR texts and commit metadata must not contain:
       - the owner's name, email, usernames, local paths or serial numbers;
       - the make, model, BIOS or firmware of the owner's PC parts, or its OS and kernel versions;
       - how the owner's PC logs in or encrypts its disk.
+    - The same holds for all other outward-facing text (owner, 2026-10-27): tag messages, release notes, the AUR repository and its comments, issues and published pages.
+    - Queries to outside services, such as web searches and MCP tools, never carry the owner's name, email, usernames, serial numbers or local paths, nor how the PC logs in or encrypts its disk. They may name a part or driver when a task needs it, such as the fan chip to find its driver (owner, 2026-10-27).
     - Put such facts in `docs/local/` (git-ignored) and refer to them only as "see `docs/local/`".
     - Commit with the repository's configured identity (GitHub no-reply email). Never change it.
     - **Exception** (owner, 2026-10-22): the kernel driver and module names and sensor labels that the sensor rules need may appear in code, tests, packaging and the spec. Part models, serials and all other machine facts still may not; test fixtures use made-up chip names.
@@ -91,7 +93,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 ## Verified facts (details in the PRD Research Summary)
 
 - **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. Its USB messages are in `docs/spec/protocol.md`, and the display modes in `docs/spec/display.md` (1–12) and `docs/spec/music.md` (13–23). The Phase 1 report (`docs/research/phase1-wine-spike.md`) is history: the spec supersedes it, and its mode list is DeepCreative's, Creative Mode included.
-- **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files, and never make the code depend on it (rule 12).
+- **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files or other outward-facing text (rule 10), and never make the code depend on it (rule 12).
 - **Device lookup**: find hwmon and DRM devices by name or driver, never by index, because indexes change between boots.
 - **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`. App templates live in each user's `~/.config/omarchy/themed/*.tpl` and in Omarchy's own `$OMARCHY_PATH/default/themed/` (its `omarchy-theme-set-templates` script, read 2026-10-23).
 

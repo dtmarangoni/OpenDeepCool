@@ -9,9 +9,10 @@ A Linux app, written in Rust, that drives the 14×14 pixel display of a **DeepCo
 Pre-alpha: planning and research. No installable app yet.
 
 - **Phase 1** (done, 2026-10-22): DeepCreative 1.2.14 runs under Wine on the target PC and drives the real cooler; every display mode was recorded. See [the report](docs/research/phase1-wine-spike.md).
-- **Phase 2** (done): this repository, with agent instructions and a commit guard.
+- **Phase 2** (done, 2026-10-22): this repository, with agent instructions and a commit guard.
 - **Phase 3** (done, 2026-10-23): the full functionality and protocol spec in [docs/spec/](docs/spec/), with the expected frame of every mode, rotation and unit, and a parity checklist the owner checked on the cooler.
-- **Next, Phase 4**: one implementation plan for each of Phases 5–11.
+- **Phase 4** (done, 2026-10-25): one implementation plan for each of Phases 5–11.
+- **Now**: the plans' [solution reviews](docs/prp/solution-reviews/README.md) are crossed with the owner. **Next, Phase 5**: the Rust workspace, the frame encoder and the cooler's USB writer.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.
 
@@ -21,10 +22,11 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 - **Planned**:
   - a system service that starts at boot, the same for every user;
   - a GTK4 settings app that follows the current Omarchy theme live, with its own default theme on other desktops;
-  - every LP360 display mode from DeepCreative 1.2.14: Load Mode, Temperature Guardian, Power Guardian, Music Mode and screen rotation, plus OpenDeepCool's own Dancer;
+  - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer;
   - the cooler's fan and pump speed readings.
 - **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls other hardware. To monitor or control the CPU, GPU, other fans or power, use dedicated tools, as OpenRGB for lighting.
 - **Not in v1**: speed control of the cooler's fans and pump, display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
+- **Never**: DeepCreative's Creative Mode, its 14×14 image editor.
 
 ## Documentation
 

@@ -381,7 +381,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
 - **The AUR (outward-facing; the owner confirms first):**
   - the owner's AUR account and SSH key, set up by the owner;
   - a new git repository with `user.name` and `user.email` set to the project's no-reply identity in that repository only (AUR guidelines: commits carry the global identity otherwise; rule 10);
-  - push of `PKGBUILD`, `.SRCINFO`, `opendeepcool.install`, `LICENSE`.
+  - push of `PKGBUILD`, `.SRCINFO`, `opendeepcool.install`, `LICENSE`, after the AUR repository's commits pass the same identity and value checks as the main repository's push-time check (owner, 2026-10-27; solution review P2-04).
 - **Then** the Task 3 test runs again against the real AUR and the real tag clone.
 
 **Validation**

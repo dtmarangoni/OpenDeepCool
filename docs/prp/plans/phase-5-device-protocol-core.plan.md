@@ -147,7 +147,7 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 | `docs/spec/settings.md:25-33` | Start-up sequence: `03 08`, then the picture at once |
 | `docs/prp/prds/opendeepcool-lp360.prd.md:149-249` | Architecture (ports and adapters, display port, access without root) and the four test layers |
 | `AGENTS.md:33-70` | Rules 3 (no person), 4 (one commit per implementation), 5, 7, 9, 10, 12 |
-| `.githooks/pre-commit:1-75` | The guard this phase extends with fmt, clippy, tests and the udev check |
+| `.githooks/pre-commit:1-75` | The guard this phase extends with fmt, clippy, tests and the udev check, the identity git will record, and binary files; `pre-push` shares its checks |
 | `research/hook/decode-frames.py:16-40` (local) | Our own decoder of the capture format: field layout of each log line |
 
 ### Existing patterns and primitives
@@ -177,7 +177,7 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
   - the recording wrapper;
   - fakes for tests.
 - The product udev rule and group file, and dev setup, teardown and check scripts, including the dev-only reconnect permission (owner, 2026-10-24).
-- Tests in all four layers (below), CI, and the pre-commit guard.
+- Tests in all four layers (below), CI, the pre-commit guard and its push-time check.
 - Records: PRD dev footprint, AGENTS.md (Commands, Repository layout), README.
 
 ### Not building
@@ -186,7 +186,7 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 - **Frame pacing, the scheduler, the service, logging to the journal, the settings file:** Phase 7. The 100 ms tick appears only as a test constant here, citing `protocol.md` Timing.
 - **Renderers:** Phases 7–9. Phase 5 needs none: it reads the pictures of mode 1's static cases straight from the expected frames.
 - **Sensors:** Phase 6.
-- **The service account (`u!` line), packaging and the uninstall removal script:** Phases 7 and 12. The group-only `g` line here is what the dev setup needs today.
+- **The service account (`u!` line), packaging and the uninstall removal script:** Phases 7 and 11. The group-only `g` line here is what the dev setup needs today.
 - **A uhid virtual device:** root-only, so not unattended.
 - **Several LP360s on one PC:** out of scope. The connector picks the lowest-numbered matching node, deterministically.
 
@@ -530,19 +530,30 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
   - `cargo fmt --all --check`;
   - `cargo clippy --workspace --all-targets -- -D warnings`;
   - `cargo test --workspace`, layers 1 and 3: ignored tests don't run;
-  - `udevadm verify --resolve-names=never` on both rules files. This needs systemd 254 or later on the runner; if the runner's `udevadm` lacks `verify`, the task stops and asks rather than dropping the check.
+  - `udevadm verify --resolve-names=never` on both rules files. This needs systemd 254 or later on the runner; if the runner's `udevadm` lacks `verify`, the task stops and asks rather than dropping the check;
+  - a `privacy` job (owner, 2026-10-27; solution review P2-02), with a full-depth checkout: every commit in the history has the no-reply address as author and committer, and no file in the tree is binary outside the guard's allow-list. The sensitive list stays on the PC, so CI checks only these.
 - `.githooks/pre-commit`: UPDATE. After the existing checks, when `Cargo.toml` exists:
   - run the same fmt, clippy and test commands, plus the `udevadm verify` and `bash -n` checks;
   - add each failure to `fail` in the existing style.
   - The header comment says these run on the working tree, so unrelated unstaged changes must not be present when committing.
+  - The identity check reads `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`, the identities git will record, instead of `git config user.*`. Both must be the no-reply address and free of sensitive values (owner, 2026-10-27; solution review P2-01). `git config` misses `git commit --author`, the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and `-c author.*`; `git var` reported the recorded identity in each case (tested 2026-10-27, git 2.56).
+  - Every staged file git treats as binary is rejected unless its path is on the guard's allow-list, empty for now (P2-03). The extension list stays, `.bin` included (P2-06).
+- `.githooks/guard-lib.sh`: CREATE. The checks `pre-commit` and `pre-push` share (identity, path, type, binary, size, code markers, sensitive values), sourced like `sensitive-values.sh`.
+- `.githooks/pre-push`: CREATE (P2-01, P2-04). For every commit and tag the push would add to the remote, the author, committer and tagger, the commit and tag messages, and every file each commit adds or changes pass the same checks. It catches what never ran `pre-commit`: `--no-verify`, rebase, cherry-pick and merge commits (tested 2026-10-27).
+- `.githooks/test-guard.sh`: CREATE. Builds a throwaway repository in a temporary folder, with these hooks, a local bare remote and a made-up sensitive list, and runs the guard cases in Tests.
 - `AGENTS.md`: UPDATE Commands with the local layer 2 and layer 4 commands and when to run them: before any commit that touches `odc-protocol` encoding or `odc-device`.
 
 **Tests**
 - A deliberately misformatted line makes the guard reject a commit, checked once by hand, then reverted.
 - The workflow passes on the branch push. The push goes over HTTPS as in `docs/local/`, with the owner's OK, because pushing is outward-facing.
+- `.githooks/test-guard.sh`, unattended, locally and in CI:
+  - rejected at commit: `--author`, each of the four identity variables and `-c author.email`, each with an address other than the no-reply one; a staged PNG; a file holding a listed value;
+  - rejected at push: a `--no-verify` commit with a wrong identity, a rebased commit that adds a listed value, and a tag whose message holds one;
+  - accepted: a clean commit and its push.
 
 **Validation**
 - `.githooks/pre-commit` exits 0 on the clean branch, and the GitHub Actions run is green.
+- `.githooks/test-guard.sh` passes, and the CI `privacy` job is green.
 
 ## Acceptance
 
@@ -578,6 +589,9 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
    - every run prints which mode each capability used (Task 9).
 9. **AC9 — Records:**
    - AGENTS.md Commands and Repository layout, the README Development section, and the PRD's dev footprint match what was built (Tasks 1, 8, 10).
+10. **AC10 — A guard that can't be fooled** (owner, 2026-10-27; solution review P2-01 to P2-03):
+    - a commit recorded with another identity, a binary file outside the allow-list, and anything that skipped `pre-commit` are rejected, at commit or at push;
+    - CI checks every commit's identity and the tree for binary files (Task 10).
 
 ## Validation
 
@@ -591,6 +605,7 @@ Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The
 | Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only device --require lp360,lp360-reconnect`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler where attached; AC8 |
 | Dev access state | `scripts/dev/check.sh` | AC6 |
 | CI | GitHub Actions run on the pushed branch | AC7 |
+| Guard | `.githooks/test-guard.sh`, and the CI `privacy` job | AC10 |
 
 ### Test matrix covered in this phase
 
@@ -608,7 +623,8 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | Crate names `odc-protocol`, `odc-device`, `odc-testkit` | Keep: short, and the PRD leaves the names to the plans | PRD Architecture Notes ("names finalised in the plans") | Renaming later touches every `Cargo.toml` and import |
 | The `authorized` permission may not survive a reconnect | Check it in Task 8/9 with `check.sh` after the real reconnect test | Deauthorize unconfigures the device but should keep the USB device itself (kernel authorization docs); unverified on this PC | If it's lost, the rule needs a different trigger, decided with the owner before Task 9 is committed |
 | The pre-commit guard tests the working tree, not the staged snapshot | Accept, and document it in the guard's header | Stashing unstaged work inside a hook risks losing it | A commit could pass with unstaged fixes present; CI catches it on push |
-| GitHub CI exists after Task 10; AGENTS.md says to revisit merging without PRs then | Ask the owner at Phase 5 sign-off | AGENTS.md "How to work", owner 2026-10-23 | — |
+| Merging once CI exists (after Task 10) | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests (owner, 2026-10-27; solution review P2-07) | AGENTS.md "How to work" | A failing CI run would land on `main` |
+| The push-time check is client-side too | Accept: `git push --no-verify` skips it; the CI `privacy` job still flags a wrong identity or a binary file, though only after the push | git-push(1): "With --no-verify, the hook is bypassed completely" | A leak would stay public until the pushed history is rewritten |
 | Two writers: the research rig and the real-device test | Never run them together; the test doc says so | DeepCreative writes to the same node | Interleaved reports would fail the recording comparison, loudly |
 | `newgrp` is needed until the owner logs in again | Use `newgrp opendeepcool -c '…'` in the Task 9 command until then | Checked 2026-10-24: no password prompt | None after the next login |
 | A wake-up from standby can't be tested by a real suspend | The device side runs real (`reset`, Task 9); logind's signal is tested with a fake in Phase 7, and a real suspend is only in the optional attended tour | Waking an unattended PC needs root (`wakealarm`) | An automated suspend would sleep the owner's PC |
