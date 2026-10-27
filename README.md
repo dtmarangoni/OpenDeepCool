@@ -13,6 +13,7 @@ Pre-alpha: planning and research. No installable app yet.
 - **Phase 3** (done, 2026-10-23): the full functionality and protocol spec in [docs/spec/](docs/spec/), with the expected frame of every mode, rotation and unit, and a parity checklist the owner checked on the cooler.
 - **Phase 4** (done, 2026-10-25): one implementation plan for each of Phases 5–11.
 - **Now**: the plans' [solution reviews](docs/prp/solution-reviews/README.md) are crossed with the owner. **Next, Phase 5**: the Rust workspace, the frame encoder and the cooler's USB writer.
+- **Releases** (Phase 12, after the package and its final validation in Phase 11): an alpha, then a beta, each a GitHub pre-release for one month and until its open bugs are fixed; then `v1.0.0`, on GitHub and the AUR.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.
 

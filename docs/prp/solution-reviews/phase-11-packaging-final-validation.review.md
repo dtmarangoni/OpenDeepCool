@@ -194,48 +194,89 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 ### P11-03: Manifest-driven deletion
 
 - **Recommendation:** an allow-list of the dev copy's paths and kinds; refuse and report anything else; never `rm -r` a path from the manifest; a test with a hostile manifest in the container.
+- **Outcome (2026-10-27):** accepted.
+  - Mostly settled with P4-08: its manifest check refuses an empty line, `/`, a `..` component or any path outside the dev locations before anything is removed, and Task 3 has a hostile-manifest case.
+  - Added: entries are removed one at a time, never recursively (`rm` for a file or link, `rmdir` for an empty directory), and each removal is printed.
+
+  Phase 11 plan (Recommendation, `post_install`).
 
 ### P11-04: Waiting inside `pacman`
 
 - **Recommendation:** `--no-block`, plus the one-shot timeouts of P6-03.
 - **Outcome (2026-10-26):** partly applied. The install hook starts the service with `--no-block` (OV-02); the one-shot timeouts wait for OV-12 (P6-03).
+- **Outcome (2026-10-27):** the rest settled with P6-03: the detection has a 120 s start timeout and the rank helper 30 s, and Task 3 checks both units.
 
 ### P11-05: Upgrades
 
 - **Recommendation:** specify `post_upgrade` (or the hook of fix (b)): make ready, `daemon-reload`, `try-restart` the service. Extend the container's upgrade check to assert the unit's enablement and the settings survive.
 - **Outcome (2026-10-26):** partly applied. The upgrade hook restarts a running service on the new binary (OV-02); the rest waits for OV-18.
+- **Outcome (2026-10-27):** the rest accepted (OV-18).
+  - The upgrade hook also restarts, and the remove hook stops, each logged-in user's audio helper (with P11-20).
+  - Task 3's upgrade check starts from the previous published version, and checks that the enable links, the account, the detection record and `settings.toml` survive.
+  - Correction: nothing runs in the container, so the settings must survive byte for byte. How the service treats a field an older version didn't know is Phase 7's test (P7-12).
+  - A later version that renames or removes a unit or a polkit action cleans up the old one in its upgrade hook, and the upgrade test covers it.
+  - Task 5 adds a real upgrade on the owner's PC: the service and the owner's helper restart on the new binary.
+
+  Phase 11 plan (Recommendation, Tasks 3 and 5, AC2, AC6); PRD (Decisions Log: Audio helpers on upgrade and removal).
 
 ### P11-06: Source authenticity
 
 - **Recommendation:** sign the release tag and build from it with `?signed` and `validpgpkeys`, or publish a signed release asset. Keep the SHA-256 as well.
+- **Outcome (2026-10-27):** rejected (owner): tags aren't signed.
+  - The checksum in the PKGBUILD pins the code, and the same person controls the repository and the AUR, so a signature would stop no attacker the checksum doesn't. Revisit if someone else ever packages it.
+  - The source changes instead, with P11-17: the published tag through git, checked by makepkg over the tag's files. GitHub's generated archive is no longer used, because GitHub may change its compression, with six months' notice (GitHub Docs, read 2026-10-27).
+
+  Phase 11 plan (Task 2, Not building); PRD (Packaging, Decisions Log: Release source).
 
 ### P11-07: Rust packaging
 
 - **Recommendation:** `prepare()` with `cargo fetch --locked --target …`; `build()` and `check()` with `--frozen`; `CARGO_TARGET_DIR=target`; check the declared `rust-version` against Arch's `rust` before release.
+- **Outcome (2026-10-27):** accepted, from Arch's Rust package guidelines as read on 2026-10-27.
+  - `cargo fetch --locked --target host-tuple` in `prepare()`, `--frozen` in `build()` and `check()`, `RUSTUP_TOOLCHAIN=stable` and `CARGO_TARGET_DIR=target`, and no `--release` in `check()`.
+  - Two corrections: the guidelines now write `--target host-tuple`; and their `--all-features` is left out, because it would switch on the weston tests (P10-04).
+  - A test keeps the workspace's `rust-version` at or below Arch's `rust` (`1.99` and `1:1.99.1` on 2026-10-27).
+
+  Phase 11 plan (Task 2).
 
 ### P11-08: `check()`
 
 - **Recommendation:** see P10-04.
+- **Outcome (2026-10-27):** settled with P4-05 and P10-04: the weston tests sit behind their own feature, outside `check()`.
 
 ### P11-09: The untestable start
 
 - **Recommendation:** state the gap; add the static order test; consider one more owner-approved step on the owner's PC: uninstall completely, then install fresh from the AUR, and confirm the service is active with no manual action. That's not a boot, so the no-boot rule holds.
+- **Outcome (2026-10-27):** accepted, wider (owner): a real uninstall and fresh install on the owner's PC before the beta, before `v1.0.0` and before each later AUR release.
+  - It checks that nothing is left, then that the service is active right after the install, with no manual step.
+  - The owner's settings are saved before and set again after, unattended; the test access comes back with one approved step and the next login.
+  - It belongs to the releases, so Phase 12 plans it.
+  - Task 5 still proves a first install too: the dev account is removed before systemd's sysusers hook creates the package's.
+
+  PRD (Phase 12, Decisions Log: Fresh install before releases); Phase 11 plan (Tasks 5 and 6).
 
 ### P11-10: Snapshot noise
 
 - **Recommendation:** an allowed-difference list with reasons, built from the hooks that ran, comparing cache contents rather than ignoring files.
+- **Outcome (2026-10-27):** accepted. The package's runtime dependencies are installed in the test root before the snapshot, so the comparison sees only OpenDeepCool's own changes. Caches that pacman's hooks rebuild are compared by content, and any that still differs is listed with its reason. Phase 11 plan (Task 3).
 
 ### P11-12: Optional dependency
 
 - **Recommendation:** `optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')`.
+- **Outcome (2026-10-27):** accepted. Arch's `nvidia-utils` ships `libnvidia-ml.so` and `libcuda.so` (its file list, read 2026-10-27). Phase 11 plan (Task 2).
 
 ### P11-13: NVIDIA access
 
 - **Recommendation:** cite systemd.resource-control(5); use group names; document "untested on NVIDIA" in the README and the report.
+- **Outcome (2026-10-27):** accepted (OV-15).
+  - The plan now cites systemd.resource-control(5) and uses the `char-<group>` form, which is safe on a PC without NVIDIA's driver. It covers only a driver loaded before the service starts.
+  - The README and the report say NVIDIA support is untested.
+
+  Phase 11 plan (Tasks 1 and 4, Risks).
 
 ### P11-14: Rule 10 beyond commits
 
 - **Recommendation:** see P2-04. Run the sensitive-value check over the release notes and the AUR files before publishing.
+- **Outcome (2026-10-27):** settled with P2-04, which put tags, release notes and the AUR under rule 10, and with the push-time check, which covers tag messages. Added: the release notes are the CHANGELOG's section for the version, so the guard has checked them before they're published (Phase 12). Phase 11 plan (Task 6).
 
 ### P11-15: The full run's duration
 
@@ -244,28 +285,57 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 ### P11-17: Two source modes
 
 - **Recommendation:** document the mechanism (for example a separate local build recipe, or a `git+file://` source that pins the checked-out commit), and make `makepkg` refuse to build a dirty tree unless asked.
+- **Outcome (2026-10-27):** accepted.
+  - The PKGBUILD always builds a published tag through git, so the GitHub way builds exactly what the AUR builds, and there's no `pkgver()` from `git describe`.
+  - A release candidate is built from a temporary copy pinned to the committed HEAD (`git+file://…#commit=…`), and a tree with uncommitted changes is refused.
+
+  Phase 11 plan (Recommendation, Tasks 2 and 3, AC7); PRD (Decisions Log: Release source).
 
 ### P11-18: A leftover drop-in
 
 - **Recommendation:** check it at the next `odc-e2e` start and in the summary, and remove it with the owner's approval.
+- **Outcome (2026-10-27):** accepted. A leftover drop-in is reported at the next run's start and in its summary; that run's own approved step replaces it, and its end removes it. Phase 11 plan (Task 7).
 
 ### P11-19: The oracle generator
 
 - **Recommendation:** commit it before Phase 7 (P3-01). Task 8 then only removes the DeepCreative-reading parts that remain local.
+- **Outcome (2026-10-27):** settled with P3-01: the generator is committed in `tools/oracle/` from Phase 5 Task 0, and the deletion, now Phase 12's, removes only the DeepCreative parts left in `research/hook/`.
 
 ### P11-20: Helpers after uninstall
 
 - **Recommendation:** in the helper, exit when its executable is gone or the service has been absent for some minutes. In `pre_remove`, stop running helpers with `systemctl --user -M <user>@ stop` for each logged-in user, if Task 2 confirms it works.
+- **Outcome (2026-10-27):** accepted, through the hooks (owner; OV-18).
+  - The upgrade hook restarts, and the remove hook stops, each logged-in user's helper with `systemctl --user --machine=<user>@.host`, documented in systemctl(1) (read 2026-10-27).
+  - It's checked on the owner's PC, in Task 5's real upgrade and at the first real uninstall. If it fails there, the owner chooses then between the helper exiting by itself and documenting that an old helper runs until logout.
+  - Correction: since OV-05 the helper waits for events, so after an uninstall it waits idle; it doesn't keep retrying `AttachAudio`. The plan's old fallback, that the helper exits once its unit file is gone, was wrong and has been removed.
+
+  Phase 11 plan (Recommendation, Tasks 2 and 5, Risks).
 
 ### P11-21: Building test crates
 
 - **Recommendation:** `cargo build --frozen --release -p odc-service -p odc-app -p odc-audio -p odc-gpu-rank -p odc-sensors-detect` (the shipped binaries' crates), or `default-members` in the workspace.
+- **Outcome (2026-10-27):** accepted. `build()` names the five shipped crates with `-p`, and `check()` runs the workspace's tests without the three test-only crates; a static test checks the `-p` list against what `package()` installs. Phase 11 plan (Task 2).
+
+### P11-11 and P11-16: findings without a section above
+
+- **P11-11, outcome (2026-10-27):** kept, as the owner requires, with the order fixed: `post_remove` deletes the state directories first, then the account and the group. Phase 11 plan (Recommendation).
+- **P11-16, outcome (2026-10-27):** settled with P3-06: the checklist's OpenDeepCool column says `test`, `replaced` or `device` for every row, and Task 7 uses it.
+
+### Found at the cross-check (2026-10-27)
+
+- **The final run's test access, a gap this review missed.** Task 5's install removed the dev copy, and with it the owner's membership in group `opendeepcool` and the reconnect rule. Task 7 needs both: for the dev interface, the recording and the reconnect test.
+  - **Outcome:** accepted (owner). After the install, one approved step re-adds them (`scripts/dev/setup.sh --test-access`), recorded in the dev manifest, effective from the next login. The run's drop-in also relaxes the recording's modes, and Task 5's start check moves into Task 7's drop-in.
+  - Phase 11 plan (Recommendation, Tasks 5 and 7, AC6, Risks); PRD (Phase 11, dev footprint, Decisions Log: Test access after the package).
+- **Core dumps.** With `panic = "abort"` (OV-03), a crash can leave a core dump, which systemd keeps for two weeks by default.
+  - **Outcome:** accepted with the smaller fixes. The PRD's footprint lists it next to the journal, and the plan's invariant names it.
+- **A privacy slip.** The plan's risk table named the make of a part in the owner's PC.
+  - **Outcome:** fixed in the plan and its HTML companion, which now point at `docs/local/` (rule 10).
 
 ## Questions for the owner
 
-1. Fix the install order through the scriptlet (a) or a shipped post-transaction hook (b) (P11-01)?
-2. Add one "remove everything, install fresh from the AUR" check on the owner's PC (P11-09)?
-3. Sign release tags (P11-06)?
+1. Fix the install order through the scriptlet (a) or a shipped post-transaction hook (b) (P11-01)? **Answered 2026-10-26:** (b), a shipped hook (OV-02).
+2. Add one "remove everything, install fresh from the AUR" check on the owner's PC (P11-09)? **Answered 2026-10-27:** yes, before the beta, before `v1.0.0` and before each later AUR release.
+3. Sign release tags (P11-06)? **Answered 2026-10-27:** no; the checksum only.
 
 ## Sources
 

@@ -1,4 +1,4 @@
-# Phase 11: one PKGBUILD, installed from the AUR or from GitHub, that removes everything it brought, proven in a rootless throwaway container; then the full parity run and v1
+# Phase 11: one PKGBUILD, installed from the AUR or from GitHub, that removes everything it brought, proven in a rootless throwaway container; then the full parity run on the owner's PC
 
 **Plan ID:** `phase-11-packaging-final-validation`
 **Source PRD:** `docs/prp/prds/opendeepcool-lp360.prd.md` (repository-relative: an absolute path would name the owner's home folder, AGENTS.md rule 10)
@@ -6,7 +6,7 @@
 **Source Issue:** `None`
 **Plan Publication:** `None`
 
-> **Changed by the owner on 2026-10-27, not yet planned here:** v1 is released in stages, an alpha, then a beta, then `v1.0.0`, and DeepCreative leaves the owner's PC only once `v1.0.0` is released. The release steps below (Approach → Release, Tasks 6–8, AC6 and AC7) still follow the old order: `v1.0.0` at once, then the deletion. They're planned again once the stages are decided (PRD, Open Questions: Release stages).
+> **Changed by the owner on 2026-10-27:** the releases and DeepCreative's deletion move to a new Phase 12, planned when this phase is done (PRD, Phase 12). The alpha and the beta are GitHub pre-releases, each for one month and until every open bug is fixed; `v1.0.0` then comes out on GitHub and, for the first time, on the AUR. This phase ends with the full parity run on the owner's PC, against the installed package.
 
 ## Outcome
 
@@ -22,24 +22,24 @@
 - **The install message** lists what was enabled and how to turn it off (`systemctl mask`).
 - **Uninstalling:** `pacman -R opendeepcool` removes everything OpenDeepCool installed or created: files, the account and group, enable links, udev access, saved settings, and an lm-sensors configuration that OpenDeepCool's detection created.
 - **The dev copy:** installing the package removes it first.
-- **v1:** the parity checklist runs whole against the installed package, v1 is tagged, published to the AUR, and DeepCreative is deleted from the owner's PC.
+- **The final validation:** the parity checklist runs whole against the package installed on the owner's PC. Phase 12 then releases it in stages and deletes DeepCreative (owner, 2026-10-27).
 
 **Invariant:**
-- **A clean round trip:** install then uninstall leaves the system exactly as it was, every path, owner, mode, account, group and enable link. Only the documented exceptions remain: a loaded sensor driver until the next boot, the journal, pacman's own log and cache.
+- **A clean round trip:** install then uninstall leaves the system exactly as it was, every path, owner, mode, account, group and enable link. Only the documented exceptions remain: a loaded sensor driver until the next boot, the journal, a core dump of an OpenDeepCool program that crashed until systemd cleans it up, pacman's own log and cache.
 - **The same package both ways:** the AUR and the GitHub clone build the identical package from the same PKGBUILD.
 - **No hidden copies:** no dev-copy file survives the package install or hides a packaged one.
 - **Ready after install, no further step:** the service is enabled by symlinks the package ships, and started by the package's post-transaction hook once systemd's hooks have created its account and reloaded systemd, udev and D-Bus (owner, 2026-10-26).
 - **Root trusts no file the service account can change:** the detection's record lives in its own root-only directory, and `post_remove` reads only its yes/no fields (owner, 2026-10-26).
 
-**Success signal:** The checklist is at 100 %, uninstalling leaves nothing behind, and no DeepCreative material is left on the owner's PC (PRD Phase 11).
+**Success signal:** The checklist is at 100 % against the installed package, and uninstalling leaves nothing behind (PRD Phase 11).
 
 **Approach:**
 - **The package:** one PKGBUILD in `packaging/arch/`, plus an `.install` file and three pacman hooks (owner, 2026-10-26; solution review OV-02):
   - the units are enabled by symlinks the package ships under `/usr/lib/systemd/`, which pacman installs and removes;
   - systemd's own pacman hooks create the account and reload systemd, udev and D-Bus;
-  - then the package's post-transaction hook starts the service on install, or restarts it on upgrade; a pre-transaction hook stops it before removal;
+  - then the package's post-transaction hook starts the service on install, or restarts it and the users' audio helpers on upgrade; a pre-transaction hook stops them before removal;
   - `post_install` only removes a dev copy (from its manifest) and prints the message;
-  - `post_remove` deletes the account, the state directories, and what the detection's root-only record says it created.
+  - `post_remove` deletes what the detection's root-only record says it created, the state directories, then the account.
 - **The test:** a small Rust program, `odc-pkg-test`. It builds a throwaway Arch root **rootless**, with `pacstrap -N` and `arch-chroot -N` (unshare mode as a regular user), so no password prompt ever interrupts a run. It then:
   1. snapshots the root;
   2. installs both ways (AUR-style and GitHub-style);
@@ -47,19 +47,19 @@
   4. compares the root with the snapshot.
 
   Nothing is booted (owner, 2026-10-25: no boot testing).
-- **Release:**
-  1. tag `v1.0.0`;
-  2. the PKGBUILD's source is that tag's GitHub archive with its checksum;
-  3. the AUR repository is pushed under the project's no-reply identity;
-  4. the owner's PC moves to the package;
-  5. the full parity run;
-  6. DeepCreative's deletion, from a list the owner confirms.
+- **On the owner's PC:**
+  1. the package, built from the committed release candidate, replaces the dev copy;
+  2. the owner's test access comes back, with one approved step (owner, 2026-10-27);
+  3. a real upgrade restarts the service and the owner's audio helper;
+  4. the full parity run, against the installed package.
+- **The releases** (alpha, beta, `v1.0.0`, the AUR repository) and DeepCreative's deletion belong to Phase 12 (owner, 2026-10-27).
 
 ## Recommendation
 
 **One PKGBUILD, two ways in, one test for both.**
 - **The AUR** holds only a PKGBUILD and `.SRCINFO`, never binaries (AUR submission guidelines, read 2026-10-25: "It does not contain any binary packages").
-- **A GitHub clone** carries the same PKGBUILD in `packaging/arch/`. `makepkg -si` there builds from the working tree (a `pkgver()` from `git describe`), while the AUR's builds from the tagged archive.
+- **A GitHub clone** carries the same PKGBUILD in `packaging/arch/`, so `makepkg -si` there builds exactly what the AUR builds: the latest published tag, fetched through git (owner, 2026-10-27; solution review P11-17). The AUR gets it from `v1.0.0`; the alpha and the beta are installed this way only (Phase 12).
+- **A release candidate,** before its tag exists, is built by the package test from a temporary copy of the PKGBUILD whose source is the local repository at the committed HEAD (`git+file://…#commit=<hash>`). It refuses a tree with uncommitted changes, so no build ever includes them.
 - **One shared file:** both install the same `.install` file and package the same files, so a single file list and a single removal logic serve both.
 - **The name `opendeepcool`** isn't in the official repositories, as the AUR rules require. Because the package builds from source, it takes no `-bin` suffix (AUR submission guidelines).
 
@@ -84,8 +84,11 @@
 
 **Starting, restarting and stopping: three small hooks and one script.**
 - **`/usr/share/libalpm/hooks/opendeepcool-install.hook`:** `Type = Path`, `Operation = Install`, `Target = usr/lib/opendeepcool/opendeepcoold`, `When = PostTransaction`. It runs `/usr/share/libalpm/scripts/opendeepcool-hook start`, which does `systemctl start --no-block opendeepcool.service` unless the unit is masked.
-- **`opendeepcool-upgrade.hook`:** the same, with `Operation = Upgrade`. It runs `opendeepcool-hook restart`, which does `systemctl try-restart --no-block opendeepcool.service`. The new binary runs at once, and a service the user stopped stays stopped.
-- **`opendeepcool-remove.hook`:** `Operation = Remove`, `When = PreTransaction`. It runs `opendeepcool-hook stop` before the files go. It also tries to stop each logged-in user's helper; that mechanism (`systemctl --user -M <user>@ stop`) is unverified, and Task 2 checks it.
+- **`opendeepcool-upgrade.hook`:** the same, with `Operation = Upgrade`. It runs `opendeepcool-hook restart`, which does `systemctl try-restart --no-block opendeepcool.service`, then the same `try-restart` of each logged-in user's audio helper (below). The new binaries run at once, and a service the user stopped stays stopped.
+- **`opendeepcool-remove.hook`:** `Operation = Remove`, `When = PreTransaction`. It runs `opendeepcool-hook stop` before the files go: the service, then each logged-in user's audio helper.
+- **Each logged-in user's helper** (owner, 2026-10-27; solution review P11-05, P11-20): for every user `loginctl list-users` shows, the script runs `systemctl --user --machine=<user>@.host try-restart` or `stop` on `opendeepcool-audio.service`. That's the form systemctl(1) documents for reaching one user's service manager (read 2026-10-27).
+  - Whether it works from a pacman hook is checked on the owner's PC: in Task 5's real upgrade, and at the first real uninstall (Phase 12).
+  - If it doesn't, the owner chooses then between two fallbacks: the helper exits by itself once its program file is replaced or removed; or the docs say that an old helper keeps running until the next login after an upgrade, and waits idle until logout after an uninstall, since it waits for the service rather than exiting (Phase 9).
 - **Order:** "Hooks are run in alphabetical order of their file name" (alpm-hooks(5)).
   - `opendeepcool-…` sorts after systemd's numbered hooks and after `dbus-reload.hook`. So by the time it runs, the account exists, systemd has reloaded, udev has applied and triggered the rule, and the bus has the policy.
   - The Arch article notes that hooks have no documented numbering yet. The service's restart backoff (Phase 7) is the safety net if anything is late.
@@ -95,21 +98,20 @@
 
 **The `.install` file keeps only what is specific to this package:**
 - **`post_install`:**
-  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file). It's the same logic as `scripts/dev/teardown.sh`, which shares the code. The detection's record in `/var/lib/opendeepcool-detect/` isn't in the manifest; the package takes it over.
+  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file), one entry at a time and never recursively: a file or link with `rm`, an empty directory with `rmdir`, each removal printed (solution review P11-03). It's the same logic as `scripts/dev/teardown.sh`, which shares the code. The detection's record in `/var/lib/opendeepcool-detect/` isn't in the manifest; the package takes it over.
   2. Print what is enabled, how to turn it off with `systemctl mask`, and that Music sound starts at each user's next login (owner, 2026-10-25: enable at install, against Arch's convention that "Arch Linux … does not enable most services on installation", Arch Wiki, systemd).
 
   It enables and starts nothing.
-- **`post_upgrade`:** a message only when there's something to say; the upgrade hook restarts the service. Upgrades never delete the account or the settings.
-- **`post_remove`:**
-  - `userdel opendeepcool`, then the group if it's left, because pacman's sysusers hook only creates (Install and Upgrade only, above);
-  - `rm -rf /var/lib/opendeepcool`;
+- **`post_upgrade`:** a message only when there's something to say; the upgrade hook restarts the service and the helpers. Upgrades never delete the account or the settings. A later version that renames or removes a unit or a polkit action cleans up the old one in its upgrade hook, and the upgrade test covers that path (solution review P11-05).
+- **`post_remove`,** files first, then the account, so no file is left owned by a number a later account could be given (solution review P11-11):
   - the detection's record, `/var/lib/opendeepcool-detect/sensors-detect.json`, is read only if it's a regular file owned by root, never a symbolic link (solution review OV-01). From its yes/no fields only:
     - remove `/etc/conf.d/lm_sensors` if `created_conf_d`;
     - remove `/etc/modprobe.d/lm_sensors.conf` if `created_modprobe_d`;
     - disable `lm_sensors.service` unless `lm_sensors_enabled_before`.
 
     No path is ever taken from the record, and a configuration that existed before is never touched;
-  - `rm -rf /var/lib/opendeepcool-detect`.
+  - `rm -rf /var/lib/opendeepcool-detect /var/lib/opendeepcool`;
+  - `userdel opendeepcool`, then the group if it's left, because pacman's sysusers hook only creates (Install and Upgrade only, above).
 
   systemd's hooks then reload systemd, udev (with its trigger) and D-Bus, so the group's device access ends at once. No script re-triggers udev itself.
 
@@ -126,13 +128,17 @@
 
 **The parity run uses the installed package itself.**
 - The packaged binary is the same one the dev copy ran. Its `--dev` switch only turns on the dev interface and the recording (Phase 7).
-- For the final run, a **runtime** drop-in in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` adds `--dev` for the duration. `/run` is gone at the next boot, and the run removes it at the end anyway.
+- For the final run, a **runtime** drop-in in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` adds `--dev` for the duration. If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (Phase 7; solution review P7-09), the drop-in relaxes them as the dev drop-in does, so the tests can read the recording. `/run` is gone at the next boot, and the run removes it at the end anyway.
 - Creating it is the run's one privileged step, approved by the owner with `pkexec` (rule 7). Everything after it is unattended.
+- **The tests' access** (owner, 2026-10-27):
+  - the dev interface checks that the caller is in group `opendeepcool`, and the tests read the recording through that group (Phase 7);
+  - the reconnect test needs the dev reconnect rule (Phase 5);
+  - installing the package removes all of that with the dev copy, so Task 5 puts it back: the owner's account in the package's group and the reconnect rule, recorded in the dev manifest.
 
 ### Evidence
 
 - PRD:
-  - Phase 11 (scope, tests, last step of v1);
+  - Phase 11 (scope, tests) and Phase 12 (the releases, the last step of v1);
   - System Footprint (the finished app's table, "Removed by", and the dev rows);
   - Technical Approach → Packaging (owner, 2026-10-25: AUR plus GitHub, enable at install);
   - Decisions Log (Distribution, Service at install, Boot testing, Uninstall).
@@ -146,6 +152,15 @@
   - minimise custom code in install scripts;
   - enable units by vendor symlinks or presets rather than `systemctl enable` in a script.
 - alpm-hooks(5), read 2026-10-26: "Hooks are run in alphabetical order of their file name, where the ordering ignores the suffix."
+- Read 2026-10-27, at the solution review's cross-check:
+  - systemctl(1): `--user --machine=<user>@.host` connects to that user's service manager;
+  - systemd.resource-control(5): `DeviceAllow=` takes a `char-<group>` name from `/proc/devices`, and groups that don't resolve when the unit starts "are not added";
+  - Arch Linux developer manual, Rust package guidelines: `cargo fetch --locked --target host-tuple` in `prepare()`; `cargo build --frozen --release --all-features`; `cargo test --frozen --all-features`, with `--workspace` in a workspace and without `--release`;
+  - makepkg's own code (`/usr/share/makepkg/source/git.sh`): the checksum of a `#tag=` or `#commit=` git source is taken over `git archive --format tar`;
+  - GitHub Docs, "Downloading source code archives": the compression of generated archives may change, and "GitHub will give at least six months' notice";
+  - `vercmp` on this PC: `1.0.0alpha.2` < `1.0.0alpha.10` < `1.0.0beta.1` < `1.0.0`, while `1.0.0.alpha.1` and `1.0.0_alpha.1` sort after `1.0.0`;
+  - Arch's file list of `nvidia-utils`: it ships `libnvidia-ml.so` and `libcuda.so`;
+  - systemd's tmpfiles rule for `/var/lib/systemd/coredump`: core dumps are removed after two weeks.
 - This PC, 2026-10-25:
   - the systemd pacman hooks listed above, with their targets and operations;
   - `pacstrap -N` and `arch-chroot -N` in their `-h` output;
@@ -169,10 +184,10 @@
 
 ```mermaid
 flowchart LR
-  subgraph repo["Repository (tag v1.0.0)"]
+  subgraph repo["Repository"]
     PB["packaging/arch/PKGBUILD + opendeepcool.install"]
   end
-  PB -->|pushed under the no-reply identity| AUR[("AUR git: PKGBUILD + .SRCINFO")]
+  PB -->|"from v1.0.0, under the no-reply identity (Phase 12)"| AUR[("AUR git: PKGBUILD + .SRCINFO")]
   PB -->|git clone + makepkg -si| GH["GitHub way"]
   AUR -->|AUR helper / git clone + makepkg| AW["AUR way"]
   subgraph test["odc-pkg-test (rootless)"]
@@ -182,7 +197,7 @@ flowchart LR
   end
   AW -.-> I1
   GH -.-> I2
-  PB --> PC["Owner's PC: package replaces the dev copy → start check → full parity run"]
+  PB --> PC["Owner's PC: package replaces the dev copy → test access back → real upgrade → full parity run with the start check"]
 ```
 
 ## Implementation Context
@@ -207,22 +222,24 @@ flowchart LR
 
 - `packaging/arch/`: CREATE, the PKGBUILD and the `.install` file.
 - The service's unit, for NVIDIA device access (below).
+- `scripts/dev/setup.sh`, `install-root.sh`: UPDATE, the `--test-access` mode (Task 5).
 - `README.md` "Installed on your system", install and uninstall sections.
 
 ## Scope
 
 ### In scope
 
-- The PKGBUILD (release build with `cargo build --release --locked`, `check()` running the layer 1 and layer 3 tests that need no hardware and no display), the `.install` file, the three pacman hooks and their script, the enable symlinks, and the final file paths from the footprint.
+- The PKGBUILD (built as Arch's Rust package guidelines say: `cargo fetch --locked` in `prepare()`, `cargo build --frozen --release` of the shipped crates, and `check()` running the layer 1 and layer 3 tests that need no hardware and no display), the `.install` file, the three pacman hooks and their script, the enable symlinks, and the final file paths from the footprint.
 - NVIDIA device access in the unit, from NVIDIA's documentation (Phase 7 deferred it here).
 - `odc-pkg-test`: the rootless container, the snapshot, both install ways, uninstall, the comparison.
 - Install and uninstall documentation; the README footprint.
-- The `v1.0.0` release: tag, checksums, the AUR repository, and the owner's PC on the package.
+- The owner's PC on the package, with its test access back and a real upgrade.
 - The full parity run against the installed package; the Phase 11 report with the checklist at 100 %.
-- DeepCreative's deletion from the owner's PC, from a confirmed list.
 
 ### Not building
 
+- **The releases** (alpha, beta, `v1.0.0`), the AUR repository and DeepCreative's deletion: Phase 12 (owner, 2026-10-27).
+- **Signed tags** (owner, 2026-10-27; solution review P11-06): the checksum in the PKGBUILD pins the code, and the same person controls the repository and the AUR.
 - **Boot tests** of any kind (owner, 2026-10-25).
 - **Official-repository submission** (not possible directly), prebuilt release packages, a non-pacman installer.
 - **Other distributions:** Arch only (PRD).
@@ -234,7 +251,7 @@ flowchart LR
 | Compatibility / migration | The owner's dev copy is removed by `post_install` from its manifest; saved settings in `/var/lib/opendeepcool` are kept by the package (the dev copy used the same state directory and the same `settings.toml` v1), so the owner's choices survive the move |
 | Rollout / reversibility | `pacman -R` undoes the install completely (the test proves it); `scripts/dev/setup.sh` can bring the dev copy back |
 | Observability | The install message lists what was enabled; the journal shows the service from its first start; `pacman -Ql opendeepcool` lists every file |
-| Documentation / communication | README: install from the AUR and from GitHub, uninstall, "Installed on your system" (generated from the same list the test checks); the AUR page's description; the GitHub release notes for v1.0.0 |
+| Documentation / communication | README: install from GitHub, and from the AUR once `v1.0.0` is there; uninstall; "Installed on your system" (generated from the same list the test checks); the AUR page's description, ready for Phase 12. Release notes come with Phase 12's releases |
 
 ## Implementation
 
@@ -257,8 +274,8 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - created at run time: `/var/lib/opendeepcool` (the service's state directory) and `/var/lib/opendeepcool-detect` (root, 0700, the detection's), both removed by `post_remove`;
   - nothing in `/usr/local` (Arch package guidelines) and nothing in `/etc`.
 - **NVIDIA:** from NVIDIA's documentation for the device files NVML opens (`/dev/nvidiactl`, `/dev/nvidia<N>`), the unit adds `DeviceAllow=` entries.
-  - It has to be safe on a PC without them. Which `DeviceAllow` form ignores absent devices (a path, or a `char-<group>` name from `/proc/devices`) is checked against `systemd.exec(5)`.
-  - Unverified on hardware: the owner's PC has no NVIDIA GPU. Phase 6's fake trees and NVML fakes cover the reading. The report says the device access was never exercised.
+  - They use the `char-<group>` form, with the group names NVIDIA's driver registers in `/proc/devices`, taken from NVIDIA's documentation. systemd.resource-control(5) documents the form (read 2026-10-27; solution review P11-13): groups that don't resolve when the unit starts "are not added", so the entries are safe on a PC without NVIDIA's driver. They cover only a driver loaded before the service starts.
+  - Unverified on hardware: no NVIDIA card is available for testing (see `docs/local/`). Phase 6's fake trees and NVML fakes cover the reading. The report and the README say NVIDIA support is untested.
 
 **Validation**
 - `systemd-analyze verify packaging/systemd/*.service` passes; every path in `FILES.md` exists in `packaging/` or is a build output.
@@ -268,10 +285,19 @@ Each task ends with its own commit (rule 4) after its tests pass.
 **Files and integration points**
 - `packaging/arch/PKGBUILD`: CREATE.
   - `pkgname=opendeepcool`, `arch=(x86_64)`, `license=(MIT)`;
-  - `depends=(gtk4 hwdata lm_sensors pipewire-audio polkit dbus systemd)`, `makedepends=(cargo git)`;
-  - `source=` the tag's GitHub archive with `sha256sums`; a `pkgver()` only for a local working-tree build (`git describe`);
-  - `build()` runs `cargo build --release --locked`, `check()` runs `cargo test --frozen --workspace`, the tests that need no hardware and no display (the weston tests stay behind their feature: solution review P4-05, P10-04, P11-08), and `package()` installs `FILES.md`'s list, the two enable symlinks included;
-  - `install=opendeepcool.install`.
+  - `pkgver` is the release's version without its hyphen: `1.0.0-alpha.1` is written `1.0.0alpha.1`, because pacman forbids hyphens. `vercmp` then orders `alpha.2` < `alpha.10` < `beta.1` < `1.0.0` (checked 2026-10-27); a dot or an underscore before `alpha` would sort after `1.0.0`;
+  - `depends=(gtk4 hwdata lm_sensors pipewire-audio polkit dbus systemd)`, `makedepends=(cargo git)`, and `optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')`, the package that ships NVML and CUDA (solution review P11-12);
+  - `source=` the published tag through git, `git+<repository URL>#tag=v<version>`, with the `sha256sums` makepkg computes over the tag's files (`git archive`).
+    - GitHub's generated archive isn't used: GitHub may change its compression, with six months' notice (solution review P11-06, P11-17).
+    - The checksum can't be part of the tag it describes, so the PKGBUILD that carries it is committed after the tag (Phase 12);
+  - the functions follow Arch's Rust package guidelines (solution review P11-07, P11-21), each with `RUSTUP_TOOLCHAIN=stable` and `CARGO_TARGET_DIR=target`:
+    - `prepare()`: `cargo fetch --locked --target host-tuple`;
+    - `build()`: `cargo build --frozen --release`, with `-p` for exactly the five crates whose binaries ship (`odc-service`, `odc-app`, `odc-audio`, `odc-gpu-rank`, `odc-sensors-detect`), so no test-only crate is compiled on a user's PC;
+    - `check()`: `cargo test --frozen --workspace --exclude odc-e2e --exclude odc-ui-e2e --exclude odc-pkg-test`, the tests that need no hardware and no display, without `--release`, as the guidelines advise;
+    - neither uses the guidelines' `--all-features`, which would switch on the weston tests (solution review P4-05, P10-04, P11-08);
+    - `package()` installs `FILES.md`'s list, the two enable symlinks included;
+  - `install=opendeepcool.install`;
+  - no `pkgver()`: a release candidate is built from a temporary copy (Recommendation).
 - `packaging/arch/opendeepcool.install`: CREATE, with `post_install`, `post_upgrade` and `post_remove` as in the Recommendation. There's no `pre_remove`: the remove hook stops the service.
 - `packaging/arch/hooks/opendeepcool-install.hook`, `opendeepcool-upgrade.hook`, `opendeepcool-remove.hook`, and their script `packaging/arch/hooks/opendeepcool-hook`: CREATE, as in the Recommendation.
 - `scripts/dev/lib-manifest.sh`: CREATE, the manifest removal shared by `teardown.sh` and `post_install`. The `.install` file carries a copy, because pacman scriptlets can't source repository files; a test checks the copies are identical. It refuses a malformed manifest before removing anything, with Phase 5's checks (solution review P4-08).
@@ -284,7 +310,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
   It enables and starts nothing: the symlinks enable, and the install hook starts (Recommendation).
 - **Inside a chroot,** the hook script skips its work, as systemd's `systemd-hook` does ("Skipped: Running in chroot", seen in the spike's hook output). Task 3 checks it.
-- **Stopping running helpers in the remove hook:** the per-user mechanism is checked here (`loginctl list-users` plus `systemctl --user -M <user>@ stop`). If it can't stop them, the helpers end on their own: the service is gone, so their pipe closes and `pw-record` exits (Phase 9), and the helper exits when its unit file is gone at the next login. The report says so.
+- **The helpers in the upgrade and remove hooks:** `loginctl list-users`, then `systemctl --user --machine=<user>@.host` for each (Recommendation). The container has no user manager, so it can't show this; Task 5 checks it on the owner's PC.
 - **`namcap` on the PKGBUILD and the built package:** no errors. Each warning is explained in the report.
 
 **Tests**
@@ -293,7 +319,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
 - Static checks:
   - no scriptlet contains `systemctl enable`, `disable`, `start` or `restart`;
   - the hooks' file names sort after `dbus-reload.hook` and systemd's numbered hooks;
-  - the two symlinks point at their units.
+  - the two symlinks point at their units;
+  - `build()`'s `-p` list names exactly the crates whose binaries `package()` installs;
+  - the workspace's `rust-version` is at or below the version of Arch's `rust` package (`pacman -Si rust`), so AUR users can build it. It runs in CI's Arch container (solution review P11-07; `1.99` and `1:1.99.1` on 2026-10-27).
 - The two manifest-removal copies are identical, and `.SRCINFO` matches `makepkg --printsrcinfo`.
 
 **Validation**
@@ -307,16 +335,17 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
 **Implementation**
 - **Build:**
-  - `pacstrap -N -c <tmp>/root base base-devel git` (the host's cache; the host's keyring copied, since `-K` fails rootless, spike);
+  - `pacstrap -N -c <tmp>/root base base-devel git`, plus the package's runtime dependencies, so the comparison later sees only OpenDeepCool's own changes (solution review P11-10). It uses the host's cache, and copies the host's keyring, since `-K` fails rootless (spike);
   - the root bind-mounted on itself inside the namespace, because `arch-chroot` warns when the root isn't a mount point (spike);
   - a build user created inside.
 - **Snapshot:** every path under the root, with its type, mode, owner, group, size, link target and a SHA-256 of regular files, plus `getent passwd`, `group`, `shadow` and `gshadow`, and `find /etc/systemd -type l`.
 - **The AUR way:**
-  - before publication, from a local bare git repository holding exactly the files the AUR will hold (`PKGBUILD`, `.SRCINFO`, `opendeepcool.install`, `LICENSE`);
-  - after publication (Task 6), from `https://aur.archlinux.org/opendeepcool.git`;
+  - before publication, from a local bare git repository holding exactly the files the AUR will hold (`PKGBUILD`, `.SRCINFO`, `opendeepcool.install`, `LICENSE`), its PKGBUILD pointed at the candidate in the same way as the GitHub way's;
+  - after publication (Phase 12, from `v1.0.0`), from `https://aur.archlinux.org/opendeepcool.git`;
   - in both cases: `git clone`, then `makepkg -si --noconfirm` as the build user.
 - **The GitHub way:**
-  - a clone of the repository (the working tree before the release, the `v1.0.0` tag after it);
+  - before a tag exists, the release candidate: the temporary copy of the PKGBUILD pinned to the committed HEAD (Recommendation); a tree with uncommitted changes is refused;
+  - from Phase 12's first tag, a clone of `main`, whose PKGBUILD builds the latest published tag;
   - `makepkg -si --noconfirm` in `packaging/arch/`.
 - **After each install:**
   - every path of `FILES.md` exists with its owner and mode;
@@ -334,9 +363,11 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - the build user's home and the build directory, which are removed and checked;
   - the `-` backup files `passwd-`, `group-`, `shadow-` and `gshadow-`, whose content must equal the snapshot's originals;
   - the packages makepkg installed as build dependencies, which are removed with `pacman -Rns` and checked;
-  - `lm_sensors` and the other runtime dependencies, which are removed with `pacman -Rs` only when the test installed them.
+  - caches that pacman's hooks rebuild, such as the icon theme cache and the desktop database: compared by content after both runs rebuilt them, and one that still differs is listed with its reason (solution review P11-10).
   - Any other difference fails with a diff.
-- **Upgrade check:** install v(n), then v(n+1), and the account and `settings.toml` survive. v(n+1) is a test build with a raised `pkgrel`.
+- **Upgrade check** (solution review P11-05): install the previous published version, then the candidate; before Phase 12's first tag, the candidate, then the same build with a raised `pkgrel`.
+  - The enable links, the account, the detection record and `settings.toml` survive.
+  - The settings file survives byte for byte, since nothing runs in the container to rewrite it. How the service treats a field an older version didn't know is Phase 7's test (P7-12).
 - **The lm-sensors case:** with a made-up record in `/var/lib/opendeepcool-detect/sensors-detect.json` saying OpenDeepCool's detection created `/etc/conf.d/lm_sensors`, uninstall removes it. With the file present before install, uninstall leaves it untouched.
 - **A forged record** (solution review OV-01): a record that is a symbolic link, isn't owned by root, or has an unknown or path-valued field makes uninstall remove nothing it names.
 - **Fake mode:** `container` Absent fails with the fix ("enable unprivileged user namespaces and subordinate IDs, or install arch-install-scripts"). No fallback, because a package test needs a system to install into.
@@ -348,53 +379,66 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
 **Files and integration points**
 - `README.md`:
-  - Install: AUR (`yay -S opendeepcool` or any helper), or GitHub (`git clone …; cd OpenDeepCool/packaging/arch; makepkg -si`);
+  - Install: from GitHub (`git clone …; cd OpenDeepCool/packaging/arch; makepkg -si`), and from the AUR (`yay -S opendeepcool` or any helper) once `v1.0.0` is published (Phase 12);
   - Uninstall: `sudo pacman -R opendeepcool`;
   - "Installed on your system": generated from `FILES.md` by a small script, so it can't drift;
   - what the install enables and how to disable it;
-  - that, on a PC with no lm-sensors configuration and no fan reading yet, installing runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02).
+  - that, on a PC with no lm-sensors configuration and no fan reading yet, installing runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02);
+  - that NVIDIA support is untested on real hardware (solution review P11-13, OV-15).
 - `packaging/arch/README` for the AUR page: a short description, the same note about `sensors-detect`, and a link to the repository.
-- `AGENTS.md` Commands: `--only package`, and the release steps (Task 6).
+- `AGENTS.md` Commands: `--only package`. The release steps come with Phase 12.
 
 **Validation**
 - The script regenerating "Installed on your system" changes nothing (a test).
 
 ### 5. The owner's PC moves to the package
 
+**Files and integration points**
+- `scripts/dev/setup.sh`, `install-root.sh`: UPDATE, a `--test-access` mode (owner, 2026-10-27).
+  - It adds the owner's account to the package's group and installs the reconnect rule (`71-opendeepcool-dev-reconnect.rules`).
+  - It records only those two entries, in a new dev manifest. There's no group entry, because the group belongs to the package, so `teardown.sh` never deletes it.
+
 **Implementation** (owner approves each privileged step, rule 7)
-1. Build the package from the release candidate.
-2. `sudo pacman -U` it. `post_install` removes the dev copy from its manifest, including the owner's dev group membership (PRD dev footprint), and keeps `/var/lib/opendeepcool` with the owner's settings. The detection's record in `/var/lib/opendeepcool-detect/` is taken over too.
-3. Right after `pacman -U` returns, with no manual step, `systemctl is-active opendeepcool.service` is `active`. That proves the install hook ran after systemd's hooks, which the container can't show.
-4. Check that nothing from the manifest remains, that `pacman -Qk opendeepcool` is clean, and that the start check passes against the packaged service (Phase 7, no reboot).
-5. The UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so it runs within Task 7's runtime drop-in.
+1. Build the package from the release candidate (the temporary PKGBUILD pinned to the committed HEAD, Task 2).
+2. `sudo pacman -U` it. `post_install` removes the dev copy from its manifest, including the dev account and group and the owner's membership (PRD dev footprint), and keeps `/var/lib/opendeepcool` with the owner's settings. The detection's record in `/var/lib/opendeepcool-detect/` is taken over too.
+3. Right after `pacman -U` returns, with no manual step:
+   - `systemctl is-active opendeepcool.service` is `active`;
+   - `GetState` from the owner's session shows the cooler connected and the saved mode.
+
+   The dev account was removed in step 2, so systemd's sysusers hook created the package's. This proves on a real system that the install hook ran after systemd's hooks, which the container can't show. Neither check needs the test access.
+4. Check that nothing from the manifest remains and that `pacman -Qk opendeepcool` is clean.
+5. **The test access comes back** (owner, 2026-10-27): `scripts/dev/setup.sh --test-access`, one `pkexec` step. It takes effect at the owner's next login, which the rest of this phase waits for.
+6. **A real upgrade,** after that login: the same candidate with a raised `pkgrel`.
+   - The upgrade hook restarts the service and the owner's audio helper on the new binary: their main PIDs change, and the settings survive.
+   - This checks the per-user `systemctl --user --machine=<user>@.host` from a real hook (Recommendation). If it fails, the owner chooses the fallback before Task 7.
+7. The start check reads the recorded frames, and the UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so both run within Task 7's runtime drop-in.
 
 **Validation**
 - `pacman -Qk opendeepcool` reports no missing files.
-- The start check passes.
-- No path from the old manifest exists.
+- The service was active right after the install, with the cooler connected.
+- No path from the old manifest exists; the new dev manifest lists only the membership and the reconnect rule.
+- After the upgrade, the service's and the helper's main PIDs changed.
 
-### 6. Release v1.0.0 and the AUR repository
+### 6. Moved to Phase 12: the releases
 
-> Changes with the release stages (owner, 2026-10-27; see the note at the top).
-
-**Implementation**
-- **Version:** `1.0.0` in the workspace, and `CHANGELOG.md` written.
-- **On `main`** (after Phase 4's flow: phases merged, pushed): tag `v1.0.0`, pushed over HTTPS with the gh login (see `docs/local/`).
-- **The PKGBUILD:** `source=` the tag's archive, `sha256sums` from the downloaded archive, then `.SRCINFO` regenerated and committed.
-- **The AUR (outward-facing; the owner confirms first):**
+The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 12). Its plan, written when this phase is done, takes over what this task held:
+- the versions (`1.0.0-alpha.N`, `1.0.0-beta.N`, `1.0.0`), `CHANGELOG.md` and the tags on `main`, pushed only with the owner's explicit OK, over HTTPS with the gh login (see `docs/local/`);
+- the alpha and the beta as GitHub pre-releases, each for one month and until every open bug is fixed with its test; then `v1.0.0` on GitHub and the AUR;
+- after each tag, the PKGBUILD's checksum committed and `.SRCINFO` regenerated;
+- the release notes are the CHANGELOG's section for the version, so the guard has checked them before they're published (solution review P11-14);
+- the AUR repository, from `v1.0.0` (outward-facing; the owner confirms first):
   - the owner's AUR account and SSH key, set up by the owner;
-  - a new git repository with `user.name` and `user.email` set to the project's no-reply identity in that repository only (AUR guidelines: commits carry the global identity otherwise; rule 10);
-  - push of `PKGBUILD`, `.SRCINFO`, `opendeepcool.install`, `LICENSE`, after the AUR repository's commits pass the same identity and value checks as the main repository's push-time check (owner, 2026-10-27; solution review P2-04).
-- **Then** the Task 3 test runs again against the real AUR and the real tag clone.
-
-**Validation**
-- The AUR page shows `opendeepcool 1.0.0-1`.
-- `odc-e2e --only package --require container` passes against the published AUR package and the tag.
+  - `user.name` and `user.email` set to the project's no-reply identity in that repository only (AUR guidelines: commits carry the global identity otherwise; rule 10);
+  - its commits pass the same identity and value checks as the main repository's push-time check (owner, 2026-10-27; solution review P2-04);
+- before the beta, before `v1.0.0` and before each later AUR release, a real uninstall and fresh install on the owner's PC (owner, 2026-10-27; solution review P11-09);
+- Task 3's package test against each published tag, and against the AUR from `v1.0.0`.
 
 ### 7. The full unattended parity run against the installed package
 
 **Implementation**
-1. The owner approves one `pkexec` step that writes the runtime drop-in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` (adds `--dev`) and restarts the service.
+1. The owner approves one `pkexec` step that writes the runtime drop-in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` and restarts the service. The drop-in adds `--dev` and relaxes the recording's modes as the dev drop-in does.
+   - A drop-in left by an earlier run that was killed is reported at start and in the summary, and this step replaces it (solution review P11-18).
+   - The tests use the owner's test access from Task 5.
 2. **The whole `odc-e2e`, every area, every `--require` that applies on the owner's PC** (the list in `docs/local/`):
    - device (start-up, reconnect, and `reset`, the device side of the wake-up from standby);
    - sensors;
@@ -409,40 +453,37 @@ Each task ends with its own commit (rule 4) after its tests pass.
 **Validation**
 - The run passes. The Phase 11 report holds the checklist table at 100 % and every area's summary.
 
-### 8. DeepCreative leaves the owner's PC, and v1 is closed
-
-> Now comes only after the `v1.0.0` release, which follows an alpha and a beta (owner, 2026-10-27; see the note at the top).
+### 8. Phase 11 closes
 
 **Implementation**
+- The Phase 11 report, with the checklist table at 100 % and every area's summary.
+- The PRD table at `complete` through Phase 11, via `/prp-core:prp-prd-update`.
+
+**Moved to Phase 12, after `v1.0.0`** (owner, 2026-10-27): DeepCreative leaves the owner's PC. What this plan had worked out, for Phase 12's plan:
 - **The list** (owner, 2026-10-23: the owner confirms it before anything is deleted):
-  - `research/wine/`;
-  - `research/app/`;
-  - `research/static/`, `research/tools-static/`;
+  - `research/wine/`, `research/app/`, `research/static/` and `research/tools-static/`;
   - the captures in `research/logs/`;
   - the hooks that only work with DeepCreative in `research/hook/`;
   - `research/downloads/`, including the installer copy;
   - any DeepCreative path outside `research/` that `docs/local/` names.
-  - It's printed with sizes, and nothing is deleted until the owner says yes.
-- **Kept, because they're our own and work without DeepCreative:**
-  - the oracle generator, already in the repository, in `tools/oracle/`, since Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01, P11-19). This task deletes only what's left of it in `research/hook/`: `render-check.py`'s DeepCreative renderer and the capture checks.
-  - So the expected frames stay reproducible after DeepCreative is gone.
+
+  It's printed with sizes, and nothing is deleted until the owner says yes.
+- **Kept:** the oracle generator, in the repository in `tools/oracle/` since Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01, P11-19). Only what's left of it in `research/hook/` goes: `render-check.py`'s DeepCreative renderer and the capture checks. So the expected frames stay reproducible after DeepCreative is gone.
 - **Records:** the PRD's dev footprint rows for Wine, the prefix and the research workspace are marked removed, with the date.
-- **Phase 11's report;** the PRD table at `complete` through Phase 11, via `/prp-core:prp-prd-update`.
+- **Checks:** `du -sh research` shows only what the owner chose to keep, and `find ~ -iname '*deepcreative*'` prints nothing outside it.
 
 **Validation**
-- `du -sh research` shows only what the owner chose to keep.
-- `find ~ -iname '*deepcreative*'` prints nothing outside what was kept.
-- The PRD table shows every phase complete.
+- The PRD table shows Phases 1–11 complete, and Phase 12 next.
 
 ## Acceptance
 
-1. **AC1 — Installs from the AUR and from GitHub:** both ways build the same package and install every file of `FILES.md` with its owner and mode; the service is enabled by the package's symlinks and started by its install hook on a real system, after systemd's hooks; the audio helper is enabled for all users; the message says how to turn them off (Tasks 2, 3, 5, 6).
-2. **AC2 — Uninstall leaves nothing:** after install and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the account and settings; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 3).
+1. **AC1 — Installs both ways:** the AUR way (from a local copy of the files the AUR will hold) and the GitHub way build the same package and install every file of `FILES.md` with its owner and mode; the service is enabled by the package's symlinks and started by its install hook on a real system, after systemd's hooks; the audio helper is enabled for all users; the message says how to turn them off (Tasks 2, 3, 5).
+2. **AC2 — Uninstall leaves nothing:** after install and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the enable links, the account, the detection record and the settings; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 3).
 3. **AC3 — The dev copy disappears:** installing the package removes every path of the dev manifest, in the container and on the owner's PC, and keeps the owner's settings (Tasks 3, 5).
-4. **AC4 — Packaging rules:** nothing in `/usr/local` or `/etc`; `namcap` reports no errors; `.SRCINFO` is current; the AUR repository holds no binaries and no personal identity (Tasks 1, 2, 6).
+4. **AC4 — Packaging rules:** nothing in `/usr/local` or `/etc`; `namcap` reports no errors; `.SRCINFO` is current; the files for the AUR hold no binaries and no personal identity (Tasks 1, 2).
 5. **AC5 — Parity at 100 %:** the full unattended run passes against the installed package; every checklist row is proven by a test, replaced by a recorded owner decision, or the cooler's own behaviour (its OpenDeepCool column); the runtime drop-in is gone afterwards (Task 7).
-6. **AC6 — v1 released:** `v1.0.0` tagged and pushed, the AUR package published, both ways tested against the published sources (Task 6).
-7. **AC7 — DeepCreative gone:** after the owner confirms the list, no DeepCreative material is left on the owner's PC, and the expected frames are still reproducible from committed tools (Task 8).
+6. **AC6 — Test access and a real upgrade:** after the package replaces the dev copy, the owner's test access is back, recorded in the dev manifest, and a real upgrade restarts the service and the owner's audio helper on the new binary (Task 5).
+7. **AC7 — Only committed code is built:** the PKGBUILD builds a published tag the same way both ways, a release candidate only from the committed HEAD, and a tree with uncommitted changes is refused (Tasks 2, 3).
 8. **AC8 — Records:** README install, uninstall and footprint sections, `FILES.md`, the PRD footprint and table, AGENTS.md Commands, and the Phase 11 report match what was built (Tasks 1, 4, 8).
 
 ## Validation
@@ -452,10 +493,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
 | Unit files | `systemd-analyze verify packaging/systemd/*.service` | AC4 |
 | Package build | `makepkg -f` in `packaging/arch/`; `namcap PKGBUILD *.pkg.tar.zst` | AC1, AC4 |
 | Package test (rootless) | `cargo run -p odc-e2e -- --only package --require container` | AC1, AC2, AC3 |
-| Owner's PC | `pacman -Qk opendeepcool`; the start check | AC3 |
-| Full parity run | the whole `odc-e2e` with the owner's `--require` list, within the runtime drop-in | AC5 |
-| Release | AUR page shows 1.0.0-1; the package test against the AUR and the tag | AC6 |
-| Cleanup | the confirmed deletion list; `du -sh research` | AC7 |
+| Owner's PC | `pacman -Qk opendeepcool`; active and connected right after the install; the new dev manifest; a real upgrade | AC1, AC3, AC6 |
+| Full parity run | the whole `odc-e2e` with the owner's `--require` list, within the runtime drop-in, the start check included | AC5 |
+| Candidate builds | a tree with uncommitted changes is refused; the GitHub way and the AUR copy build the same package | AC7 |
 | CI | GitHub Actions: build, layers 1 and 3, `makepkg` and `namcap` in an `archlinux` container | AC4 |
 
 ## Risks and Decisions
@@ -465,19 +505,21 @@ Each task ends with its own commit (rule 4) after its tests pass.
 | AUR plus GitHub clone, tested in a container; enable at install; no boot tests (owner, 2026-10-25) | Done: the PRD records them | Decisions Log | — |
 | Enabling at install goes against Arch convention; AUR users may comment | Keep (owner); enabled declaratively by symlinks, as Arch's dev blog suggests; the install message says how to turn it off (`systemctl mask`) | Arch Wiki, systemd; Arch dev blog, 2026 | Users might ask for a no-enable option later |
 | Hook order rests on file names (alpm has no documented numbering yet) | Names that sort after systemd's numbered hooks and `dbus-reload.hook`. The service's restart backoff (Phase 7) recovers if anything is late, and Task 5 proves the order on a real system (owner, 2026-10-26) | alpm-hooks(5); Arch dev blog, 2026 | A start before the policies exist would only delay the service by a restart or two |
-| Stopping every user's running audio helper from the remove hook | Try the per-user stop; otherwise the helpers end with the service's pipe, and the report says so | Phase 9: the helper exits when `pw-record` ends | A helper process lingers until logout |
-| NVIDIA device access can't be tested on the owner's PC | From NVIDIA's documentation and `systemd.exec(5)`; never exercised, and the report says so | Owner's GPU is AMD (see `docs/local/`) | An NVIDIA user might see GPU metrics unavailable until fixed |
+| Restarting and stopping each user's audio helper from the hooks | `systemctl --user --machine=<user>@.host`, checked on the owner's PC in Task 5; if it fails there, the owner chooses between the helper exiting by itself and documenting it (owner, 2026-10-27) | systemctl(1), read 2026-10-27; Phase 9: the helper waits for the service | An old helper runs until the next login after an upgrade, or waits idle until logout after an uninstall |
+| The tests' access once the package replaces the dev copy | Re-added by one approved step, effective from the next login (owner, 2026-10-27) | The dev interface checks the caller's group; the reconnect test needs the dev rule (Phases 5, 7) | Without it, Task 7 can't reach the dev interface, the recording or the reconnect switch |
+| The source is a published tag through git, not GitHub's generated archive, and unsigned | makepkg's checksum over the tag's files (owner, 2026-10-27; solution review P11-06, P11-17) | makepkg's `git.sh`; GitHub Docs | A checksum over GitHub's archive would break when GitHub changes its compression |
+| NVIDIA device access can't be tested here | From NVIDIA's documentation and systemd.resource-control(5); never exercised, and the report and the README say so | See `docs/local/` | An NVIDIA user might see GPU metrics unavailable until fixed |
 | The oracle generator in the public repository | Decided: committed in Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01) | It reads only the spec; the parts that read captures stay local | — |
 | The final run needs one privileged step | One `pkexec` for the runtime drop-in, approved by the owner; `/run` vanishes at reboot anyway | Rule 7 | — |
 
 ## Related Plans
 
 - **Depends on:** the Phase 8, 9 and 10 plans, and through them Phases 5–7.
-- **Followed by:** none. v1 ends here.
+- **Followed by:** Phase 12, the releases and DeepCreative's deletion, planned when this phase is done (owner, 2026-10-27).
 
 ## Agent Notes
 
 - Never push to the AUR or tag a release without the owner's explicit OK in that session (outward-facing).
 - The AUR repository's git identity is the project's no-reply one, set in that repository only. Never the owner's personal identity (rule 10).
 - Nothing from `docs/local/` goes into `FILES.md`, the PKGBUILD or the AUR files.
-- Deleting DeepCreative is irreversible; show the exact list with sizes and wait for the owner's yes.
+- Deleting DeepCreative is Phase 12's, and irreversible: show the exact list with sizes and wait for the owner's yes.
