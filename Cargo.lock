@@ -185,12 +185,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "odc-dev"
+version = "0.0.0"
+dependencies = [
+ "odc-device",
+ "odc-manifest",
+ "odc-testkit",
+]
+
+[[package]]
 name = "odc-device"
 version = "0.0.0"
 dependencies = [
  "odc-protocol",
  "odc-testkit",
 ]
+
+[[package]]
+name = "odc-manifest"
+version = "0.0.0"
 
 [[package]]
 name = "odc-oracle"

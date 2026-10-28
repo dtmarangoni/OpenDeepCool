@@ -1,0 +1,15 @@
+[package]
+name = "odc-dev"
+description = "Installs, checks and removes OpenDeepCool's development setup; dev-only"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+odc-device = { path = "../../crates/odc-device" }
+odc-manifest = { path = "../../crates/odc-manifest" }
+odc-testkit = { path = "../../crates/odc-testkit" }
+
+[lints]
+workspace = true

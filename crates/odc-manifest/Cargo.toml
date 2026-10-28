@@ -1,0 +1,10 @@
+[package]
+name = "odc-manifest"
+description = "The development setup's manifest: what it created, checked whole, and removed exactly"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

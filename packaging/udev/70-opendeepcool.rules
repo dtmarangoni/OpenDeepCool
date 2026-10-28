@@ -1,0 +1,3 @@
+# OpenDeepCool: the opendeepcool group may write to the DeepCool LP360's display,
+# the hidraw node of USB device 3633:000c, on any port.
+SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3633", ATTRS{idProduct}=="000c", GROUP="opendeepcool", MODE="0660"

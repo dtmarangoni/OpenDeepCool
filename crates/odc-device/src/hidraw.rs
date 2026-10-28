@@ -84,19 +84,46 @@ fn open_node(path: &Path) -> io::Result<File> {
     OpenOptions::new().write(true).open(path)
 }
 
-impl Connector for HidrawConnector {
-    type Transport = HidrawTransport;
+/// The LP360's hidraw node.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HidrawNode {
+    /// `hidrawN`.
+    pub name: String,
+    /// The device file, `<dev>/hidrawN`.
+    pub dev: PathBuf,
+    /// Its sysfs entry, `<sysfs>/class/hidraw/hidrawN`.
+    pub sysfs: PathBuf,
+}
 
-    /// The lowest-numbered LP360, compared as numbers so `hidraw9` comes before `hidraw10`
+impl HidrawConnector {
+    /// The lowest-numbered LP360 node, compared as numbers so `hidraw9` comes before `hidraw10`
     /// (solution review P5-10). Several LP360s on one PC are out of scope.
-    fn connect(&mut self) -> Result<Option<HidrawTransport>, OpenError> {
+    pub fn find(&self) -> Result<Option<HidrawNode>, OpenError> {
         let Some(number) = self.matching_nodes()?.into_iter().min() else {
             return Ok(None);
         };
-        let path = self.dev.join(format!("hidraw{number}"));
-        match open_node(&path) {
+        let name = format!("hidraw{number}");
+        Ok(Some(HidrawNode {
+            dev: self.dev.join(&name),
+            sysfs: self.sysfs.join("class/hidraw").join(&name),
+            name,
+        }))
+    }
+}
+
+impl Connector for HidrawConnector {
+    type Transport = HidrawTransport;
+
+    fn connect(&mut self) -> Result<Option<HidrawTransport>, OpenError> {
+        let Some(node) = self.find()? else {
+            return Ok(None);
+        };
+        match open_node(&node.dev) {
             Ok(file) => Ok(Some(HidrawTransport(file))),
-            Err(error) => Err(OpenError { path, error }),
+            Err(error) => Err(OpenError {
+                path: node.dev,
+                error,
+            }),
         }
     }
 }

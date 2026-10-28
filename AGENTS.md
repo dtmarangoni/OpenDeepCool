@@ -122,7 +122,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/reference/vendor/` | Vendor manuals: **local only, git-ignored**; see `docs/reference/README.md` |
 | `research/` | Research workspace (Wine prefix, extracted DeepCreative, captures, screenshots, research tools): **local only, git-ignored** |
 | `Cargo.toml`, `crates/` | The Rust workspace and the program's crates: `odc-protocol` (frames, rotation, the reports), `odc-device` (the LP360 adapter) and `odc-testkit` (test support, only ever a dev-dependency). Later phases add theirs |
-| `tools/` | Dev-only Rust programs, never shipped: `oracle/` (`odc-oracle`) writes the expected frames of `docs/spec/frames/` from the spec's rules, sharing no code with the program |
+| `tools/` | Dev-only Rust programs, never shipped: `oracle/` (`odc-oracle`) writes the expected frames of `docs/spec/frames/` from the spec's rules, sharing no code with the program; `dev/` (`odc-dev`) installs, checks and removes the development setup, with the dev-only reconnect rule |
 | `packaging/`, `.github/workflows/` | From Phase 5 (Tasks 8 and 10): the product files (udev rule, system user) and CI; later phases add the units, the policies and the PKGBUILD |
 
 The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`, so plans and reports land in the repository.
@@ -130,6 +130,7 @@ The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`
 ## Commands
 
 - **Toolchain**: `mise install` sets up the Rust version pinned in `mise.toml`, with clippy and rustfmt. Research-only tools, such as Node for `research/hook/*.mjs`, go in the git-ignored `mise.local.toml`.
+- **Development setup** (the cooler's access for the tests, without root): `cargo run -p odc-dev -- setup` installs it with one `pkexec` step, a system change the owner approves first (rule 7); `cargo run -p odc-dev -- check` reports it; `cargo run -p odc-dev -- teardown` removes what its manifest lists.
 - **Expected frames**: `cargo run -p odc-oracle -- docs/spec/frames` rebuilds the files from the spec's rules, and `cargo test -p odc-oracle` fails when a committed file differs from what the oracle draws. A rule change updates the oracle and the files in the same commit.
 - **Build, test, lint, format**, before every commit (the guard runs them from Phase 5 Task 10):
   - `cargo build --workspace`

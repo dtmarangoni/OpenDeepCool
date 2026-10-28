@@ -1,0 +1,3 @@
+# OpenDeepCool, development only, never packaged: the opendeepcool group may switch
+# the LP360's USB connection off and on, for the unattended reconnect test.
+ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="3633", ATTR{idProduct}=="000c", RUN+="/usr/bin/chgrp opendeepcool /sys%p/authorized", RUN+="/usr/bin/chmod g+w /sys%p/authorized"
