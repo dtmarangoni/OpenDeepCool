@@ -2,5 +2,6 @@
 //! picture diff and the capture-log reader that the tests of every phase compare against (PRD,
 //! Testing Strategy).
 
+pub mod capture;
 pub mod diff;
 pub mod expected;
