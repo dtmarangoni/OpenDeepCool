@@ -3,7 +3,7 @@
 **Plan:** [phase-5-device-protocol-core.plan.md](../plans/phase-5-device-protocol-core.plan.md)
 **PRD phase:** 5 — Device & protocol core
 **Branch:** `phase-5-device-protocol-core`
-**Status:** implemented, 2026-10-28; CI passed on the branch after one fix. Waiting for the owner's sign-off, then `main` is fast-forwarded to the branch.
+**Status:** complete, 2026-10-28: CI passed on the branch after one fix, the owner signed the phase off, and `main` was fast-forwarded to the branch (no pull request).
 
 ## Outcome
 
