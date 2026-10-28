@@ -1,0 +1,43 @@
+# OpenDeepCool's CI (Phase 5 plan, Task 10): layers 1 and 3, the dependency audit, the udev rules,
+# and the privacy check, on every push. Every job runs in Arch Linux, the only supported platform
+# (owner, 2026-10-27; solution review P4-05). The actions are pinned to full commit hashes, checked
+# for newer releases at each phase sign-off (AGENTS.md; solution review P5-06).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm git cargo-deny
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      - name: Dependency audit
+        run: cargo deny check
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Lint
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Layers 1 and 3, the expected-frame regeneration check and the guard's tests
+        run: cargo test --workspace
+      - name: udev rules
+        run: udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules tools/dev/reconnect.rules
+
+  privacy:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm git cargo-deny
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      - name: Every commit's identity, and no binary file in the tree
+        run: cargo run --locked -p odc-guard -- history

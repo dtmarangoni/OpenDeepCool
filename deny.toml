@@ -1,0 +1,29 @@
+# cargo-deny's configuration (Phase 5 plan, Task 10; solution review P5-07): RustSec advisories,
+# licences compatible with distributing OpenDeepCool under MIT, crates.io as the only source, and
+# no duplicate versions unless one is allowed below with its reason. CI runs `cargo deny check`.
+
+[graph]
+# Arch Linux on x86_64 is the only platform OpenDeepCool supports.
+targets = ["x86_64-unknown-linux-gnu"]
+
+[advisories]
+# Every vulnerability, unsound and notice advisory is an error; ignore one only with a reason.
+ignore = []
+
+[licenses]
+# Every dependency in the graph offers MIT or Apache-2.0, and one also requires Unicode-3.0
+# (counted with `cargo metadata`, 2026-10-28).
+allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+# The workspace's own crates are path dependencies without a version; they're never published.
+allow-wildcard-paths = true
+# Duplicate versions allowed, one at a time, each with its reason. None yet.
+skip = []
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]

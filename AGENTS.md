@@ -132,8 +132,11 @@ The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`
 - **Toolchain**: `mise install` sets up the Rust version pinned in `mise.toml`, with clippy and rustfmt. Research-only tools, such as Node for `research/hook/*.mjs`, go in the git-ignored `mise.local.toml`.
 - **Development setup** (the cooler's access for the tests, without root): `cargo run -p odc-dev -- setup` installs it with one `pkexec` step, a system change the owner approves first (rule 7); `cargo run -p odc-dev -- check` reports it; `cargo run -p odc-dev -- teardown` removes what its manifest lists.
 - **Expected frames**: `cargo run -p odc-oracle -- docs/spec/frames` rebuilds the files from the spec's rules, and `cargo test -p odc-oracle` fails when a committed file differs from what the oracle draws. A rule change updates the oracle and the files in the same commit.
-- **Build, test, lint, format**, before every commit (the guard runs them from Phase 5 Task 10):
+- **Build, test, lint, format**, before every commit; the guard runs them, with the udev rules check, for any commit that touches code, packaging, the frames, the D-Bus contract, the guard or CI:
   - `cargo build --workspace`
   - `cargo test --workspace`
   - `cargo clippy --workspace --all-targets -- -D warnings`
   - `cargo fmt --all --check`
+- **Commit guard**: `git config core.hooksPath .githooks` once per clone. The hook files start `odc-guard` (`tools/guard/`), which checks every commit and push; CI runs `cargo deny check` and `cargo run -p odc-guard -- history`.
+- **Layer 2, local**, before any commit that touches `odc-protocol`'s encoding: `cargo test -p odc-protocol --test differential_captures -- --ignored --nocapture` (the DeepCreative captures in `research/logs/`).
+- **Layer 4, local, unattended**, before any commit that touches `odc-device` or what it drives: `cargo run -p odc-e2e -- --only device`, with `--require` naming what must run real on this PC (the list is in `docs/local/`). Never with the research rig running.

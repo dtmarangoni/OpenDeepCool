@@ -1,0 +1,3 @@
+#!/bin/sh
+# OpenDeepCool's commit guard is the Rust program in tools/guard/ (AGENTS.md rules 6, 10 and 13).
+exec cargo run --quiet --locked -p odc-guard -- pre-push "$@"

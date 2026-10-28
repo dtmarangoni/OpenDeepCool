@@ -1,16 +1,3 @@
-#!/usr/bin/env bash
-# OpenDeepCool commit-msg guard (AGENTS.md rule 10): rejects a commit message
-# containing a sensitive value listed in the git-ignored docs/local/machine.md.
-set -euo pipefail
-source "$(dirname "$0")/sensitive-values.sh"
-
-values_file=$(mktemp)
-trap 'rm -f "${values_file}"' EXIT
-sensitive_values > "${values_file}"
-[[ -s ${values_file} ]] || exit 0
-
-hit=$(grep -v '^#' "$1" | grep -o -i -F -f "${values_file}" | head -1 || true)
-if [[ -n ${hit} ]]; then
-  echo "Commit rejected: the message contains a sensitive value (\"${hit}\"). Keep such facts in docs/local/machine.md."
-  exit 1
-fi
+#!/bin/sh
+# OpenDeepCool's commit guard is the Rust program in tools/guard/ (AGENTS.md rules 6, 10 and 13).
+exec cargo run --quiet --locked -p odc-guard -- commit-msg "$@"
