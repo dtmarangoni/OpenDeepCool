@@ -59,7 +59,16 @@ Enable the commit guard once per clone. It rejects vendor files, DeepCreative co
 git config core.hooksPath .githooks
 ```
 
-Build and test commands arrive with the Rust workspace (Phase 5).
+Build, test, lint and format the workspace (the commit guard will run the same checks, Phase 5):
+
+```sh
+cargo build --workspace
+cargo test --workspace
+cargo clippy --workspace --all-targets -- -D warnings
+cargo fmt --all --check
+```
+
+`cargo run -p odc-oracle -- docs/spec/frames` rebuilds the expected frames from the spec's rules. The tests on the real cooler need access to it without root; the dev tool `odc-dev` will set that up (Phase 5).
 
 ## License
 

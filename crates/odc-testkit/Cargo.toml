@@ -1,0 +1,13 @@
+[package]
+name = "odc-testkit"
+description = "Test support, only ever a dev-dependency: expected frames, picture diff, capture logs"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+odc-protocol = { path = "../odc-protocol" }
+
+[lints]
+workspace = true
