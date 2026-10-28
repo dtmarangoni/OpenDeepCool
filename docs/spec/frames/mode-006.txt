@@ -1,4 +1,4 @@
-# Mode 6: Load Mode, Combined, GPU / RAM
+# Mode 6: Load · GPU + RAM
 
 ## rotation 0, Gpu usage = 6, Memory Load = 8
 

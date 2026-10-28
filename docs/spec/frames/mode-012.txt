@@ -1,4 +1,4 @@
-# Mode 12: Power Guardian, Combined, CPU / GPU
+# Mode 12: Power · CPU + GPU
 
 ## rotation 0, CPU Power = 5, Gpu power = 9
 

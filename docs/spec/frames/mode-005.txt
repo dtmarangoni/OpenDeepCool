@@ -1,4 +1,4 @@
-# Mode 5: Load Mode, Combined, CPU / RAM
+# Mode 5: Load · CPU + RAM
 
 ## rotation 0, CPU Usage = 3, Memory Load = 8
 

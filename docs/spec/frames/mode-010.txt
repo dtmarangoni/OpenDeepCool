@@ -1,4 +1,4 @@
-# Mode 10: Power Guardian, Separate, CPU
+# Mode 10: Power · CPU
 
 ## rotation 0, CPU Power = 5
 

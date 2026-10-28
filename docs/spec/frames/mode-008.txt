@@ -1,4 +1,4 @@
-# Mode 8: Temperature Guardian, Separate, GPU
+# Mode 8: Temperature · GPU
 
 ## rotation 0, °C, Gpu temperature = 7
 

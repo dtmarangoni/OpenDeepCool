@@ -1,4 +1,4 @@
-# Mode 20: Music Mode, Usage + Spectrum, CPU
+# Mode 20: Music · CPU usage
 
 ## rotation 0, CPU Usage = 3
 

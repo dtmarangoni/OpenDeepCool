@@ -1,4 +1,4 @@
-# Mode 21: Music Mode, Usage + Spectrum, GPU
+# Mode 21: Music · GPU usage
 
 ## rotation 0, Gpu usage = 6
 

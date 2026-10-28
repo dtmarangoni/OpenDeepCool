@@ -1,4 +1,4 @@
-# Mode 2: Load Mode, Separate, GPU
+# Mode 2: Load · GPU
 
 ## rotation 0, Gpu usage = 6
 

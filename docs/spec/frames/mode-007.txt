@@ -1,4 +1,4 @@
-# Mode 7: Temperature Guardian, Separate, CPU
+# Mode 7: Temperature · CPU
 
 ## rotation 0, °C, CPU Temperature = 4
 

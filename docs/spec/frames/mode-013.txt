@@ -1,4 +1,4 @@
-# Mode 13: Music Mode, Full Screen
+# Mode 13: Music · Spectrum
 
 ## rotation 0
 

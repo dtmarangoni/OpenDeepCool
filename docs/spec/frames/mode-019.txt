@@ -1,4 +1,4 @@
-# Mode 19: Music Mode, Temperature + Spectrum, GPU
+# Mode 19: Music · GPU temperature
 
 ## rotation 0, °C, Gpu temperature = 7
 

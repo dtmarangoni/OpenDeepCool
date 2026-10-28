@@ -1,4 +1,4 @@
-# Mode 18: Music Mode, Temperature + Spectrum, CPU
+# Mode 18: Music · CPU temperature
 
 ## rotation 0, °C, CPU Temperature = 4
 

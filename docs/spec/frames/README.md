@@ -16,6 +16,8 @@ Where the two sets of rules agree (for example two-digit usage, or two-digit °C
 - They're in modes 7 and 18 (CPU Temperature 57), modes 8 and 19 (Gpu temperature 7), and mode 9 (both), each in all four rotations.
 - The other 260 cases are unchanged, byte for byte: every other reading is a whole number, and its °F conversion rounds the same either way.
 
+**Titles, 2026-10-28:** each file's first line names the mode as the settings app does, `<group> · <option>`, for example `# Mode 4: Load · CPU + GPU` instead of DeepCreative's "Load Mode, Combined, CPU / GPU" (owner; [design](../../design/settings-app.md)). No picture changed.
+
 ## Format
 
 One file per mode, `mode-NNN.txt`. Each `##` section is one case:

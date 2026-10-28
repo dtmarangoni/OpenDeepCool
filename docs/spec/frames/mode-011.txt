@@ -1,4 +1,4 @@
-# Mode 11: Power Guardian, Separate, GPU
+# Mode 11: Power · GPU
 
 ## rotation 0, Gpu power = 9
 

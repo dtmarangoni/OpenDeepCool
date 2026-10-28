@@ -1,4 +1,4 @@
-# Mode 4: Load Mode, Combined, CPU / GPU
+# Mode 4: Load · CPU + GPU
 
 ## rotation 0, CPU Usage = 3, Gpu usage = 6
 

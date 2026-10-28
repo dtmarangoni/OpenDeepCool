@@ -1,4 +1,4 @@
-# Mode 3: Load Mode, Separate, RAM
+# Mode 3: Load · RAM
 
 ## rotation 0, Memory Load = 8
 

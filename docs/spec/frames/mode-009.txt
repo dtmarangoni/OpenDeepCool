@@ -1,4 +1,4 @@
-# Mode 9: Temperature Guardian, Combined, CPU / GPU
+# Mode 9: Temperature · CPU + GPU
 
 ## rotation 0, °C, CPU Temperature = 4, Gpu temperature = 7
 
