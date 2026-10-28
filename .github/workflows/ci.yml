@@ -39,5 +39,9 @@ jobs:
         with:
           fetch-depth: 0
       - uses: jdx/mise-action@6be3c7ed4c21d4f76b208d351d95aac273ebb76d # v5.2.4
+      # The container runs as root, but the checkout belongs to the runner's user, and git
+      # refuses a repository someone else owns. actions/checkout marks it safe only for itself.
+      - name: Let git read the checkout
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
       - name: Every commit's identity, and no binary file in the tree
         run: cargo run --locked -p odc-guard -- history
