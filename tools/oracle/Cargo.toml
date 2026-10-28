@@ -1,0 +1,10 @@
+[package]
+name = "odc-oracle"
+description = "Writes OpenDeepCool's expected frames (docs/spec/frames/) from the spec's rules alone; dev-only"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true
