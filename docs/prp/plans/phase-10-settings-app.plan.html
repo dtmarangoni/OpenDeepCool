@@ -69,6 +69,7 @@ a { color: var(--accent); }
 
 <h2>The steps</h2>
 <div class="grid">
+  <div class="card" id="S0"><span class="step-n">0</span>The mockup generator becomes a Rust program<div class="files">tools/mockups (odc-mockups) · gen.py · contrast.py · AGENTS.md · settings-app.md</div></div>
   <div class="card" id="S1"><span class="step-n">1</span>Settle the GTK facts the design left unverified<div class="files">settings-app.md</div></div>
   <div class="card" id="S2"><span class="step-n">2</span>The service and the contract gain what the app needs<span class="chip">first test</span><div class="files">odc-ipc · dbus.rs · engine.rs · status.rs · settings.md · dbus.md · README.md</div></div>
   <div class="card" id="S3"><span class="step-n">3</span><code>odc-app</code>: the view model and the theme, pure, and the headless test harness<div class="files">odc-app · weston.rs · fake_service.rs</div></div>
@@ -77,7 +78,7 @@ a { color: var(--accent); }
   <div class="card" id="S6"><span class="step-n">6</span>The Configuration page: rotation, GPU, inputs, Music<div class="files">config_page.rs · dropdowns.rs</div></div>
   <div class="card" id="S7"><span class="step-n">7</span>The theme in the window: Omarchy live, and the default theme<div class="files">theme.rs</div></div>
   <div class="card" id="S8"><span class="step-n">8</span>Layer 4: the real app in headless weston, driven through AT-SPI against a fake service<div class="files">odc-ui-e2e · app.rs</div></div>
-  <div class="card" id="S9"><span class="step-n">9</span>Layer 4, real: the real app against the real dev service, and the dev copy<div class="files">io.github.dtmarangoni.OpenDeepCool.desktop · io.github.dtmarangoni.OpenDeepCool.svg · setup.sh · teardown.sh · check.sh · app.rs</div></div>
+  <div class="card" id="S9"><span class="step-n">9</span>Layer 4, real: the real app against the real dev service, and the dev copy<div class="files">io.github.dtmarangoni.OpenDeepCool.desktop · io.github.dtmarangoni.OpenDeepCool.svg · tools/dev (odc-dev) · app.rs</div></div>
   <div class="card" id="S10"><span class="step-n">10</span>CI and records<div class="files">ci.yml · AGENTS.md · README.md · opendeepcool-lp360.prd.md</div></div>
 </div>
 
@@ -91,7 +92,7 @@ a { color: var(--accent); }
   <div class="card k" id="K6"><dl><dt>Decision or risk</dt><dd>Frames on the system bus</dd><dt>Recommendation</dt><dd>Each <code>Frame</code> is addressed to one authorized watcher (polkit <code>use</code>, the active local session only), never broadcast (owner, 2026-10-26; solution review P10-01)</dd><dt>Evidence / mitigation</dt><dd>D-Bus specification: a unicast signal reaches its destination only; dbus-broker has no eavesdropping</dd><dt>Consequence if different</dt><dd>A broadcast would let any local process follow the picture, and in Music the active user's sound</dd></dl></div>
   <div class="card k" id="K7"><dl><dt>Decision or risk</dt><dd>Hyprland might ignore the window's minimum size when tiling</dd><dt>Recommendation</dt><dd>Task 1 checks; the pages scroll and the tile rows reflow anyway</dd><dt>Evidence / mitigation</dt><dd>Design, Window</dd><dt>Consequence if different</dt><dd>A cramped but working window on very small tiles</dd></dl></div>
   <div class="card k" id="K8"><dl><dt>Concern</dt><dd>Compatibility / migration</dd><dt>Decision and owned work</dt><dd><code>FanInputs</code> and <code>Gpus</code> change shape before any release; <code>busctl</code> examples in the README that read them are updated (Task 2)</dd></dl></div>
-  <div class="card k" id="K9"><dl><dt>Concern</dt><dd>Rollout / reversibility</dd><dt>Decision and owned work</dt><dd>The dev copy gains the app binary, the desktop entry and the icon, all in the manifest; <code>teardown.sh</code> removes them. Each <code>pkexec</code> run is shown to the owner first (rule 7)</dd></dl></div>
+  <div class="card k" id="K9"><dl><dt>Concern</dt><dd>Rollout / reversibility</dd><dt>Decision and owned work</dt><dd>The dev copy gains the app binary, the desktop entry and the icon, all in the manifest; <code>odc-dev teardown</code> removes them. Each <code>pkexec</code> run is shown to the owner first (rule 7)</dd></dl></div>
   <div class="card k" id="K10"><dl><dt>Concern</dt><dd>Observability</dd><dt>Decision and owned work</dt><dd>The app logs to stderr (the journal when started from the launcher): the theme source and every reload, a fallback key by name, the service appearing or vanishing. Never readings or settings values beyond the mode number</dd></dl></div>
   <div class="card k" id="K11"><dl><dt>Concern</dt><dd>Documentation</dd><dt>Decision and owned work</dt><dd>README: starting the app, its two test flags, and the dev footprint; AGENTS.md: the <code>docs/design/</code> folder and the new test commands; PRD System Footprint: the desktop entry, the icon and weston as a dev tool (installed by the owner 2026-10-25, not by OpenDeepCool)</dd></dl></div>
 </div>

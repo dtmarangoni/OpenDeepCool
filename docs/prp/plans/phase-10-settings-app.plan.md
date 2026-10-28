@@ -104,7 +104,7 @@
 ### Evidence
 
 - `docs/design/settings-app.md`: Decisions D1–D8 and the pass-1 answers; Window; Preview column; Display page; Configuration page; Banners; Refresh; States; Theme (how it's applied, tokens, default theme with contrast ratios); Keyboard; Accessible names; What the Phase 10 plan must add to the D-Bus contract; Coverage check; Unverified.
-- `docs/design/mockups/` (14 states) and `docs/design/mockups-src/gen.py` (regenerates them exactly; checked 2026-10-25).
+- `docs/design/mockups/` (14 states) and `docs/design/mockups-src/gen.py` (regenerates them exactly; checked 2026-10-25), which Task 0 ports to Rust.
 - `docs/spec/settings.md` What the settings app must offer:
   - instant apply;
   - no app-only settings;
@@ -181,7 +181,7 @@ flowchart LR
 
 - `odc_ipc`: the new members, and the state-key shape changes of `FanInputs` and `Gpus`. Everything is still `v1`: Phase 10 runs before any release, so nothing outside the repository depends on the old shapes.
 - `odc_render::{picture, music}`: called by the app for the tiles.
-- `scripts/dev/setup.sh`, `teardown.sh`: the app binary, the desktop entry and the icon in the dev copy.
+- `tools/dev/` (`odc-dev`'s `setup`, `teardown`): the app binary, the desktop entry and the icon in the dev copy.
 
 ## Scope
 
@@ -205,7 +205,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Compatibility / migration | `FanInputs` and `Gpus` change shape before any release; `busctl` examples in the README that read them are updated (Task 2) |
-| Rollout / reversibility | The dev copy gains the app binary, the desktop entry and the icon, all in the manifest; `teardown.sh` removes them. Each `pkexec` run is shown to the owner first (rule 7) |
+| Rollout / reversibility | The dev copy gains the app binary, the desktop entry and the icon, all in the manifest; `odc-dev teardown` removes them. Each `pkexec` run is shown to the owner first (rule 7) |
 | Observability | The app logs to stderr (the journal when started from the launcher): the theme source and every reload, a fallback key by name, the service appearing or vanishing. Never readings or settings values beyond the mode number |
 | Documentation | README: starting the app, its two test flags, and the dev footprint; AGENTS.md: the `docs/design/` folder and the new test commands; PRD System Footprint: the desktop entry, the icon and weston as a dev tool (installed by the owner 2026-10-25, not by OpenDeepCool) |
 
@@ -213,10 +213,28 @@ flowchart LR
 
 Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 are each one screen or one feature, so one commit each.
 
+### 0. The mockup generator becomes a Rust program
+
+The design's mockups are rebuilt by a Rust program, like every other tool in the project (owner, 2026-10-28; AGENTS.md rule 13).
+
+**Files and integration points**
+- `tools/mockups/` (`odc-mockups`, `publish = false`): CREATE, ported from `docs/design/mockups-src/gen.py`. `cargo run -p odc-mockups -- <out-dir>` writes the 14 mockups from the states it describes. `app.css` and `app.js` stay in `docs/design/mockups-src/`, as the mockups' own assets.
+- The check `contrast.py` makes becomes a test of `odc-mockups`.
+- `docs/design/mockups-src/gen.py`, `contrast.py`: DELETE, once the port rebuilds every mockup.
+- `AGENTS.md` (Repository layout, Commands) and `docs/design/settings-app.md` (how the mockups are made): UPDATE.
+- The guard's list of paths that trigger the Rust checks (Phase 5 Task 10) gains `docs/design/`, because the tool's tests read it.
+
+**Tests** (`cargo test -p odc-mockups`)
+- Generating in memory gives every file in `docs/design/mockups/`, byte for byte.
+- The palettes' contrast ratios match the design's table: text at least 4.5:1, borders at least 3:1.
+
+**Validation**
+- `cargo test -p odc-mockups` passes, and `git ls-files '*.py'` prints nothing.
+
 ### 1. Settle the GTK facts the design left unverified
 
 **Files and integration points**
-- `docs/design/settings-app.md` and the mockups: UPDATE first, by the `ui-ux-designer` agent: the cooler's "found, but the service can't open it" state (`CoolerState` `no-access`), its banner and its fix (owner, 2026-10-27; solution review P5-02), and a GPU whose kind query failed, listed as unknown with a short note (`query-failed`; solution review P6-07). The States table and AC4 then cover them.
+- `docs/design/settings-app.md` and the mockups (regenerated through `odc-mockups`, Task 0): UPDATE first, by the `ui-ux-designer` agent: the cooler's "found, but the service can't open it" state (`CoolerState` `no-access`), its banner and its fix (owner, 2026-10-27; solution review P5-02), and a GPU whose kind query failed, listed as unknown with a short note (`query-failed`; solution review P6-07). The States table and AC4 then cover them.
 - `docs/design/settings-app.md` "Unverified": UPDATE, each point answered with its source, or the design's fallback chosen.
 - A throwaway gtk4-rs program in the session scratchpad, never committed.
 
@@ -330,7 +348,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - a light theme;
   - no `colors.toml` → the default dark;
   - the CSS contains no `opacity`, no `transition` other than `none`, and no colour literal outside `:root`.
-- **Contrast:** `contrast.py`'s ratios re-computed in Rust for the default palettes match the design's table. A changed palette must keep text 4.5:1 and borders 3:1.
+- **Contrast:** the app's default palettes, checked as `odc-mockups` checks the design's (Task 0), match the design's table. A changed palette must keep text 4.5:1 and borders 3:1.
 - **`Weston`:** starts and stops; a second instance in the same test gets its own socket; a killed test leaves no socket (checked by a child-process test).
 
 **Validation**
@@ -475,7 +493,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 **Files and integration points**
 - `packaging/applications/io.github.dtmarangoni.OpenDeepCool.desktop`: CREATE (`Name=OpenDeepCool`, `Exec=opendeepcool`, `Icon=io.github.dtmarangoni.OpenDeepCool`, `Categories=Settings;HardwareSettings;`).
 - `packaging/icons/io.github.dtmarangoni.OpenDeepCool.svg`: CREATE, our own 14 × 14 dot motif.
-- `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
+- `tools/dev/` (`odc-dev`'s `setup`, `teardown`, `check`): UPDATE.
   - The app goes to `/usr/local/libexec/opendeepcool-dev/opendeepcool`, the desktop entry to `/usr/local/share/applications/` with `Exec` there, and the icon to `/usr/local/share/icons/hicolor/scalable/apps/`.
   - All recorded in the manifest.
 - `crates/odc-e2e/src/app.rs`: UPDATE, the real mode.
@@ -490,7 +508,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - **Attended tour** (optional, never a gate): `odc-e2e --attended --only app` opens the real app on the owner's desktop for a look at both pages in the current theme, and asks for y, n or r.
 
 **Validation**
-- After the owner approves the dev copy update: `scripts/dev/check.sh` exits 0, and the launcher lists OpenDeepCool.
+- After the owner approves the dev copy update: `odc-dev check` exits 0, and the launcher lists OpenDeepCool.
 - `cargo run -p odc-e2e -- --only app --require dev-service,weston`: passes.
 
 ### 10. CI and records
@@ -533,7 +551,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 | Layers 1 + 3 | `cargo test --workspace` (layer 3 starts headless weston itself) | AC2–AC7 |
 | Layer 4, fake service | `cargo run -p odc-e2e -- --only app --require weston` | AC1, AC2, AC4, AC5, AC7 |
 | Layer 4, real (local) | `cargo run -p odc-e2e -- --only app --require dev-service,weston` | AC3, AC8 |
-| Dev copy | `scripts/dev/check.sh`; the launcher lists OpenDeepCool | AC8 |
+| Dev copy | `cargo run -p odc-dev -- check`; the launcher lists OpenDeepCool | AC8 |
 | Attended tour (optional) | `cargo run -p odc-e2e -- --attended --only app` | The owner's own look; never a gate |
 | CI | GitHub Actions, `archlinux` container | Layers 1 and 3, layer 4 against the fake |
 
@@ -556,7 +574,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 
 ## Agent Notes
 
-- Any change to the app's UI updates `docs/design/settings-app.md` and, when a state changes, the mockups through `docs/design/mockups-src/gen.py`, before the code.
+- Any change to the app's UI updates `docs/design/settings-app.md` and, when a state changes, the mockups through `odc-mockups` (`tools/mockups/`, Task 0), before the code.
 - Mode names in the app: Load, Temperature, Power, Music; never "Guardian" or "… Mode" (owner, 2026-10-24).
 - Fixtures use made-up chips, GPU names, PCI IDs and colours. Nothing from `docs/local/` goes into tests or commits (rule 10).
 - The UI tests run headless and never open a window on the owner's desktop, except the optional attended tour.

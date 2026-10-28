@@ -26,12 +26,16 @@
 **Success signal:** All test layers pass unattended, on the real cooler, without root (PRD Phase 5).
 
 **Approach:**
-- A Cargo workspace of three crates:
+- A Cargo workspace, all Rust (owner, 2026-10-28; AGENTS.md rule 13). Three library crates:
   - `odc-protocol`: pure frame, rotation and report code;
   - `odc-device`: the display port, the LP360 hidraw adapter that reconnects, a recorder;
   - `odc-testkit`: dev-only expected-frame loader, picture diff and capture-log reader.
+- Dev-only programs under `tools/`, never shipped:
+  - `odc-oracle` (`tools/oracle/`): the expected-frame generator, rewritten in Rust; it shares no code with the program;
+  - `odc-dev` (`tools/dev/`): installs, checks and removes the dev copies;
+  - `odc-guard` (`tools/guard/`): the commit guard, its push-time check and CI's privacy check.
 - Device I/O is plain `write(2)` on the hidraw node found through sysfs, using only `std`.
-- The udev rule plus the `opendeepcool` group give access. Two dev scripts install and remove the dev copies.
+- The udev rule plus the `opendeepcool` group give access. `odc-dev` installs and removes the dev copies and records them in a manifest. The manifest code is a small library, `odc-manifest`, which the Phase 11 package reuses.
 - GitHub Actions and the pre-commit guard run layers 1 and 3. Layers 2 and 4 run locally, unattended, before each commit that touches them.
 
 ## Recommendation
@@ -54,7 +58,7 @@
 - This avoids DeepCreative's behaviour of three tries, then giving up (`protocol.md` Disconnect and reconnect).
 - **A new conversation on request** (owner, 2026-10-26: OpenDeepCool must be back after standby; solution review P5-05). `reset_connection()` drops the open transport, so the next `show` rescans and sends `03 08` before its frame, even when the device node survived the sleep. Phase 7's device thread calls it after every wake-up (`protocol.md` Standby). Sending `03 08` to a cooler that kept power is what every DeepCreative start does.
 
-**The oracle is the spec, never Rust.**
+**The oracle is the spec, never the code under test.**
 - Encoding is checked against the spec's bit table (`protocol.md` Frame) and the exact start-up bytes (`protocol.md` Start-up command). Locally, it's also checked byte for byte against every captured DeepCreative message: the owner checked those pictures on the cooler in Phase 3.
 - Rotation is checked against the static cases of `docs/spec/frames/mode-001.txt` (`3%` and `42%`, whose `%` glyph shows any wrong turn or mirror).
 - On the real cooler, the recording of what was actually written is decoded and compared with the same expected frames. Nobody looks at the display.
@@ -126,13 +130,19 @@ flowchart LR
     X[expected-frame loader] --> Diff[picture diff]
     Cap[capture-log reader]
   end
+  subgraph tools["tools/ (dev-only programs, new)"]
+    O[odc-oracle: expected frames]
+    G[odc-guard: commit guard]
+    DV[odc-dev: dev copies] --> MF[odc-manifest]
+  end
+  O -->|docs/spec/frames/| X
   R --> L
   T -->|/dev/hidrawN, group opendeepcool| HW[(LP360)]
   Rec --> Diff
   Cap --> D
 ```
 
-Phase 7's device thread will call `DisplayPort::show` with each new frame, once per 100 ms tick; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency.
+Phase 7's device thread will call `DisplayPort::show` with each new frame, once per 100 ms tick; in Phase 5 the tests are the callers. `odc-testkit` is only ever a dev-dependency, and the `tools/` programs never ship.
 
 ## Implementation Context
 
@@ -147,15 +157,15 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 | `docs/spec/settings.md` Start-up | Start-up sequence: `03 08`, then the picture at once |
 | `docs/prp/prds/opendeepcool-lp360.prd.md` Technical Approach (Architecture Notes, Testing Strategy) | Architecture (ports and adapters, display port, access without root) and the four test layers |
 | `AGENTS.md` Rules | Rules 3 (no person), 4 (one commit per implementation), 5, 7, 9, 10, 12 |
-| `.githooks/pre-commit` | The guard this phase extends with fmt, clippy, tests and the udev check, the identity git will record, and binary files; `pre-push` shares its checks |
-| `research/hook/expected-frames.py`, `odc_rules.py`, `render-check.py` (local) | The expected-frame generator Task 0 moves into `tools/oracle/` |
+| `.githooks/pre-commit`, `commit-msg`, `sensitive-values.sh` | The Phase 2 guard, whose checks Task 10 carries into the Rust guard, adding fmt, clippy, tests and the udev check, the identity git will record, binary files and a push-time check |
+| `research/hook/expected-frames.py`, `odc_rules.py`, and the drawing parts of `render-check.py` (local) | The expected-frame generator Task 0 ports to Rust; nothing in `research/` changes |
 | `research/hook/decode-frames.py` `parse` (local) | Our own decoder of the capture format: field layout of each log line |
 
 ### Existing patterns and primitives
 
 - **Device lookup by USB ID:** `research/hook/launch-deepcreative.sh` (local) scans `/sys/class/hidraw/hidraw*/device/uevent` for `HID_ID=0003:00003633:0000000C`. The Rust connector does the same with injectable roots, and parses the three hex fields instead of matching text, so letter case can't matter.
 - **Capture line format:** `<unix ns> <pid> <tid> out <len> <hex>` (`research/hook/hidraw-log.c` header comment, local). The capture-log reader parses this format. The recorder writes a compatible line, `<unix ns> 0 0 out 64 <hex>`, so one reader serves captures and recordings.
-- **Commit guard structure:** `.githooks/pre-commit` collects failures in `fail` and rejects at the end. The Rust checks are appended in the same style.
+- **Commit guard structure:** `.githooks/pre-commit` runs every check, collects the failures in `fail`, and rejects at the end with all of them. The Rust guard keeps that behaviour.
 
 ### Integration points
 
@@ -164,6 +174,8 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 - `odc_testkit::{expected, diff, capture}`: what the renderer tests of Phases 7–9 compare against.
 - `packaging/udev/70-opendeepcool.rules`, `packaging/sysusers/opendeepcool.conf`: the product files Phase 7 (service user) and Phase 11 (package) build on.
 - `.github/workflows/ci.yml`: the CI every later phase relies on.
+- `tools/oracle/` (Phases 7–9 extend it), `tools/dev/` (Phases 6–11 add the files of their dev copies), `tools/guard/`.
+- `crates/odc-manifest`: the dev-copy removal the Phase 11 package's hook program reuses.
 
 ## Scope
 
@@ -172,14 +184,14 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 - The Cargo workspace and its commands: AGENTS.md Commands, README Development.
 - `odc-protocol`: `Frame`, `Rotation`, `Report`, `encode_frame`, `startup_report`, `decode`.
 - `odc-testkit`: expected-frame loader, picture diff, capture-log reader.
-- The expected-frame generator, moved into the repository (`tools/oracle/`), with a regeneration check (owner, 2026-10-27; solution review P3-01).
+- The expected-frame generator, rewritten in Rust in `tools/oracle/`, with a regeneration check (owner, 2026-10-27, solution review P3-01; in Rust, owner, 2026-10-28).
 - `odc-device`:
   - `DisplayPort`, `Transport`, `Connector`, `Lp360`;
   - the hidraw connector and transport;
   - the recording wrapper;
   - fakes for tests.
-- The product udev rule and group file, and dev setup, teardown and check scripts, including the dev-only reconnect permission (owner, 2026-10-24).
-- Tests in all four layers (below), CI, the pre-commit guard and its push-time check.
+- The product udev rule and group file, and the dev tool `odc-dev` (setup, check, teardown) with its manifest library `odc-manifest`, including the dev-only reconnect permission (owner, 2026-10-24).
+- Tests in all four layers (below), CI, and the commit guard rewritten in Rust (`odc-guard`) with its push-time check.
 - Records: PRD dev footprint, AGENTS.md (Commands, Repository layout), README.
 
 ### Not building
@@ -191,37 +203,43 @@ Phase 7's device thread will call `DisplayPort::show` with each new frame, once 
 - **The service account (`u!` line), packaging and the uninstall removal script:** Phases 7 and 11. The group-only `g` line here is what the dev setup needs today.
 - **A uhid virtual device:** root-only, so not unattended.
 - **Several LP360s on one PC:** out of scope. The connector picks the lowest-numbered matching node, deterministically.
+- **The mockup generator's port to Rust:** Phase 10 Task 0, before the mockups are next changed (owner, 2026-10-28).
+- **The package's hook program:** Phase 11, which builds it on `odc-manifest`.
 
 ## Implementation
 
-Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The commit hook runs the guard (Task 10 extends it).
+Each task ends with its own commit (AGENTS.md rule 4), after its tests pass. The commit hook runs the guard (Task 10 replaces it with the Rust guard).
 
-### 0. The expected-frame generator moves into the repository
+### 0. The expected-frame generator becomes a Rust program in the repository
 
-The program that draws every expected frame gets history and review before any Rust is compared with its output (owner, 2026-10-27; solution review P3-01).
+The program that draws every expected frame gets history and review before any Rust is compared with its output (owner, 2026-10-27; solution review P3-01). It's written in Rust, like the rest of the project (owner, 2026-10-28; AGENTS.md rule 13).
 
 **Files and integration points**
-- `tools/oracle/expected-frames.py`, `tools/oracle/odc_rules.py`: CREATE, moved from `research/hook/` (local), with the same output.
-- `tools/oracle/drawing.py`: CREATE. The parts of `research/hook/render-check.py` the generator loads: the glyphs, the emoji pictures (already in `docs/spec/frames/mode-014.txt` to `mode-017.txt`), the mode table, and the drawing and rotation helpers. The Creative Mode leftovers aren't moved.
-- `research/hook/render-check.py` (local): UPDATE. It keeps only DeepCreative's renderer and the capture checks, and loads the drawing parts from `tools/oracle/drawing.py`.
+- `Cargo.toml`: CREATE, the workspace root, with the settings of Task 1 (`members = ["crates/*", "tools/*"]`, `resolver = "3"`, `[workspace.package]`, `[workspace.lints.rust]`). Task 1 adds the library crates. `Cargo.lock` is committed.
+- `tools/oracle/` (`odc-oracle`, `publish = false`): CREATE, a binary crate ported from the local generator: `research/hook/expected-frames.py`, `odc_rules.py`, and the glyphs, emoji pictures, mode table and drawing helpers of `render-check.py`.
+  - `drawing`: the glyphs, the emoji pictures (already in `docs/spec/frames/mode-014.txt` to `mode-017.txt`), the mode table, the drawing helpers and the rotation;
+  - `rules`: OpenDeepCool's value and layout rules, in exact integer arithmetic, as the Python does with exact fractions; no floating point (`display.md` Values);
+  - `main`: `cargo run -p odc-oracle -- <out-dir>` writes `mode-001.txt` … `mode-022.txt`.
+  - No Creative Mode code is ported.
 - `docs/spec/frames/README.md`: UPDATE. The files are generated by `tools/oracle/`, with the command.
-- `AGENTS.md`: UPDATE the Repository layout table (`tools/oracle/`) and Commands (the regeneration command).
+- `AGENTS.md`: UPDATE the Repository layout table (`tools/`) and Commands (the regeneration command).
+- Nothing in `research/` changes: the Python generator stays there, local, with DeepCreative's renderer and the capture checks.
 
 **Implementation**
-- Python 3, standard library only, run as `python3 -I tools/oracle/expected-frames.py <out-dir>`. Nothing in `tools/oracle/` reads `research/`.
-- The three local files hold no sensitive value and no DeepCreative code (checked 2026-10-27); the guard checks the moved files again at commit.
+- `std` only, no dependencies.
+- It shares no code with the program, in either direction: it depends on no crate under `crates/`, and none depends on it. It's ported from the Python generator, never from a renderer, so it stays an independent oracle.
 
-**Tests**
-- Regenerating into a temporary folder writes every file identical, byte for byte, to its copy in `docs/spec/frames/`.
-- `research/hook/render-check.py` still reproduces every captured frame it reproduced before (local).
+**Tests** (`cargo test -p odc-oracle`, so also in `cargo test --workspace`, the guard and CI)
+- Generating in memory gives every file of `docs/spec/frames/` except `README.md`, byte for byte: all 22 files and 284 cases. That proves the port draws what the Python drew, the version checked against DeepCreative's captures in Phase 3. From then on, it's the regeneration check (Task 10).
+- The independence check: no `Cargo.toml` under `crates/` names `odc-oracle`, and `tools/oracle/Cargo.toml` has no path dependency.
 
 **Validation**
-- `git grep -n 'research/' -- tools/oracle` prints nothing.
+- `cargo test -p odc-oracle`: passes. Changing one pixel of a frame file by hand must make it fail (checked once, then reverted).
 
 ### 1. The workspace builds, and its commands are documented
 
 **Files and integration points**
-- `Cargo.toml`: CREATE. `[workspace]` with `members = ["crates/*"]`, `resolver = "3"`.
+- `Cargo.toml`: UPDATE (created in Task 0). `[workspace]` with `members = ["crates/*", "tools/*"]`, `resolver = "3"`.
   - `[workspace.package]`: `edition = "2024"`, `rust-version = "1.99"`, `license = "MIT"`, `publish = false`.
   - `[workspace.lints.rust]`: `unsafe_code = "forbid"`.
   - `[workspace.dependencies]`: `proptest = "1.12"`.
@@ -230,11 +248,11 @@ The program that draws every expected frame gets history and review before any R
   - `odc-testkit` depends on `odc-protocol`.
   - Every crate takes `odc-testkit` and `proptest` as dev-dependencies only.
 - `AGENTS.md` Commands: UPDATE with the exact commands in [Validation](#validation).
-- `AGENTS.md`: UPDATE the Repository layout table: `crates/`, `packaging/`, `scripts/dev/`, `.github/workflows/`.
-- `README.md` Development: UPDATE with the build and test commands, and the dev setup script.
+- `AGENTS.md`: UPDATE the Repository layout table: `crates/`, `tools/`, `packaging/`, `.github/workflows/`.
+- `README.md` Development: UPDATE with the build and test commands, and the dev tool.
 
 **Implementation**
-- No code beyond empty crates that compile. `Cargo.lock` is committed, since the workspace ships binaries later.
+- No code beyond empty crates that compile. `Cargo.lock` stays committed (Task 0), since the workspace ships binaries later.
 
 **Tests**
 - None yet; the build is the check.
@@ -443,7 +461,7 @@ The program that draws every expected frame gets history and review before any R
 **Validation**
 - `cargo test -p odc-device --test hidraw_fake_tree`: passes.
 
-### 8. The udev rule and group are product files; dev scripts install and remove the dev copies
+### 8. The udev rule and group are product files; the dev tool installs and removes the dev copies
 
 **Files and integration points**
 - `packaging/udev/70-opendeepcool.rules`: CREATE, the product rule:
@@ -454,47 +472,51 @@ The program that draws every expected frame gets history and review before any R
 
   Its content matches today's dev copy in `/etc/udev/rules.d/`.
 - `packaging/sysusers/opendeepcool.conf`: CREATE, `g opendeepcool -`. Phase 7 replaces it with the service account's `u!` line.
-- `scripts/dev/reconnect.rules`: CREATE, the dev-only reconnect permission (owner, 2026-10-24); never packaged:
+- `tools/dev/reconnect.rules`: CREATE, the dev-only reconnect permission (owner, 2026-10-24); never packaged:
 
   ```
   ACTION=="add", SUBSYSTEM=="usb", ENV{DEVTYPE}=="usb_device", ATTR{idVendor}=="3633", ATTR{idProduct}=="000c", RUN+="/usr/bin/chgrp opendeepcool /sys%p/authorized", RUN+="/usr/bin/chmod g+w /sys%p/authorized"
   ```
 
-- `scripts/dev/setup.sh`: CREATE, run as the user, never as root (owner, 2026-10-27; solution review P5-03). It builds what the dev copy needs (nothing yet in this phase; Phase 7 adds the service's `--release` build), then runs `pkexec scripts/dev/install-root.sh` with the files to install. Together they're idempotent: they reproduce the 2026-10-24 manual install and add the reconnect rule.
-- `scripts/dev/install-root.sh`: CREATE, the only part run with `pkexec`. It never runs `cargo` or any build. It:
-  - installs the sysusers file to `/etc/sysusers.d/` and runs `systemd-sysusers`;
-  - installs the product rule as `/etc/udev/rules.d/70-opendeepcool.rules` and the dev rule as `71-opendeepcool-dev-reconnect.rules`;
-  - reloads udev and triggers the LP360's hidraw node and USB device, both found by USB ID;
-  - adds `$PKEXEC_UID`'s user to the group;
-  - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, so teardown, and later the Phase 11 package's install script, remove exactly those (owner, 2026-10-24).
-- `scripts/dev/teardown.sh`: CREATE, `pkexec`. It removes what the manifest lists, reversing every step: removes the three files, removes the user from the group, deletes the group, then reloads and re-triggers udev so access ends at once.
-  - Before removing anything, it checks every line of the manifest: each must be an entry of a kind `setup.sh` writes, an absolute file path under one of the dev locations the script lists, a group, or a membership. An empty line, `/`, a `..` component, a relative path or any other entry stops it with nothing removed (owner, 2026-10-27; solution review P4-08).
-  - `--check-only <manifest>` runs that check alone and removes nothing.
-- `scripts/dev/check.sh`: CREATE, unprivileged. It reports:
-  - each installed file and whether it equals the repository copy;
-  - the group and your membership;
-  - the LP360 node's group and mode;
-  - whether the `authorized` file is group-writable.
+- `crates/odc-manifest/`: CREATE, a library: the dev manifest's format, its check, and the removal of what it lists. `odc-dev` uses it, and the Phase 11 package's hook program reuses it, so the removal exists once (owner, 2026-10-28).
+  - **The check**, before anything is removed (owner, 2026-10-27; solution review P4-08): each line must be an entry of a kind the setup writes: an absolute file path under one of the dev locations it lists, a group, or a membership. An empty line, `/`, a `..` component, a relative path or any other entry stops it with nothing removed.
+  - **The removal:** one entry at a time, in reverse order, never recursively, each removal printed (solution review P11-03).
+- `tools/dev/` (`odc-dev`, `publish = false`): CREATE, the dev tool (owner, 2026-10-28). Its subcommands and options are given at start, never as environment variables (owner, 2026-10-24):
+  - `setup`: run as the user, never as root (owner, 2026-10-27; solution review P5-03); it refuses root. It builds what the dev copy needs (nothing yet in this phase; Phase 7 adds the service's `--release` build), then runs `pkexec <its own path> install-root` with the files to install.
+  - `install-root`: the only part run with `pkexec` at setup. It never runs `cargo` or any build. It:
+    - installs the sysusers file to `/etc/sysusers.d/` and runs `systemd-sysusers`;
+    - installs the product rule as `/etc/udev/rules.d/70-opendeepcool.rules` and the dev rule as `71-opendeepcool-dev-reconnect.rules`;
+    - reloads udev and triggers the LP360's hidraw node and USB device, both found by USB ID;
+    - adds `$PKEXEC_UID`'s user to the group;
+    - records every file, account, group membership and enabled unit it creates in `/var/lib/opendeepcool-dev/manifest`, through `odc-manifest`, so teardown, and later the Phase 11 package's install script, remove exactly those (owner, 2026-10-24).
+  - Together, `setup` and `install-root` are idempotent: they reproduce the 2026-10-24 manual install and add the reconnect rule.
+  - `teardown`: run as the user. It runs `pkexec <its own path> remove-root`, which checks the manifest, then removes what it lists, reversing every step: the three files, the user's membership, the group. Then it reloads and re-triggers udev, so access ends at once.
+  - `teardown --check-only <manifest>`: runs the manifest check alone and removes nothing.
+  - `check`: unprivileged. It reports:
+    - each installed file and whether it equals the repository copy;
+    - the group and your membership;
+    - the LP360 node's group and mode;
+    - whether the `authorized` file is group-writable.
 
-  It exits non-zero on any mismatch.
+    It exits non-zero on any mismatch.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`: UPDATE.
   - The dev footprint gets the reconnect rule row.
-  - The three existing dev rows now say "installed by `scripts/dev/setup.sh`, removed by `scripts/dev/teardown.sh`".
+  - The three existing dev rows now say "installed by `odc-dev setup`, removed by `odc-dev teardown`".
   - The Phase 5 scope line already drops the test-pattern binary; it was updated with this plan.
 
 **Implementation**
-- The scripts find devices by USB ID only. They never hard-code a hidraw number, USB port or user name.
-- Running `setup.sh` is a system change: the implementing agent shows its commands and asks the owner before its `pkexec` step (rule 7). The owner already agreed to it on 2026-10-24.
+- The dev tool finds devices by USB ID only. It never hard-codes a hidraw number, USB port or user name.
+- `pkexec` runs the `odc-dev` binary the user just built in the checkout: the same trust as a script in the checkout, which the user owns either way.
+- Running `setup` is a system change: the implementing agent shows what it installs and asks the owner before its `pkexec` step (rule 7). The owner already agreed to it on 2026-10-24.
 
 **Tests**
-- `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` passes. It runs in the guard and in CI.
-- `bash -n` on the four scripts.
-- `install-root.sh` contains no `cargo` call, and `setup.sh` refuses to run as root (P5-03).
-- `teardown.sh --check-only` refuses a manifest with an empty line, `/`, a `..` component, a relative path or a path outside the dev locations, and accepts the manifest `setup.sh` wrote (P4-08).
-- After running `setup.sh`, `scripts/dev/check.sh` exits 0, including after an unattended reconnect (Task 9). This proves the `authorized` permission survives a deauthorize and authorize, which is unverified until then.
+- `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules tools/dev/reconnect.rules` passes. It runs in the guard and in CI.
+- `odc-manifest` (unit, CI): the check refuses a manifest with an empty line, `/`, a `..` component, a relative path or a path outside the dev locations, and accepts what `install-root` writes (P4-08). In a temporary folder, the removal takes the listed entries in reverse order and never a folder's contents.
+- `odc-dev` (unit, CI): `setup` refuses to run as root (P5-03). `install-root` and `remove-root` start no program outside their list (`systemd-sysusers`, `udevadm`, `gpasswd`, `groupdel`), so never `cargo`.
+- After running `setup`, `odc-dev check` exits 0, including after an unattended reconnect (Task 9). This proves the `authorized` permission survives a deauthorize and authorize, which is unverified until then.
 
 **Validation**
-- `scripts/dev/check.sh`: exit 0.
+- `cargo run -p odc-dev -- check`: exit 0.
 
 ### 9. Layer 4 end to end: the real LP360 where one is attached, fakes otherwise (local)
 
@@ -518,7 +540,7 @@ The program that draws every expected frame gets history and review before any R
 - **Each check probes its capability first:**
   - `Real` → the real device;
   - `Absent` → the same scenario through the fakes, with the mode recorded as fake: `HidrawConnector` over a fake tree (Phase 5 Task 7), or a `FakeConnector` for reconnect;
-  - `Unusable` → fail with the fix, for example "run `scripts/dev/setup.sh`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
+  - `Unusable` → fail with the fix, for example "run `cargo run -p odc-dev -- setup`, then log in again or use `newgrp opendeepcool`". It never falls back to fakes, so a broken setup can't pass.
 - **`test_images`** (one example of each test type on the real cooler; owner, 2026-10-26: all four rotations are checked in the unit tests, Task 3):
   - `Lp360` over `Recording<…>`, writing to `target/e2e/hardware-<unix ns>.log`;
   - shows the picture of mode 1's `42%` case unrotated, then turned 90° (rotation 1), each for 20 frames at a fixed 100 ms interval (`protocol.md` Timing);
@@ -528,7 +550,7 @@ The program that draws every expected frame gets history and review before any R
     - the first message is `Startup`, and the only one;
     - then come exactly the 40 frames, in order, each matching its expected case from `mode-001.txt` (`odc_testkit::diff`);
     - nothing else was written.
-- **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`scripts/dev/reconnect.rules`).
+- **`reconnect`:** `Lp360Reconnect` is `Real` only when the LP360's USB `authorized` file is group-writable (`tools/dev/reconnect.rules`).
   - Real:
     - find the LP360's USB device directory by `idVendor`/`idProduct` under `/sys/bus/usb/devices`;
     - show frames, write `0` to `authorized`, and keep calling `show` every 100 ms until it returns `Disconnected` (at most 2 s);
@@ -553,51 +575,51 @@ The program that draws every expected frame gets history and review before any R
 
 **Validation**
 - `cargo run -p odc-e2e -- --only device`: passes, and prints the summary. On the owner's PC, with `--require lp360,lp360-reconnect`, both capabilities run real. Run it in a session where `id -nG` lists `opendeepcool`, or through `newgrp opendeepcool -c '…'` until the next login.
-- Then `scripts/dev/check.sh`: exit 0.
+- Then `cargo run -p odc-dev -- check`: exit 0.
 
 ### 10. CI and the commit guard run the automated layers
 
 **Files and integration points**
-- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, every job runs in the official `archlinux:base-devel` container image (Docker Hub, read 2026-10-27; owner, 2026-10-27, solution review P4-05), after `pacman -Syu --noconfirm git python cargo-deny`, so the checkout is a full git clone:
+- `.github/workflows/ci.yml`: CREATE. On `push` and `pull_request`, every job runs in the official `archlinux:base-devel` container image (Docker Hub, read 2026-10-27; owner, 2026-10-27, solution review P4-05), after `pacman -Syu --noconfirm git cargo-deny`, so the checkout is a full git clone:
   - `permissions: contents: read` for the whole workflow (GitHub Docs, Secure use reference; owner, 2026-10-27, solution review P5-06);
   - `actions/checkout`, pinned to its full commit hash, with its tag (`v7`) in a comment;
   - `jdx/mise-action`, pinned the same way (`v5`), which installs the Rust pinned in `mise.toml`;
   - `cargo deny check` (P5-07), with `cargo-deny` from Arch's `extra` repository (0.20.2, read 2026-10-27): RustSec advisories, licences on an allow-list compatible with MIT distribution, crates.io as the only source, and duplicate versions, each allowed explicitly where unavoidable;
   - `cargo fmt --all --check`;
   - `cargo clippy --workspace --all-targets -- -D warnings`;
-  - `cargo test --workspace`, layers 1 and 3: ignored tests don't run;
+  - `cargo test --workspace`, layers 1 and 3: ignored tests don't run. It includes the oracle's regeneration check (Task 0; P3-01) and the guard's tests;
   - `udevadm verify --resolve-names=never` on both rules files. It needs systemd 254 or later, and the container's Arch systemd is current;
-  - a `privacy` job (owner, 2026-10-27; solution review P2-02), with a full-depth checkout: every commit in the history has the no-reply address as author and committer, and no file in the tree is binary outside the guard's allow-list. The sensitive list stays on the PC, so CI checks only these.
-  - a `frames` step (P3-01): `tools/oracle/expected-frames.py` regenerates the frames into a temporary folder, and any difference from `docs/spec/frames/` fails.
-- `.githooks/pre-commit`: UPDATE.
-  - **On every commit**, besides the existing checks:
+  - a `privacy` job (owner, 2026-10-27; solution review P2-02), with a full-depth checkout: `cargo run -p odc-guard -- history` checks that every commit in the history has the no-reply address as author and committer, and that no file in the tree is binary outside the guard's allow-list. The sensitive list stays on the PC, so CI checks only these.
+- `tools/guard/` (`odc-guard`, `publish = false`): CREATE, the commit guard in Rust, replacing the Phase 2 shell guard (owner, 2026-10-28). Its subcommands: `pre-commit`, `commit-msg <file>`, `pre-push <remote> <url>` and `history`.
+  - **On every commit**, the Phase 2 checks carry over: local-only folders, blocked file types (the extension list stays, `.bin` included, P2-06), the 2 MiB limit, DeepCreative code markers, and the sensitive values listed in `docs/local/machine.md`, read between the same markers. Besides them:
     - the identity check reads `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT`, the identities git will record, instead of `git config user.*`. Both must be the no-reply address and free of sensitive values (owner, 2026-10-27; solution review P2-01). `git config` misses `git commit --author`, the `GIT_AUTHOR_*` and `GIT_COMMITTER_*` variables and `-c author.*`; `git var` reported the recorded identity in each case (tested 2026-10-27, git 2.56);
-    - every staged file git treats as binary is rejected unless its path is on the guard's allow-list, empty for now (P2-03). The extension list stays, `.bin` included (P2-06).
-  - **The Rust checks**, when `Cargo.toml` exists and a staged path is under `crates/`, `Cargo.toml`, `Cargo.lock`, `packaging/`, `scripts/`, `tools/oracle/`, `docs/spec/frames/`, `docs/spec/dbus.md`, `.githooks/` or `.github/` (owner, 2026-10-27; solution review P5-08). The last five are there because the tests read the frames and the contract, and the guard and CI are code too. The guard prints which checks ran:
-    - run the same fmt, clippy and test commands, plus the `udevadm verify` and `bash -n` checks;
-    - add each failure to `fail` in the existing style.
-    - The header comment says these run on the working tree, so unrelated unstaged changes must not be present when committing.
-  - When a staged path is under `tools/oracle/` or `docs/spec/frames/`, the same regeneration check as CI's `frames` step runs (P3-01).
+    - every staged file git treats as binary is rejected unless its path is on the guard's allow-list, empty for now (P2-03).
+  - **The Rust checks**, when a staged path is under `crates/`, `tools/`, `Cargo.toml`, `Cargo.lock`, `packaging/`, `docs/spec/frames/`, `docs/spec/dbus.md`, `.githooks/` or `.github/` (owner, 2026-10-27; solution review P5-08). The frames and the contract are there because the tests read them, and the guard and CI are code too. The guard prints which checks ran:
+    - the same fmt, clippy and test commands, plus the `udevadm verify` check; the test run includes the oracle's regeneration check (P3-01);
+    - every failure is collected, and the commit is rejected at the end with all of them, as the Phase 2 guard does.
+    - These run on the working tree, so unrelated unstaged changes must not be present when committing; `odc-guard --help` says so.
+  - **`commit-msg`:** the Phase 2 message check: no sensitive value in the message.
+  - **`pre-push`** (P2-01, P2-04): for every commit and tag the push would add to the remote, the author, committer and tagger, the commit and tag messages, and every file each commit adds or changes pass the same checks. It catches what never ran `pre-commit`: `--no-verify`, rebase, cherry-pick and merge commits (tested 2026-10-27).
+  - **`history`:** CI's privacy check, above.
+- `.githooks/pre-commit`, `.githooks/commit-msg`: UPDATE, and `.githooks/pre-push`: CREATE. Each is a one-line starter, `exec cargo run --quiet --locked -p odc-guard -- <hook> "$@"`. `.githooks/sensitive-values.sh` is deleted: the guard reads the list itself.
 - `deny.toml`: CREATE, `cargo deny`'s configuration: the licence allow-list, the source rule, and each allowed duplicate with its reason (P5-07).
-- `.githooks/guard-lib.sh`: CREATE. The checks `pre-commit` and `pre-push` share (identity, path, type, binary, size, code markers, sensitive values), sourced like `sensitive-values.sh`.
-- `.githooks/pre-push`: CREATE (P2-01, P2-04). For every commit and tag the push would add to the remote, the author, committer and tagger, the commit and tag messages, and every file each commit adds or changes pass the same checks. It catches what never ran `pre-commit`: `--no-verify`, rebase, cherry-pick and merge commits (tested 2026-10-27).
-- `.githooks/test-guard.sh`: CREATE. Builds a throwaway repository in a temporary folder, with these hooks, a local bare remote and a made-up sensitive list, and runs the guard cases in Tests.
 - `AGENTS.md`: UPDATE Commands with the local layer 2 and layer 4 commands and when to run them: before any commit that touches `odc-protocol` encoding or `odc-device`.
 
 **Tests**
 - A deliberately misformatted line makes the guard reject a commit, checked once by hand, then reverted.
 - The workflow passes on the branch push. The push goes over HTTPS as in `docs/local/`, with the owner's OK, because pushing is outward-facing.
-- `.githooks/test-guard.sh`, unattended, locally and in CI:
+- `cargo test -p odc-guard`, unattended, locally and in CI. Each test builds a throwaway repository under `CARGO_TARGET_TMPDIR`, whose hook files start the guard binary Cargo built (`CARGO_BIN_EXE_odc-guard`), with a local bare remote and a made-up sensitive list:
   - rejected at commit: `--author`, each of the four identity variables and `-c author.email`, each with an address other than the no-reply one; a staged PNG; a file holding a listed value;
   - rejected at push: a `--no-verify` commit with a wrong identity, a rebased commit that adds a listed value, and a tag whose message holds one;
   - accepted: a clean commit and its push.
 - The regeneration check passes on the clean tree, and fails when one expected-frame file is edited by hand, checked in a throwaway copy.
 - A documentation-only commit runs no Rust checks and says so; a commit that touches `docs/spec/frames/` runs them (P5-08).
 - `cargo deny check` passes on the workspace (P5-07).
+- A nested `cargo` run inside the guard, which `cargo run` started, doesn't wait on cargo's own lock: unverified until this task. If it does, the starters build the guard first and then run its binary directly.
 
 **Validation**
 - `.githooks/pre-commit` exits 0 on the clean branch, and the GitHub Actions run is green.
-- `.githooks/test-guard.sh` passes, and the CI `privacy` job is green.
+- `cargo test -p odc-guard` passes, and the CI `privacy` job is green.
 
 ## Acceptance
 
@@ -613,7 +635,7 @@ The program that draws every expected frame gets history and review before any R
 4. **AC4 — Reusable oracle:**
    - every expected-frame file loads into typed cases (284 when Phase 5 runs);
    - a mismatch prints both pictures (Task 3);
-   - the generator is committed in `tools/oracle/`, and regenerating the frames changes nothing, in the guard and in CI (Tasks 0, 10).
+   - the generator is a Rust program in `tools/oracle/` that shares no code with the program, and regenerating the frames changes nothing, in the guard and in CI (Tasks 0, 10).
 5. **AC5 — Start-up and reconnect:**
    - every connection starts with `03 08` before its first frame;
    - after the cooler disappears, `show` keeps rescanning and reconnects to it under a new hidraw number;
@@ -622,7 +644,7 @@ The program that draws every expected frame gets history and review before any R
 6. **AC6 — Without root:**
    - the layer 4 tests run as a member of `opendeepcool`, with no `sudo`;
    - both udev rules pass `udevadm verify`;
-   - `scripts/dev/check.sh` passes before and after a reconnect (Tasks 8, 9).
+   - `odc-dev check` passes before and after a reconnect (Tasks 8, 9).
 7. **AC7 — Unattended:**
    - every layer runs with no person;
    - CI and the pre-commit guard run layers 1 and 3;
@@ -637,6 +659,9 @@ The program that draws every expected frame gets history and review before any R
 10. **AC10 — A guard that can't be fooled** (owner, 2026-10-27; solution review P2-01 to P2-03):
     - a commit recorded with another identity, a binary file outside the allow-list, and anything that skipped `pre-commit` are rejected, at commit or at push;
     - CI checks every commit's identity and the tree for binary files (Task 10).
+11. **AC11 — One language** (owner, 2026-10-28; AGENTS.md rule 13):
+    - every program, test and tool this phase adds is Rust;
+    - the only other files it adds are git's one-line hook starters, CI's YAML, and configuration: udev rules, the sysusers file, TOML (Tasks 0, 8, 10).
 
 ## Validation
 
@@ -645,13 +670,13 @@ The program that draws every expected frame gets history and review before any R
 | Format | `cargo fmt --all --check` | Style, in the guard and CI |
 | Lint | `cargo clippy --workspace --all-targets -- -D warnings` | No warnings, in the guard and CI |
 | Layers 1 + 3 | `cargo test --workspace` | AC1 (spec vectors), AC2, AC3, AC4, AC5 (fakes) |
-| udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` | AC6 (syntax) |
+| udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules tools/dev/reconnect.rules` | AC6 (syntax) |
 | Layer 2 (local) | `cargo test -p odc-protocol --test differential_captures -- --ignored` | AC1 (captures) |
 | Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only device --require lp360,lp360-reconnect`, as a member of `opendeepcool` | AC2, AC3, AC5, AC6 on the real cooler where attached; AC8 |
-| Dev access state | `scripts/dev/check.sh` | AC6 |
+| Dev access state | `cargo run -p odc-dev -- check` | AC6 |
 | CI | GitHub Actions run on the pushed branch | AC7 |
-| Guard | `.githooks/test-guard.sh`, and the CI `privacy` job | AC10 |
-| Oracle | `python3 -I tools/oracle/expected-frames.py` into a temporary folder, compared with `docs/spec/frames/` | AC4 |
+| Guard | `cargo test -p odc-guard`, and the CI `privacy` job | AC10 |
+| Oracle | `cargo test -p odc-oracle` (also part of layers 1 + 3); `cargo run -p odc-oracle -- <dir>` regenerates the files | AC4, AC11 |
 
 ### Test matrix covered in this phase
 
@@ -667,7 +692,7 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
 | Crate names `odc-protocol`, `odc-device`, `odc-testkit` | Keep: short, and the PRD leaves the names to the plans | PRD Architecture Notes ("names finalised in the plans") | Renaming later touches every `Cargo.toml` and import |
-| The `authorized` permission may not survive a reconnect | Check it in Task 8/9 with `check.sh` after the real reconnect test | Deauthorize unconfigures the device but should keep the USB device itself (kernel authorization docs); unverified on this PC | If it's lost, the rule needs a different trigger, decided with the owner before Task 9 is committed |
+| The `authorized` permission may not survive a reconnect | Check it in Task 8/9 with `odc-dev check` after the real reconnect test | Deauthorize unconfigures the device but should keep the USB device itself (kernel authorization docs); unverified on this PC | If it's lost, the rule needs a different trigger, decided with the owner before Task 9 is committed |
 | The pre-commit guard tests the working tree, not the staged snapshot | Accept, and document it in the guard's header | Stashing unstaged work inside a hook risks losing it | A commit could pass with unstaged fixes present; CI catches it on push |
 | Merging once CI exists (after Task 10) | Push the phase branch, wait until its CI run passes, then fast-forward `main` and push; no pull requests (owner, 2026-10-27; solution review P2-07) | AGENTS.md "How to work" | A failing CI run would land on `main` |
 | Pinned actions go stale | Check and update them at each phase sign-off (AGENTS.md); no Dependabot, which works through pull requests (owner, 2026-10-27; solution review P5-06) | GitHub Docs, Secure use reference: pin to a full commit hash | A fix in an action waits until the next sign-off |
@@ -677,9 +702,12 @@ Rendering every matrix case belongs to Phases 7–9, which compare their output 
 | `newgrp` is needed until the owner logs in again | Use `newgrp opendeepcool -c '…'` in the Task 9 command until then | Checked 2026-10-24: no password prompt | None after the next login |
 | A wake-up from standby can't be tested by a real suspend | The device side runs real (`reset`, Task 9); logind's signal is tested with a fake in Phase 7, and a real suspend is only in the optional attended tour | Waking an unattended PC needs root (`wakealarm`) | An automated suspend would sleep the owner's PC |
 | A write blocks for up to 5 s on a stalled device | Phase 7 runs `Lp360` on its own device thread; layer 4 records write durations (owner, 2026-10-26; solution review OV-03) | Kernel: `usbhid_output_report`, `USB_CTRL_SET_TIMEOUT` = 5000 ms | A write on the tick thread would stall every frame |
+| The oracle and the program are both Rust | Keep them apart: `odc-oracle` shares no code with the program, which a test checks; it's ported from the Python generator and rebuilds its 284 files byte for byte; later phases extend it from the spec text before writing the renderer | Owner, 2026-10-28 (AGENTS.md rule 13) | A mistake copied into both would pass every test |
+| A nested `cargo` inside the guard | Check it in Task 10; if cargo's lock blocks it, the starters build the guard first and run its binary directly | Unverified | Every commit would hang |
+| Committing needs the Rust toolchain | Accept: the README's first step installs it. A guard that doesn't build blocks commits until it's fixed | The guard is a Rust program (owner, 2026-10-28) | None beyond a first build of a few seconds |
 
 ## Agent Notes
 
-- The dev group, the product rule and the owner's membership were installed by hand on 2026-10-24 for the reconnect research (PRD dev footprint). `scripts/dev/setup.sh` must accept that state and change nothing it doesn't need to.
+- The dev group, the product rule and the owner's membership were installed by hand on 2026-10-24 for the reconnect research (PRD dev footprint). `odc-dev setup` must accept that state and change nothing it doesn't need to.
 - `research/hook/hidraw-log.c` (local) now follows the LP360 across reconnects and writes `<log>.events` with open and close lines. Use it if a later phase needs DeepCreative evidence again.
 - Never copy anything from `docs/local/` into these files. Fake trees use made-up device names and IDs, except the LP360's public USB ID (rule 10).

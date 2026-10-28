@@ -82,6 +82,7 @@ Nothing checks the repository on the server side. The sensitive list must stay l
 - **Evidence:** `.githooks/pre-commit`, identity block (`git config user.name`, `git config user.email`).
 - **Recommendation:** check `git var GIT_AUTHOR_IDENT` and `git var GIT_COMMITTER_IDENT` against the no-reply pattern and the sensitive list. Add a `pre-push` hook that re-checks every commit and tag in the pushed range, which also catches commits made with `--no-verify`.
 - **Outcome (2026-10-27):** accepted, and wider than written. A test in a throwaway repository (git 2.56) showed that the `git config` check also misses `git commit --author`, and that rebase, cherry-pick and merge commits never run `pre-commit`; `git var` reported the recorded identity in every case. Phase 5 Task 10 now checks the identity with `git var` and adds a push-time check, `.githooks/pre-push`, which re-checks every commit and tag before it leaves the PC, with a test of each case (AC10). PRD: Enforcement, Decisions Log (Commit guard).
+  - **Note (2026-10-28, owner):** the guard, its push-time check and CI's privacy check become one Rust program, `tools/guard/`, which one-line hook files start. What it checks stays as decided here and in P2-02 and P2-03. AGENTS.md rule 13; Phase 5 plan (Task 10).
 
 ### P2-02: No server-side safety net
 

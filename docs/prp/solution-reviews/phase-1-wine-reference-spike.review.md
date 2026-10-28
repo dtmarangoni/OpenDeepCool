@@ -92,6 +92,7 @@ DeepCreative is vendor software from a known vendor, and the PC has one user, so
 - **Recommendation:** see P3-01: commit the spec-only generator early, not at the end.
 - **Outcome (2026-10-27):** no action of its own; decided with P3-01 at the Phase 3 cross-check (owner). Correction: Phase 11 Task 8 doesn't delete the generator. It keeps and commits it: `expected-frames.py`, `odc_rules.py`, and the glyph part of `render-check.py`, which both load. What's open is only when it's committed (P3-01).
   - **Note (2026-10-27, Phase 11 review):** deleting DeepCreative's material is now Phase 12's job, after `v1.0.0`. The generator is committed earlier, in Phase 5 Task 0 (P3-01).
+  - **Note (2026-10-28, owner):** what's committed is a Rust port of the generator, and the Python files stay local (P3-01's note).
 
 ## Questions for the owner
 

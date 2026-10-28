@@ -94,6 +94,10 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
     - Find devices, drivers and sensors at runtime, from rules taken from primary documentation.
     - Where the hardware can't tell (which fan input is the pump), the user chooses.
     - Facts about the owner's PC serve only for testing on it.
+13. **Rust everywhere** (owner, 2026-10-28: "If the project is made with Rust, all testing framework should be made using rust as well").
+    - The program, its tests and its tools are Rust. The tools are the expected-frame generator (`tools/oracle/`), the commit guard and its tests (`tools/guard/`), the dev setup tool (`tools/dev/`) and the mockup generator (`tools/mockups/`, from Phase 10).
+    - Other languages appear only where a tool requires its own format: git's hook files (one-line starters of the guard), the PKGBUILD and its install script, CI's YAML, and the mockups' own HTML, CSS and JS.
+    - `research/` stays local and is exempt.
 
 ## Verified facts (details in the PRD Research Summary)
 
@@ -111,7 +115,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/prp/reports/` | Implementation reports |
 | `docs/prp/solution-reviews/` | Solution reviews: the whole solution and each phase's plan, reviewed after planning and before implementation; their findings are crossed with the owner before any code |
 | `docs/spec/` | Functionality and protocol spec (from Phase 3) |
-| `docs/design/` | The settings app's design, its mockups and the mockup generator (`mockups-src/gen.py`); a UI change updates them before the code |
+| `docs/design/` | The settings app's design, its mockups and their sources (`mockups-src/`); a UI change updates them before the code. Their generator is `mockups-src/gen.py` until Phase 10 Task 0 ports it to Rust (rule 13) |
 | `docs/research/` | Spike and research reports (e.g. `phase1-wine-spike.md`) |
 | `docs/hardware/` | Our own notes on the LP360, with manual page references |
 | `docs/local/` | Facts about the owner's PC: **local only, git-ignored** |

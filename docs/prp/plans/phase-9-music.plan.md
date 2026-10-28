@@ -98,7 +98,7 @@
   - the peak recurrence;
   - continuity.
 - **In Rust:** `odc_render::spectrum` implements it as `analyse(&[f32; 2048]) -> [f64; 14]` plus a `Spectrum` state machine (`update`, `draw(h, peaks)`), with no clock or I/O, like `Marquee`.
-- **The oracle:** the local generator implements the same text in plain Python, with its own radix-2 FFT, because numpy isn't installed. Rust is never compared with Rust (PRD Testing Strategy).
+- **The oracle:** the Rust oracle in `tools/oracle/` implements the same text with its own radix-2 FFT, written from the spec and sharing no code with the service (owner, 2026-10-28; AGENTS.md rule 13). The program is never compared with its own code (PRD Testing Strategy).
 
 **The delay budget fits, narrowly.**
 - Most of the delay is the wait for the next 100 ms tick: up to 100 ms, 95 ms or less for 95 % of frames.
@@ -205,7 +205,7 @@ flowchart LR
 | `docs/spec/frames/README.md`, `mode-013.txt`–`mode-022.txt` | The matrix and its `?` pixels |
 | `docs/prp/plans/phase-7-service-settings-load-mode.plan.md` Tasks 5–9 | Settings, engine, D-Bus change steps, polkit, the dev interface, the dev copy, `odc-e2e` |
 | `docs/prp/plans/phase-8-temperature-power.plan.md` Tasks 2–3 | `draws`, the temperature rules, `cycle_match`, `--modes` |
-| `tools/oracle/odc_rules.py`, `expected-frames.py`; `research/hook/render-check.py` (local) | The oracle generator (committed from Phase 5), and the DeepCreative renderer behind the differential skip reasons |
+| `tools/oracle/` (Rust); `research/hook/render-check.py` (local) | The oracle generator (committed from Phase 5), and the DeepCreative renderer behind the differential skip reasons |
 | `man pw-cat` | The exact `pw-record` and `pw-play` options |
 
 ### Existing patterns and primitives
@@ -221,7 +221,7 @@ flowchart LR
 - `odc_render::{draws, picture, mode_info}`: Music modes become drawable one at a time.
 - The engine tick (Phase 7 Task 6) gets one more input, the audio reader's latest window, used only when the mode is 13–23.
 - The `odc-ipc` contract: new members. `docs/spec/settings.md` is updated in the same commit (Phase 7 Agent Notes).
-- `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: the helper binary, its user unit and its global enable.
+- `tools/dev/` (`odc-dev`'s `setup`, `teardown`, `check`): the helper binary, its user unit and its global enable.
 
 ## Scope
 
@@ -252,7 +252,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Compatibility / migration | Settings v1 gains three fields with defaults; an existing file without them loads with the defaults, and the next store writes them (Task 3 test) |
-| Rollout / reversibility | The dev copy adds the helper binary, `/etc/systemd/user/opendeepcool-audio.service` and its global enable, all in the manifest; `teardown.sh` removes them, `systemctl --global disable` included. Each `pkexec` run is shown to the owner first (rule 7) |
+| Rollout / reversibility | The dev copy adds the helper binary, `/etc/systemd/user/opendeepcool-audio.service` and its global enable, all in the manifest; `odc-dev teardown` removes them, `systemctl --global disable` included. Each `pkexec` run is shown to the owner first (rule 7) |
 | Observability | The journal logs, without any sample data: each attach (the caller's Unix user and PID, from `GetConnectionCredentials`, never another user's `/proc` entry, so Phase 7 can use `ProtectProc=invisible`; owner, 2026-10-27, solution review P9-11), each refusal or lost authorization with its reason, and the pipe closing. The helper logs only changes of state. `AudioConnected` tells the app whether sound is coming in |
 | Documentation | README: what the helper is and how to see it (`systemctl --user status opendeepcool-audio`); the PRD System Footprint: the helper binary, the user unit's dev path and the polkit action (Task 10) |
 
@@ -283,13 +283,13 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 ### 1. The oracle gets the spectrum, the emoji resets and the Music scenarios
 
 **Files and integration points**
-- `tools/oracle/odc_rules.py` (committed since Phase 5 Task 0): UPDATE, with the spectrum procedure of `music.md`, written from the spec text:
-  - a plain-Python radix-2 FFT;
+- `tools/oracle/` (the Rust oracle, since Phase 5 Task 0): UPDATE, with the spectrum procedure of `music.md`, written from the spec text, never from the service's code:
+  - a plain radix-2 FFT of its own;
   - the Blackman window;
   - the band edges and loudness;
   - the bar and peak state;
   - the emoji loop with its restart.
-- `tools/oracle/expected-frames.py`: UPDATE, writing the files below, in the same commit as them.
+- The oracle writes the files below, in the same commit as them.
 - `docs/spec/frames/spectrum/signals.txt`: CREATE. The test signals as text, so the Rust tests synthesize the same samples. Each signal is a list of segments: frequency in Hz, peak amplitude in dBFS, length in ticks, or silence. A sample is `A · sin(2π f n / 48000)` computed in `f64`, then stored as `f32`, the same in both channels. The signals:
   - silence;
   - one tone at the centre of each column, at −20, −45 and −70 dBFS;
@@ -309,12 +309,12 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - Switches into Music from Load: the levels start at 0.
 - `docs/spec/frames/mode-023.txt`: CREATE, generated. The Dancer in silence (pose 0, standing still) in rotations 0–3.
 - `docs/spec/frames/spectrum/dancer.txt`: CREATE, generated. The pose at every tick for each signal of `signals.txt`, plus beat trains of a 60 Hz tone at levels around each threshold (0.35 and 0.6 of the scale, and rises just above and below 0.12), and resets at chosen ticks.
-- `odc_rules.py` gets the Dancer's poses (drawn from the skeleton, then checked against the pictures in `music.md`) and its rules, step for step.
+- The oracle gets the Dancer's poses (drawn from the skeleton, then checked against the pictures in `music.md`) and its rules, step for step.
 - `docs/spec/frames/README.md`: UPDATE, describing the three files.
 
 **Implementation**
 - The generator flags a signal and tick whose level lies within 10⁻⁶ of a rounding boundary of `round(level × H)`, or of the −75/−25 dB clamps, and moves that signal's amplitude by 0.5 dB.
-  - This keeps last-bit differences between Python's and Rust's `sin` and FFT from deciding a pixel.
+  - This keeps last-bit differences between the oracle's and the service's FFT, two separate implementations, from deciding a pixel.
   - The files say which signals were moved.
 
 **Tests**
@@ -448,7 +448,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - `WantedBy=default.target`;
   - in a user unit these settings imply `PrivateUsers=`, which needs unprivileged user namespaces (systemd.exec(5), read 2026-10-27). So the unit is tested as written: capture works, polkit passes, `AudioConnected` turns true; the report lists every setting that had to go, with its reason (solution review P9-04);
   - `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `RestrictAddressFamilies=AF_UNIX`, `LockPersonality=yes`, `RestrictRealtime=no` (PipeWire's client may ask for realtime scheduling: unverified, so not restricted).
-- `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`: UPDATE.
+- `tools/dev/` (`odc-dev`'s `setup`, `teardown`, `check`): UPDATE.
   - **setup** installs the helper to `/usr/local/libexec/opendeepcool-dev/` and the unit to `/etc/systemd/user/`, with `ExecStart` pointing there, then runs `systemctl --global enable opendeepcool-audio.service`, all recorded in the manifest.
   - **teardown** runs `systemctl --global disable` and removes them.
   - **check** verifies, in the owner's session, `systemctl --user is-active opendeepcool-audio` and, while a Music mode is shown, `AudioConnected = true`.
@@ -483,8 +483,8 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service` passes.
 
 **Validation**
-- After the owner approves the `scripts/dev/setup.sh` run and its `pkexec` step:
-  - `scripts/dev/check.sh` exits 0;
+- After the owner approves the `odc-dev setup` run and its `pkexec` step:
+  - `odc-dev check` exits 0;
   - `busctl call … GetState` shows `AudioConnected` as `b true` while the owner is logged in and a Music mode is shown. In mode 1 it shows `b false`, and no `opendeepcool-audio` node exists.
 
 ### 5. Layer 4 tools: the virtual output, the real capture check and the delay measurement
@@ -682,7 +682,7 @@ Five sub-steps, **each its own commit** (rule 4):
 | Layers 1 + 3 | `cargo test --workspace` | AC1, AC2, AC3, AC4, AC6 |
 | Layer 2 (local) | `cargo test -p odc-render --test differential_music -- --ignored` | AC7 |
 | User unit | `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service`; `xmllint --noout packaging/polkit/*.policy` | AC5 (syntax), AC4 (policy) |
-| Dev copy | `scripts/dev/check.sh`; `busctl call … GetState` (`AudioConnected`) | AC5 |
+| Dev copy | `cargo run -p odc-dev -- check`; `busctl call … GetState` (`AudioConnected`) | AC5 |
 | Layer 4, per mode (local, unattended) | `cargo run -p odc-e2e -- --only service --modes <n> --require dev-service` | AC8, before each mode's commit |
 | Layer 4, sound and delay (local, unattended) | `cargo run -p odc-e2e -- --only music --require dev-service,pipewire` | AC5, AC8 (delay) |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended --modes 13-23` | The owner's own look; never a gate |
@@ -709,7 +709,7 @@ After this phase, all 112 matrix combinations are covered.
 | The 150 ms target leaves about 10 ms of headroom over the budget | Measure in Task 6. If the 95th percentile is over 150 ms, stop and bring the measurement to the owner; never loosen the target or speed up the tick on our own | Budget above; AGENTS.md rules 2 and 9 | A failing measurement blocks the phase until the owner decides |
 | The owner approved the Dancer on the preview page, whose levels came from the browser's 4096-sample analyser; mode 23 uses the spec's 2048 samples | Keep the spec's thresholds; the attended tour (optional) lets the owner look at mode 23 on the cooler, and any change is a spec change | Tone levels are the same at both sizes (1/N scaling); noise levels differ by about 3 dB | He could react slightly more to noisy music than on the preview |
 | Winamp's frame rate is undocumented; 30 ms per Winamp frame is a derived anchor | Keep: it makes Winamp's default bar fall the owner's 0.6 s and keeps Winamp's ratios; the spec marks it unverified | `music.md` point 4 | Another anchor would scale every stop's time |
-| Python's and Rust's `sin` and FFT could differ in the last bit at a rounding boundary | The generator moves any signal that comes within 10⁻⁶ of a boundary, and says so | Task 1 | Without it, a rare pixel would flip and fail a test that's really right |
+| The oracle's and the service's FFT could differ in the last bit at a rounding boundary | The generator moves any signal that comes within 10⁻⁶ of a boundary, and says so | Task 1 | Without it, a rare pixel would flip and fail a test that's really right |
 | The null sink's monitor node name for `--target` is unverified | Task 5 reads it from `pw-dump` and records it in the report | `pw-cat(1)`: `--target` takes a `node.name` or `object.serial` | — |
 | `RestrictRealtime` for the helper | Leave it unset until a run shows whether PipeWire's client asks for realtime; record the finding | Unverified | A setting that breaks capture would show as `AudioConnected` false |
 | `pw-record` is a program, not a library | Keep: it ships with PipeWire, follows the default output by WirePlumber's rule, and avoids a libclang build dependency | Checked on this PC, 2026-10-25 | The `pipewire` crate would add `bindgen` and a native binding |

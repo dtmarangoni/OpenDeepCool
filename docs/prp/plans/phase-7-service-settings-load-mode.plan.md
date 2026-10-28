@@ -43,7 +43,7 @@
   - Settings are a versioned TOML file in the state directory.
 - **Packaging files:** the unit, the D-Bus policy, the polkit action, and the service account.
 
-`scripts/dev/setup.sh` installs them as the dev copy, recorded in the dev manifest.
+`odc-dev setup` installs them as the dev copy, recorded in the dev manifest.
 
 ## Recommendation
 
@@ -128,7 +128,7 @@
 
 - `docs/spec/display.md`: Modes (modes 1–6 and their metrics, top first), Values (DeepCreative rounds usage up and Memory Load to the nearest; OpenDeepCool rounds every measurement to the nearest, with no cap below 9999), Glyphs, Bands, Static layout. Line numbers changed with the 2026-10-24 decisions, so sections are named instead.
 - `docs/spec/display.md`: Updates; Unavailable values (dashes, added 2026-10-24); Values, OpenDeepCool: no caps (automatic scrolling, one smooth movement); Static layout, OpenDeepCool: alignment; Movement, precisely; Mode switches (a mode switch jumps to home); Test scenarios S1–S26; Rotation. All owner decisions of 2026-10-24.
-- `docs/spec/frames/` regenerated 2026-10-24 with OpenDeepCool's rules (172 of 292 cases changed), and again on 2026-10-26 with the nearest rule (24 °F cases of 284 changed); `odc_rules.py` draws them, in `tools/oracle/` from Phase 5 Task 0.
+- `docs/spec/frames/` regenerated 2026-10-24 with OpenDeepCool's rules (172 of 292 cases changed), and again on 2026-10-26 with the nearest rule (24 °F cases of 284 changed). The Python generator drew them; from Phase 5 Task 0 the Rust oracle in `tools/oracle/` draws the same files, byte for byte (owner, 2026-10-28).
 - `docs/spec/protocol.md` Timing: one frame per 100 ms tick, corrected 2026-10-24.
 - `docs/spec/settings.md`:
   - Settings: defaults are mode 1, rotation 0, Celsius, no fan inputs;
@@ -249,7 +249,7 @@ flowchart LR
 
 | Concern | Decision and owned work |
 |---|---|
-| Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `scripts/dev/teardown.sh` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
+| Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `odc-dev teardown` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
 | Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect with the reason (one line per change), each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
 | Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: new tests. PRD footprint: the dev copy rows already exist (2026-10-24); add the D-Bus and polkit file names |
 
@@ -260,12 +260,12 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 ### 1. The oracle gets the dash cases and the movement scenarios
 
 **Files and integration points**
-- `tools/oracle/odc_rules.py` and `expected-frames.py` (committed since Phase 5 Task 0; owner, 2026-10-27, solution review P3-01): UPDATE, in the same commit as the frames they regenerate.
-  - `odc_rules.py` already draws OpenDeepCool's pictures (it generated the 2026-10-24 frames). It gets the movement procedure of `display.md` "Movement, precisely" as a small state machine, written from the spec text, not from any Rust code.
-  - Its value rules already use exact fractions (Python's `fractions.Fraction`), never floats, and round every measurement to the nearest whole number, halves up, as `display.md` Values requires (done 2026-10-26, at the owner's request). They agree with the spec's whole-number formulas on every millidegree from 0 to 6000 °C in both units, and on sampled jiffy, kB, energy and µW inputs.
-  - With the nearest rule it regenerated `docs/spec/frames/` on 2026-10-26: exactly the 24 expected °F cases changed, 57 °C → `135°F` and 7 °C → `45°F`, and nothing else (`frames/README.md`).
+- `tools/oracle/` (the Rust oracle `odc-oracle`, since Phase 5 Task 0; owner, 2026-10-27, solution review P3-01; in Rust, owner, 2026-10-28): UPDATE, in the same commit as the frames it regenerates.
+  - Its `rules` already draw OpenDeepCool's pictures (the Python version generated the 2026-10-24 frames, and the port reproduces them). It gets the movement procedure of `display.md` "Movement, precisely" as a small state machine, written from the spec text, never from the renderer's code; it shares no code with the program (Phase 5 Task 0).
+  - Its value rules use exact integer arithmetic, never floats, and round every measurement to the nearest whole number, halves up, as `display.md` Values requires (the owner's rule of 2026-10-26). The Python version agreed with the spec's whole-number formulas on every millidegree from 0 to 6000 °C in both units, and on sampled jiffy, kB, energy and µW inputs; the same check runs against the Rust rules.
+  - With the nearest rule, the Python version regenerated `docs/spec/frames/` on 2026-10-26: exactly the 24 expected °F cases changed, 57 °C → `135°F` and 7 °C → `45°F`, and nothing else (`frames/README.md`).
   - The scenario file writes every reading as an exact decimal, which the Rust loader parses into an exact fraction, never through `f64`.
-  - `expected-frames.py` writes the files below.
+  - The oracle writes the files below.
 - `docs/spec/frames/unavailable.txt`: CREATE, generated. Dash cases, each in rotations 0–3:
   - mode 1 with CPU Usage unavailable, and with a negative reading (with exact readings, not-a-number and infinite can't occur, `display.md` Unavailable values);
   - mode 4 with CPU Usage 42 and Gpu usage unavailable, and with CPU Usage 100 and Gpu usage unavailable (scrolling);
@@ -593,8 +593,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - nothing else is allowed for this destination.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
-- `scripts/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number and write time (Task 9). If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (P7-09), the drop-in relaxes them to `0027` and `0750`, so the tests, which run as the owner in group `opendeepcool`, can read the recording.
-- `scripts/dev/setup.sh`, `install-root.sh`, `teardown.sh`, `check.sh`: UPDATE.
+- `tools/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number and write time (Task 9). If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (P7-09), the drop-in relaxes them to `0027` and `0750`, so the tests, which run as the owner in group `opendeepcool`, can read the recording.
+- `tools/dev/` (`odc-dev`'s `setup`, `install-root`, `teardown` and `check`): UPDATE.
   - **setup**, as the user, builds `--release` (solution review P5-03); then **install-root**, its only `pkexec` step, which never builds, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
   - **teardown** reverses all of it from the manifest.
   - **check** verifies the service is active, owns its bus name, and runs as `opendeepcool`.
@@ -606,8 +606,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `xmllint --noout` on the D-Bus and polkit files. They're validated against their DTDs where the DTDs are installed; otherwise the check is "well-formed" only, and the report says so.
 
 **Validation**
-- After the owner approves the `scripts/dev/setup.sh` run and its `pkexec` step:
-  - `scripts/dev/check.sh` exits 0;
+- After the owner approves the `odc-dev setup` run and its `pkexec` step:
+  - `odc-dev check` exits 0;
   - `busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 GetState` from the owner's session shows `Mode` as `u 1`.
 
 ### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the start check; and the attended tour
@@ -711,7 +711,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Layer 2 (local) | `cargo test -p odc-render --test differential_load -- --ignored` | AC1 (captures) |
 | Unit and policies | `systemd-analyze verify packaging/systemd/opendeepcool.service`; `xmllint --noout packaging/dbus/*.conf packaging/polkit/*.policy` | AC8 (syntax) |
 | Sandbox | `systemd-analyze security opendeepcool.service` on the dev copy | AC8 |
-| Dev copy | `scripts/dev/check.sh`; `busctl call … GetState` | AC8, AC10 |
+| Dev copy | `cargo run -p odc-dev -- check`; `busctl call … GetState` | AC8, AC10 |
 | Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only service --require dev-service` | AC9 |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended` | The owner's own look; never a gate |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |

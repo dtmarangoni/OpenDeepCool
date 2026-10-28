@@ -141,6 +141,7 @@ It's a protocol behaviour, so the owner decides (P5-05).
 - **Evidence:** plan Task 8 (`setup.sh`, run with `pkexec`); Phase 7 Task 8 ("setup builds `--release`").
 - **Recommendation:** split the script. `setup.sh` runs as the user, builds, and then calls `pkexec scripts/dev/install-root.sh <artefacts…>`, which only copies files, checks them against the manifest and refuses to run `cargo`. The same split helps Phases 9 and 10, which add binaries.
 - **Outcome (2026-10-27):** accepted. Phase 5 Task 8 builds the split from the start: `setup.sh` runs as the user and refuses root, and `install-root.sh` is the only `pkexec` step and never builds. Phase 7's setup builds `--release` on the user's side, and the Phase 7 and 9 validation steps name the `pkexec` step. PRD Decisions Log: Dev setup.
+  - **Note (2026-10-28, owner):** the split stays, in Rust: `odc-dev setup` runs as the user and refuses root, and its `install-root` step is the only one under `pkexec` and never builds ([Owner decision before Task 0](#owner-decision-before-task-0-2026-10-28)).
 
 ### P5-04: Dev group membership
 
@@ -179,6 +180,7 @@ It's a protocol behaviour, so the owner decides (P5-05).
 
 - **Recommendation:** run the Rust checks only when the staged paths include `crates/`, `Cargo.toml`, `Cargo.lock`, `packaging/` or `scripts/`, and print which checks ran. CI still runs everything on every push.
 - **Outcome (2026-10-27):** accepted, with a longer path list: the tests read `docs/spec/frames/` and `docs/spec/dbus.md`, and `tools/oracle/`, `.githooks/` and `.github/` are code too, so those trigger the Rust checks as well. The privacy checks still run on every commit. Phase 5 Task 10; PRD Testing Strategy.
+  - **Note (2026-10-28, owner):** with every tool in Rust, the list names `tools/` instead of `scripts/` and `tools/oracle/`, and the frames check is the oracle's own test inside `cargo test` ([Owner decision before Task 0](#owner-decision-before-task-0-2026-10-28)).
 
 ### P5-09: A deauthorized cooler after a killed test
 
@@ -203,6 +205,21 @@ It's a protocol behaviour, so the owner decides (P5-05).
 ### P5-13: `03 08` on every new connection
 
 - **Outcome (2026-10-27):** no action, as a note: it follows the owner's decision of 2026-10-24.
+
+## Owner decision before Task 0 (2026-10-28)
+
+Not a finding of this review: a decision the owner made when the plan was compared with the repository before Task 0 (AGENTS.md, How to work). It supersedes parts of the outcomes of P3-01, P5-03 and P5-08 here, of P2-01 and P11-03 in their reviews, and of OV-07, OV-17 and OV-22 in the overview, each of which carries a dated note.
+
+- **Decision:** "If the project is made with Rust, all testing framework should be made using rust as well." From the options offered, the owner chose all four: the guard's test and the dev access check, the dev setup and teardown, the commit guard, and the mockup generator.
+- **What becomes Rust:**
+  - the expected-frame generator: a separate program, `tools/oracle/`, that shares no code with OpenDeepCool. Before it replaces the Python, it rebuilds the committed frames byte for byte; the Python stays local in `research/` (Phase 5 Task 0);
+  - the commit guard, its push-time check, CI's privacy check and the guard's tests: `tools/guard/`, started by one-line hook files (Phase 5 Task 10);
+  - the dev setup, check and teardown: `tools/dev/` (`odc-dev`), with the user/root split of P5-03 (Phase 5 Task 8);
+  - the dev-copy removal: one library, `odc-manifest`, which `odc-dev` uses and which the package's Rust hook program reuses for `post_install`, so there's no second copy in shell (Phase 5 Task 8, Phase 11);
+  - the mockup generator: `tools/mockups/` (Phase 10 Task 0);
+  - the fake `sensors-detect` in Phase 6's tests.
+- **What stays in another language,** because a tool requires that format: git's hook files, the PKGBUILD and its install script, CI's YAML, and the mockups' own HTML, CSS and JS. `research/` stays local and is exempt.
+- **Recorded in:** AGENTS.md rule 13; PRD (Testing Strategy, Phase 5, How Agents Work, System Footprint, Decisions Log: Language, Commit guard, Oracle generator, Dev setup); the Phase 5 to 11 plans.
 
 ## Questions for the owner
 

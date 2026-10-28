@@ -169,14 +169,14 @@ The display service reads sysfs, procfs and NVML only. Render-node access and ou
 | `docs/spec/display.md` Values | Values keep their fraction until drawn; rounding is Phase 7's |
 | `docs/spec/settings.md` Settings, OpenDeepCool's defaults, What the settings app must offer | Fan inputs and GPU choice as settings; defaults; what the app shows (Phase 10 consumer) |
 | `docs/prp/prds/opendeepcool-lp360.prd.md` Architecture Notes (Sensors, Sensor architecture, Service model) | Sensor sources, architecture, service model |
-| `docs/prp/plans/phase-5-device-protocol-core.plan.md` (Tasks 1, 8, 10) | Workspace, lints, `packaging/udev/70-opendeepcool.rules`, `scripts/dev/*`, CI and the guard this phase extends |
+| `docs/prp/plans/phase-5-device-protocol-core.plan.md` (Tasks 1, 8, 10) | Workspace, lints, `packaging/udev/70-opendeepcool.rules`, the dev tool `odc-dev` (`tools/dev/`), CI and the guard this phase extends |
 | `AGENTS.md` rules 3, 7, 8, 10 (exception for driver names), 11, 12 | The constraints every task checks |
 | `docs/local/machine.md` (local only) | The owner's devices: only for the `odc-e2e --require` list on the owner's PC, never in code or commits |
 
 ### Existing patterns and primitives
 
 - **Fake trees under `CARGO_TARGET_TMPDIR`:** introduced by Phase 5 Task 7 for hidraw. This phase moves the builder into `odc-testkit::faketree` so every adapter's tests share it.
-- **Product files plus dev scripts:** Phase 5 Task 8 (`packaging/udev/70-opendeepcool.rules`, `scripts/dev/setup.sh`, `teardown.sh`, `check.sh`). This phase adds lines to the same files rather than new installers.
+- **Product files plus the dev tool:** Phase 5 Task 8 (`packaging/udev/70-opendeepcool.rules`, and `odc-dev`'s `setup`, `teardown` and `check` in `tools/dev/`). This phase adds to the same files rather than new installers.
 - **Lints:** the workspace forbids `unsafe_code` (Phase 5 Task 1). `odc-gpu-rank` alone opts out (Task 9), so the boundary is visible in its `Cargo.toml`.
 
 ### Integration points
@@ -364,7 +364,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   ACTION=="add|change", SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", ATTR{name}=="package-*", RUN+="/usr/bin/chgrp opendeepcool /sys%p/energy_uj", RUN+="/usr/bin/chmod g+r /sys%p/energy_uj"
   ```
 
-- `scripts/dev/setup.sh`, `teardown.sh` and `check.sh`: UPDATE.
+- `tools/dev/` (`odc-dev`'s `setup`, `teardown` and `check`): UPDATE.
   - setup re-triggers the powercap zones;
   - teardown re-triggers them after removing the rule, so the mode returns to `0400 root:root`;
   - check verifies `energy_uj` is group `opendeepcool` and group-readable.
@@ -388,7 +388,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Validation**
 - `cargo test -p odc-sensors --test cpu_power`: passes.
-- After `scripts/dev/setup.sh` (system change, shown to the owner first), `scripts/dev/check.sh`: exit 0.
+- After `odc-dev setup` (system change, shown to the owner first), `odc-dev check`: exit 0.
 
 ### 7. The GPU list, the saved choice and the fan inputs
 
@@ -542,7 +542,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   Phase 11's removal script acts only on those yes/no fields, on the two fixed paths, and disables the service only if it wasn't enabled before.
 - `sensors-detect` exiting non-zero is logged, and the record is still written, so it doesn't run again at every boot (`sensors.md` driver rules).
 
-**Tests** (integration; the fake `sensors-detect` is a shell script that writes the files a scenario needs)
+**Tests** (integration; the fake `sensors-detect` is a small Rust test program that writes the files a scenario needs, AGENTS.md rule 13)
 - **Fresh PC** → it runs once, the record lists `/etc/conf.d/lm_sensors` as created, and a second run doesn't run it.
 - **Fan readings already exist** (a board chip with fan inputs in the fake tree, no lm-sensors files) → never run, nothing recorded (P6-13). An amdgpu fan alone doesn't count: then it runs.
 - **Existing `/etc/conf.d/lm_sensors`** → never run, nothing recorded, and the file is unchanged (byte-compared).
@@ -573,7 +573,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
   Each is found the way the product finds it: hwmon `name`, powercap zone name, PCI class and driver, an NVML load.
   - **`Unusable` cases**, each failing with its fix:
-    - CPU power present but not readable → run `scripts/dev/setup.sh`;
+    - CPU power present but not readable → run `cargo run -p odc-dev -- setup`;
     - a GPU present but its tool missing → install `ffmpeg`;
     - `sensors` missing → install `lm_sensors`.
 - `crates/odc-e2e/src/sensors.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only sensors`.
@@ -661,9 +661,9 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 |---|---|---|
 | Format, lint | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings` | Style; no warnings |
 | Layers 1 + 3 | `cargo test --workspace` | AC1, AC2, AC3, AC5, AC6 (sizes, fakes), AC7 (fakes), AC8 |
-| udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules scripts/dev/reconnect.rules` | AC4 (syntax) |
+| udev rules | `udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules tools/dev/reconnect.rules` | AC4 (syntax) |
 | Units | `systemd-analyze verify packaging/systemd/opendeepcool-gpu-rank.service packaging/systemd/opendeepcool-sensors-detect.service`, run locally; it reports the missing `opendeepcool.service` until Phase 7, which is expected and listed | AC6, AC7 (unit syntax) |
-| Dev access | `scripts/dev/check.sh` | AC4 |
+| Dev access | `cargo run -p odc-dev -- check` | AC4 |
 | GPU helper, layer 4 | `cargo run -p odc-e2e -- --only gpu-rank` | AC6 |
 | Detection, once | `pkexec target/debug/odc-sensors-detect`, then the Task 10 checks | AC7 |
 | Sensors, layer 4 | `cargo run -p odc-e2e -- --only sensors` | AC4, AC9 |
@@ -699,7 +699,7 @@ Each rule also runs on real hardware wherever the PC running the tests has its d
 | `sensors-detect` probing on other PCs | Run only when both lm-sensors files are absent and no fan reading exists yet, once per board, within 120 s, without the display service waiting; output to the journal; the README and the AUR page say, before install, that installing probes the sensor buses (owner, 2026-10-27; solution review P6-02, P6-03, P6-13) | lm-sensors' own warning and default skips (`sensors.md`) | A board that misbehaves when probed; the PRD's risk table already lists it |
 | The CPU usage formula treats iowait as idle | Keep; `proc_stat(5)` calls iowait unreliable, and the e2e test compares with `top` | `sensors.md` driver rules; parity S3 checked against `top` | A few points' difference from tools that count iowait as busy |
 | `systemd-analyze verify` warns about the not-yet-existing `opendeepcool.service` | Expected until Phase 7; the gate lists the expected warning | Units are ordered before a service Phase 7 creates | — |
-| The dev state directory `/var/lib/opendeepcool` doesn't exist before Phase 7's `StateDirectory=` | `scripts/dev/setup.sh` creates it (`root:opendeepcool 2770`) and teardown removes it; in the dev footprint. Task 10's detection no longer uses it: its record has its own root-only directory (solution review OV-01) | Needed by Task 9 locally | — |
+| The dev state directory `/var/lib/opendeepcool` doesn't exist before Phase 7's `StateDirectory=` | `odc-dev setup` creates it (`root:opendeepcool 2770`) and teardown removes it; in the dev footprint. Task 10's detection no longer uses it: its record has its own root-only directory (solution review OV-01) | Needed by Task 9 locally | — |
 
 ## Agent Notes
 

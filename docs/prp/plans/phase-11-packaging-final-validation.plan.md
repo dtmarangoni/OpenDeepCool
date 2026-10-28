@@ -82,11 +82,11 @@
 - The one-shots need no link: the service pulls them in with `Wants=`.
 - A user turns OpenDeepCool off with `systemctl mask --now opendeepcool.service` and `systemctl --global mask opendeepcool-audio.service`; the install message says so.
 
-**Starting, restarting and stopping: three small hooks and one script.**
+**Starting, restarting and stopping: three small hooks and one program,** written in Rust (owner, 2026-10-28; AGENTS.md rule 13).
 - **`/usr/share/libalpm/hooks/opendeepcool-install.hook`:** `Type = Path`, `Operation = Install`, `Target = usr/lib/opendeepcool/opendeepcoold`, `When = PostTransaction`. It runs `/usr/share/libalpm/scripts/opendeepcool-hook start`, which does `systemctl start --no-block opendeepcool.service` unless the unit is masked.
 - **`opendeepcool-upgrade.hook`:** the same, with `Operation = Upgrade`. It runs `opendeepcool-hook restart`, which does `systemctl try-restart --no-block opendeepcool.service`, then the same `try-restart` of each logged-in user's audio helper (below). The new binaries run at once, and a service the user stopped stays stopped.
 - **`opendeepcool-remove.hook`:** `Operation = Remove`, `When = PreTransaction`. It runs `opendeepcool-hook stop` before the files go: the service, then each logged-in user's audio helper.
-- **Each logged-in user's helper** (owner, 2026-10-27; solution review P11-05, P11-20): for every user `loginctl list-users` shows, the script runs `systemctl --user --machine=<user>@.host try-restart` or `stop` on `opendeepcool-audio.service`. That's the form systemctl(1) documents for reaching one user's service manager (read 2026-10-27).
+- **Each logged-in user's helper** (owner, 2026-10-27; solution review P11-05, P11-20): for every user `loginctl list-users` shows, the program runs `systemctl --user --machine=<user>@.host try-restart` or `stop` on `opendeepcool-audio.service`. That's the form systemctl(1) documents for reaching one user's service manager (read 2026-10-27).
   - Whether it works from a pacman hook is checked on the owner's PC: in Task 5's real upgrade, and at the first real uninstall (Phase 12).
   - If it doesn't, the owner chooses then between two fallbacks: the helper exits by itself once its program file is replaced or removed; or the docs say that an old helper keeps running until the next login after an upgrade, and waits idle until logout after an uninstall, since it waits for the service rather than exiting (Phase 9).
 - **Order:** "Hooks are run in alphabetical order of their file name" (alpm-hooks(5)).
@@ -98,7 +98,7 @@
 
 **The `.install` file keeps only what is specific to this package:**
 - **`post_install`:**
-  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file), one entry at a time and never recursively: a file or link with `rm`, an empty directory with `rmdir`, each removal printed (solution review P11-03). It's the same logic as `scripts/dev/teardown.sh`, which shares the code. The detection's record in `/var/lib/opendeepcool-detect/` isn't in the manifest; the package takes it over.
+  1. If `/var/lib/opendeepcool-dev/manifest` exists, remove exactly what it lists (owner, 2026-10-24: no dev copy survives or hides a packaged file), one entry at a time and never recursively: a file or link, or an empty directory, each removal printed (solution review P11-03). It runs `/usr/share/libalpm/scripts/opendeepcool-hook remove-dev-copy`, whose removal is the same Rust code `odc-dev teardown` uses (`odc-manifest`, Phase 5 Task 8; owner, 2026-10-28). The detection's record in `/var/lib/opendeepcool-detect/` isn't in the manifest; the package takes it over.
   2. Print what is enabled, how to turn it off with `systemctl mask`, and that Music sound starts at each user's next login (owner, 2026-10-25: enable at install, against Arch's convention that "Arch Linux … does not enable most services on installation", Arch Wiki, systemd).
 
   It enables and starts nothing.
@@ -207,14 +207,14 @@ flowchart LR
 | File | Why it matters |
 |---|---|
 | PRD System Footprint, Phase 11, Decisions Log | Every item the package installs or creates, and how each is removed |
-| `scripts/dev/setup.sh`, `teardown.sh`, the manifest format (Phase 5 Task 8) | The dev copy the package removes; the shared removal logic |
+| `odc-dev` (`tools/dev/`) and `odc-manifest`: the manifest format and its removal (Phase 5 Task 8) | The dev copy the package removes; the shared removal code |
 | `packaging/` (Phases 5–10) | Every file the package ships: unit files, sysusers, udev, D-Bus and polkit policy, user unit, desktop entry, icon |
 | Phase 6 plan Tasks 6–7 | What the detection unit creates and records |
 | Arch Wiki: Arch package guidelines, AUR submission guidelines, PKGBUILD, `.install` scriptlets | The packaging rules the package follows |
 
 ### Existing patterns and primitives
 
-- **The dev manifest** (Phase 5 Task 8): one list of everything created, removed exactly. The package's `post_install` and `teardown.sh` share its removal.
+- **The dev manifest** (Phase 5 Task 8): one list of everything created, removed exactly. The package's `post_install` and `odc-dev teardown` share its removal: one Rust implementation, `odc-manifest`.
 - **`created` records** (Phase 6 Task 7, `sensors-detect.json`): what the detection made, so removal touches only that.
 - **`odc-e2e` areas and capabilities:** this phase adds `--only package` and the `container` capability.
 
@@ -222,7 +222,7 @@ flowchart LR
 
 - `packaging/arch/`: CREATE, the PKGBUILD and the `.install` file.
 - The service's unit, for NVIDIA device access (below).
-- `scripts/dev/setup.sh`, `install-root.sh`: UPDATE, the `--test-access` mode (Task 5).
+- `tools/dev/` (`odc-dev`'s `setup` and `install-root`): UPDATE, the `--test-access` mode (Task 5).
 - `README.md` "Installed on your system", install and uninstall sections.
 
 ## Scope
@@ -249,7 +249,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Compatibility / migration | The owner's dev copy is removed by `post_install` from its manifest; saved settings in `/var/lib/opendeepcool` are kept by the package (the dev copy used the same state directory and the same `settings.toml` v1), so the owner's choices survive the move |
-| Rollout / reversibility | `pacman -R` undoes the install completely (the test proves it); `scripts/dev/setup.sh` can bring the dev copy back |
+| Rollout / reversibility | `pacman -R` undoes the install completely (the test proves it); `odc-dev setup` can bring the dev copy back |
 | Observability | The install message lists what was enabled; the journal shows the service from its first start; `pacman -Ql opendeepcool` lists every file |
 | Documentation / communication | README: install from GitHub, and from the AUR once `v1.0.0` is there; uninstall; "Installed on your system" (generated from the same list the test checks); the AUR page's description, ready for Phase 12. Release notes come with Phase 12's releases |
 
@@ -270,7 +270,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - units in `/usr/lib/systemd/{system,user}`;
   - `sysusers.d`, `udev/rules.d`, `/usr/share/dbus-1/system.d`, `/usr/share/polkit-1/actions`, `/usr/share/applications`, `/usr/share/icons/hicolor/scalable/apps`, `/usr/share/licenses/opendeepcool/LICENSE`;
   - the enable symlinks `/usr/lib/systemd/system/multi-user.target.wants/opendeepcool.service` and `/usr/lib/systemd/user/default.target.wants/opendeepcool-audio.service`;
-  - the pacman hooks `/usr/share/libalpm/hooks/opendeepcool-{install,upgrade,remove}.hook` and their script `/usr/share/libalpm/scripts/opendeepcool-hook`;
+  - the pacman hooks `/usr/share/libalpm/hooks/opendeepcool-{install,upgrade,remove}.hook` and their program `/usr/share/libalpm/scripts/opendeepcool-hook`;
   - created at run time: `/var/lib/opendeepcool` (the service's state directory) and `/var/lib/opendeepcool-detect` (root, 0700, the detection's), both removed by `post_remove`;
   - nothing in `/usr/local` (Arch package guidelines) and nothing in `/etc`.
 - **NVIDIA:** from NVIDIA's documentation for the device files NVML opens (`/dev/nvidiactl`, `/dev/nvidia<N>`), the unit adds `DeviceAllow=` entries.
@@ -300,8 +300,10 @@ Each task ends with its own commit (rule 4) after its tests pass.
   - `install=opendeepcool.install`;
   - no `pkgver()`: a release candidate is built from a temporary copy (Recommendation).
 - `packaging/arch/opendeepcool.install`: CREATE, with `post_install`, `post_upgrade` and `post_remove` as in the Recommendation. There's no `pre_remove`: the remove hook stops the service.
-- `packaging/arch/hooks/opendeepcool-install.hook`, `opendeepcool-upgrade.hook`, `opendeepcool-remove.hook`, and their script `packaging/arch/hooks/opendeepcool-hook`: CREATE, as in the Recommendation.
-- `scripts/dev/lib-manifest.sh`: CREATE, the manifest removal shared by `teardown.sh` and `post_install`. The `.install` file carries a copy, because pacman scriptlets can't source repository files; a test checks the copies are identical. It refuses a malformed manifest before removing anything, with Phase 5's checks (solution review P4-08).
+- `packaging/arch/hooks/opendeepcool-install.hook`, `opendeepcool-upgrade.hook`, `opendeepcool-remove.hook`: CREATE, as in the Recommendation.
+- `crates/odc-hook/` (binary `opendeepcool-hook`): CREATE, the hooks' program in Rust (owner, 2026-10-28; AGENTS.md rule 13), with `start`, `restart`, `stop`, and `remove-dev-copy` for `post_install`. `package()` installs it as `/usr/share/libalpm/scripts/opendeepcool-hook`.
+  - `remove-dev-copy` is built on `odc-manifest` (Phase 5 Task 8), which `odc-dev teardown` uses too, so the removal exists once. The `.install` file only runs the program.
+  - It refuses a malformed manifest before removing anything, with Phase 5's checks (solution review P4-08).
 - `packaging/arch/.SRCINFO`: CREATE, generated by `makepkg --printsrcinfo`; a test checks it's current.
 
 **Implementation**
@@ -310,20 +312,20 @@ Each task ends with its own commit (rule 4) after its tests pass.
   2. the message.
 
   It enables and starts nothing: the symlinks enable, and the install hook starts (Recommendation).
-- **Inside a chroot,** the hook script skips its work, as systemd's `systemd-hook` does ("Skipped: Running in chroot", seen in the spike's hook output). Task 3 checks it.
+- **Inside a chroot,** the hook program skips its work, as systemd's `systemd-hook` does ("Skipped: Running in chroot", seen in the spike's hook output). Task 3 checks it.
 - **The helpers in the upgrade and remove hooks:** `loginctl list-users`, then `systemctl --user --machine=<user>@.host` for each (Recommendation). The container has no user manager, so it can't show this; Task 5 checks it on the owner's PC.
 - **`namcap` on the PKGBUILD and the built package:** no errors. Each warning is explained in the report.
 
 **Tests**
 - `makepkg -f` in a clean clone builds the package; `namcap` runs on both.
-- A shellcheck run on the `.install` file, `lib-manifest.sh` and the hook script.
+- A shellcheck run on the `.install` file. The hook program's unit tests cover `start`, `restart`, `stop` and `remove-dev-copy` with fakes.
 - Static checks:
   - no scriptlet contains `systemctl enable`, `disable`, `start` or `restart`;
   - the hooks' file names sort after `dbus-reload.hook` and systemd's numbered hooks;
   - the two symlinks point at their units;
   - `build()`'s `-p` list names exactly the crates whose binaries `package()` installs;
   - the workspace's `rust-version` is at or below the version of Arch's `rust` package (`pacman -Si rust`), so AUR users can build it. It runs in CI's Arch container (solution review P11-07; `1.99` and `1:1.99.1` on 2026-10-27).
-- The two manifest-removal copies are identical, and `.SRCINFO` matches `makepkg --printsrcinfo`.
+- `.SRCINFO` matches `makepkg --printsrcinfo`.
 
 **Validation**
 - `cd packaging/arch && makepkg -f && namcap PKGBUILD *.pkg.tar.zst`: builds and reports no errors.
@@ -395,9 +397,9 @@ Each task ends with its own commit (rule 4) after its tests pass.
 ### 5. The owner's PC moves to the package
 
 **Files and integration points**
-- `scripts/dev/setup.sh`, `install-root.sh`: UPDATE, a `--test-access` mode (owner, 2026-10-27).
+- `tools/dev/` (`odc-dev`'s `setup` and `install-root`): UPDATE, a `--test-access` mode (owner, 2026-10-27).
   - It adds the owner's account to the package's group and installs the reconnect rule (`71-opendeepcool-dev-reconnect.rules`).
-  - It records only those two entries, in a new dev manifest. There's no group entry, because the group belongs to the package, so `teardown.sh` never deletes it.
+  - It records only those two entries, in a new dev manifest. There's no group entry, because the group belongs to the package, so `odc-dev teardown` never deletes it.
 
 **Implementation** (owner approves each privileged step, rule 7)
 1. Build the package from the release candidate (the temporary PKGBUILD pinned to the committed HEAD, Task 2).
@@ -408,7 +410,7 @@ Each task ends with its own commit (rule 4) after its tests pass.
 
    The dev account was removed in step 2, so systemd's sysusers hook created the package's. This proves on a real system that the install hook ran after systemd's hooks, which the container can't show. Neither check needs the test access.
 4. Check that nothing from the manifest remains and that `pacman -Qk opendeepcool` is clean.
-5. **The test access comes back** (owner, 2026-10-27): `scripts/dev/setup.sh --test-access`, one `pkexec` step. It takes effect at the owner's next login, which the rest of this phase waits for.
+5. **The test access comes back** (owner, 2026-10-27): `odc-dev setup --test-access`, one `pkexec` step. It takes effect at the owner's next login, which the rest of this phase waits for.
 6. **A real upgrade,** after that login: the same candidate with a raised `pkgrel`.
    - The upgrade hook restarts the service and the owner's audio helper on the new binary: their main PIDs change, and the settings survive.
    - This checks the per-user `systemctl --user --machine=<user>@.host` from a real hook (Recommendation). If it fails, the owner chooses the fallback before Task 7.
@@ -469,7 +471,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
   - any DeepCreative path outside `research/` that `docs/local/` names.
 
   It's printed with sizes, and nothing is deleted until the owner says yes.
-- **Kept:** the oracle generator, in the repository in `tools/oracle/` since Phase 5 Task 0 (owner, 2026-10-27; solution review P3-01, P11-19). Only what's left of it in `research/hook/` goes: `render-check.py`'s DeepCreative renderer and the capture checks. So the expected frames stay reproducible after DeepCreative is gone.
+- **Kept:** the oracle generator, the Rust program in `tools/oracle/` since Phase 5 Task 0 (owner, 2026-10-27 and 2026-10-28; solution review P3-01, P11-19). All of `research/hook/` goes, the Python generator it was ported from included. So the expected frames stay reproducible after DeepCreative is gone.
 - **Records:** the PRD's dev footprint rows for Wine, the prefix and the research workspace are marked removed, with the date.
 - **Checks:** `du -sh research` shows only what the owner chose to keep, and `find ~ -iname '*deepcreative*'` prints nothing outside it.
 

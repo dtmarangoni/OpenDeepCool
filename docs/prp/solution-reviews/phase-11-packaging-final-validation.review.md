@@ -197,6 +197,7 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 - **Outcome (2026-10-27):** accepted.
   - Mostly settled with P4-08: its manifest check refuses an empty line, `/`, a `..` component or any path outside the dev locations before anything is removed, and Task 3 has a hostile-manifest case.
   - Added: entries are removed one at a time, never recursively (`rm` for a file or link, `rmdir` for an empty directory), and each removal is printed.
+  - **Note (2026-10-28, owner):** the removal exists once, in Rust (`odc-manifest`). The package's hook program runs it for `post_install`, and `odc-dev teardown` uses it too, so the `.install` file no longer carries a shell copy. The checks and the one-at-a-time removal stay. AGENTS.md rule 13; Phase 5 plan (Task 8); Phase 11 plan.
 
   Phase 11 plan (Recommendation, `post_install`).
 
@@ -300,6 +301,7 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 
 - **Recommendation:** commit it before Phase 7 (P3-01). Task 8 then only removes the DeepCreative-reading parts that remain local.
 - **Outcome (2026-10-27):** settled with P3-01: the generator is committed in `tools/oracle/` from Phase 5 Task 0, and the deletion, now Phase 12's, removes only the DeepCreative parts left in `research/hook/`.
+  - **Note (2026-10-28, owner):** the committed generator is a Rust port, so Phase 12's deletion takes all of `research/hook/`, the Python generator included (P3-01's note).
 
 ### P11-20: Helpers after uninstall
 
@@ -325,6 +327,7 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 
 - **The final run's test access, a gap this review missed.** Task 5's install removed the dev copy, and with it the owner's membership in group `opendeepcool` and the reconnect rule. Task 7 needs both: for the dev interface, the recording and the reconnect test.
   - **Outcome:** accepted (owner). After the install, one approved step re-adds them (`scripts/dev/setup.sh --test-access`), recorded in the dev manifest, effective from the next login. The run's drop-in also relaxes the recording's modes, and Task 5's start check moves into Task 7's drop-in.
+    - **Note (2026-10-28, owner):** that step is now `odc-dev setup --test-access`, the Rust dev tool (P11-03's note).
   - Phase 11 plan (Recommendation, Tasks 5 and 7, AC6, Risks); PRD (Phase 11, dev footprint, Decisions Log: Test access after the package).
 - **Core dumps.** With `panic = "abort"` (OV-03), a crash can leave a core dump, which systemd keeps for two weeks by default.
   - **Outcome:** accepted with the smaller fixes. The PRD's footprint lists it next to the journal, and the plan's invariant names it.

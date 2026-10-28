@@ -59,7 +59,7 @@
 - **Power:** the nearest whole number, halves up, (2 · num + den) div (2 · den), on µW ÷ 10⁶, mW ÷ 1000, or µJ ÷ µs.
 - **The cap:** a number above 9999 → 9999. For °F it's applied to the converted number: 5536 °C gives `9997°F` (9996.8), 5537 °C gives `9999°F` (9998.6), and from 5537.5 °C (10 000 °F) the cap draws `9999°F`.
 - **Overflow:** intermediates are `i128`, so even the largest reading an `Exact` can hold (`i64::MAX` millidegrees) can't overflow.
-- **The oracle** (`odc_rules.py` `number`, in `tools/oracle/` from Phase 5 Task 0) already has the same rule. It regenerated the frames on 2026-10-26, which changed 24 °F cases: 57 °C → `135°F`, 7 °C → `45°F` (`frames/README.md`).
+- **The oracle** (its value rules, in the Rust oracle `tools/oracle/` from Phase 5 Task 0; owner, 2026-10-28) already has the same rule. The Python version it was ported from regenerated the frames on 2026-10-26, which changed 24 °F cases: 57 °C → `135°F`, 7 °C → `45°F` (`frames/README.md`).
 
 **Lift the refusal through `odc-render`, not a list.**
 - Phase 7 refuses later-phase modes with `NotYetAvailable` (Phase 7 Task 7, step 3), and `picture` returns `Err(NotYetImplemented)` for them (Task 2).
@@ -115,7 +115,7 @@
 - `docs/prp/plans/phase-6-sensors.plan.md`: `Metric::{CpuTemperature, GpuTemperature, CpuPower, GpuPower}`; `Unavailable { NotYet, PermissionDenied, IntegratedGpuPower, … }`; the powercap group rule (Task 6).
 - `docs/spec/parity-checklist.md`: D2, D5–D7, D10, D17–D25, D30, D35–D41.
 - Local research tools (`research/`, never committed):
-  - `research/hook/render-check.py` `expected` (DeepCreative's rules, local) and `tools/oracle/odc_rules.py` `picture`/`window` (OpenDeepCool's);
+  - `research/hook/render-check.py` `expected` (DeepCreative's rules, local) and the Rust oracle's picture and window rules in `tools/oracle/` (OpenDeepCool's);
   - the 2026-10-25 agreement count above came from these, over `research/logs/sweep-*.json` and `lp360-hidraw.log`.
 
 ### Alternatives considered
@@ -152,7 +152,7 @@ flowchart LR
 | `docs/prp/plans/phase-7-service-settings-load-mode.plan.md` | Everything this phase extends: `odc-render`'s parts, the engine's resets, the D-Bus refusals, the dev service, `odc-e2e --only service` and `--attended`, the scenario file format (Task 1) |
 | `docs/spec/sensors.md` Metrics, CPU power, Updates and rounding | Which readings are rates (first-second dashes), the root-only counter, integrated AMD power |
 | `docs/spec/settings.md` Settings, What the settings app must offer | The global unit; availability rules |
-| `tools/oracle/odc_rules.py`, `expected-frames.py`; `research/hook/render-check.py` (local) | The oracle generator to extend (committed from Phase 5), and the DeepCreative renderer for the differential skip reasons |
+| `tools/oracle/` (Rust); `research/hook/render-check.py` (local) | The oracle generator to extend (committed from Phase 5), and the DeepCreative renderer for the differential skip reasons |
 
 ### Existing patterns and primitives
 
@@ -195,7 +195,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Compatibility / migration | Settings v1 already has `temperature_unit`; a saved `mode = 7`–`12` was impossible before (refused), so no stored data changes |
-| Rollout / reversibility | Each mode commit updates the dev copy through `scripts/dev/setup.sh` (the owner approves the `pkexec` run, rule 7); `git revert` of a mode commit makes that mode refused again |
+| Rollout / reversibility | Each mode commit updates the dev copy through `odc-dev setup` (the owner approves the `pkexec` run, rule 7); `git revert` of a mode commit makes that mode refused again |
 | Observability | The journal line for a refused mode already names the reason; the e2e summary prints each mode's case counts and the time the run took |
 | Documentation | README: `busctl` examples for a Temperature mode and the unit; AGENTS.md Commands: `--modes` and the new test targets (Task 9) |
 
@@ -206,7 +206,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 ### 1. The oracle gets the Temperature and Power dash cases and movement scenarios
 
 **Files and integration points**
-- `tools/oracle/odc_rules.py` and `expected-frames.py` (committed since Phase 5 Task 0): UPDATE, in the same commit as the frames they regenerate. `odc_rules.py` already has the 9999 cap (2026-10-25) and the nearest rule (2026-10-26). The scenario generator built in Phase 7 Task 1 runs for modes 7–12.
+- `tools/oracle/` (the Rust oracle, since Phase 5 Task 0): UPDATE, in the same commit as the frames it regenerates. Its rules already have the 9999 cap (2026-10-25) and the nearest rule (2026-10-26). The scenario generator built in Phase 7 Task 1 runs for modes 7–12.
 - `docs/spec/frames/unavailable.txt`: UPDATE, generated. New cases, each in rotations 0–3:
   - mode 7 with CPU Temperature unavailable, in °C and °F (`--°C`, `--°F`);
   - mode 9 in °F with CPU Temperature 120 and Gpu temperature unavailable (scrolling, `248°F` over `--°F`);
