@@ -73,6 +73,7 @@ Evidence: capture: all sessions, with the frames decoded this way showing legibl
 - **Interval: one frame per 100 ms tick,** 10 frames per second. Over every continuous run of the capture log, the mean interval is 99.98–100.06 ms (14 runs, 176,083 intervals). Single intervals are 96 or 104 ms (8 ms steps, probably the timer's granularity under Wine, unverified), which is why their median is 104 ms. Capture: whole capture log, re-analysed 2026-10-24.
   - Corrected 2026-10-24: this section first gave the median, 103.9 ms, as the interval.
 - **Drawn by the PC:** rotation, scrolling and animation are all computed by DeepCreative; the cooler only shows the frames it receives. Capture: Phase 1 walkthroughs ([Phase 1 report](../research/phase1-wine-spike.md)).
+- **Write time:** one 64-byte write took 2.9 ms at the median and 7.9 ms at most, over 41 writes. Measured: OpenDeepCool on the cooler, 2026-10-28 (Phase 5, `odc-e2e`). A write to a stalled device can block for up to 5 s (kernel source: `usbhid_output_report` sends with `USB_CTRL_SET_TIMEOUT`, 5000 ms; read 2026-10-26), so the service writes from a thread of its own (PRD, Service model).
 
 ## Session end and the display without frames
 
@@ -92,6 +93,7 @@ Tested on 2026-10-24: DeepCreative ran under Wine, sending frames, while the coo
 **OpenDeepCool** (owner, 2026-10-24):
 - it keeps looking for the cooler for as long as it runs, instead of giving up after a few tries;
 - after every reconnect, it sends `03 08` before the first frame, exactly as at start-up. A reconnect is a new start of the conversation with the cooler, and `03 08` is the only thing DeepCreative was seen sending first.
+- Checked on the cooler, unattended, 2026-10-28 (Phase 5, `odc-e2e`): switched off through its USB `authorized` switch, the cooler made the next write fail within one 100 ms tick, and its USB device stayed listed with its IDs. Switched on again, it was back and writable within 0.2 s, with its udev access applied again, and the first message on the new connection was `03 08`.
 
 ## Standby
 
