@@ -81,6 +81,8 @@
 **D-Bus with zbus's blocking API.**
 - The owner chose D-Bus on 2026-10-24.
 - zbus 6's blocking `connection::Builder::system().name(…).serve_at(…).build()` runs the object server on zbus's own executor thread, so the service needs no async runtime of its own (zbus book, "blocking").
+  - zbus 6 has no `blocking-api` feature, unlike zbus 5. Its default features bring its own small runtime, `zruntime`, not tokio (crates.io, 2026-10-29). Task 4 checks the blocking API and the features it needs against zbus 6's documentation before writing code.
+  - zbus's macros, and serde's derive since 1.0.229, are built with `syn` 3, while NVIDIA's NVML wrapper still needs `syn` 2, so `deny.toml` allows both (owner, 2026-10-29; Task 4).
 - polkit's `CheckAuthorization` takes a `system-bus-name` subject, the caller's unique name from the message header (`#[zbus(header)]`, `Header::sender()`). This is polkit's identification for D-Bus callers (polkit Authority interface docs).
 - **Arguments are checked against the service's own state** (owner, 2026-10-26; solution review OV-14). A GPU or a fan input is accepted only when it's on the lists the service found itself. Strings have length limits, and no file path is ever built from a caller's string (Task 7).
 
@@ -118,11 +120,13 @@
   - polkit `change-settings`, as for every change.
 
   The interface stays in the shipped binary, off unless the service starts with `--dev`, so the final parity run (Phase 11) tests the binary that ships (owner, 2026-10-26).
-- it records reports to `/var/lib/opendeepcool/dev-frames.log`, using Phase 5's `Recording` (owner, 2026-10-27; solution review P7-07):
+- it records reports to `/var/lib/opendeepcool/dev-frames.log`, with Phase 5's `Recording`, which Task 7 extends for it (owner, 2026-10-27; solution review P7-07):
   - the service's first 100 reports after each start, always, for the start check;
   - every report while a test session is held (Task 7), and nothing otherwise;
-  - each with its tick number and its monotonic write time (`CLOCK_MONOTONIC`, ns; P7-13);
+  - each with its tick number and its write time in ns on the monotonic clock, counted from the service's start (P7-13). `Instant` reads `CLOCK_MONOTONIC` on Linux (std docs), and reading that clock's own value would take `unsafe` code or another crate; the timing check needs only intervals;
   - buffered, flushed once a second and at the end of each session, and rotated at 64 MB, keeping one previous file.
+
+**The direct checks share the cooler with the dev service** (owner, 2026-10-29). From Task 8 on, the dev service writes to the cooler from boot, so Phase 5's direct checks (`odc-e2e --only device`) and Task 3's (`--only load`) would interleave with its frames. When the dev service runs, they hold a test session and call `ReleaseCooler()` (Task 7): the service closes the cooler and writes nothing until the session ends, then reconnects, `03 08` first. A killed check ends its session with its connection, so the service always takes the cooler back.
 
 ### Evidence
 
@@ -158,6 +162,12 @@
   - org.freedesktop.login1(5): `PrepareForSleep()` is sent "right before (with the argument 'true') or after (with the argument 'false')" suspend or hibernation (the manual's inner quotes shown as single quotes);
   - systemd `src/core/service.c`: the service watchdog timer runs on `CLOCK_MONOTONIC`.
 - systemd.exec(5), read 2026-10-27 (overview cross-check): with `SystemCallFilter=` set and `SystemCallErrorNumber=` "not used, … the process will be terminated immediately when the filter is triggered"; with it, the call returns that error instead.
+- **The comparison with Phases 5 and 6, before Task 1** (2026-10-29; AGENTS.md, How to work):
+  - the code: `DisplayPort::show(&Frame) -> Link`, `Link::Disconnected(Reason::{NotFound, NoAccess, WriteFailed})`, `Lp360::reset_connection()`, `Recording` (every report, unbuffered, with its wall-clock time, in the capture format), `FakeConnector`; `Readings::{snapshot, restart_intervals}`, `Registry::{choose_gpu, choose_fans, bindings}`, `Exact`, `Unavailable`, `Fan`, `Clock` and `FakeClock`, `FakeReadings`, `review_ranking`, `FanInput` (its device path relative to the sysfs root); `odc_testkit::expected` (whole-number readings only);
+  - crates.io: zbus 6.1.0's features (no `blocking-api`; `default-rt` runs on `zruntime`); `zbus_macros` 6.1.0, `zvariant_derive` 5.15.1 and `serde_derive` 1.0.229 need `syn` ^3, and zbus 5.19.0's macros already did; `nvml-wrapper` 0.13.0, the latest, needs `thiserror` ^1.0 (`thiserror-impl` 1.0.69: `syn` ^2.0.87) and `wrapcenum-derive` 0.4.1, the latest (`darling` ^0.20, `syn` ^2.0);
+  - a trial on a copy of the workspace with zbus 6, serde with its derive and toml 1 added: the only duplicate is `syn`, and the 24 new packages are all MIT or Apache-2.0;
+  - std docs: `Instant::now()` uses `clock_gettime` with `CLOCK_MONOTONIC` on Unix;
+  - this PC: `dbus-daemon` is installed (Arch's `systemd` depends on `dbus`, so CI's container has it too); systemd 262's sysusers.d(5) shows `u!` lines.
 
 ### Alternatives considered
 
@@ -202,7 +212,7 @@ flowchart LR
 | `docs/spec/protocol.md` Timing | The 100 ms tick |
 | `docs/spec/frames/README.md`, `mode-001.txt`–`mode-006.txt` | The oracle and its format |
 | `docs/prp/plans/phase-5-device-protocol-core.plan.md` | `DisplayPort`, `Lp360`, `Recording`, `odc-testkit` (expected, diff, capture, hardware probe), dev scripts and manifest |
-| `docs/prp/plans/phase-6-sensors.plan.md` | `Readings`, `Registry`, `Snapshot`, GPU choice and `rank_is_stale`, fan inputs, `FakeReadings`, the GPU-rank and detection units ordered before this service |
+| `docs/prp/plans/phase-6-sensors.plan.md` | `Readings`, `Registry`, `Snapshot`, GPU choice and `review_ranking`, fan inputs, `FakeReadings`, the GPU-rank unit ordered before this service, and the detection, which it never waits for |
 | `docs/prp/prds/opendeepcool-lp360.prd.md` Service model, Settings app ↔ service, System Footprint | What the unit, sandbox and footprint must be |
 | `research/hook/render-check.py`, `analyze-sweep.py` (local) | How the sweep steps line up with the captures |
 
@@ -211,6 +221,7 @@ flowchart LR
 - **Ports:** Phase 5 `DisplayPort` (`show(&Frame) -> Link`) and Phase 6 `Readings` (`snapshot()`), with their fakes. The engine depends only on these two traits and a `Clock`.
 - **Oracle and diff:** `odc_testkit::{expected, diff}` (Phase 5 Task 3).
 - **Hardware probe:** `odc_testkit::hardware` (Phase 5 Task 9, Phase 6 Task 11). This phase adds `DevService`.
+- **Recording:** Phase 5's `odc_device::Recording` wraps a `Connector` and writes every report, unbuffered, with its wall-clock time, in the capture format `odc_testkit::capture` reads. Task 7 extends it for the dev copy.
 - **Dev setup and manifest:** Phase 5 Task 8. Every file this phase installs goes through it.
 
 ### Integration points
@@ -235,7 +246,9 @@ flowchart LR
 - The engine: 100 ms tick, readings every second, start-up, resets and updates as the spec defines (mode, rotation, unit, GPU, Refresh; nothing for a choice already set), reconnect continuity, availability, status.
 - Settings v1, the D-Bus interface checked for every call, polkit, diagnostics, journal logging, and the wake-up from standby.
 - The `opendeepcoold` binary, unit, sandbox, D-Bus policy, polkit action, service account, and the dev copy with its frame recording.
-- Tests in all four layers, plus a start check and a resource baseline.
+- The GPU-rank helper and its unit in the dev copy, so the service on the owner's PC reads real GPU kinds; the detection stays out of the dev copy (owner, 2026-10-29; Task 8).
+- A test session that releases the cooler, so the direct checks share it with the running dev service (owner, 2026-10-29; Task 7).
+- Tests in all four layers, plus a start check and a resource baseline. Each Load mode's commit runs its own real-cooler check before the service exists (owner, 2026-10-29; Task 3).
 
 ### Not building
 
@@ -251,7 +264,7 @@ flowchart LR
 |---|---|
 | Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `odc-dev teardown` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
 | Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect with the reason (one line per change), each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
-| Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: new tests. PRD footprint: the dev copy rows already exist (2026-10-24); add the D-Bus and polkit file names |
+| Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: `--only load` (Task 3), `--only service` (Task 9), and the session the direct checks hold while the dev service runs (Task 7). PRD footprint: the dev copy rows already exist (2026-10-24), with the GPU-rank helper since 2026-10-29; add the D-Bus and polkit file names |
 
 ## Implementation
 
@@ -277,11 +290,13 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
   - Rotations 1–3 aren't stored: their expected frames are the rotation-0 frames turned, which the tests do (`display.md` Rotation).
 - `docs/spec/frames/README.md`: UPDATE, describing `unavailable.txt` and the scenario file format.
 - `docs/spec/parity-checklist.md`: UPDATE, a new row: "Unavailable values: dashes (OpenDeepCool's own rule)", reviewed as an owner decision, 2026-10-24.
+- `crates/odc-testkit/src/expected.rs`: UPDATE (the comparison with Phase 5, 2026-10-29: it reads whole-number readings only). A case's readings become exact decimals, negative ones included, or "unavailable", parsed without `f64`; a loader reads the scenario file into typed ticks. The code that matches cases by their readings follows: `odc-e2e`'s device check, `odc-protocol`'s rotation test, `odc-sensors`' model test.
 
 **Tests**
 - The generator's own checks:
   - the existing `mode-*.txt` cases are reproduced unchanged (as regenerated on 2026-10-26);
   - the owner's scenarios come out as the owner described them: a drop one column after home runs *L* − 1 more frames and stops at home; up, down and up again before home never stops; a value reaching 100 keeps its first digit place; nothing ever moves by more than one column per frame except at a reset.
+- The loader: every committed file loads, the new two included; a malformed reading or tick panics, naming its file and line.
 
 **Validation**
 - `git diff --stat docs/spec/frames/` shows only the new files and the README.
@@ -289,7 +304,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 ### 2. `odc-render`: glyphs, values, pictures, the mode table and the movement
 
 **Files and integration points**
-- `crates/odc-render/`: CREATE, a library: `lints.workspace = true`; it depends on `odc-protocol`.
+- `crates/odc-render/`: CREATE, a library: `lints.workspace = true`; it depends on `odc-protocol` and `odc-sensors`, for `Metric` and `Exact`. Phase 10's app, which draws its tiles with it, so links `odc-sensors` too; NVML's library is loaded only when a chosen GPU needs it.
   - `glyph.rs`: the digits 0–9, `%` and the dash, typed as `#`/`.` rows straight from `display.md`.
   - `value.rs`
   - `picture.rs`
@@ -326,7 +341,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
   - a strip that needs no scrolling stops only at *h*, within *L* frames;
   - an update never moves the copy whose first column is on the screen;
   - after a reset, the first frame is the picture at *h*.
-- **Mode table:** `mode_info` lists the metrics `display.md` gives for modes 1–12 and `music.md` gives for 13–22, top first, for all 22 modes.
+- **Mode table:** `mode_info` lists the metrics `display.md` gives for modes 1–12 and `music.md` gives for 13–23, top first, for all 23 modes; 23, Dancer, shows none.
 - **Matrix and scenarios:** Task 3.
 
 **Validation**
@@ -341,6 +356,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `crates/odc-render/tests/matrix_load.rs`: UPDATE, per mode.
 - `crates/odc-render/tests/scenarios_load.rs`: UPDATE, per mode.
 - `crates/odc-render/tests/differential_load.rs`: UPDATE, per mode (layer 2, local).
+- `crates/odc-e2e/src/load.rs`: CREATE with mode 1, UPDATE per mode; `crates/odc-e2e/src/lib.rs`: the area `load` (`--only load`), with mode 1. AGENTS.md Commands gets its line in the same commit (owner, 2026-10-29).
 
 **Implementation**
 - Each mode maps its metrics (top first) to the picture of Task 2. A CPU option reads only CPU metrics, a GPU option only GPU ones (rule 11).
@@ -356,15 +372,24 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - for every captured step of this mode **where OpenDeepCool's rules agree with DeepCreative's** (two-digit values from whole readings, and the rows of two-value modes whose values are all such), every frame inside the step's steady window equals the picture at home: 0 differing pixels;
   - steps where they differ on purpose are skipped and listed with the reason: one-digit values centred; values of 100 or more; fractional readings, which DeepCreative rounds up and OpenDeepCool rounds to the nearest (owner, 2026-10-26);
   - the test prints how many steps and frames it compared and skipped, and fails if none were compared.
+- **Layer 4 (local, unattended): the mode on the real cooler, before the service exists** (owner, 2026-10-29: AGENTS.md rule 4 asks for it in each mode's commit). `odc-e2e --only load` draws the mode's cases with `odc_render::{picture, Marquee}` and writes them straight to the cooler through Phase 5's `Lp360` and `Recording`, at the 100 ms tick:
+  - one example of each test type: value set 2 in rotation 0, the same in rotation 1, the scrolling case (value set 3) over its whole cycle from the reset, and the mode's dash case from `unavailable.txt` where it has one;
+  - every recorded report must equal the expected frame, `03 08` first;
+  - without a cooler the same check runs against `FakeConnector` and says so; a cooler that's present but unusable fails with its fix;
+  - from Task 8 on, while the dev service runs, the check holds a test session that releases the cooler (Task 7).
+
+  Task 9 repeats one example of each mode through the real service.
 
 **Validation**
 - `cargo test -p odc-render --test matrix_load --test scenarios_load`: passes.
 - `cargo test -p odc-render --test differential_load -- --ignored`: passes.
+- `cargo run -p odc-e2e -- --only load --require lp360`: passes.
 
 ### 4. `odc-ipc`: the D-Bus contract
 
 **Files and integration points**
-- `crates/odc-ipc/`: CREATE, a library: `serde`, `zbus = "6"`.
+- `crates/odc-ipc/`: CREATE, a library: `serde`, `zbus = "6"`, with the features its blocking API needs, checked in zbus 6's documentation first (zbus 6 has no `blocking-api` feature).
+- `deny.toml`: UPDATE, in the commit that brings `syn` 3 in (owner, 2026-10-29): one `skip` entry for `syn` 2, with its reason: `nvml-wrapper`, through `thiserror` 1 and `wrapcenum-derive`, still needs `syn` 2, while zbus's macros and serde's derive need `syn` 3. `syn` runs only while macros compile, so nothing of it reaches the binaries. The entry goes once `nvml-wrapper` moves to `syn` 3, which each phase's sign-off checks along with CI's pinned actions.
 - `docs/spec/dbus.md`: CREATE (owner, 2026-10-27; solution review P4-04). The contract, in one document:
   - the introspection XML of both interfaces, every method and signal with its argument types;
   - a table of the state keys with their types, which the XML can't show inside an `a{sv}`;
@@ -379,11 +404,11 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - polkit actions `io.github.dtmarangoni.OpenDeepCool1.use` (reads) and `io.github.dtmarangoni.OpenDeepCool1.change-settings` (changes).
 - **The state, with no D-Bus properties** (owner, 2026-10-26: nothing readable without a check, nothing broadcast). It's a dictionary, `a{sv}`, read with `GetState()` and sent in `StateChanged`; the proxy parses it into a typed `State`, and a client ignores keys it doesn't know, so later phases add keys:
   - `Mode` (u), `Rotation` (y), `TemperatureUnit` (s: `celsius` or `fahrenheit`);
-  - `CoolerConnected` (b), and `CoolerState` (s: `connected`, `not-found`, `no-access` or `write-failed`), from Phase 5's `Link` and its reason (owner, 2026-10-27; solution review P5-02, P7-14);
+  - `CoolerConnected` (b), and `CoolerState` (s: `connected`, `not-found`, `no-access` or `write-failed`), from Phase 5's `Link` and its reason (owner, 2026-10-27; solution review P5-02, P7-14); on the dev copy also `released`, while a test holds the cooler (owner, 2026-10-29);
   - `AvailableModes` (au) and `UnavailableReasons` (a{us}: mode → one-line reason);
   - `Gpus` (a(sss): PCI address, driver, kind, in rank order; kind is `dedicated`, `integrated`, `unknown` or `query-failed`, the last ranked as unknown, owner, 2026-10-27, solution review P6-07) and `ChosenGpu` (s, empty when none was chosen);
-  - `FanInputs` (a(ssus): chip, device path, input, label);
-  - `CoolerFanInput` and `PumpInput` (ssu each, empty when unset);
+  - `FanInputs` (a(ssus): chip, device path, input, label). The device path is relative to the sysfs root, `devices/…`, as Phase 6's `FanInput` keeps it; the label is empty when the driver gives none;
+  - `CoolerFanInput` and `PumpInput` (ssu each, the same chip, device path and input; empty when unset);
   - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable, capped at 9999 like every value; owner, 2026-10-25).
 - **Methods:**
   - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
@@ -415,7 +440,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - rotation 0–3;
   - a known unit;
   - a GPU choice in canonical PCI form, `dddd:bb:dd.f` in lower-case hex;
-  - a fan input whose chip name has at most 64 bytes, whose device path is absolute, under `/sys/devices/`, without `.` or `..` components and at most 1024 bytes long, and whose input number is 1 or more.
+  - a fan input whose chip name has at most 64 bytes, whose device path is relative to the sysfs root as Phase 6's `FanInput` keeps it (`devices/…`), with only normal components (no `/` at the start, no `.` or `..`) and at most 1024 bytes long, and whose input number is 1 or more.
 - **`SettingsStore::load(dir)`:**
   - a missing file → defaults, which are written;
   - an unreadable or invalid file → renamed to `settings.toml.invalid-<unix time>`, with an error logged, then defaults. Only the last three such copies are kept (solution review P7-12).
@@ -425,7 +450,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Tests** (temp dirs under `CARGO_TARGET_TMPDIR`)
 - Defaults on a fresh dir.
 - A round trip of every field.
-- An invalid file is moved aside, and defaults are used. That includes a malformed GPU address and a path-like device path (`/sys/devices/../../etc`).
+- An invalid file is moved aside, and defaults are used. That includes a malformed GPU address and path-like device paths (`devices/../../etc`, `/etc`).
 - A future `version = 2` file is rejected the same way, never silently downgraded.
 - An interrupted write (a temp file left behind) doesn't replace the good file.
 - A v1 file with a field this build doesn't know keeps that field, with its value unchanged, through a load and a store (P7-12).
@@ -443,7 +468,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Implementation**
 - **Two threads around the engine** (Recommendation):
   - the device thread owns the `Lp360` and writes the newest frame from a one-slot mailbox;
-  - the sensor thread owns the `Registry`, takes a snapshot every second and on request, and publishes the newest.
+  - the sensor thread owns the `Registry`, takes a snapshot every second and on request, and publishes the newest. It also takes the GPU and fan choices from the newest settings and calls `Registry::choose_gpu` and `choose_fans` (the comparison with Phase 6, 2026-10-29: only the registry's owner can rebind).
 
   The engine owns neither port.
 - `Engine<C: Clock>` runs `loop { wait_until(deadline); tick(); deadline += 100 ms }`, with deadlines on the monotonic clock. It talks to the other threads only through the mailbox, the newest-snapshot slot and the `Apply` channel. A deadline missed by more than one tick is logged and skipped, and frames never bunch up.
@@ -459,14 +484,15 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **update:** new readings;
   - **nothing:** a choice that is already set; a unit change while the mode shows no temperature (the unit is only saved). The D-Bus side doesn't even send these (Task 7).
   - When a settings change and new readings land on the same tick, the reset wins, drawn with the new readings (S21).
+  - **Another GPU** works like `Refresh`: the sensor thread binds the new GPU and takes a snapshot at once, and the reset lands on the first tick that has it, so no frame after the switch shows the old GPU's values (2026-10-29).
 - **Start-up:** the first tick shows the saved mode at once. `Lp360` sends `03 08` first (Phase 5). The first second's rate metrics are `NotYet` → dashes (`display.md` Unavailable values).
 - **Availability:** a metric is persistently unavailable when its `Unavailable` reason is `NoRule`, `NoDevice`, `PermissionDenied`, `IntegratedGpuPower`, `UnknownGpuKind`, `DriverUpdated` or `LibraryFailed` (overview cross-check, 2026-10-27). `NoDevice` counts only after the first two minutes after start-up or a wake-up, while the registry still looks for late drivers; until then the metric shows dashes and its modes stay available (owner, 2026-10-27; solution review P6-04).
   - `AvailableModes` = the modes `draws` accepts whose every metric is available; the rest carry their first reason (P8-03).
   - A missing device makes all of its metrics unavailable, and so all of its modes (`settings.md` Availability).
 - **Unavailable values** in the current mode → dashes; the mode stays.
 - **GPU:**
-  - the chosen GPU comes from settings through Phase 6's `choose`;
-  - `rank_is_stale` → delete `gpu-rank.json`, log it, and the helper ranks again at the next start (Phase 6 Task 7).
+  - at start, Phase 6's `review_ranking(sys, <state dir>/gpu-rank.json, user_has_chosen)` reads the ranking. It deletes a broken one, or a stale one while no GPU is chosen, and says why; the service logs that line, and the helper ranks again at the next start (Phase 6 Task 7). `user_has_chosen` is whether the settings hold a GPU choice;
+  - `gpus(sys, ranking)` gives the GPU list, and the chosen GPU comes from settings through Phase 6's `choose`.
 
 **Tests** (layer 3, CI; `FakeConnector`, `FakeReadings`, `FakeClock`)
 - **Timing:** 50 ticks → exactly 50 frames, at `start + n × 100 ms`. A tick delayed 250 ms produces one frame, and later deadlines stay on the grid.
@@ -478,7 +504,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **Scenarios S14–S18 and S21–S26 for modes 1–6**, from `scenarios/load.txt` (Task 1), driven through the engine with the fakes, in all four rotations:
   - mode switches: all 30 ordered pairs among modes 1–6, at every *k*, with values below and above 100; the frame after the switch is the new picture at home and nothing of the old one appears;
   - rotation changes (each value, and `RotateScreen` presses 0→1→2→3→0) and unit changes, while static and while scrolling;
-  - another GPU and `Refresh` at every *k*; a choice already set changes nothing;
+  - another GPU and `Refresh` at every *k*; the first frame after another GPU shows the new GPU's values; a choice already set changes nothing;
   - start-up into each mode with values of 99 or less, 100 or more, and dashes turning into 100 or more;
   - a reading change and a settings change on the same tick;
   - a refused change (an unavailable mode, a later phase's mode) changes nothing.
@@ -492,7 +518,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **Drawable only** (P8-03): mode 13 is never in `AvailableModes`, even with every reading available, because `draws(13)` is false.
 - **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Wake-up (S18; owner, 2026-10-26):** with the device present all along, a `Wake` while `100%` scrolls. The next report is `03 08`, then that tick's frame; the strip's position continues; `FakeReadings` counts one `restart_intervals()`, and the rate metrics it then reports as `NotYet` show dashes for their first second, then values. A `Wake` while the device is absent changes nothing but the readings.
-- **Stale GPU ranking:** the rank file is deleted only when the set changed and no choice exists.
+- **GPU ranking at start:** the service passes whether a GPU choice is saved to `review_ranking` and logs the deletion line it returns; the deletion rules themselves are Phase 6's tests.
 
 **Validation**
 - `cargo test -p odc-service --test engine`: passes.
@@ -507,6 +533,12 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `crates/odc-service/src/watchers.rs`: CREATE. The watcher list, its caps and the one-second re-check.
 - `crates/odc-service/src/sleep.rs`: CREATE. `trait SleepWatcher`, with `LogindSleepWatcher` (a match rule on sender `org.freedesktop.login1`, interface `org.freedesktop.login1.Manager`, member `PrepareForSleep`) and a fake for tests.
 - `crates/odc-service/src/log.rs`: CREATE. Journal lines are stderr lines with `<N>` priority prefixes (`sd-daemon(3)`); there's no logging crate.
+- `crates/odc-device/src/record.rs`: UPDATE, the dev copy's recording (Recommendation; the comparison with Phase 5, 2026-10-29: today it writes every report, unbuffered, with its wall-clock time):
+  - a handle the device thread keeps sets the tick before each `show`, and starts and ends the session's recording;
+  - each line is `<ns since the service's start, monotonic> <tick> out 64 <hex>`;
+  - the first 100 reports after the start, and every report while a session is held;
+  - buffered, flushed once a second and at a session's end; rotated at 64 MB, keeping one previous file.
+- `crates/odc-testkit/src/capture.rs`: UPDATE, `read_recording` for those lines. The research captures keep their format and `read`. Phase 5's users of `Recording` move to the new reader: `odc-e2e`'s device area and `odc-device`'s reconnect test. This commit touches `odc-device`, so `--only device` runs before it (AGENTS.md).
 
 **Implementation**
 - **Each change method:**
@@ -532,6 +564,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **The dev interface** (only when started with `--dev`), at its own object path `/io/github/dtmarangoni/OpenDeepCool1/Dev`:
   - `OverrideReadings(a{s(xt)}, a{ss})`: exact values (metric → numerator and denominator, like Phase 6's `Exact`), and unavailable metrics with their reasons. They replace the sensor thread's snapshots until `ClearOverride()`;
   - `BeginTest()` and `EndTest()`, a test session (owner, 2026-10-27; solution review P7-16, P7-07). While one caller holds it, every change from any other caller is refused with `…Error.Busy` ("a test is running on this dev copy"), and the frame recording runs. The session, every override and the recording end on `EndTest()` or when the holder's connection leaves the bus (`NameOwnerChanged`), so a killed test cleans up too. `OverrideReadings` needs the session;
+  - `ReleaseCooler()`, for the session's holder only (owner, 2026-10-29): the device thread drops its connection, which closes the cooler's node (`Lp360::reset_connection()`), and writes nothing until the session ends; `CoolerState` is `released` meanwhile. When the session ends, the next frame reconnects, `03 08` first. The direct checks (`--only device`, `--only load`) call it while the dev service runs;
   - authorization, three ways (owner, 2026-10-26; solution review OV-13):
     - the D-Bus policy (group `opendeepcool`);
     - a check inside each method of the caller's credentials: `GetConnectionCredentials`, whose `UnixGroupIDs` must contain the service's group, with a missing `UnixGroupIDs` meaning no. It sits behind a `Credentials` trait, like `Authorizer`, so tests use a fake;
@@ -552,6 +585,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - an unknown PCI address, a fan triple not in `FanInputs`, a path-like device path (`../../etc/shadow`) and an over-long string → `InvalidArgument`, with nothing stored or applied;
   - with `--dev`, a caller outside the group is refused, both through a normal call and through a raw method call without an interface field; a caller inside the group passes;
   - **test session** (P7-16): during a session, another caller's `SetMode` → `Busy`; the holder's connection closing, as when the test is killed, clears the override and ends the session, and changes pass again; `OverrideReadings` without a session → refused;
+  - **releasing the cooler** (2026-10-29): after `ReleaseCooler()` the fake connector gets no write and its connection is closed; `CoolerState` is `released`; `ReleaseCooler()` without the session → refused; when the holder's connection closes, the next report is `03 08`, then that tick's frame;
+  - **the recording** (fake clock and connector): the first 100 reports after the start, then nothing until a session, then every report; each line's tick and monotonic time; rotation at a small cap in the test, keeping one previous file; a flush at the session's end;
   - the introspection data lists no properties;
   - the contract (solution review P4-04): the service's introspection equals the XML in `docs/spec/dbus.md`, and `GetState()` returns exactly its state table's keys, each with its type;
   - `CoolerState` follows the fake connector (P5-02): absent → `not-found`, an open error → `no-access`, a failed write → `write-failed`, then `connected` again; each change reaches watchers once, and the journal gets one line per change;
@@ -594,10 +629,14 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
 - `tools/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number and write time (Task 9). If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (P7-09), the drop-in relaxes them to `0027` and `0750`, so the tests, which run as the owner in group `opendeepcool`, can read the recording.
+- `tools/dev/opendeepcool-gpu-rank-dev.conf`: CREATE, the drop-in that runs the dev build of Phase 6's GPU-rank helper, installed as `/etc/systemd/system/opendeepcool-gpu-rank.service.d/dev.conf` (owner, 2026-10-29). Never packaged. The detection one-shot stays out of the dev copy: it runs as root and changes `/etc`, it ran once by hand on the owner's PC (Phase 6 Task 10), and the package brings it (Phase 11).
 - `tools/dev/` (`odc-dev`'s `setup`, `install-root`, `teardown` and `check`): UPDATE.
-  - **setup**, as the user, builds `--release` (solution review P5-03); then **install-root**, its only `pkexec` step, which never builds, installs the binary to `/usr/local/libexec/opendeepcool-dev/` and the files to their `/etc` places, points the unit's `ExecStart` there through that drop-in, re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, and records everything in the manifest.
+  - **setup**, as the user, builds `--release` (solution review P5-03); then **install-root**, its only `pkexec` step, which never builds:
+    - installs `opendeepcoold` and `odc-gpu-rank` to `/usr/local/libexec/opendeepcool-dev/`, and the files to their `/etc` places: both units, their drop-ins (which point each `ExecStart` there), the D-Bus policy, the polkit action and the sysusers file;
+    - re-runs `systemd-sysusers`, reloads D-Bus and systemd, enables and (re)starts the service, which pulls the helper in while no ranking exists;
+    - records everything in the manifest.
   - **teardown** reverses all of it from the manifest.
-  - **check** verifies the service is active, owns its bus name, and runs as `opendeepcool`.
+  - **check** verifies the service is active, owns its bus name and runs as `opendeepcool`, and that the helper's unit is installed and the ranking file lists this PC's GPUs.
 
 **Tests**
 - `systemd-analyze verify packaging/systemd/opendeepcool.service` passes.
@@ -608,14 +647,15 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Validation**
 - After the owner approves the `odc-dev setup` run and its `pkexec` step:
   - `odc-dev check` exits 0;
-  - `busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 GetState` from the owner's session shows `Mode` as `u 1`.
+  - `busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 io.github.dtmarangoni.OpenDeepCool1 GetState` from the owner's session shows `Mode` as `u 1`, and `Gpus` gives this PC's GPU its kind from the ranking.
 
 ### 9. Layer 4: the real service drives the cooler through every Load Mode case and scenario, unattended; the start check; and the attended tour
 
 **Files and integration points**
-- `crates/odc-testkit/src/hardware.rs`: UPDATE, with two capabilities:
-  - `DevService`: Real when the dev copy is active, owns its name, runs with `--dev`, and the LP360 probes Real;
+- `crates/odc-testkit/src/hardware.rs`: UPDATE, with one capability (a second, `BootSinceInstall`, left with the no-boot-testing decision, owner 2026-10-25):
+  - `DevService` (`dev-service`): Real when the dev copy is active, owns its name, runs with `--dev`, and the LP360 probes Real;
 - `crates/odc-e2e/src/service.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only service`.
+- `crates/odc-e2e/src/device.rs` and `load.rs`: UPDATE. When `DevService` is Real, the direct checks hold a test session and call `ReleaseCooler()` first, and the session's drop guard ends it (owner, 2026-10-29).
 - `crates/odc-e2e/src/attended.rs`: CREATE, the attended tour behind the `--attended` flag.
 
 **Implementation**
@@ -649,16 +689,17 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 **Validation**
 - `cargo run -p odc-e2e -- --only service`: passes, and prints the probe summary.
 - With `--require dev-service` on the owner's PC, the mode and scenario examples run real.
+- `cargo run -p odc-e2e -- --only device` and `--only load` pass while the dev service runs, and the service shows its mode again afterwards, `03 08` first.
 - `cargo run -p odc-e2e -- --attended` works through the tour; the owner runs it when they want to look. The start check runs real once Task 8's dev copy is running.
 
 ### 10. Records, CI and the resource baseline
 
 **Files and integration points**
-- `AGENTS.md` Commands: the new layer 2 and layer 4 commands, and when to run them.
+- `AGENTS.md` Commands: the new layer 2 and layer 4 commands, and when to run them (`--only load` lands with Task 3, the session note with Task 9).
 - `README.md`: Development (the dev service, `busctl` examples to change mode and rotation, `journalctl -u opendeepcool`) and Status.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`:
   - Success Metrics: "Resource use" gets the measured baseline;
-  - System Footprint: exact file names of the D-Bus policy and polkit action, in both the product and dev tables.
+  - System Footprint: exact file names of the D-Bus policy and polkit action, in both the product and dev tables, and of the GPU-rank helper's dev files.
 
 **Implementation**
 - **Baseline:** with the dev service in mode 4 for 10 minutes, sample `/proc/<pid>/stat` (utime + stime) and `/proc/<pid>/status` (`VmRSS`). Record mean CPU %, peak RSS, and the p50, p99 and maximum durations of frame writes and snapshots. This is the PRD's "measure a baseline in Phase 7"; the owner set no target.
@@ -672,6 +713,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 1. **AC1 — Load Mode as the spec draws it:**
    - all 72 Load Mode cases (modes 1–6 × 4 rotations × 3 value sets) match the regenerated `docs/spec/frames/` in unit tests, `100%` scrolling over its whole cycle;
    - every captured DeepCreative step of modes 1–6 where the two sets of rules agree matches with 0 differing pixels (local); the steps skipped on purpose are listed;
+   - each mode's commit wrote its examples to the real cooler and recorded the expected frames, before the service existed (`--only load`; owner, 2026-10-29);
    - a metric the mode doesn't show never appears (Tasks 2, 3).
 2. **AC2 — Dashes:** an unavailable value, or a negative, not-a-number or infinite reading, is drawn as dashes, with the symbol kept and the mode unchanged; `unavailable.txt` cases match (Tasks 1, 2, 6).
 3. **AC3 — Timing, resets and movement:**
@@ -697,7 +739,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 9. **AC9 — Real cooler, unattended:**
    - the dev service, driven over D-Bus, writes the expected frame for one case of each Load mode and for one example of each test type: rotation, scrolling, dashes, and each scenario type (owner, 2026-10-26); every case runs in-process;
    - the running service's first frame after `03 08` was the saved mode, and its unit is enabled for boot with nothing tied to a login (the start check, no reboot);
-   - other computers run the same checks against fakes (Task 9).
+   - the direct checks run while the dev service runs, through a session that releases the cooler, and the service takes it back afterwards (owner, 2026-10-29);
+   - the service on the owner's PC reads its GPU's kind from the GPU-rank helper of the dev copy (owner, 2026-10-29);
+   - other computers run the same checks against fakes (Tasks 7, 8, 9).
 10. **AC10 — Records:**
     - README, AGENTS.md Commands, and the PRD (footprint file names, resource baseline) match what was built;
     - the dev manifest lists every dev file (Tasks 8, 10).
@@ -712,6 +756,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Unit and policies | `systemd-analyze verify packaging/systemd/opendeepcool.service`; `xmllint --noout packaging/dbus/*.conf packaging/polkit/*.policy` | AC8 (syntax) |
 | Sandbox | `systemd-analyze security opendeepcool.service` on the dev copy | AC8 |
 | Dev copy | `cargo run -p odc-dev -- check`; `busctl call … GetState` | AC8, AC10 |
+| Layer 4, direct (local, unattended) | `cargo run -p odc-e2e -- --only load --require lp360`, with each mode (Task 3) | AC1 (real cooler) |
 | Layer 4 (local, unattended) | `cargo run -p odc-e2e -- --only service --require dev-service` | AC9 |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended` | The owner's own look; never a gate |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |
@@ -720,7 +765,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 112 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step where both rules agree | one case per mode, plus one rotated and one scrolling case, on the dev service, or fakes where absent |
+| Modes 1–6 × rotations 0–3 × value sets 1–3 (24 of the 112 mode, rotation and unit cases; 72 sections) | `matrix_load` | every captured step where both rules agree | each mode's static, rotated, scrolling and dash examples written straight to the cooler with its commit (`--only load`); one case per mode, plus one rotated and one scrolling case, on the dev service; fakes where absent |
 | Dash and impossible-reading cases (`unavailable.txt`) | `matrix_load` | — (DeepCreative has no dashes) | the dev service, or fakes |
 | Movement scenarios S1–S13, S19, S20, S22 × modes 1–6 × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_load` | — (OpenDeepCool's own rules) | one variant of each scenario type |
 | Resets and settings: S14–S18, S21, S23–S26 (all 30 ordered mode pairs, rotation, unit, GPU, Refresh, start-up, reconnect and wake-up, refused and repeated choices) × 4 rotations | `engine` | — | one variant of each scenario type |
@@ -739,9 +784,13 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Signals addressed to each watcher | Keep: the bus delivers them to their destination only; root can still monitor the bus, and root is trusted anyway | D-Bus specification; dbus-broker has no eavesdropping | A broadcast would reach every local process |
 | A wake-up can't be tested by a real suspend, unattended | Fake `SleepWatcher` in CI; the real watcher's sender check on a private bus; the device side real in Phase 5; a real suspend only in the optional attended tour | Waking an unattended PC needs root | — |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
+| Two `syn` versions (owner, 2026-10-29) | `deny.toml` skips `syn` 2 with its reason; the entry goes once `nvml-wrapper` moves to `syn` 3, checked at each sign-off | Evidence, the comparison with Phases 5 and 6; `syn` runs only while macros compile | Without it, CI's bans check fails on the first commit with zbus or serde's derive |
+| The dev service holds the cooler from boot (Task 8) | The direct checks hold a test session that releases the cooler (owner, 2026-10-29) | Task 7, `ReleaseCooler()`; a killed check ends its session with its connection | Two writers would interleave frames, and the direct checks would fail |
+| The GPU-rank helper in the dev copy (owner, 2026-10-29) | Installed and pulled in like the product's; the detection stays out | Task 8 | Without a ranking, the owner's GPU stays unranked and its Gpu power is withheld as "kind unknown" until Phase 11 |
 
 ## Agent Notes
 
+- Before Task 1 (2026-10-29), the plan was compared with what Phases 5 and 6 built (AGENTS.md, How to work). The corrections and the owner's four decisions of that day are folded in above, and listed in the Evidence and the Risks.
 - Installing or upgrading the dev copy is a `pkexec` system change. Show the owner the script's commands the first time; later upgrades of the same script follow the same approval (rule 7).
 - The end-to-end run changes the cooler's picture for a few minutes, then restores the owner's settings. It must never leave the override active (the drop guard calls `ClearOverride`).
 - Mode names in code and in anything a user reads (journal lines, D-Bus error texts, `--help`): Load, Temperature, Power, Music, never "Guardian" or "… Mode" (owner, 2026-10-24). DeepCreative's names appear only where the spec describes DeepCreative.

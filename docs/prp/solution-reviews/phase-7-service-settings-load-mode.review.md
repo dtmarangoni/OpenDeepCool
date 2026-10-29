@@ -217,6 +217,7 @@ SystemCallErrorNumber=EPERM
 
 - **Recommendation:** measure and report the per-scenario time on the first real run and extrapolate before committing to "every scenario in every rotation, every run". The owner chooses the tiering (overview Q1).
 - **Outcome (2026-10-26):** decided through OV-04. Task 9 now runs, on the real cooler, one case of each Load mode, one rotated, one scrolling and one dash case, and one variant of each scenario type. Every case runs in-process.
+  - **Note (2026-10-29, owner):** each Load mode's commit (Task 3) also writes that mode's examples straight to the cooler before the service exists, `odc-e2e --only load`, as AGENTS.md rule 4 asks (Phase 7 plan, Task 3; PRD Decisions Log).
 
 ### P7-09: Sandbox
 
@@ -253,6 +254,7 @@ SystemCallErrorNumber=EPERM
 
 - **Recommendation:** a dev test-session lease, or detection of foreign changes; tie the override (and Phase 9's `OverrideAudio`) to the caller's bus name, cleared on `NameOwnerChanged`.
 - **Outcome (2026-10-27):** accepted, the test session (owner): `BeginTest()`/`EndTest()` on the dev interface; while held, other callers' changes get `Busy`; the session, every override (Phase 9's `OverrideAudio` too) and the recording end when the holder's connection leaves the bus. `odc-e2e` holds one session per run. Phase 7 Tasks 4, 7 and 9; Phase 9 Task 3; PRD dev footprint and Decisions Log. This also settles the override part of P9-10 and of OV-24.
+  - **Note (2026-10-29, owner):** the session can also release the cooler (`ReleaseCooler()`), so Phase 5's direct checks and Task 3's share it with the dev service, which drives it from boot (Phase 7 plan, Tasks 7 and 9; PRD Decisions Log).
 
 ### P7-17: Contract document
 
@@ -275,6 +277,15 @@ SystemCallErrorNumber=EPERM
 1. Real-hardware tiering for the scenario run (P7-08; overview Q1).
 2. Dev interface in the product binary, or behind a cargo feature (P7-03; overview Q5).
 3. Re-send `03 08` after a resume (P5-05; overview Q7). The D-Bus side here is where logind's signal would be handled. **Answered 2026-10-26:** yes; the plan's Recommendation, "Back from standby", and Task 7 do it.
+
+## Before Task 1 (2026-10-29)
+
+The plan was compared with what Phases 5 and 6 built (AGENTS.md, How to work), and corrected where they differ: a fan input's device path is relative to the sysfs root; the service calls Phase 6's `review_ranking`; Phase 5's `Recording` gains the tick, the monotonic time, the gating and the rotation this review's P7-07 and P7-13 outcomes need; the expected-frames loader reads the new files; `odc-render` depends on `odc-sensors`; the mode table has 23 modes; another GPU waits for the new GPU's first snapshot, as `Refresh` does. The owner also decided (PRD Decisions Log):
+
+- `deny.toml` allows `syn` 2 beside `syn` 3, because zbus and serde's derive need 3 while `nvml-wrapper` still needs 2;
+- the dev copy installs the GPU-rank helper, so the service reads real GPU kinds on the owner's PC; the detection stays out;
+- each Load mode's commit runs its examples on the real cooler (P7-08's note);
+- the test session can release the cooler for the direct checks (P7-16's note).
 
 ## Sources
 
