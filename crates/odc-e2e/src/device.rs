@@ -13,6 +13,7 @@ use odc_device::{
     Connector, DisplayPort, HidrawConnector, Link, Lp360, OpenError, Recording, Transport,
 };
 use odc_protocol::{Frame, Message, Report, Rotation, decode};
+use odc_sensors::Exact;
 use odc_testkit::capture;
 use odc_testkit::diff;
 use odc_testkit::expected::{Kind, Picture, load_mode};
@@ -55,7 +56,8 @@ fn expected_42() -> Result<(Picture, Picture), String> {
         mode.cases
             .iter()
             .find(|c| {
-                c.rotation.setting() == rotation && c.readings == [("CPU Usage".to_owned(), 42)]
+                c.rotation.setting() == rotation
+                    && c.readings == [("CPU Usage".to_owned(), Some(Exact::whole(42)))]
             })
             .and_then(|c| match &c.kind {
                 Kind::Static(p) => Some(p.clone()),

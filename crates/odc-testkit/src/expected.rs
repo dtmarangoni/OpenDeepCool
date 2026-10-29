@@ -1,6 +1,6 @@
 //! The expected frames of `docs/spec/frames/`, loaded into typed cases (`docs/spec/frames/README.md`,
-//! Format). A file that doesn't parse panics, naming its file and line: a mis-read oracle must
-//! never pass silently.
+//! Format), the dash cases and the scenarios (README, Dash cases and scenarios). A file that
+//! doesn't parse panics, naming its file and line: a mis-read oracle must never pass silently.
 
 use std::fmt;
 use std::fs;
@@ -8,6 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use odc_protocol::{Frame, Rotation};
+use odc_sensors::Exact;
 
 const FRAMES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/frames");
 const SIZE: usize = Frame::SIZE;
@@ -27,8 +28,9 @@ pub struct Case {
     pub rotation: Rotation,
     /// °C or °F, when the heading names one.
     pub unit: Option<Unit>,
-    /// The readings, with the metric names exactly as written (`CPU Usage`, `Gpu temperature`).
-    pub readings: Vec<(String, u32)>,
+    /// The readings, with the metric names exactly as written (`CPU Usage`, `Gpu temperature`):
+    /// an exact value, or `None` for `unavailable`.
+    pub readings: Vec<(String, Option<Exact>)>,
     pub kind: Kind,
 }
 
@@ -149,6 +151,26 @@ impl fmt::Debug for Picture {
     }
 }
 
+/// A reading as the files write it: an exact decimal, negative ones included, or `unavailable`
+/// (`None`). Never through floating point.
+pub fn reading(text: &str) -> Option<Option<Exact>> {
+    if text == "unavailable" {
+        return Some(None);
+    }
+    let (negative, digits) = match text.strip_prefix('-') {
+        Some(rest) => (true, rest),
+        None => (false, text),
+    };
+    let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
+    let all_digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+    if whole.is_empty() || !all_digits(whole) || !all_digits(fraction) || digits.ends_with('.') {
+        return None;
+    }
+    let num: i64 = format!("{whole}{fraction}").parse().ok()?;
+    let den = 10_u64.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+    Exact::new(if negative { -num } else { num }, den).map(Some)
+}
+
 /// Loads `docs/spec/frames/mode-NNN.txt`.
 ///
 /// # Panics
@@ -159,6 +181,44 @@ pub fn load_mode(mode: u16) -> ModeFrames {
     let path = Path::new(FRAMES_DIR).join(&name);
     let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     parse(&name, mode, &text)
+}
+
+/// Loads `docs/spec/frames/unavailable.txt`: each dash case with the mode its heading names.
+///
+/// # Panics
+///
+/// When the file can't be read or doesn't parse, naming the file and line.
+pub fn load_unavailable() -> Vec<(u16, Case)> {
+    let name = "unavailable.txt";
+    let path = Path::new(FRAMES_DIR).join(name);
+    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    parse_dash_cases(name, &text)
+}
+
+fn parse_dash_cases(file: &str, text: &str) -> Vec<(u16, Case)> {
+    let mut lines = Lines {
+        file,
+        lines: text.lines().collect(),
+        at: 0,
+    };
+    match lines.next() {
+        Some((_, line)) if line.starts_with("# ") => {}
+        Some((n, line)) => lines.fail(n, format!("expected a `#` title, found {line:?}")),
+        None => lines.fail(1, "the file is empty"),
+    }
+    let mut cases = Vec::new();
+    loop {
+        lines.skip_blank();
+        let Some((n, heading)) = lines.next() else {
+            break;
+        };
+        let (mode, case) = parse_case(&mut lines, n, heading, true);
+        cases.push((mode.expect("a dash case names its mode"), case));
+    }
+    if cases.is_empty() {
+        lines.fail(1, "the file has no case");
+    }
+    cases
 }
 
 fn parse_row(line: &str) -> Result<[Pixel; SIZE], String> {
@@ -233,7 +293,7 @@ fn parse(file: &str, mode: u16, text: &str) -> ModeFrames {
         let Some((n, heading)) = lines.next() else {
             break;
         };
-        cases.push(parse_case(&mut lines, n, heading));
+        cases.push(parse_case(&mut lines, n, heading, false).1);
     }
     if cases.is_empty() {
         lines.fail(1, "the file has no case");
@@ -247,11 +307,24 @@ enum Expect {
     Loop(Vec<Duration>),
 }
 
-fn parse_case(lines: &mut Lines<'_>, n: usize, heading: &str) -> Case {
+/// One case; with `with_mode`, its heading starts with `mode <N>`, which comes back with it.
+fn parse_case(
+    lines: &mut Lines<'_>,
+    n: usize,
+    heading: &str,
+    with_mode: bool,
+) -> (Option<u16>, Case) {
     let Some(rest) = heading.strip_prefix("## ") else {
         lines.fail(n, format!("expected a `##` heading, found {heading:?}"));
     };
     let mut parts = rest.split(", ");
+    let mode = with_mode.then(|| {
+        parts
+            .next()
+            .and_then(|p| p.strip_prefix("mode "))
+            .and_then(|m| m.parse::<u16>().ok())
+            .unwrap_or_else(|| lines.fail(n, "the heading doesn't start with `mode <N>`"))
+    });
     let rotation = parts
         .next()
         .and_then(|p| p.strip_prefix("rotation "))
@@ -264,8 +337,8 @@ fn parse_case(lines: &mut Lines<'_>, n: usize, heading: &str) -> Case {
         match part {
             "°C" if unit.is_none() && readings.is_empty() => unit = Some(Unit::Celsius),
             "°F" if unit.is_none() && readings.is_empty() => unit = Some(Unit::Fahrenheit),
-            _ => match part.split_once(" = ").map(|(k, v)| (k, v.parse::<u32>())) {
-                Some((name, Ok(value))) if !name.is_empty() => {
+            _ => match part.split_once(" = ").map(|(k, v)| (k, reading(v))) {
+                Some((name, Some(value))) if !name.is_empty() => {
                     readings.push((name.to_owned(), value))
                 }
                 _ => lines.fail(n, format!("{part:?} is neither a unit nor `Name = value`")),
@@ -325,13 +398,20 @@ fn parse_case(lines: &mut Lines<'_>, n: usize, heading: &str) -> Case {
             ),
         ),
     };
-    Case {
+    let case = Case {
         heading: heading.to_owned(),
         rotation,
         unit,
         readings,
         kind,
-    }
+    };
+    (mode, case)
+}
+
+/// Whether a line is a heading, `#` to `###` and a space. A picture row can't be one: its first
+/// 14 characters hold no space.
+fn is_heading(line: &str) -> bool {
+    ["# ", "## ", "### "].iter().any(|h| line.starts_with(h))
 }
 
 /// Reads the picture blocks up to the next heading: 14 rows each, several pictures to a row
@@ -342,13 +422,13 @@ fn parse_pictures(lines: &mut Lines<'_>) -> Vec<Picture> {
         lines.skip_blank();
         match lines.peek() {
             None => break,
-            Some(line) if line.starts_with("## ") => break,
+            Some(line) if is_heading(line) => break,
             Some(_) => {}
         }
         let mut block: Vec<Picture> = Vec::new();
         for r in 0..SIZE {
             let (n, line) = match lines.next() {
-                Some((n, line)) if !line.is_empty() && !line.starts_with("## ") => (n, line),
+                Some((n, line)) if !line.is_empty() && !is_heading(line) => (n, line),
                 Some((n, _)) => lines.fail(n, format!("a picture block ends after {r} of 14 rows")),
                 None => lines.fail(
                     lines.at,
@@ -380,6 +460,285 @@ fn parse_pictures(lines: &mut Lines<'_>) -> Vec<Picture> {
         pictures.extend(block);
     }
     pictures
+}
+
+/// One scenario of `docs/spec/frames/scenarios/`: changes at chosen ticks, and the frame expected
+/// at every tick, in rotation 0 (README, Dash cases and scenarios).
+#[derive(Debug)]
+pub struct Scenario {
+    /// The heading as written, for messages.
+    pub heading: String,
+    /// The scenario's number in `display.md`, `S1` to `S26`.
+    pub id: String,
+    /// The mode it starts in.
+    pub mode: u16,
+    /// Ticks 0, 1, 2 … in order.
+    pub ticks: Vec<Tick>,
+}
+
+/// One tick of a scenario.
+#[derive(Debug)]
+pub struct Tick {
+    pub n: u32,
+    /// In the order written. On one tick the readings change first, then a reset applies.
+    pub changes: Vec<Change>,
+    /// The frame drawn; `None` when the tick's deadline is missed.
+    pub frame: Option<Picture>,
+}
+
+/// What changes at a tick.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Change {
+    Reset(Reset),
+    /// A metric's new reading, `None` for `unavailable`.
+    Reading {
+        metric: String,
+        value: Option<Exact>,
+    },
+    /// A unit change in a mode without a temperature: only saved.
+    UnitSaved(Unit),
+    /// Choosing what's already set: nothing changes.
+    AlreadySet(String),
+    /// A change the service refuses: nothing changes.
+    Refused {
+        mode: u16,
+        reason: String,
+    },
+    /// The cooler disconnects; frames are drawn but don't reach it.
+    CoolerAway,
+    /// The cooler is back: `03 08` before this tick's frame.
+    CoolerBack,
+    /// Back from standby: `03 08` before this tick's frame.
+    Wake,
+    /// The deadline is missed: no frame, and the strip doesn't move.
+    Missed,
+}
+
+/// Why the picture restarts at home.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Reset {
+    StartUp,
+    Mode(u16),
+    /// Quarter turns added to the rotation.
+    Rotation(u8),
+    AnotherGpu,
+    Refresh,
+}
+
+/// Loads `docs/spec/frames/scenarios/<name>`, for example `load.txt`.
+///
+/// # Panics
+///
+/// When the file can't be read or doesn't parse, naming the file and line; when a tick names a
+/// frame the file doesn't define, or the file defines a frame no tick names.
+pub fn load_scenarios(name: &str) -> Vec<Scenario> {
+    let file = format!("scenarios/{name}");
+    let path = Path::new(FRAMES_DIR).join(&file);
+    let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    parse_scenarios(&file, &text)
+}
+
+const ARROW: &str = " → ";
+
+/// The frame each tick names, and the line it's on; `None` for a missed tick.
+type FrameRefs = Vec<Option<(usize, String)>>;
+
+fn parse_scenarios(file: &str, text: &str) -> Vec<Scenario> {
+    let mut lines = Lines {
+        file,
+        lines: text.lines().collect(),
+        at: 0,
+    };
+    match lines.next() {
+        Some((_, line)) if line.starts_with("# ") && line != "# Frames" => {}
+        Some((n, line)) => lines.fail(n, format!("expected a `#` title, found {line:?}")),
+        None => lines.fail(1, "the file is empty"),
+    }
+    // The scenarios, each tick naming its frame and the line it's on.
+    let mut parsed: Vec<(Scenario, FrameRefs)> = Vec::new();
+    loop {
+        lines.skip_blank();
+        let Some((n, heading)) = lines.next() else {
+            lines.fail(lines.at, "the file has no `# Frames` section");
+        };
+        if heading == "# Frames" {
+            break;
+        }
+        parsed.push(parse_scenario(&mut lines, n, heading));
+    }
+    let mut frames: Vec<(String, Picture, bool)> = Vec::new();
+    loop {
+        lines.skip_blank();
+        let Some((n, heading)) = lines.next() else {
+            break;
+        };
+        let Some(id) = heading.strip_prefix("### ") else {
+            lines.fail(n, format!("expected a `### f<n>` frame, found {heading:?}"));
+        };
+        if frames.iter().any(|(defined, _, _)| defined == id) {
+            lines.fail(n, format!("{id} is defined twice"));
+        }
+        let pictures = parse_pictures(&mut lines);
+        if pictures.len() != 1 {
+            lines.fail(n, format!("{id} has {} pictures, not one", pictures.len()));
+        }
+        let picture = pictures.into_iter().next().expect("one picture");
+        frames.push((id.to_owned(), picture, false));
+    }
+    if parsed.is_empty() {
+        lines.fail(1, "the file has no scenario");
+    }
+    let mut scenarios = Vec::new();
+    for (mut scenario, refs) in parsed {
+        for (tick, frame) in scenario.ticks.iter_mut().zip(refs) {
+            if let Some((n, id)) = frame {
+                let Some(found) = frames.iter_mut().find(|(defined, _, _)| *defined == id) else {
+                    lines.fail(n, format!("{id} isn't defined under `# Frames`"));
+                };
+                found.2 = true;
+                tick.frame = Some(found.1.clone());
+            }
+        }
+        scenarios.push(scenario);
+    }
+    if let Some((id, _, _)) = frames.iter().find(|(_, _, used)| !used) {
+        panic!("{file}: {id} is defined but no tick names it");
+    }
+    scenarios
+}
+
+fn parse_scenario(lines: &mut Lines<'_>, n: usize, heading: &str) -> (Scenario, FrameRefs) {
+    let Some(rest) = heading.strip_prefix("## ") else {
+        lines.fail(
+            n,
+            format!("expected a `##` scenario heading, found {heading:?}"),
+        );
+    };
+    let mut parts = rest.split(" · ");
+    let id = parts
+        .next()
+        .filter(|id| {
+            id.strip_prefix('S').is_some_and(|number| {
+                let digits = number.trim_end_matches(|c: char| c.is_ascii_lowercase());
+                !digits.is_empty() && digits.bytes().all(|b| b.is_ascii_digit())
+            })
+        })
+        .unwrap_or_else(|| lines.fail(n, "the heading doesn't start with a scenario, `S1` …"));
+    let mode = parts
+        .next()
+        .and_then(|p| p.strip_prefix("mode "))
+        .and_then(|m| m.parse::<u16>().ok())
+        .unwrap_or_else(|| lines.fail(n, "the heading's second part isn't `mode <N>`"));
+    lines.skip_blank();
+    let mut ticks = Vec::new();
+    let mut refs = Vec::new();
+    while let Some(line) = lines.peek() {
+        if line.is_empty() || line.starts_with('#') {
+            break;
+        }
+        let (m, line) = lines.next().expect("a line");
+        let Some((left, frame)) = line.rsplit_once(ARROW) else {
+            lines.fail(
+                m,
+                format!("a tick is `<n>: <changes> → <frame>`, not {line:?}"),
+            );
+        };
+        let Some((number, changes)) = left.split_once(": ") else {
+            lines.fail(m, format!("a tick starts with `<n>: `, not {line:?}"));
+        };
+        let tick: u32 = number
+            .parse()
+            .unwrap_or_else(|_| lines.fail(m, format!("{number:?} isn't a tick number")));
+        if tick as usize != ticks.len() {
+            lines.fail(
+                m,
+                format!("tick {tick} comes after tick {}", ticks.len() as i64 - 1),
+            );
+        }
+        let changes: Vec<Change> = if changes == "-" {
+            Vec::new()
+        } else {
+            changes
+                .split("; ")
+                .map(|c| {
+                    change(c).unwrap_or_else(|| lines.fail(m, format!("{c:?} isn't a change")))
+                })
+                .collect()
+        };
+        let missed = changes.contains(&Change::Missed);
+        let frame = match frame {
+            "no frame" if missed => None,
+            "no frame" => lines.fail(m, "only a missed tick has no frame"),
+            _ if missed => lines.fail(m, "a missed tick has no frame"),
+            id if id
+                .strip_prefix('f')
+                .is_some_and(|k| k.parse::<u32>().is_ok()) =>
+            {
+                Some((m, id.to_owned()))
+            }
+            other => lines.fail(m, format!("{other:?} isn't `f<n>` or `no frame`")),
+        };
+        ticks.push(Tick {
+            n: tick,
+            changes,
+            frame: None,
+        });
+        refs.push(frame);
+    }
+    if !ticks
+        .first()
+        .is_some_and(|t| t.changes.contains(&Change::Reset(Reset::StartUp)))
+    {
+        lines.fail(n, "a scenario starts with tick 0 and `reset start-up`");
+    }
+    let scenario = Scenario {
+        heading: heading.to_owned(),
+        id: id.to_owned(),
+        mode,
+        ticks,
+    };
+    (scenario, refs)
+}
+
+/// One change as the scenario files write it.
+fn change(text: &str) -> Option<Change> {
+    let reset = |r: Reset| Some(Change::Reset(r));
+    match text {
+        "reset start-up" => return reset(Reset::StartUp),
+        "reset another GPU" => return reset(Reset::AnotherGpu),
+        "reset Refresh" => return reset(Reset::Refresh),
+        "unit celsius, only saved" => return Some(Change::UnitSaved(Unit::Celsius)),
+        "unit fahrenheit, only saved" => return Some(Change::UnitSaved(Unit::Fahrenheit)),
+        "cooler away" => return Some(Change::CoolerAway),
+        "cooler back" => return Some(Change::CoolerBack),
+        "wake" => return Some(Change::Wake),
+        "missed" => return Some(Change::Missed),
+        _ => {}
+    }
+    if let Some(mode) = text.strip_prefix("reset mode ") {
+        return reset(Reset::Mode(mode.parse().ok()?));
+    }
+    if let Some(turns) = text.strip_prefix("reset rotation +") {
+        let turns: u8 = turns.parse().ok()?;
+        return (1..=3)
+            .contains(&turns)
+            .then_some(Change::Reset(Reset::Rotation(turns)));
+    }
+    if let Some(what) = text.strip_prefix("already set: ") {
+        return (!what.is_empty()).then(|| Change::AlreadySet(what.to_owned()));
+    }
+    if let Some(rest) = text.strip_prefix("refused: mode ") {
+        let (mode, reason) = rest.split_once(", ")?;
+        return Some(Change::Refused {
+            mode: mode.parse().ok()?,
+            reason: reason.to_owned(),
+        });
+    }
+    let (metric, value) = text.split_once(" = ")?;
+    Some(Change::Reading {
+        metric: (!metric.is_empty()).then(|| metric.to_owned())?,
+        value: reading(value)?,
+    })
 }
 
 #[cfg(test)]
@@ -430,6 +789,136 @@ mod tests {
         assert_eq!(cases, 284);
     }
 
+    /// The dash cases and the scenarios load too: every heading becomes a case or a scenario.
+    #[test]
+    fn the_dash_cases_and_the_load_scenarios_load() {
+        let dashes = load_unavailable();
+        assert_eq!(dashes.len(), 20);
+        assert!(dashes.iter().all(|(mode, _)| [1, 4, 6].contains(mode)));
+        let text = fs::read_to_string(Path::new(FRAMES_DIR).join("scenarios/load.txt"))
+            .expect("the Load scenarios");
+        let scenarios = load_scenarios("load.txt");
+        let headings = text.lines().filter(|l| l.starts_with("## ")).count();
+        assert_eq!(scenarios.len(), headings);
+        for scenario in &scenarios {
+            assert!((1..=6).contains(&scenario.mode), "{}", scenario.heading);
+            for tick in &scenario.ticks {
+                let missed = tick.changes.contains(&Change::Missed);
+                assert_eq!(
+                    tick.frame.is_none(),
+                    missed,
+                    "{}, tick {}",
+                    scenario.heading,
+                    tick.n
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn readings_are_exact_decimals_or_unavailable() {
+        assert_eq!(reading("42"), Some(Some(Exact::whole(42))));
+        assert_eq!(reading("99.49"), Exact::new(9949, 100).map(Some));
+        assert_eq!(reading("-0.5"), Exact::new(-5, 10).map(Some));
+        assert_eq!(reading("unavailable"), Some(None));
+        for bad in ["", "-", ".5", "5.", "1e3", "+1", "4 2", "NaN", "inf"] {
+            assert_eq!(reading(bad), None, "{bad:?}");
+        }
+    }
+
+    // display.md S9 (owner, 2026-10-29): `9%` centred, `10%` re-centred, and back.
+    #[test]
+    fn the_s9_scenario_of_mode_1_reads_as_written() {
+        let scenarios = load_scenarios("load.txt");
+        let s9 = scenarios
+            .iter()
+            .find(|s| s.heading == "## S9 · mode 1")
+            .expect("S9 in mode 1");
+        assert_eq!((s9.id.as_str(), s9.mode, s9.ticks.len()), ("S9", 1, 6));
+        let cpu = |value: i64| Change::Reading {
+            metric: "CPU Usage".to_owned(),
+            value: Some(Exact::whole(value)),
+        };
+        assert_eq!(s9.ticks[0].changes[0], Change::Reset(Reset::StartUp));
+        assert_eq!(s9.ticks[0].changes[1], cpu(9));
+        assert_eq!(s9.ticks[2].changes, [cpu(10)]);
+        let nine = s9.ticks[0].frame.as_ref().expect("a frame");
+        let ten = s9.ticks[2].frame.as_ref().expect("a frame");
+        // `9%` takes columns 4–12, `10%` columns 2–14: the 1's foot starts at column 2.
+        assert_eq!((nine.get(6, 4), nine.get(10, 2)), (Pixel::On, Pixel::Off));
+        assert_eq!(ten.get(10, 2), Pixel::On);
+        assert_eq!(s9.ticks[4].frame, s9.ticks[0].frame);
+    }
+
+    fn scenario_file(ticks: &str) -> String {
+        format!(
+            "# Test scenarios\n\n## S1 · mode 1\n\n{ticks}\n# Frames\n\n### f1\n\n{}",
+            BLANK_ROWS.repeat(14)
+        )
+    }
+
+    const START: &str = "0: reset start-up; CPU Usage = 100 → f1\n";
+
+    #[test]
+    fn a_scenario_file_reads_its_ticks_and_frames() {
+        let text = scenario_file(&format!(
+            "{START}1: missed → no frame\n2: reset rotation +2 → f1\n"
+        ));
+        let scenarios = parse_scenarios("test.txt", &text);
+        let ticks = &scenarios[0].ticks;
+        assert_eq!(ticks.len(), 3);
+        assert_eq!(ticks[1].frame, None);
+        assert_eq!(ticks[2].changes, [Change::Reset(Reset::Rotation(2))]);
+        assert_eq!(ticks[2].frame, ticks[0].frame);
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:6: \"reset rotation +4\" isn't a change")]
+    fn an_unknown_change_is_refused() {
+        parse_scenarios(
+            "test.txt",
+            &scenario_file(&format!("{START}1: reset rotation +4 → f1\n")),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:6: f2 isn't defined under `# Frames`")]
+    fn a_missing_frame_is_refused() {
+        parse_scenarios("test.txt", &scenario_file(&format!("{START}1: - → f2\n")));
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:6: a missed tick has no frame")]
+    fn a_missed_tick_with_a_frame_is_refused() {
+        parse_scenarios(
+            "test.txt",
+            &scenario_file(&format!("{START}1: missed → f1\n")),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:6: tick 2 comes after tick 0")]
+    fn a_skipped_tick_number_is_refused() {
+        parse_scenarios("test.txt", &scenario_file(&format!("{START}2: - → f1\n")));
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:3: a scenario starts with tick 0 and `reset start-up`")]
+    fn a_scenario_without_a_start_is_refused() {
+        parse_scenarios("test.txt", &scenario_file("0: CPU Usage = 100 → f1\n"));
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt: f2 is defined but no tick names it")]
+    fn an_unused_frame_is_refused() {
+        let text = format!(
+            "{}\n### f2\n\n{}",
+            scenario_file(START),
+            BLANK_ROWS.repeat(14)
+        );
+        parse_scenarios("test.txt", &text);
+    }
+
     #[test]
     fn mode_1_reads_as_written() {
         let frames = load_mode(1);
@@ -438,7 +927,10 @@ mod tests {
         assert_eq!(first.heading, "## rotation 0, CPU Usage = 3");
         assert_eq!(first.rotation, Rotation::default());
         assert_eq!(first.unit, None);
-        assert_eq!(first.readings, [("CPU Usage".to_owned(), 3)]);
+        assert_eq!(
+            first.readings,
+            [("CPU Usage".to_owned(), Some(Exact::whole(3)))]
+        );
         let Kind::Static(picture) = &first.kind else {
             panic!("3% is static");
         };

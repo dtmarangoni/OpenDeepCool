@@ -1,11 +1,14 @@
 //! `odc-oracle` writes the expected frame of every test case, `docs/spec/frames/mode-001.txt` to
-//! `mode-022.txt`, from the spec's rules alone. It's a dev-only tool, never shipped, and it shares
+//! `mode-022.txt`, the dash cases `unavailable.txt` and the Load scenarios `scenarios/load.txt`,
+//! from the spec's rules alone. It's a dev-only tool, never shipped, and it shares
 //! no code with OpenDeepCool, so the program is never compared with its own code (PRD, Testing
 //! Strategy).
 
 mod drawing;
 mod frames;
+mod movement;
 mod rules;
+mod scenarios;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -13,7 +16,8 @@ use std::{env, fs, io};
 
 const USAGE: &str = "usage: odc-oracle <out-dir>
 
-Writes the expected frames, mode-001.txt to mode-022.txt, into <out-dir>.
+Writes the expected frames, mode-001.txt to mode-022.txt, unavailable.txt and
+scenarios/load.txt, into <out-dir>.
 The committed copies live in docs/spec/frames/.";
 
 fn main() -> ExitCode {
@@ -25,7 +29,7 @@ fn main() -> ExitCode {
         }
         [out] if !out.starts_with('-') => match write(Path::new(out)) {
             Ok(cases) => {
-                println!("{cases} cases written to {out}");
+                println!("{cases} cases and scenarios written to {out}");
                 ExitCode::SUCCESS
             }
             Err(e) => {
@@ -40,13 +44,16 @@ fn main() -> ExitCode {
     }
 }
 
-/// Writes every file and returns the number of cases.
+/// Writes every file and returns the number of cases and scenarios.
 fn write(out: &Path) -> io::Result<usize> {
-    fs::create_dir_all(out)?;
     let mut cases = 0;
     for (name, text) in frames::files() {
         cases += text.lines().filter(|l| l.starts_with("## ")).count();
-        fs::write(out.join(name), text)?;
+        let path = out.join(name);
+        if let Some(dir) = path.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        fs::write(path, text)?;
     }
     Ok(cases)
 }

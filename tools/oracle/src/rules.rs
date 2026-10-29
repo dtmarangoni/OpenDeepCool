@@ -22,6 +22,27 @@ impl Ratio {
         }
     }
 
+    /// An exact decimal as the scenario files write it: an optional `-`, digits, and optionally
+    /// a point and more digits. `None` for anything else.
+    pub fn decimal(text: &str) -> Option<Self> {
+        let (negative, digits) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text),
+        };
+        let (whole, fraction) = digits.split_once('.').unwrap_or((digits, ""));
+        let all_digits = |s: &str| s.bytes().all(|b| b.is_ascii_digit());
+        if whole.is_empty() || !all_digits(whole) || !all_digits(fraction) || digits.ends_with('.')
+        {
+            return None;
+        }
+        let num: i128 = format!("{whole}{fraction}").parse().ok()?;
+        let den = 10_i128.checked_pow(u32::try_from(fraction.len()).ok()?)?;
+        Some(Ratio {
+            num: if negative { -num } else { num },
+            den,
+        })
+    }
+
     #[cfg(test)]
     pub fn new(num: i128, den: i128) -> Self {
         assert!(den > 0, "a ratio's denominator is positive");
@@ -82,7 +103,7 @@ fn strip(n: Option<u32>, symbol: Glyph) -> Vec<Vec<bool>> {
     rows
 }
 
-/// What a mode with values shows.
+/// What a mode with values shows, for the frame files: one picture, or one cycle.
 pub enum Picture {
     /// Every value is 99 or less, or dashes.
     Static(Frame),
@@ -90,25 +111,66 @@ pub enum Picture {
     Scrolling(Cycle),
 }
 
-/// The scrolling strip followed by blank columns: 14 rows of the whole cycle.
+/// One scrolling cycle, home first.
 pub struct Cycle {
-    rows: Vec<Vec<bool>>,
+    strip: Strip,
 }
 
 impl Cycle {
     /// The number of frames in one cycle.
     pub fn len(&self) -> usize {
-        self.rows[0].len()
+        usize::try_from(self.strip.cycle()).expect("a positive cycle")
     }
 
-    /// The frame `k` ticks after home: window column `c` shows cycle column `(c − 1 + k) mod
-    /// length`, so at home the strip's first column is at column 2.
+    /// The frame `k` ticks after home: the strip's first column at column 2 − `k`.
     pub fn window(&self, k: usize) -> Frame {
-        let length = self.len();
+        let k = i64::try_from(k).expect("a small number of ticks");
+        self.strip.frame_at(self.strip.home() - k)
+    }
+}
+
+/// A mode's picture as the movement procedure sees it (`display.md`, Movement, precisely): the
+/// strip of the mode's values over the full height, both bands ending at the same column.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Strip {
+    /// 14 rows of the strip's columns.
+    rows: Vec<Vec<bool>>,
+    /// Where the static layout puts its first column, from 1; 2 when it's wider than 14.
+    home: i64,
+    /// A value is 100 or more.
+    needs_scroll: bool,
+}
+
+impl Strip {
+    /// *w*, the strip's width in columns.
+    pub fn width(&self) -> i64 {
+        i64::try_from(self.rows[0].len()).expect("a narrow strip")
+    }
+
+    /// *L* = *w* + max(4, 21 − *w*): the strip and at least 4 blank columns, at least 21 in all.
+    pub fn cycle(&self) -> i64 {
+        let w = self.width();
+        w + 4.max(21 - w)
+    }
+
+    /// *h*, the home column.
+    pub fn home(&self) -> i64 {
+        self.home
+    }
+
+    pub fn needs_scroll(&self) -> bool {
+        self.needs_scroll
+    }
+
+    /// The frame with a copy of the strip starting at column `x` (from 1, possibly off the
+    /// screen), and copies every *L* columns either side of it.
+    pub fn frame_at(&self, x: i64) -> Frame {
+        let (w, length) = (self.width(), self.cycle());
         let mut g = BLANK;
         for (out, row) in g.iter_mut().zip(&self.rows) {
-            for (c, px) in out.iter_mut().enumerate() {
-                if row[(c + k + length - 1) % length] {
+            for (c, px) in (1..).zip(out.iter_mut()) {
+                let s = (c - x).rem_euclid(length);
+                if s < w && row[usize::try_from(s).expect("a column of the strip")] {
                     *px = Pixel::On;
                 }
             }
@@ -117,8 +179,8 @@ impl Cycle {
     }
 }
 
-/// The picture of a mode with values, its readings in the order of the mode table.
-pub fn picture(mode: u16, readings: &[Option<Ratio>], fahrenheit: bool) -> Picture {
+/// The strip of a mode with values, its readings in the order of the mode table.
+pub fn strip_of(mode: u16, readings: &[Option<Ratio>], fahrenheit: bool) -> Strip {
     let (kind, names) = value_mode(mode).expect("a mode with values");
     assert_eq!(readings.len(), names.len(), "one reading per value shown");
     let tops = band_tops(names.len(), is_music_value(mode));
@@ -130,41 +192,39 @@ pub fn picture(mode: u16, readings: &[Option<Ratio>], fahrenheit: bool) -> Pictu
     let strips: Vec<Vec<Vec<bool>>> = numbers.iter().map(|&n| strip(n, symbol)).collect();
     let wide = strips.iter().map(|s| s[0].len()).max().expect("a value");
     // One strip of columns over the full height; both values end at the same column.
-    let mut band = vec![vec![false; wide]; SIZE];
+    let mut rows = vec![vec![false; wide]; SIZE];
     for (&top, s) in tops.iter().zip(&strips) {
         let w = s[0].len();
-        for (r, rows) in s.iter().enumerate() {
-            band[top + r][wide - w..].copy_from_slice(rows);
+        for (r, band) in s.iter().enumerate() {
+            rows[top + r][wide - w..].copy_from_slice(band);
         }
     }
-    if numbers.iter().all(|n| n.is_none_or(|n| n <= 99)) {
-        // One value centred, its odd spare column on the left; two values ending at column 14.
-        let left = if names.len() == 1 {
-            let spare = SIZE - wide;
-            spare - spare / 2
-        } else {
-            SIZE - wide
-        };
-        let mut g = BLANK;
-        for (out, rows) in g.iter_mut().zip(&band) {
-            for (c, &on) in rows.iter().enumerate() {
-                if on {
-                    out[left + c] = Pixel::On;
-                }
-            }
-        }
-        return Picture::Static(g);
+    // One value centred, its odd spare column on the left; two values ending at column 14; a
+    // strip wider than the screen has its first column at column 2.
+    let home = if wide > SIZE {
+        2
+    } else if names.len() == 1 {
+        let spare = SIZE - wide;
+        spare - spare / 2 + 1
+    } else {
+        SIZE - wide + 1
+    };
+    Strip {
+        rows,
+        home: i64::try_from(home).expect("a column"),
+        needs_scroll: numbers.iter().any(|n| n.is_some_and(|n| n >= 100)),
     }
-    // The strip, then at least 4 blank columns, at least 21 columns in all.
-    let length = 21.max(wide + 4);
-    let rows = band
-        .into_iter()
-        .map(|mut r| {
-            r.resize(length, false);
-            r
-        })
-        .collect();
-    Picture::Scrolling(Cycle { rows })
+}
+
+/// The picture of a mode with values, its readings in the order of the mode table: the strip at
+/// home, still or over one cycle.
+pub fn picture(mode: u16, readings: &[Option<Ratio>], fahrenheit: bool) -> Picture {
+    let strip = strip_of(mode, readings, fahrenheit);
+    if strip.needs_scroll() {
+        Picture::Scrolling(Cycle { strip })
+    } else {
+        Picture::Static(strip.frame_at(strip.home()))
+    }
 }
 
 #[cfg(test)]
@@ -189,6 +249,19 @@ mod tests {
         assert_eq!(n(Ratio::new(1, 2), Kind::Usage, false), Some(1));
         assert_eq!(n(Ratio::new(-1, 2), Kind::Usage, false), None);
         assert_eq!(number(None, Kind::Usage, false), None);
+    }
+
+    #[test]
+    fn decimals_are_read_exactly() {
+        assert_eq!(Ratio::decimal("99.49"), Some(Ratio::new(9949, 100)));
+        assert_eq!(Ratio::decimal("-0.5"), Some(Ratio::new(-5, 10)));
+        assert_eq!(
+            Ratio::decimal("1000000000"),
+            Some(Ratio::whole(1_000_000_000))
+        );
+        for bad in ["", "-", ".5", "5.", "1e3", "+1", "4 2", "unavailable"] {
+            assert_eq!(Ratio::decimal(bad), None, "{bad:?}");
+        }
     }
 
     // display.md Unavailable values, static layout: a dash in the tens place (columns 2–4) and in

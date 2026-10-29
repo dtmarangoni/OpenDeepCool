@@ -82,6 +82,7 @@ One row for each mode, option, setting and behaviour in the spec. Each row links
 | D41 | - | Choosing what's already set changes nothing; a unit change in a mode without a temperature is only saved; choosing another GPU resets like a mode switch; the app's Refresh takes fresh readings and restarts the picture from home. DeepCreative has no Refresh | [display](display.md#mode-switches) | owner: 2026-10-24 | reviewed 2026-10-24: owner decisions | test |
 | D42 | - | Every number drawn is computed in integer arithmetic from its source's whole-number units, with no floating point between a sensor and a digit, so an exact 57.5 % draws `58%` | [display](display.md#values) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision (solution review OV-08) | test |
 | D43 | - | Every measurement rounds to the nearest whole number, halves up: usage, Memory Load, temperatures, power, and °F rounded once from the exact °C reading. DeepCreative rounds usage, temperature and power up, and drops °F's fraction (D3, D5–D7), so 57 °C draws `135°F` where DeepCreative drew `134°F` | [display](display.md#values) | owner: 2026-10-26 | reviewed 2026-10-26: owner decision | test |
+| D44 | - | Unavailable values: dashes (OpenDeepCool's own rule). A value that can't be read, or a negative reading, is drawn as two dash glyphs in its digit places, with its symbol, in the mode on show; the other value of a two-value mode is drawn as usual. DeepCreative has no such rule: under Wine, with no readings, it drew 0 | [display](display.md#unavailable-values) | owner: 2026-10-24 | reviewed 2026-10-24: owner decision | test |
 
 ## Music Mode
 
@@ -143,6 +144,7 @@ Signed off by the owner on 2026-10-23: all 73 rows checked, on the cooler or by 
 - added on 2026-10-24: D35–D41, and P9, which the owner reviewed the same day;
 - added on 2026-10-25: M16–M20;
 - removed on 2026-10-25: D32–D34 and T5, the Creative Mode rows;
-- added on 2026-10-26, from the solution review: D42, D43, M21, P10, S11 and T7.
+- added on 2026-10-26, from the solution review: D42, D43, M21, P10, S11 and T7;
+- added on 2026-10-29, from the Phase 7 plan (Task 1): D44, the owner's dashes rule of 2026-10-24.
 
-That makes 88 rows. The OpenDeepCool column was added on 2026-10-27 (solution review P3-06).
+That makes 89 rows. The OpenDeepCool column was added on 2026-10-27 (solution review P3-06).
