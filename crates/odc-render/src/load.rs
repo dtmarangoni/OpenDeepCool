@@ -9,7 +9,7 @@ use crate::picture::{Band, Picture, layout};
 use crate::value::number;
 
 /// The Load modes this build draws.
-const DRAWN: [u16; 3] = [1, 2, 3];
+const DRAWN: [u16; 4] = [1, 2, 3, 4];
 
 pub(crate) fn draws(mode: Mode) -> bool {
     DRAWN.contains(&mode.number())
