@@ -8,7 +8,7 @@ use std::path::Path;
 use std::time::Duration;
 
 use odc_protocol::{Frame, Rotation};
-use odc_sensors::Exact;
+use odc_sensors::{Exact, Metric};
 
 const FRAMES_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/frames");
 const SIZE: usize = Frame::SIZE;
@@ -149,6 +149,46 @@ impl fmt::Debug for Picture {
         }
         write!(f, "]")
     }
+}
+
+/// Each metric's own value where a case or a scenario names none (AGENTS.md rule 5): distinct
+/// from each other and from every reading the files use, so drawing the wrong metric shows.
+const FILLERS: [(Metric, i64); 7] = [
+    (Metric::CpuTemperature, 11),
+    (Metric::CpuUsage, 23),
+    (Metric::CpuPower, 37),
+    (Metric::GpuTemperature, 51),
+    (Metric::GpuUsage, 73),
+    (Metric::GpuPower, 83),
+    (Metric::MemoryLoad, 97),
+];
+
+/// Every metric's reading: those named, by their names in the files, and a filler of its own for
+/// every other metric.
+///
+/// # Panics
+///
+/// When a name isn't a metric's.
+pub fn every_metric(readings: &[(String, Option<Exact>)]) -> Vec<(Metric, Option<Exact>)> {
+    for (name, _) in readings {
+        assert!(
+            Metric::from_spec_name(name).is_some(),
+            "{name:?} isn't a metric"
+        );
+    }
+    FILLERS
+        .iter()
+        .map(|&(metric, filler)| {
+            let named = readings
+                .iter()
+                .rev()
+                .find(|(name, _)| Metric::from_spec_name(name) == Some(metric));
+            (
+                metric,
+                named.map_or(Some(Exact::whole(filler)), |&(_, value)| value),
+            )
+        })
+        .collect()
 }
 
 /// A reading as the files write it: an exact decimal, negative ones included, or `unavailable`
@@ -813,6 +853,27 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn every_metric_gets_the_named_reading_or_its_own_filler() {
+        let all = every_metric(&[
+            ("CPU Usage".to_owned(), Some(Exact::whole(42))),
+            ("Memory Load".to_owned(), None),
+        ]);
+        assert_eq!(all.len(), 7);
+        assert!(all.contains(&(Metric::CpuUsage, Some(Exact::whole(42)))));
+        assert!(all.contains(&(Metric::MemoryLoad, None)));
+        assert!(all.contains(&(Metric::GpuUsage, Some(Exact::whole(73)))));
+        let mut fillers: Vec<i64> = FILLERS.iter().map(|&(_, f)| f).collect();
+        fillers.dedup();
+        assert_eq!(fillers.len(), 7, "every filler its own");
+    }
+
+    #[test]
+    #[should_panic(expected = "\"Cpu usage\" isn't a metric")]
+    fn an_unknown_metric_name_is_refused() {
+        every_metric(&[("Cpu usage".to_owned(), None)]);
     }
 
     #[test]

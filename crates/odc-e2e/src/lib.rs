@@ -6,6 +6,7 @@
 
 pub mod device;
 pub mod gpu_rank;
+pub mod load;
 pub mod sensors;
 
 use std::path::Path;
@@ -19,7 +20,7 @@ pub const USAGE: &str = "usage: odc-e2e [--require <capability,...>] [--only <ar
                     cpu-temp, cpu-power, proc-stat, meminfo, gpu-amdgpu, gpu-i915,
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
                     gpu-load-tool
-  --only <area>     run one area's checks: device, gpu-rank, sensors
+  --only <area>     run one area's checks: device, load, gpu-rank, sensors
   -h, --help        this text
 
 Each check probes the PC first: a device present and usable is tested for real,
@@ -31,6 +32,7 @@ cooler too.";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Area {
     Device,
+    Load,
     GpuRank,
     Sensors,
 }
@@ -62,6 +64,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                 let area = args.next().ok_or("--only needs an area")?;
                 options.only = Some(match area.as_str() {
                     "device" => Area::Device,
+                    "load" => Area::Load,
                     "gpu-rank" => Area::GpuRank,
                     "sensors" => Area::Sensors,
                     _ => return Err(format!("{area:?} isn't an area")),
@@ -100,6 +103,9 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only.is_none_or(|area| area == Area::Device) {
         device::run(roots, out_dir, tick, &mut summary);
+    }
+    if options.only.is_none_or(|area| area == Area::Load) {
+        load::run(roots, out_dir, tick, &mut summary);
     }
     if options.only.is_none_or(|area| area == Area::GpuRank) {
         gpu_rank::run(roots, out_dir, &mut summary);

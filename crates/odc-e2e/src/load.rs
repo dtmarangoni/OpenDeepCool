@@ -1,0 +1,178 @@
+//! The Load checks (Phase 7 plan, Task 3; owner, 2026-10-29: AGENTS.md rule 4 asks for the run on
+//! the cooler in each mode's commit). Before the service exists, each drawn Load mode's examples,
+//! drawn by `odc-render`, go straight to the cooler at the tick: value set 2 upright and turned
+//! once, the scrolling value set 3 over its whole cycle, and the mode's dash case where it has
+//! one. Every report written is recorded and compared with the expected frames; nobody looks at
+//! the cooler. Without a cooler, the same runs through a fake one.
+
+use std::path::Path;
+use std::time::Duration;
+
+use odc_device::{Connector, DisplayPort, Link, Lp360, Recording};
+use odc_protocol::{Frame, Message};
+use odc_render::{Kind as ModeKind, Marquee, Mode, Unit, Values, draws, mode_info, picture};
+use odc_testkit::diff;
+use odc_testkit::expected::{Case, Kind, Picture, every_metric, load_mode, load_unavailable};
+use odc_testkit::hardware::{Capability, Mode as RunMode, Probe, Roots, Summary, probe};
+
+use crate::device::{Pace, fake_lp360, hidraw, read_recording, recording_path};
+
+pub fn run(roots: &Roots, out_dir: &Path, tick: Duration, summary: &mut Summary) {
+    let modes = Mode::all().filter(|&m| mode_info(m).kind == ModeKind::Load && draws(m));
+    for mode in modes {
+        let result = check(mode, roots, out_dir, tick, summary);
+        summary.check(&format!("load_mode_{}", mode.number()), result);
+    }
+}
+
+fn check(
+    mode: Mode,
+    roots: &Roots,
+    out_dir: &Path,
+    tick: Duration,
+    summary: &mut Summary,
+) -> Result<String, String> {
+    let examples = examples(mode)?;
+    match probe(Capability::Lp360, roots) {
+        Probe::Real => {
+            summary.mode(Capability::Lp360, RunMode::Real);
+            show(hidraw(roots), mode, &examples, out_dir, tick)
+        }
+        Probe::Absent { reason } => {
+            summary.mode(Capability::Lp360, RunMode::Fake { reason });
+            let tree = fake_lp360(out_dir, &format!("fake-load-{}", mode.number()))?;
+            show(hidraw(&tree.roots()), mode, &examples, out_dir, tick)
+        }
+        Probe::Unusable { reason, fix } => {
+            summary.mode(
+                Capability::Lp360,
+                RunMode::Failed {
+                    reason: reason.clone(),
+                },
+            );
+            Err(format!("{reason}; fix: {fix}"))
+        }
+    }
+}
+
+/// One example: the frames the renderer draws for it, already turned, and those expected.
+struct Example {
+    name: String,
+    frames: Vec<Frame>,
+    expected: Vec<Picture>,
+}
+
+/// The mode's examples, one of each test type (owner, 2026-10-26: the full cross runs in
+/// process).
+fn examples(mode: Mode) -> Result<Vec<Example>, String> {
+    let n = mode.number();
+    let file = load_mode(n);
+    // The value sets in file order: 1, 2 and 3 (docs/spec/frames/README.md, Readings used).
+    let set = |rotation: u8, index: usize| {
+        file.cases
+            .iter()
+            .filter(|c| c.rotation.setting() == rotation)
+            .nth(index)
+            .ok_or_else(|| {
+                format!(
+                    "mode-{n:03}.txt: no value set {} in rotation {rotation}",
+                    index + 1
+                )
+            })
+    };
+    let mut cases = vec![set(0, 1)?, set(1, 1)?, set(0, 2)?];
+    let dashes = load_unavailable();
+    if let Some((_, case)) = dashes
+        .iter()
+        .find(|(m, c)| *m == n && c.rotation.setting() == 0)
+    {
+        cases.push(case);
+    }
+    cases.into_iter().map(|case| draw(mode, case)).collect()
+}
+
+fn draw(mode: Mode, case: &Case) -> Result<Example, String> {
+    let mut values = Values::new();
+    for (metric, value) in every_metric(&case.readings) {
+        values.set(metric, value);
+    }
+    let p = picture(mode, &values, Unit::Celsius)
+        .map_err(|_| format!("mode {} isn't drawn", mode.number()))?;
+    let mut marquee = Marquee::new(p);
+    let expected: Vec<Picture> = match &case.kind {
+        Kind::Static(picture) => vec![picture.clone(); 3],
+        Kind::Scrolling(cycle) => cycle.clone(),
+        Kind::Loop(_) => return Err(format!("{}: Load has no loop", case.heading)),
+    };
+    let frames = expected
+        .iter()
+        .map(|_| marquee.tick().rotated(case.rotation))
+        .collect();
+    Ok(Example {
+        name: case.heading.trim_start_matches("## ").to_owned(),
+        frames,
+        expected,
+    })
+}
+
+/// Writes every example's frames to the cooler at the tick, then compares the recording.
+fn show<C: Connector>(
+    connector: C,
+    mode: Mode,
+    examples: &[Example],
+    out_dir: &Path,
+    tick: Duration,
+) -> Result<String, String> {
+    let path = recording_path(out_dir, &format!("load-mode-{}", mode.number()))?;
+    let recording =
+        Recording::create(connector, &path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut lp360 = Lp360::new(recording);
+    let mut pace = Pace::new(tick);
+    for example in examples {
+        for (i, frame) in example.frames.iter().enumerate() {
+            pace.wait();
+            let link = lp360.show(frame);
+            if link != Link::Connected {
+                return Err(format!("{}, frame {}: {link:?}", example.name, i + 1));
+            }
+        }
+    }
+    if let Some(failure) = lp360.connector().failure() {
+        return Err(failure);
+    }
+    let messages = read_recording(&path)?;
+    let expected: Vec<(&str, &Picture)> = examples
+        .iter()
+        .flat_map(|e| e.expected.iter().map(move |p| (e.name.as_str(), p)))
+        .collect();
+    let startups = messages.iter().filter(|m| **m == Message::Startup).count();
+    if messages.first() != Some(&Message::Startup)
+        || startups != 1
+        || messages.len() != expected.len() + 1
+    {
+        return Err(format!(
+            "{}: {} messages, {startups} start-ups; expected 03 08 then {} frames",
+            path.display(),
+            messages.len(),
+            expected.len()
+        ));
+    }
+    for (i, (message, (name, picture))) in messages[1..].iter().zip(&expected).enumerate() {
+        let Message::Frame(frame) = message else {
+            return Err(format!(
+                "{}: report {} isn't a frame",
+                path.display(),
+                i + 2
+            ));
+        };
+        if let Some(why) = diff::describe(picture, frame) {
+            return Err(format!("{name}, frame {}: {why}", i + 1));
+        }
+    }
+    let names: Vec<&str> = examples.iter().map(|e| e.name.as_str()).collect();
+    Ok(format!(
+        "03 08, then {} frames as expected: {}",
+        expected.len(),
+        names.join("; ")
+    ))
+}

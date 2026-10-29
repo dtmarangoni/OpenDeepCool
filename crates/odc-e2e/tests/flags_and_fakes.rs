@@ -69,6 +69,13 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::GpuRank),
         }))
     );
+    assert_eq!(
+        parse_args(&args(&["--require", "lp360", "--only", "load"])),
+        Ok(Some(Options {
+            require: vec![Capability::Lp360],
+            only: Some(Area::Load),
+        }))
+    );
     for (bad, reason) in [
         (&["--require", "lp361"][..], "isn't a capability"),
         (&["--only", "nowhere"][..], "isn't an area"),
@@ -91,6 +98,11 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
     for check in ["test_images", "reconnect", "reset"] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
+    // Each Load mode drawn so far, through the fake cooler (Phase 7 plan, Task 3).
+    assert!(
+        table.contains("load_mode_1      passed  03 08, then"),
+        "{table}"
+    );
     for gpu in ["amdgpu", "i915", "xe", "nvidia", "other"] {
         let capability = format!("gpu-{gpu}");
         let check = format!("gpu_rank_{gpu}");

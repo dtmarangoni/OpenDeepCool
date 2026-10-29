@@ -10,6 +10,7 @@ publish.workspace = true
 odc-device = { path = "../odc-device" }
 odc-gpu-rank = { path = "../odc-gpu-rank" }
 odc-protocol = { path = "../odc-protocol" }
+odc-render = { path = "../odc-render" }
 odc-sensors = { path = "../odc-sensors" }
 odc-testkit = { path = "../odc-testkit" }
 

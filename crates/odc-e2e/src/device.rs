@@ -77,7 +77,7 @@ fn upright_42() -> Result<(Frame, Picture), String> {
 }
 
 /// `<out_dir>/<name>-<unix ns>.log`.
-fn recording_path(out_dir: &Path, name: &str) -> Result<PathBuf, String> {
+pub(crate) fn recording_path(out_dir: &Path, name: &str) -> Result<PathBuf, String> {
     fs::create_dir_all(out_dir).map_err(|e| format!("{}: {e}", out_dir.display()))?;
     let unix_ns = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -85,7 +85,7 @@ fn recording_path(out_dir: &Path, name: &str) -> Result<PathBuf, String> {
     Ok(out_dir.join(format!("{name}-{unix_ns}.log")))
 }
 
-fn read_recording(path: &Path) -> Result<Vec<Message>, String> {
+pub(crate) fn read_recording(path: &Path) -> Result<Vec<Message>, String> {
     capture::read(path)
         .map(|c| {
             let bytes: [u8; 64] = c
@@ -99,14 +99,14 @@ fn read_recording(path: &Path) -> Result<Vec<Message>, String> {
 }
 
 /// A fixed schedule: the nth wait returns at start + n × tick.
-struct Pace {
+pub(crate) struct Pace {
     start: Instant,
     tick: Duration,
     n: u32,
 }
 
 impl Pace {
-    fn new(tick: Duration) -> Self {
+    pub(crate) fn new(tick: Duration) -> Self {
         Pace {
             start: Instant::now(),
             tick,
@@ -114,7 +114,7 @@ impl Pace {
         }
     }
 
-    fn wait(&mut self) {
+    pub(crate) fn wait(&mut self) {
         let due = self.start + self.tick * self.n;
         let now = Instant::now();
         if due > now {
@@ -179,14 +179,14 @@ fn write_times(durations: &[Duration]) -> String {
 }
 
 /// A fake tree with an LP360 stand-in, for a PC with no cooler attached.
-fn fake_lp360(out_dir: &Path, name: &str) -> Result<FakeTree, String> {
+pub(crate) fn fake_lp360(out_dir: &Path, name: &str) -> Result<FakeTree, String> {
     let tree = FakeTree::create(out_dir.join(name)).map_err(|e| format!("a fake tree: {e}"))?;
     tree.hidraw(0, LP360_HID_ID)
         .map_err(|e| format!("a fake node: {e}"))?;
     Ok(tree)
 }
 
-fn hidraw(roots: &Roots) -> HidrawConnector {
+pub(crate) fn hidraw(roots: &Roots) -> HidrawConnector {
     HidrawConnector::new(&roots.sysfs, &roots.dev)
 }
 

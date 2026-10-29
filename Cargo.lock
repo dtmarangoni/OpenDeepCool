@@ -374,6 +374,7 @@ dependencies = [
  "odc-device",
  "odc-gpu-rank",
  "odc-protocol",
+ "odc-render",
  "odc-sensors",
  "odc-testkit",
 ]
@@ -414,6 +415,7 @@ version = "0.0.0"
 dependencies = [
  "odc-protocol",
  "odc-sensors",
+ "odc-testkit",
  "proptest",
 ]
 

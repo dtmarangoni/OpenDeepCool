@@ -11,6 +11,7 @@ odc-protocol = { path = "../odc-protocol" }
 odc-sensors = { path = "../odc-sensors" }
 
 [dev-dependencies]
+odc-testkit = { path = "../odc-testkit" }
 proptest.workspace = true
 
 [lints]
