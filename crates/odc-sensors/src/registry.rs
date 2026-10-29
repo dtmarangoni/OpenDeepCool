@@ -5,6 +5,7 @@
 use std::time::{Duration, Instant};
 
 use crate::model::{Clock, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
+use crate::rules::{self, Roots};
 
 /// A metric without a source is looked for every 5 s for the first two minutes after start-up or
 /// a wake-up, then every 60 s, so a driver that loads late is found without a restart (owner,
@@ -75,6 +76,11 @@ impl<C: Clock> Registry<C> {
             since: now,
             next_scan: now,
         }
+    }
+
+    /// A registry over the built-in driver rules, looking under `roots`.
+    pub fn from_rules(clock: C, roots: Roots) -> Self {
+        Registry::new(clock, |metric| rules::candidates(metric, &roots))
     }
 
     /// Every metric's binding: its source, or why it has none.

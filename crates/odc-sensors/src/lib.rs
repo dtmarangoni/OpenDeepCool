@@ -3,8 +3,11 @@
 //! through the [`Readings`] port (`docs/spec/sensors.md`).
 
 pub mod fake;
+mod hwmon;
 mod model;
 mod registry;
+mod rules;
 
 pub use model::{Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, SystemClock, Unavailable};
 pub use registry::{Binding, Candidate, Registry, Source};
+pub use rules::Roots;
