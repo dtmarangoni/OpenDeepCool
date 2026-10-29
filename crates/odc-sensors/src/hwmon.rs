@@ -65,7 +65,7 @@ impl Candidate for HwmonCandidate {
 
 /// Every hwmon device under `<sys>/class/hwmon`, as (folder, name), in the order of their
 /// numbers.
-fn devices(sys: &Path) -> Vec<(PathBuf, String)> {
+pub(crate) fn devices(sys: &Path) -> Vec<(PathBuf, String)> {
     let Ok(entries) = fs::read_dir(sys.join("class/hwmon")) else {
         return Vec::new();
     };

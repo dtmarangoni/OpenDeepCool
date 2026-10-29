@@ -2,8 +2,10 @@
 //! metric that has none, and reads them all for a snapshot (PRD, Architecture Notes: Sensor
 //! architecture). The candidates are the driver rules of `docs/spec/sensors.md`.
 
+use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
+use crate::fans::{self, FanInput};
 use crate::model::{Clock, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
 use crate::rules::{self, Roots};
 
@@ -50,6 +52,10 @@ pub struct Registry<C: Clock> {
     /// Where the rescan schedule starts: start-up, or the last wake-up.
     since: Instant,
     next_scan: Instant,
+    /// The sysfs root the fan inputs are read under, when the registry reads a real tree.
+    sys: Option<PathBuf>,
+    cooler_fans: Option<FanInput>,
+    pump: Option<FanInput>,
 }
 
 struct Slot {
@@ -75,12 +81,32 @@ impl<C: Clock> Registry<C> {
             clock,
             since: now,
             next_scan: now,
+            sys: None,
+            cooler_fans: None,
+            pump: None,
         }
     }
 
     /// A registry over the built-in driver rules, looking under `roots`.
     pub fn from_rules(clock: C, roots: Roots) -> Self {
-        Registry::new(clock, |metric| rules::candidates(metric, &roots))
+        let mut registry = Registry::new(clock, |metric| rules::candidates(metric, &roots));
+        registry.sys = Some(roots.sys);
+        registry
+    }
+
+    /// The fan inputs the user chose for the cooler's fans and its pump; none is chosen by
+    /// default (`docs/spec/sensors.md`, Fan and pump speed).
+    pub fn choose_fans(&mut self, cooler_fans: Option<FanInput>, pump: Option<FanInput>) {
+        self.cooler_fans = cooler_fans;
+        self.pump = pump;
+    }
+
+    fn fan(&self, input: Option<&FanInput>) -> Fan {
+        match (input, &self.sys) {
+            (None, _) => Fan::NotChosen,
+            (Some(input), Some(sys)) => Fan::Chosen(fans::fan_rpm(sys, input)),
+            (Some(_), None) => Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)),
+        }
     }
 
     /// Every metric's binding: its source, or why it has none.
@@ -110,13 +136,10 @@ impl<C: Clock> Readings for Registry<C> {
             }
             self.next_scan = next_scan(self.since, now);
         }
+        let cooler_fans = self.fan(self.cooler_fans.as_ref());
+        let pump = self.fan(self.pump.as_ref());
         let slots = &mut self.slots;
-        // The fans come with the fan choice (Phase 6 plan, Task 7).
-        Snapshot::new(
-            |metric| slots[metric.index()].read(now),
-            Fan::NotChosen,
-            Fan::NotChosen,
-        )
+        Snapshot::new(|metric| slots[metric.index()].read(now), cooler_fans, pump)
     }
 
     fn restart_intervals(&mut self) {
