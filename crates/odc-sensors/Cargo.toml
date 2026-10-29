@@ -1,0 +1,13 @@
+[package]
+name = "odc-sensors"
+description = "The display's readings on any PC: one source per metric, bound from built-in driver rules, read through the readings port"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dev-dependencies]
+odc-testkit = { path = "../odc-testkit" }
+
+[lints]
+workspace = true

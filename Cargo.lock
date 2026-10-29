@@ -231,6 +231,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "odc-sensors"
+version = "0.0.0"
+dependencies = [
+ "odc-testkit",
+]
+
+[[package]]
 name = "odc-testkit"
 version = "0.0.0"
 dependencies = [

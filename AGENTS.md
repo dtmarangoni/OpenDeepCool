@@ -121,7 +121,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/local/` | Facts about the owner's PC: **local only, git-ignored** |
 | `docs/reference/vendor/` | Vendor manuals: **local only, git-ignored**; see `docs/reference/README.md` |
 | `research/` | Research workspace (Wine prefix, extracted DeepCreative, captures, screenshots, research tools): **local only, git-ignored** |
-| `Cargo.toml`, `crates/` | The Rust workspace and the program's crates: `odc-protocol` (frames, rotation, the reports), `odc-device` (the LP360 adapter) and `odc-testkit` (test support, only ever a dev-dependency). Later phases add theirs |
+| `Cargo.toml`, `crates/` | The Rust workspace and the program's crates: `odc-protocol` (frames, rotation, the reports), `odc-device` (the LP360 adapter), `odc-sensors` (the display's readings: one source per metric, bound by the registry) and `odc-testkit` (test support, only ever a dev-dependency). Later phases add theirs |
 | `tools/` | Dev-only Rust programs, never shipped: `oracle/` (`odc-oracle`) writes the expected frames of `docs/spec/frames/` from the spec's rules, sharing no code with the program; `dev/` (`odc-dev`) installs, checks and removes the development setup, with the dev-only reconnect rule |
 | `packaging/`, `.github/workflows/` | From Phase 5 (Tasks 8 and 10): the product files (udev rule, system user) and CI; later phases add the units, the policies and the PKGBUILD |
 
