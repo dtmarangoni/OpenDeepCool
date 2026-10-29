@@ -1,8 +1,8 @@
 //! The Load checks (Phase 7 plan, Task 3; owner, 2026-10-29: AGENTS.md rule 4 asks for the run on
 //! the cooler in each mode's commit). Before the service exists, each drawn Load mode's examples,
 //! drawn by `odc-render`, go straight to the cooler at the tick: value set 2 upright and turned
-//! once, the scrolling value set 3 over its whole cycle, and the mode's dash case where it has
-//! one. Every report written is recorded and compared with the expected frames; nobody looks at
+//! once, value set 3, and the mode's dash case where it has one. Where value set 3 doesn't scroll
+//! (modes 2, 3 and 6), scenario S1 of `scenarios/load.txt` brings the scrolling example. Every report written is recorded and compared with the expected frames; nobody looks at
 //! the cooler. Without a cooler, the same runs through a fake one.
 
 use std::path::Path;
@@ -12,7 +12,9 @@ use odc_device::{Connector, DisplayPort, Link, Lp360, Recording};
 use odc_protocol::{Frame, Message};
 use odc_render::{Kind as ModeKind, Marquee, Mode, Unit, Values, draws, mode_info, picture};
 use odc_testkit::diff;
-use odc_testkit::expected::{Case, Kind, Picture, every_metric, load_mode, load_unavailable};
+use odc_testkit::expected::{
+    Case, Change, Kind, Picture, every_metric, load_mode, load_scenarios, load_unavailable,
+};
 use odc_testkit::hardware::{Capability, Mode as RunMode, Probe, Roots, Summary, probe};
 
 use crate::device::{Pace, fake_lp360, hidraw, read_recording, recording_path};
@@ -88,7 +90,59 @@ fn examples(mode: Mode) -> Result<Vec<Example>, String> {
     {
         cases.push(case);
     }
-    cases.into_iter().map(|case| draw(mode, case)).collect()
+    let scrolls = cases.iter().any(|c| matches!(c.kind, Kind::Scrolling(_)));
+    let mut examples: Vec<Example> = cases
+        .into_iter()
+        .map(|case| draw(mode, case))
+        .collect::<Result<_, _>>()?;
+    if !scrolls {
+        examples.push(scrolling(mode)?);
+    }
+    Ok(examples)
+}
+
+/// The mode's scenario S1, a value of 100 or more scrolling from home, as the oracle drew it.
+fn scrolling(mode: Mode) -> Result<Example, String> {
+    let n = mode.number();
+    let scenarios = load_scenarios("load.txt");
+    let s1 = scenarios
+        .iter()
+        .find(|s| s.id == "S1" && s.mode == n)
+        .ok_or_else(|| format!("scenarios/load.txt: no S1 in mode {n}"))?;
+    let start: Vec<_> = s1
+        .ticks
+        .first()
+        .map(|t| t.changes.as_slice())
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|c| match c {
+            Change::Reading { metric, value } => Some((metric.clone(), *value)),
+            _ => None,
+        })
+        .collect();
+    let mut values = Values::new();
+    for (metric, value) in every_metric(&start) {
+        values.set(metric, value);
+    }
+    let p = picture(mode, &values, Unit::Celsius).map_err(|_| format!("mode {n} isn't drawn"))?;
+    let mut marquee = Marquee::new(p);
+    let (mut frames, mut expected) = (Vec::new(), Vec::new());
+    for tick in &s1.ticks {
+        if tick.n > 0 && !tick.changes.is_empty() {
+            return Err(format!("{}: a change after tick 0", s1.heading));
+        }
+        let picture = tick
+            .frame
+            .clone()
+            .ok_or_else(|| format!("{}: a missed tick", s1.heading))?;
+        frames.push(marquee.tick());
+        expected.push(picture);
+    }
+    Ok(Example {
+        name: s1.heading.trim_start_matches("## ").to_owned(),
+        frames,
+        expected,
+    })
 }
 
 fn draw(mode: Mode, case: &Case) -> Result<Example, String> {

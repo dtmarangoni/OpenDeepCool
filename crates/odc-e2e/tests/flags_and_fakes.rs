@@ -99,10 +99,16 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
     // Each Load mode drawn so far, through the fake cooler (Phase 7 plan, Task 3).
-    assert!(
-        table.contains("load_mode_1      passed  03 08, then"),
-        "{table}"
-    );
+    let load = odc_render::Mode::all().filter(|&m| {
+        odc_render::mode_info(m).kind == odc_render::Kind::Load && odc_render::draws(m)
+    });
+    for mode in load {
+        let check = format!("load_mode_{}", mode.number());
+        assert!(
+            table.contains(&format!("{check:<16} passed  03 08, then")),
+            "{table}"
+        );
+    }
     for gpu in ["amdgpu", "i915", "xe", "nvidia", "other"] {
         let capability = format!("gpu-{gpu}");
         let check = format!("gpu_rank_{gpu}");
