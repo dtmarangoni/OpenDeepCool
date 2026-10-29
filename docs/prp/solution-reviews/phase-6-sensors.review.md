@@ -48,6 +48,7 @@ flowchart TD
   - AMD families using the RAPL MSR driver;
   - `k10temp` before family 17h not being a temperature.
 - **The rank helper's struct mirrors** are checked against the installed kernel headers by compiling a C program. That's the right guard for hand-written `#[repr(C)]`.
+  - **Note (2026-10-28, owner):** superseded before Task 1. The structures are no longer written by hand: bindgen generates them from the installed headers once, the result is committed with bindgen's layout tests, and a dev tool, `odc-bindings`, regenerates it. No C is compiled (AGENTS.md rule 13; Phase 6 plan, Task 9; PRD Decisions Log, GPU kernel structures).
 - **Detection never overwrites** an existing configuration, records what it created, and runs at most once per board.
 
 ## Analysis

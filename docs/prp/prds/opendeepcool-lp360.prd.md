@@ -367,7 +367,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 3 | Functionality & protocol spec | Full spec of LP360 + DeepCreative + board sensors; parity checklist validated by the owner | complete | - | 1, 2 | [plan](../plans/phase-3-functionality-protocol-spec.plan.md) | [report](../reports/phase-3-functionality-protocol-spec.report.md) | - |
 | 4 | Implementation plans | One PRP plan per implementation phase (5–11) | complete | - | 3 | - | [report](../reports/phase-4-implementation-plans.report.md) | - |
 | 5 | Device & protocol core | Rust workspace, frame encoder, LP360 USB writer that reconnects, udev rule, dev access tool | complete | - | 4 | [plan](../plans/phase-5-device-protocol-core.plan.md) | [report](../reports/phase-5-device-protocol-core.report.md) | - |
-| 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | pending | - | 5 | [plan](../plans/phase-6-sensors.plan.md) | - | - |
+| 6 | Sensors | All metrics on any PC: driver rules, GPU choice, fan inputs, sensor detection; tested against fake sysfs trees | in-progress | - | 5 | [plan](../plans/phase-6-sensors.plan.md) | - | - |
 | 7 | Service, settings & Load (MVP) | System service, start at boot, saved settings, D-Bus and polkit, Load Mode (modes 1–6) | pending | - | 5, 6 | [plan](../plans/phase-7-service-settings-load-mode.plan.md) | - | - |
 | 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | pending | - | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | - | - |
 | 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | pending | - | 7, 8 | [plan](../plans/phase-9-music.plan.md) | - | - |
@@ -525,7 +525,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 
 ### Parallelism Notes
 
-Phases run one at a time, in order (owner, 2026-10-27; solution review P4-01): each plan builds on the one before. Phase 6 uses Phase 5's workspace, fake-tree builder, udev rule, dev scripts, hardware probe and CI; Phase 9 builds on Phase 8, and Phase 10 on Phases 8 and 9. Phases side by side would put two branches on the same files.
+Phases run one at a time, in order (owner, 2026-10-27; solution review P4-01): each plan builds on the one before. Phase 6 uses Phase 5's workspace, fake-tree builder, udev rule, dev tool, hardware probe and CI; Phase 9 builds on Phase 8, and Phase 10 on Phases 8 and 9. Phases side by side would put two branches on the same files.
 
 ---
 
@@ -567,6 +567,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Wine 11.20 (11.17 in Phase 1), winetricks | Already installed | Phases 1–3 |
 | weston | Installed by the owner, 2026-10-25 | Headless display for the settings app's UI tests (Phase 10); not installed or removed by OpenDeepCool |
 | arch-install-scripts | Installed by the owner, 2026-10-25 | `pacstrap -N` and `arch-chroot -N` build and enter the throwaway, rootless container for the install and uninstall tests (Phase 11); not installed or removed by OpenDeepCool |
+| clang | Installed with the owner's OK when Phase 6 Task 9 starts (approved 2026-10-28) | libclang for `odc-bindings`, which regenerates the GPU helper's kernel structures from the kernel headers. Nothing else needs it: the build, the tests, CI and the package use the committed file. Not installed or removed by OpenDeepCool |
 | Wine prefix for DeepCreative | `research/wine/` in the project (git-ignored) | Kept as a spare until `v1.0.0` is released, after the alpha and the beta, in case research is needed again; then deleted with all DeepCreative material (owner, 2026-10-23 and 2026-10-27) |
 | Extracted DeepCreative files and captures | `research/` in the project (git-ignored) | Never committed; deleted once `v1.0.0` is released (owner, 2026-10-27) |
 | Board sensor driver loaded by hand | Kernel, until the next reboot | Loaded with `sudo` when a research task needs it (first on 2026-10-22) |
@@ -585,7 +586,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 
 | Decision | Choice | Alternatives | Rationale |
 |---|---|---|---|
-| Language | Rust, for the program, its tests and its tools: the expected-frame generator, the commit guard, the dev tool and the mockup generator. Other languages only where a tool requires its own format: git's one-line hook files, the PKGBUILD and its install script, CI's YAML, and the mockups' HTML, CSS and JS. `research/` stays local and is exempt | Python for the expected-frame generator (P3-01) and the mockups; shell for the guard and the dev scripts | Owner requirement. Owner, 2026-10-28: "If the project is made with Rust, all testing framework should be made using rust as well" |
+| Language | Rust, for the program, its tests and its tools: the expected-frame generator, the commit guard, the dev tool, the kernel-structure generator and the mockup generator. Other languages only where a tool requires its own format: git's one-line hook files, the PKGBUILD and its install script, CI's YAML, and the mockups' HTML, CSS and JS. `research/` stays local and is exempt | Python for the expected-frame generator (P3-01) and the mockups; shell for the guard and the dev scripts | Owner requirement. Owner, 2026-10-28: "If the project is made with Rust, all testing framework should be made using rust as well" |
 | Source of truth for DeepCreative behaviour | Readable UI code + DeepCreative under Wine with the real cooler + owner checks | Windows VM; dual boot; Linux tools only | No Windows is available; a VM shows fake readings; Wine runs the real app against the real cooler on this PC |
 | Wine or Proton | Plain Wine 11.17 (installed) | Proton / protontricks | Proton targets Steam games; kept as a fallback |
 | Existing Linux projects | Learn the protocol from them; write our own code | Fork Nortank12/deepcool-digital-linux | They cover a small part, and copying their code brings GPL with it |
@@ -659,6 +660,8 @@ The owner asked for every installed or created item to be listed. Paths are prop
 | Dev test session | On the dev copy, a test holds a session: other callers' changes are refused as busy, and the session, every override and the frame recording end when the test's connection leaves the bus | Overrides that last until the test clears them; recording every frame at all times | Owner, 2026-10-27 (solution review P7-07, P7-16): a killed test must not leave fake readings on the cooler, and the recording must not grow without end |
 | AMD GPU power | Shown only for a GPU ranked dedicated; on an integrated one, or one of unknown kind, it's unavailable with the reason | Hidden only on a GPU ranked integrated | Owner, 2026-10-27 (solution review P8-06): an APU's reading includes the CPU, so a failed ranking must never show it as Gpu power (rule 11) |
 | Settings from a newer build | Unknown fields are kept and written back unchanged; only a different `version` is rejected | Reject the file; drop the fields | Owner, 2026-10-27 (solution review P7-12): with an alpha and a beta, going back to an older build is plausible |
+| GPU kernel structures | The GPU helper's ioctl structures are generated once by bindgen from the installed kernel headers and committed, with bindgen's layout tests; a dev tool, `odc-bindings`, regenerates them, and only it needs clang | Hand-written copies checked by compiling C (a rule 13 exception); bindgen at every build, which puts clang on CI and every AUR builder's PC | Owner, 2026-10-28: how Rust's crates for kernel interfaces do it (`linux-raw-sys`, `drm-sys`). bindgen's guide prefers generating at every build only to spare a file per target, and OpenDeepCool has one. No person copies a layout, and the package still builds with Rust alone |
+| Dependency licences | MIT, Apache-2.0 and Unicode-3.0, plus ISC (`libloading`, which loads NVIDIA's libraries) and BSD-3-Clause (bindgen, in the dev tool only); `cargo deny check` enforces the list | The first three only | Owner, 2026-10-28: both are permissive and fit an MIT project |
 
 ---
 

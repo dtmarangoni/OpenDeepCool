@@ -95,7 +95,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
     - Where the hardware can't tell (which fan input is the pump), the user chooses.
     - Facts about the owner's PC serve only for testing on it.
 13. **Rust everywhere** (owner, 2026-10-28: "If the project is made with Rust, all testing framework should be made using rust as well").
-    - The program, its tests and its tools are Rust. The tools are the expected-frame generator (`tools/oracle/`), the commit guard and its tests (`tools/guard/`), the dev setup tool (`tools/dev/`) and the mockup generator (`tools/mockups/`, from Phase 10).
+    - The program, its tests and its tools are Rust. The tools are the expected-frame generator (`tools/oracle/`), the commit guard and its tests (`tools/guard/`), the dev setup tool (`tools/dev/`), the generator of the GPU helper's kernel structures (`tools/bindings/`, from Phase 6; owner, 2026-10-28) and the mockup generator (`tools/mockups/`, from Phase 10).
     - Other languages appear only where a tool requires its own format: git's hook files (one-line starters of the guard), the PKGBUILD and its install script, CI's YAML, and the mockups' own HTML, CSS and JS.
     - `research/` stays local and is exempt.
 
