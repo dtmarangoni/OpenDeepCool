@@ -13,7 +13,8 @@ Pre-alpha: planning and research. No installable app yet.
 - **Phase 3** (done, 2026-10-23): the full functionality and protocol spec in [docs/spec/](docs/spec/), with the expected frame of every mode, rotation and unit, and a parity checklist the owner checked on the cooler.
 - **Phase 4** (done, 2026-10-25): one implementation plan for each of Phases 5–11.
 - **Solution reviews** (done, 2026-10-27): every plan's [review](docs/prp/solution-reviews/README.md) was crossed with the owner, and the PRD, plans and spec follow the decisions.
-- **Phase 5** (done, 2026-10-28): the Rust workspace. Frames reach the cooler byte-exact, without root, and keep reaching it after a reconnect, all tested unattended on the real cooler. CI runs on every push. See [the report](docs/prp/reports/phase-5-device-protocol-core.report.md). **Next, Phase 6**: the sensors.
+- **Phase 5** (done, 2026-10-28): the Rust workspace. Frames reach the cooler byte-exact, without root, and keep reaching it after a reconnect, all tested unattended on the real cooler. CI runs on every push. See [the report](docs/prp/reports/phase-5-device-protocol-core.report.md).
+- **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind, and a once-per-board detection loads the board's fan driver. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md). **Next, Phase 7**: the system service, its saved settings and Load.
 - **Releases** (Phase 12, after the package and its final validation in Phase 11): an alpha, then a beta, each a GitHub pre-release for one month and until its open bugs are fixed; then `v1.0.0`, on GitHub and the AUR.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.

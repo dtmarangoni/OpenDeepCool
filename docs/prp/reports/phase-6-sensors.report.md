@@ -3,7 +3,7 @@
 **Plan:** [phase-6-sensors.plan.md](../plans/phase-6-sensors.plan.md)
 **PRD phase:** 6 — Sensors
 **Branch:** `phase-6-sensors`
-**Status:** implemented, 2026-10-29. Every task is committed and validated on the owner's PC. It waits for the owner's sign-off, then the push, CI and the fast-forward of `main` (no pull request).
+**Status:** complete, 2026-10-29: every task is committed and validated on the owner's PC, the owner signed the phase off, CI passed on the branch on its first run, and `main` was fast-forwarded to the branch (no pull request).
 
 ## Outcome
 
@@ -68,6 +68,7 @@ The display's seven readings come from built-in driver rules on any PC. Each is 
 - **Detection:** in automatic mode `sensors-detect` skipped the SMBus adapters (default no). The board's fan chip appeared as soon as `lm_sensors.service` started.
 - **`sensors -j`** names a PCI device's chip by libsensors' address, (domain << 16) + (bus << 8) + (device << 3) + function, in hexadecimal; checked for domain 0 only.
 - **Render nodes** on Arch Linux are open to every account (mode 0666), so the helper needs no extra group.
+- **`syn` 3 in `Cargo.lock`** isn't a duplicate. Only `serde_derive` and `borsh-derive` use it: optional dependencies of `bit-vec` (through `proptest`) that only its weak features name (`serde?/std`). Nothing builds them, and `cargo deny` skips them, as the source of its graph library, krates, shows. CI's bans check passed with both versions in the lock file. `cargo metadata` still lists them.
 
 ## Validation
 
@@ -81,7 +82,7 @@ The display's seven readings come from built-in driver rules on any PC. Each is 
 | `cargo run -p odc-bindings -- --check` | The committed file is what the installed headers give |
 | Detection, once: `pkexec target/debug/odc-sensors-detect` | Ran 2026-10-29 with the owner's OK; every check of Task 10 passed |
 | Layer 4, all areas, with the owner's `--require` list (`docs/local/`) | `test_images`, `reconnect`, `reset`, the six GPU-rank checks and the ten sensor checks passed; every required capability real |
-| CI on the branch | Runs after the owner's sign-off and the push |
+| CI on the branch | Passed on its first run: the dependency audit (`cargo deny check`: advisories, bans, licences and sources), format, lint, the workspace's tests as root (237, as on the owner's PC), the udev rules and the privacy job |
 
 ## Commits
 
