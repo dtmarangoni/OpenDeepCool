@@ -572,11 +572,13 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `TimeoutStartSec=120`, so a probe that hangs ends (solution review P6-03);
   - `WantedBy=opendeepcool.service`, with no `Before=`: the display service starts without waiting for it, at boot and inside `pacman` (owner, 2026-10-27; solution review P6-02). The cooler's fan and pump speeds appear once the driver is loaded, because the registry looks for them again (Task 2);
   - stdout and stderr go to the journal.
+- `AGENTS.md`: UPDATE, the repository layout gains `odc-sensors-detect`.
+- `docs/spec/sensors.md`: UPDATE, the real run's evidence (Board sensor driver).
 
 **Implementation**
-- Paths come from flags with real defaults (`--etc`, `--sys`, `--state-dir` defaulting to `/var/lib/opendeepcool-detect`, `--sensors-detect`), so the tests use fake roots and a fake script.
+- Paths come from flags with real defaults (`--etc`, `--sys`, `--state-dir` defaulting to `/var/lib/opendeepcool-detect`, `--sensors-detect`, and `--systemctl` for the `is-enabled` question), so the tests use fake roots and fake programs.
 - **The state directory is root's alone** (owner, 2026-10-26; solution review OV-01):
-  - it's owned by root with mode 0700;
+  - it's owned by root with mode 0700: by the account that runs the program, which is root in the unit and through `pkexec`, so the tests can run it unprivileged on their own folders;
   - the program creates it so when it's missing, since it also runs outside the unit (the end-to-end run below), and refuses to run when it exists with another owner or mode;
   - it refuses a record that is a symbolic link;
   - it writes a new record through a temporary file created exclusively (`create_new`) in the same directory, then `rename`s it.
@@ -585,12 +587,13 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   2. Read the board identity from `<sys>/class/dmi/id/board_vendor`, `board_name` and `board_version`. If `sensors-detect.json` already lists this identity → exit 0 (once per motherboard).
   3. Note whether `lm_sensors.service` is enabled (`systemctl is-enabled`, path injectable).
   4. Run `sensors-detect --auto`.
-  5. Write `sensors-detect.json` with fixed fields only: the board identity, the date, `created_conf_d` and `created_modprobe_d` (yes/no: did this run create `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`), and `lm_sensors_enabled_before` (yes/no). It never holds a path.
+  5. Write `sensors-detect.json` with fixed fields only, after `"version": 1`: the board identity, the date, `created_conf_d` and `created_modprobe_d` (yes/no: did this run create `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`), and `lm_sensors_enabled_before` (yes/no). It never holds a path.
 
   Phase 11's removal script acts only on those yes/no fields, on the two fixed paths, and disables the service only if it wasn't enabled before.
-- `sensors-detect` exiting non-zero is logged, and the record is still written, so it doesn't run again at every boot (`sensors.md` driver rules).
+- `sensors-detect` exiting non-zero is logged, and the record is still written, so it doesn't run again at every boot (`sensors.md` driver rules). One that can't be started at all is an error, with no record, so it runs once lm-sensors is installed.
+- A record that doesn't read as the program writes it is replaced by the run's own, with a warning in the journal.
 
-**Tests** (integration; the fake `sensors-detect` is a small Rust test program that writes the files a scenario needs, AGENTS.md rule 13)
+**Tests** (integration; the fake `sensors-detect` is a small Rust test program that writes the files a scenario needs, AGENTS.md rule 13. It's the test binary itself, `harness = false`, which plays the fake `sensors-detect` or `systemctl` when started under that name from a case's folder)
 - **Fresh PC** → it runs once, the record lists `/etc/conf.d/lm_sensors` as created, and a second run doesn't run it.
 - **Fan readings already exist** (a board chip with fan inputs in the fake tree, no lm-sensors files) → never run, nothing recorded (P6-13). An amdgpu fan alone doesn't count: then it runs.
 - **Existing `/etc/conf.d/lm_sensors`** → never run, nothing recorded, and the file is unchanged (byte-compared).

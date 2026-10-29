@@ -1,0 +1,22 @@
+# OpenDeepCool's sensor-driver detection (docs/spec/sensors.md, Board sensor driver): on a PC with
+# no lm-sensors setup, runs lm-sensors' sensors-detect once per motherboard, so the driver of the
+# board's sensor chip, which measures the cooler's fans and pump, loads at every boot. It records
+# what it created in its own root-only directory. The display service pulls it in but doesn't
+# wait for it. OpenDeepCool's only root part (PRD, Service model).
+[Unit]
+Description=OpenDeepCool sensor driver detection
+ConditionPathExists=!/etc/conf.d/lm_sensors
+ConditionPathExists=!/etc/modprobe.d/lm_sensors.conf
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/odc-sensors-detect
+# A one-shot has no start time limit by default (systemd.service); a probe that hangs ends.
+TimeoutStartSec=120
+StateDirectory=opendeepcool-detect
+StateDirectoryMode=0700
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=opendeepcool.service
