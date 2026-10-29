@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::hwmon::HwmonCandidate;
 use crate::model::{Metric, Unavailable};
+use crate::procfs::{CpuUsageCandidate, MemoryLoadCandidate};
 use crate::registry::Candidate;
 
 /// Where the rules look: `/sys` and `/proc`, or a fake tree's.
@@ -32,6 +33,10 @@ pub(crate) struct Rule {
 
 enum RuleSource {
     Hwmon(HwmonRule),
+    /// The aggregate `cpu` line of `/proc/stat`.
+    ProcStat,
+    /// `MemTotal` and `MemAvailable` of `/proc/meminfo`.
+    Meminfo,
 }
 
 /// A reading of an hwmon device found by its `name`: the channel of `kind` (`temp`, `fan`,
@@ -78,6 +83,14 @@ static RULES: &[Rule] = &[
             applies_to: AppliesTo::CpuFamilyFrom(0x17),
         }),
     },
+    Rule {
+        metric: Metric::CpuUsage,
+        source: RuleSource::ProcStat,
+    },
+    Rule {
+        metric: Metric::MemoryLoad,
+        source: RuleSource::Meminfo,
+    },
 ];
 
 /// `metric`'s rules as candidates looking under `roots`, in the table's order.
@@ -85,9 +98,11 @@ pub(crate) fn candidates(metric: Metric, roots: &Roots) -> Vec<Box<dyn Candidate
     RULES
         .iter()
         .filter(|rule| rule.metric == metric)
-        .map(|rule| match &rule.source {
-            RuleSource::Hwmon(hwmon) => {
-                Box::new(HwmonCandidate::new(hwmon, roots.clone())) as Box<dyn Candidate>
+        .map(|rule| -> Box<dyn Candidate> {
+            match &rule.source {
+                RuleSource::Hwmon(hwmon) => Box::new(HwmonCandidate::new(hwmon, roots.clone())),
+                RuleSource::ProcStat => Box::new(CpuUsageCandidate::new(roots)),
+                RuleSource::Meminfo => Box::new(MemoryLoadCandidate::new(roots)),
             }
         })
         .collect()

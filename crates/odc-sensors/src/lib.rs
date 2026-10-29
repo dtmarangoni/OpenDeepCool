@@ -5,6 +5,7 @@
 pub mod fake;
 mod hwmon;
 mod model;
+mod procfs;
 mod registry;
 mod rules;
 
