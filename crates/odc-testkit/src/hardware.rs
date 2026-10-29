@@ -3,13 +3,13 @@
 //! through fakes, and one present but unusable fails with its fix, never falling back to fakes
 //! (PRD, Testing Strategy, layer 4).
 
-use std::fs::OpenOptions;
+use std::fs::{self, OpenOptions};
 use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 
 use odc_device::HidrawConnector;
 
-use crate::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
+use crate::sysfs::{LP360_PRODUCT, LP360_VENDOR, display_devices, usb_device};
 
 /// What a check needs from the PC. Phases 6–11 add theirs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -18,16 +18,54 @@ pub enum Capability {
     Lp360,
     /// The LP360's USB `authorized` switch, writable by this account (the dev reconnect rule).
     Lp360Reconnect,
+    /// A GPU on amdgpu whose render node this account can open (Phase 6, Task 9).
+    GpuAmdgpu,
+    /// A GPU on i915 whose render node this account can open.
+    GpuI915,
+    /// A GPU on xe whose render node this account can open.
+    GpuXe,
+    /// A GPU on NVIDIA's driver, whose kind CUDA tells; CUDA's own errors show in the checks.
+    GpuNvidia,
+    /// A GPU on a driver without a kind signal, such as nouveau; nothing on it is opened.
+    GpuOther,
 }
 
+/// The drivers with a kind signal (`docs/spec/sensors.md`, GPU choice).
+const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
+
 impl Capability {
-    pub const ALL: [Capability; 2] = [Capability::Lp360, Capability::Lp360Reconnect];
+    pub const ALL: [Capability; 7] = [
+        Capability::Lp360,
+        Capability::Lp360Reconnect,
+        Capability::GpuAmdgpu,
+        Capability::GpuI915,
+        Capability::GpuXe,
+        Capability::GpuNvidia,
+        Capability::GpuOther,
+    ];
 
     /// The name `--require` takes.
     pub fn name(self) -> &'static str {
         match self {
             Capability::Lp360 => "lp360",
             Capability::Lp360Reconnect => "lp360-reconnect",
+            Capability::GpuAmdgpu => "gpu-amdgpu",
+            Capability::GpuI915 => "gpu-i915",
+            Capability::GpuXe => "gpu-xe",
+            Capability::GpuNvidia => "gpu-nvidia",
+            Capability::GpuOther => "gpu-other",
+        }
+    }
+
+    /// The GPU driver a GPU capability stands for; `None` for the others and for
+    /// [`Capability::GpuOther`], which stands for every driver without a kind signal.
+    pub fn gpu_driver(self) -> Option<&'static str> {
+        match self {
+            Capability::GpuAmdgpu => Some("amdgpu"),
+            Capability::GpuI915 => Some("i915"),
+            Capability::GpuXe => Some("xe"),
+            Capability::GpuNvidia => Some("nvidia"),
+            _ => None,
         }
     }
 
@@ -68,7 +106,10 @@ impl Roots {
 const SETUP_FIX: &str = "run `cargo run -p odc-dev -- setup`, then log in again or use \
                          `newgrp opendeepcool`";
 
-/// Finds a capability the way the product finds devices: by USB ID.
+const RENDER_FIX: &str = "give this account read and write access to the GPU's render node \
+                          (`/dev/dri/renderD*`, the `render` group)";
+
+/// Finds a capability the way the product finds devices: by USB ID, or by PCI class and driver.
 pub fn probe(capability: Capability, roots: &Roots) -> Probe {
     match capability {
         Capability::Lp360 => {
@@ -82,6 +123,69 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
         Capability::Lp360Reconnect => match usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT) {
             Some(usb) => writable(&usb.join("authorized")),
             None => absent("no LP360 USB device (3633:000c) is attached"),
+        },
+        Capability::GpuAmdgpu | Capability::GpuI915 | Capability::GpuXe => {
+            let driver = capability.gpu_driver().unwrap_or_default();
+            let gpus: Vec<String> = display_devices(&roots.sysfs)
+                .into_iter()
+                .filter(|(_, d)| d == driver)
+                .map(|(pci, _)| pci)
+                .collect();
+            if gpus.is_empty() {
+                return absent(&format!("no GPU on {driver}"));
+            }
+            gpus.iter()
+                .map(|pci| render_node(roots, pci))
+                .find(|probe| *probe != Probe::Real)
+                .unwrap_or(Probe::Real)
+        }
+        Capability::GpuNvidia => {
+            if display_devices(&roots.sysfs)
+                .iter()
+                .any(|(_, d)| d == "nvidia")
+            {
+                Probe::Real
+            } else {
+                absent("no GPU on NVIDIA's driver (nvidia)")
+            }
+        }
+        Capability::GpuOther => {
+            if display_devices(&roots.sysfs)
+                .iter()
+                .any(|(_, d)| !SIGNAL_DRIVERS.contains(&d.as_str()))
+            {
+                Probe::Real
+            } else {
+                absent("no GPU on a driver without a kind signal")
+            }
+        }
+    }
+}
+
+/// The GPU's render node, as the rank helper opens it: for reading and writing.
+fn render_node(roots: &Roots, pci: &str) -> Probe {
+    let drm = roots.sysfs.join("bus/pci/devices").join(pci).join("drm");
+    let name = fs::read_dir(&drm).ok().and_then(|entries| {
+        let mut names: Vec<String> = entries
+            .flatten()
+            .filter_map(|entry| entry.file_name().into_string().ok())
+            .filter(|name| name.starts_with("renderD"))
+            .collect();
+        names.sort();
+        names.into_iter().next()
+    });
+    let Some(name) = name else {
+        return Probe::Unusable {
+            reason: format!("{}: no render node", drm.display()),
+            fix: RENDER_FIX.to_owned(),
+        };
+    };
+    let node = roots.dev.join("dri").join(name);
+    match OpenOptions::new().read(true).write(true).open(&node) {
+        Ok(_) => Probe::Real,
+        Err(e) => Probe::Unusable {
+            reason: format!("{}: {e}", node.display()),
+            fix: RENDER_FIX.to_owned(),
         },
     }
 }

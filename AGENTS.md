@@ -121,8 +121,8 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | `docs/local/` | Facts about the owner's PC: **local only, git-ignored** |
 | `docs/reference/vendor/` | Vendor manuals: **local only, git-ignored**; see `docs/reference/README.md` |
 | `research/` | Research workspace (Wine prefix, extracted DeepCreative, captures, screenshots, research tools): **local only, git-ignored** |
-| `Cargo.toml`, `crates/` | The Rust workspace and the program's crates: `odc-protocol` (frames, rotation, the reports), `odc-device` (the LP360 adapter), `odc-sensors` (the display's readings: one source per metric, bound by the registry) and `odc-testkit` (test support, only ever a dev-dependency). Later phases add theirs |
-| `tools/` | Dev-only Rust programs, never shipped: `oracle/` (`odc-oracle`) writes the expected frames of `docs/spec/frames/` from the spec's rules, sharing no code with the program; `dev/` (`odc-dev`) installs, checks and removes the development setup, with the dev-only reconnect rule |
+| `Cargo.toml`, `crates/` | The Rust workspace and the program's crates: `odc-protocol` (frames, rotation, the reports), `odc-device` (the LP360 adapter), `odc-sensors` (the display's readings: one source per metric, bound by the registry), `odc-gpu-rank` (the one-shot helper that asks each GPU's driver for its kind; the only crate with `unsafe`, in its generated `bindings.rs` and its `ffi.rs`) and `odc-testkit` (test support, only ever a dev-dependency). Later phases add theirs |
+| `tools/` | Dev-only Rust programs, never shipped: `oracle/` (`odc-oracle`) writes the expected frames of `docs/spec/frames/` from the spec's rules, sharing no code with the program; `dev/` (`odc-dev`) installs, checks and removes the development setup, with the dev-only reconnect rule; `bindings/` (`odc-bindings`) writes the GPU helper's kernel structures from the installed kernel headers with bindgen |
 | `packaging/`, `.github/workflows/` | From Phase 5 (Tasks 8 and 10): the product files (udev rule, system user) and CI; later phases add the units, the policies and the PKGBUILD |
 
 The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`, so plans and reports land in the repository.
@@ -132,6 +132,7 @@ The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`
 - **Toolchain**: `mise install` sets up the Rust version pinned in `mise.toml`, with clippy and rustfmt. Research-only tools, such as Node for `research/hook/*.mjs`, go in the git-ignored `mise.local.toml`.
 - **Development setup** (the cooler's access for the tests, without root): `cargo run -p odc-dev -- setup` installs it with one `pkexec` step, a system change the owner approves first (rule 7); `cargo run -p odc-dev -- check` reports it; `cargo run -p odc-dev -- teardown` removes what its manifest lists.
 - **Expected frames**: `cargo run -p odc-oracle -- docs/spec/frames` rebuilds the files from the spec's rules, and `cargo test -p odc-oracle` fails when a committed file differs from what the oracle draws. A rule change updates the oracle and the files in the same commit.
+- **GPU helper's kernel structures**: `cargo run -p odc-bindings` writes `crates/odc-gpu-rank/src/bindings.rs` from the installed kernel headers, and `cargo run -p odc-bindings -- --check` fails when the committed file differs from what they give. Only these need clang; never edit the file by hand.
 - **Build, test, lint, format**, before every commit; the guard runs them, with the udev rules check, for any commit that touches code, packaging, the frames, the D-Bus contract, the guard or CI:
   - `cargo build --workspace`
   - `cargo test --workspace`
@@ -139,4 +140,4 @@ The PRP tools keep their files under `~/.prp/`, through a symlink to `docs/prp/`
   - `cargo fmt --all --check`
 - **Commit guard**: `git config core.hooksPath .githooks` once per clone. The hook files start `odc-guard` (`tools/guard/`), which checks every commit and push; CI runs `cargo deny check` and `cargo run -p odc-guard -- history`.
 - **Layer 2, local**, before any commit that touches `odc-protocol`'s encoding: `cargo test -p odc-protocol --test differential_captures -- --ignored --nocapture` (the DeepCreative captures in `research/logs/`).
-- **Layer 4, local, unattended**, before any commit that touches `odc-device` or what it drives: `cargo run -p odc-e2e -- --only device`, with `--require` naming what must run real on this PC (the list is in `docs/local/`). Never with the research rig running.
+- **Layer 4, local, unattended**, before any commit that touches `odc-device` or what it drives: `cargo run -p odc-e2e -- --only device`; before any that touches `odc-gpu-rank`: `--only gpu-rank`. `--require` names what must run real on this PC (the list is in `docs/local/`). Never with the research rig running.

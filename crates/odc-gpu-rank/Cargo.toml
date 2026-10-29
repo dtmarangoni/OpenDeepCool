@@ -1,0 +1,20 @@
+[package]
+name = "odc-gpu-rank"
+description = "Asks each GPU's driver once whether it's dedicated or integrated, and writes the ranking the display service reads"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+libc = "0.2"
+libloading = "0.8"
+odc-sensors = { path = "../odc-sensors" }
+
+[dev-dependencies]
+odc-testkit = { path = "../odc-testkit" }
+
+# The one crate with `unsafe` code: `deny` instead of the workspace's `forbid`, so that
+# `src/bindings.rs` and `src/ffi.rs` alone can allow it (Phase 6 plan, Task 9).
+[lints.rust]
+unsafe_code = "deny"

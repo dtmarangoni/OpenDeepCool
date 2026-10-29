@@ -5,6 +5,7 @@
 //! because it touches real hardware when present.
 
 pub mod device;
+pub mod gpu_rank;
 
 use std::path::Path;
 use std::time::Duration;
@@ -13,8 +14,9 @@ use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 
 pub const USAGE: &str = "usage: odc-e2e [--require <capability,...>] [--only <area>]
 
-  --require <list>  capabilities that must run real: lp360, lp360-reconnect
-  --only <area>     run one area's checks: device
+  --require <list>  capabilities that must run real: lp360, lp360-reconnect,
+                    gpu-amdgpu, gpu-i915, gpu-xe, gpu-nvidia, gpu-other
+  --only <area>     run one area's checks: device, gpu-rank
   -h, --help        this text
 
 Each check probes the PC first: a device present and usable is tested for real,
@@ -26,6 +28,7 @@ cooler too.";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Area {
     Device,
+    GpuRank,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -55,6 +58,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                 let area = args.next().ok_or("--only needs an area")?;
                 options.only = Some(match area.as_str() {
                     "device" => Area::Device,
+                    "gpu-rank" => Area::GpuRank,
                     _ => return Err(format!("{area:?} isn't an area")),
                 });
             }
@@ -91,6 +95,9 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only.is_none_or(|area| area == Area::Device) {
         device::run(roots, out_dir, tick, &mut summary);
+    }
+    if options.only.is_none_or(|area| area == Area::GpuRank) {
+        gpu_rank::run(roots, out_dir, &mut summary);
     }
     summary
 }

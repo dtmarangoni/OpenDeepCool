@@ -1,5 +1,6 @@
 //! `odc-e2e`'s flags, its start-up step and its fake mode, against fake trees, in `cargo test`
-//! (Phase 5 plan, Task 9). The real cooler is never touched here.
+//! (Phase 5 plan, Task 9; Phase 6 plan, Task 9). The real cooler and the real GPUs are never
+//! touched here: a fake tree's device nodes are regular files.
 
 use std::fs;
 use std::path::PathBuf;
@@ -8,6 +9,7 @@ use std::time::Duration;
 use odc_e2e::device::restore_switch;
 use odc_e2e::{Area, Options, parse_args, run};
 use odc_testkit::fake_tree::{FakeTree, LP360_HID_ID};
+use odc_testkit::fixtures::{amdgpu_dgpu, nouveau, render_node};
 use odc_testkit::hardware::Capability;
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR};
 
@@ -43,6 +45,18 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::Device),
         }))
     );
+    assert_eq!(
+        parse_args(&args(&[
+            "--require",
+            "gpu-amdgpu,gpu-other",
+            "--only",
+            "gpu-rank"
+        ])),
+        Ok(Some(Options {
+            require: vec![Capability::GpuAmdgpu, Capability::GpuOther],
+            only: Some(Area::GpuRank),
+        }))
+    );
     for (bad, reason) in [
         (&["--require", "lp361"][..], "isn't a capability"),
         (&["--only", "sensors"][..], "isn't an area"),
@@ -65,6 +79,41 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
     for check in ["test_images", "reconnect", "reset"] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
+    for gpu in ["amdgpu", "i915", "xe", "nvidia", "other"] {
+        let capability = format!("gpu-{gpu}");
+        let check = format!("gpu_rank_{gpu}");
+        assert!(table.contains(&format!("{capability:<16} fake")), "{table}");
+        assert!(table.contains(&format!("{check:<16} passed")), "{table}");
+    }
+    assert!(!table.contains("gpu_rank_real"), "no real GPU: {table}");
+}
+
+#[test]
+fn a_gpu_whose_kind_query_fails_fails_its_check_with_the_error() {
+    let t = tree("gpu-query-fails");
+    amdgpu_dgpu(&t, "0000:0a:00.0", 41_000, 17, 23_000_000).expect("an amdgpu card");
+    render_node(&t, "0000:0a:00.0", 128).expect("a stand-in the probe can open");
+    nouveau(&t, "0000:0e:00.0").expect("a GPU on nouveau");
+    let options = Options {
+        require: Vec::new(),
+        only: Some(Area::GpuRank),
+    };
+    let summary = run(&options, &t.roots(), &dir("gpu-query-fails"), TICK);
+    let table = summary.table();
+    assert!(!summary.passed(), "{table}");
+    assert!(table.contains("gpu-amdgpu       real"), "{table}");
+    assert!(table.contains("gpu-other        real"), "{table}");
+    assert!(
+        table.contains("gpu_rank_real    passed  2 ranked"),
+        "{table}"
+    );
+    assert!(
+        table.contains("gpu_rank_amdgpu  FAILED  0000:0a:00.0: the kind query failed: "),
+        "{table}"
+    );
+    assert!(table.contains("isn't the device 226:128"), "{table}");
+    assert!(table.contains("gpu_rank_other   passed"), "{table}");
+    assert!(table.contains("gpu_rank_i915    passed"), "a fake: {table}");
 }
 
 #[test]

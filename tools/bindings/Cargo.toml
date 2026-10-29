@@ -1,0 +1,13 @@
+[package]
+name = "odc-bindings"
+description = "Writes the GPU rank helper's kernel structures from the installed kernel headers with bindgen; dev-only, needs clang"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+bindgen = { version = "0.72", default-features = false, features = ["runtime"] }
+
+[lints]
+workspace = true

@@ -1,8 +1,8 @@
 //! Fake sysfs and procfs trees for the sensor rules (Phase 6 plan, Task 3): one fixture per
 //! driver and hardware case, each with the files its kernel documentation names, linked the way
 //! sysfs links them.
-//! - `class/hwmon/hwmonN` and `class/drm/cardN` lead to their folder under the parent device,
-//!   whose `device` link points back to the parent.
+//! - `class/hwmon/hwmonN`, `class/drm/cardN` and `class/drm/renderDN` lead to their folder under
+//!   the parent device, whose `device` link points back to the parent.
 //! - A PCI device has its `class` file, a `driver` link, and an entry under `bus/pci/devices`.
 //! - `class/powercap/<zone>` leads to the zone's folder under its control type.
 //!
@@ -124,6 +124,22 @@ pub fn drm_card(tree: &FakeTree, gpu: &str) -> io::Result<PathBuf> {
         format!("../../{under_sys}"),
     )?;
     Ok(tree.root().join(dir))
+}
+
+/// The render node of the GPU at `pci`: `drm/renderD<minor>` in the GPU's folder, whose `dev`
+/// file holds its device numbers (major 226, the DRM devices' in the kernel's
+/// `Documentation/admin-guide/devices.txt`), its `class/drm` entry, and the `dev/dri` stand-in,
+/// a regular file, which it returns. A real node is a character device, so a helper that checks
+/// the node it opens refuses the stand-in.
+pub fn render_node(tree: &FakeTree, pci: &str, minor: u32) -> io::Result<PathBuf> {
+    let dir = format!("sys/devices/pci0000:00/{pci}/drm/renderD{minor}");
+    tree.file(format!("{dir}/dev"), format!("226:{minor}\n"))?;
+    tree.symlink(format!("{dir}/device"), format!("../../../{pci}"))?;
+    tree.symlink(
+        format!("sys/class/drm/renderD{minor}"),
+        format!("../../devices/pci0000:00/{pci}/drm/renderD{minor}"),
+    )?;
+    tree.file(format!("dev/dri/renderD{minor}"), "")
 }
 
 /// The Intel CPU temperature driver (`Documentation/hwmon/coretemp.rst`), a platform device:

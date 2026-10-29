@@ -8,7 +8,9 @@ publish.workspace = true
 
 [dependencies]
 odc-device = { path = "../odc-device" }
+odc-gpu-rank = { path = "../odc-gpu-rank" }
 odc-protocol = { path = "../odc-protocol" }
+odc-sensors = { path = "../odc-sensors" }
 odc-testkit = { path = "../odc-testkit" }
 
 [lints]

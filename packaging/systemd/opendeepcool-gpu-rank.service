@@ -1,0 +1,30 @@
+# OpenDeepCool's GPU rank helper (docs/spec/sensors.md, GPU choice): asks each GPU's driver once
+# whether the GPU is dedicated or integrated, writes gpu-rank.json into the display service's
+# state directory, and exits. The display service pulls it in and starts after it; it runs only
+# while no ranking exists. Phase 11 checks the sandbox again.
+[Unit]
+Description=OpenDeepCool GPU ranking
+ConditionPathExists=!/var/lib/opendeepcool/gpu-rank.json
+Before=opendeepcool.service
+
+[Service]
+Type=oneshot
+User=opendeepcool
+ExecStart=/usr/bin/odc-gpu-rank
+# A one-shot has no start time limit by default (systemd.service).
+TimeoutStartSec=30
+# Made for the service's account on a fresh install, before the display service ever ran.
+StateDirectory=opendeepcool
+ProtectSystem=strict
+ProtectHome=yes
+NoNewPrivileges=yes
+PrivateNetwork=yes
+CapabilityBoundingSet=
+DevicePolicy=closed
+DeviceAllow=char-drm rw
+# NVIDIA's device groups in /proc/devices, for CUDA: unverified until checked on a PC with
+# NVIDIA's driver (Phase 11).
+DeviceAllow=char-nvidia* rw
+
+[Install]
+WantedBy=opendeepcool.service
