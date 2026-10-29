@@ -2,12 +2,14 @@
 //! binds one source per metric from built-in driver rules and reads them all once per second
 //! through the [`Readings`] port (`docs/spec/sensors.md`).
 
+mod drm;
 pub mod fake;
 mod fans;
 mod gpu;
 mod hwmon;
 mod json;
 mod model;
+mod nvml;
 mod powercap;
 mod procfs;
 mod registry;
@@ -20,6 +22,7 @@ pub use gpu::{
     display_devices, gpus, rank_is_stale, review_ranking,
 };
 pub use model::{Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, SystemClock, Unavailable};
+pub use nvml::{NvmlReading, NvmlSource, RealNvml};
 pub use powercap::rapl_package_zones;
 pub use registry::{Binding, Candidate, Registry, Source};
 pub use rules::Roots;

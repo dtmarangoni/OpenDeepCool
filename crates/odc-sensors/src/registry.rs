@@ -2,11 +2,13 @@
 //! metric that has none, and reads them all for a snapshot (PRD, Architecture Notes: Sensor
 //! architecture). The candidates are the driver rules of `docs/spec/sensors.md`.
 
-use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use crate::fans::{self, FanInput};
+use crate::gpu::Gpu;
 use crate::model::{Clock, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
+use crate::nvml::{NvmlSource, RealNvml};
 use crate::rules::{self, Roots};
 
 /// A metric without a source is looked for every 5 s for the first two minutes after start-up or
@@ -52,8 +54,10 @@ pub struct Registry<C: Clock> {
     /// Where the rescan schedule starts: start-up, or the last wake-up.
     since: Instant,
     next_scan: Instant,
-    /// The sysfs root the fan inputs are read under, when the registry reads a real tree.
-    sys: Option<PathBuf>,
+    /// The roots the rules read under, when the registry reads a real tree.
+    roots: Option<Roots>,
+    /// NVIDIA's library, started only for a chosen GPU on NVIDIA's driver.
+    nvml: Arc<Mutex<Box<dyn NvmlSource>>>,
     cooler_fans: Option<FanInput>,
     pump: Option<FanInput>,
 }
@@ -81,17 +85,41 @@ impl<C: Clock> Registry<C> {
             clock,
             since: now,
             next_scan: now,
-            sys: None,
+            roots: None,
+            nvml: Arc::new(Mutex::new(Box::new(RealNvml::new()))),
             cooler_fans: None,
             pump: None,
         }
     }
 
-    /// A registry over the built-in driver rules, looking under `roots`.
+    /// A registry over the built-in driver rules, looking under `roots`. The GPU metrics have no
+    /// source until [`Registry::choose_gpu`].
     pub fn from_rules(clock: C, roots: Roots) -> Self {
+        Registry::from_rules_with_nvml(clock, roots, Box::new(RealNvml::new()))
+    }
+
+    /// The same, with `nvml` in place of NVIDIA's library, for tests.
+    pub fn from_rules_with_nvml(clock: C, roots: Roots, nvml: Box<dyn NvmlSource>) -> Self {
         let mut registry = Registry::new(clock, |metric| rules::candidates(metric, &roots));
-        registry.sys = Some(roots.sys);
+        registry.roots = Some(roots);
+        registry.nvml = Arc::new(Mutex::new(nvml));
         registry
+    }
+
+    /// Binds the GPU metrics to `gpu`'s sources from the next snapshot on, or to none
+    /// (`docs/spec/sensors.md`, GPU choice). NVML is started only if its driver is NVIDIA's.
+    pub fn choose_gpu(&mut self, gpu: Option<&Gpu>) {
+        for metric in [Metric::GpuTemperature, Metric::GpuUsage, Metric::GpuPower] {
+            let candidates = match (gpu, &self.roots) {
+                (Some(gpu), Some(roots)) => rules::gpu_candidates(metric, gpu, roots, &self.nvml),
+                _ => Vec::new(),
+            };
+            self.slots[metric.index()] = Slot {
+                candidates,
+                state: State::Unbound(Unavailable::NoDevice),
+            };
+        }
+        self.next_scan = self.clock.now();
     }
 
     /// The fan inputs the user chose for the cooler's fans and its pump; none is chosen by
@@ -102,9 +130,9 @@ impl<C: Clock> Registry<C> {
     }
 
     fn fan(&self, input: Option<&FanInput>) -> Fan {
-        match (input, &self.sys) {
+        match (input, &self.roots) {
             (None, _) => Fan::NotChosen,
-            (Some(input), Some(sys)) => Fan::Chosen(fans::fan_rpm(sys, input)),
+            (Some(input), Some(roots)) => Fan::Chosen(fans::fan_rpm(&roots.sys, input)),
             (Some(_), None) => Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)),
         }
     }

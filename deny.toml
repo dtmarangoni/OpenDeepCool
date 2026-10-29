@@ -11,9 +11,10 @@ targets = ["x86_64-unknown-linux-gnu"]
 ignore = []
 
 [licenses]
-# Every dependency in the graph offers MIT or Apache-2.0, and one also requires Unicode-3.0
-# (counted with `cargo metadata`, 2026-10-28).
-allow = ["MIT", "Apache-2.0", "Unicode-3.0"]
+# Every dependency in the graph offers MIT or Apache-2.0, one also requires Unicode-3.0 (counted
+# with `cargo metadata`, 2026-10-28), and libloading, which nvml-wrapper loads NVIDIA's library
+# with, is ISC (owner, 2026-10-28; Phase 6 plan, Task 8).
+allow = ["MIT", "Apache-2.0", "Unicode-3.0", "ISC"]
 
 [bans]
 multiple-versions = "deny"
