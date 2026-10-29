@@ -1,11 +1,12 @@
 //! A strict reader and a writer for the small JSON files OpenDeepCool keeps, such as
 //! `gpu-rank.json` (RFC 8259). A key given twice, text after the value or nesting deeper than a
 //! few levels refuses the whole file, so a forged or broken file is never half-read (AGENTS.md
-//! rule 5).
+//! rule 5). The end-to-end checks read `sensors -j` with it too: a number keeps its text, so no
+//! reading passes through floating point.
 
 /// A JSON value. A number keeps its text; an object keeps its members in order.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub(crate) enum Json {
+pub enum Json {
     Null,
     Bool(bool),
     Number(String),
@@ -17,7 +18,7 @@ pub(crate) enum Json {
 const MAX_DEPTH: usize = 16;
 
 /// The one JSON value of `text`.
-pub(crate) fn parse(text: &str) -> Result<Json, String> {
+pub fn parse(text: &str) -> Result<Json, String> {
     let mut parser = Parser {
         bytes: text.as_bytes(),
         at: 0,

@@ -48,6 +48,18 @@ fn flags_are_read_and_anything_unknown_is_refused() {
     assert_eq!(
         parse_args(&args(&[
             "--require",
+            "cpu-temp,board-fans",
+            "--only",
+            "sensors"
+        ])),
+        Ok(Some(Options {
+            require: vec![Capability::CpuTemp, Capability::BoardFans],
+            only: Some(Area::Sensors),
+        }))
+    );
+    assert_eq!(
+        parse_args(&args(&[
+            "--require",
             "gpu-amdgpu,gpu-other",
             "--only",
             "gpu-rank"
@@ -59,7 +71,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
     );
     for (bad, reason) in [
         (&["--require", "lp361"][..], "isn't a capability"),
-        (&["--only", "sensors"][..], "isn't an area"),
+        (&["--only", "nowhere"][..], "isn't an area"),
         (&["--fast"][..], "isn't an option"),
         (&["--require"][..], "needs a list"),
     ] {
@@ -86,6 +98,36 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
     assert!(!table.contains("gpu_rank_real"), "no real GPU: {table}");
+    for capability in [
+        "cpu-temp",
+        "cpu-power",
+        "proc-stat",
+        "meminfo",
+        "board-fans",
+    ] {
+        assert!(table.contains(&format!("{capability:<16} fake")), "{table}");
+    }
+    for tool in ["sensors-tool", "gpu-load-tool"] {
+        assert!(table.contains(&format!("{tool:<16} fake")), "{table}");
+    }
+    assert!(table.contains("no real check needs it"), "{table}");
+    for check in [
+        "cpu_temp",
+        "cpu_usage",
+        "cpu_power",
+        "memory_load",
+        "fans",
+        "gpu_amdgpu",
+        "gpu_i915",
+        "gpu_xe",
+        "gpu_nvidia",
+        "gpu_other",
+    ] {
+        assert!(
+            table.contains(&format!("{check:<16} passed  fake")),
+            "{table}"
+        );
+    }
 }
 
 #[test]

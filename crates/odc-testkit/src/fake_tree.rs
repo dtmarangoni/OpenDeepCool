@@ -1,4 +1,5 @@
-//! Fake sysfs, `/dev` and procfs trees, for the tests and for the end-to-end program's fake mode.
+//! Fake sysfs, `/dev`, procfs and tool trees, for the tests and for the end-to-end program's fake
+//! mode.
 //! A regular file stands in for each device node. Every name and ID is made up, except the LP360's
 //! public USB ID (AGENTS.md rule 10). The sensor fixtures built on it are in
 //! [`crate::fixtures`].
@@ -42,6 +43,7 @@ impl FakeTree {
             sysfs: self.root.join("sys"),
             dev: self.root.join("dev"),
             proc: self.root.join("proc"),
+            bin: self.root.join("bin"),
         }
     }
 

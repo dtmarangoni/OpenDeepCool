@@ -7,7 +7,7 @@ pub mod fake;
 mod fans;
 mod gpu;
 mod hwmon;
-mod json;
+pub mod json;
 mod model;
 mod nvml;
 mod powercap;

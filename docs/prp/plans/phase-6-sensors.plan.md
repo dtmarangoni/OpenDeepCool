@@ -631,7 +631,12 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
     - CPU power present but not readable → run `cargo run -p odc-dev -- setup`;
     - a GPU present but its tool missing → install `ffmpeg`;
     - `sensors` missing → install `lm_sensors`.
-- `crates/odc-e2e/src/sensors.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only sensors`.
+  - `Roots` gains `bin`, the folder of the tools the checks compare with (`/usr/bin`, or a fake tree's `bin/`, `fake_tree.rs`), so a tool's probe never depends on the PC that runs a fake-tree test.
+  - The testkit depends on `odc-sensors`, so the probe uses the product's own rules: the RAPL package zones, the fan inputs, the display controllers and NVML's start.
+- `crates/odc-sensors/src/json.rs`: UPDATE, public, so the checks read `sensors -j` strictly, each number as its text, never through floating point.
+- `crates/odc-e2e/src/sensors.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only sensors`. They're named `cpu_temp`, `cpu_usage`, `cpu_power`, `memory_load`, `fans` and `gpu_<driver>`.
+- `docs/spec/sensors.md`: UPDATE, the CPU usage formula checked against `top`.
+- `AGENTS.md`: UPDATE. The layout gains `odc-manifest` and `odc-e2e`, missing since Phase 5, and the commands gain `--only sensors`.
 - `crates/odc-e2e/src/lib.rs`: UPDATE, the area `sensors`. `crates/odc-e2e/tests/flags_and_fakes.rs`: UPDATE, its example of an unknown area is `sensors`, which becomes valid, so it takes a name that stays unknown.
 - No file describes the owner's PC. The tests learn the hardware from the probe (owner, 2026-10-24). `odc-e2e --require` (Phase 5 Task 9) lists what must run real on a given PC; on the owner's PC the list comes from `docs/local/`.
 
@@ -658,6 +663,9 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - **Gpu usage, for each real GPU whose rule reads usage:** an `ffmpeg` Vulkan filter run on that GPU for 5 s → ≥ 90 %, then back below 50 % within 5 s of stopping (`sensors.md`, observed 2026-10-23).
 - **NVIDIA (real only where NVML loads):** the three NVML readings are `Value` and lie in plausible ranges. Otherwise `FakeNvml` runs the same checks.
 - **The summary** (Phase 5's `Summary`) prints every capability's mode at the end.
+- **A missing tool** fails the run only when a real check needs it; otherwise its mode is fake, "no real check needs it", so a PC without lm-sensors or `ffmpeg` still runs every fake check.
+- **The GPU load** is `ffmpeg`'s `nlmeans_vulkan` filter on a Vulkan device derived from the GPU's DRM render node, so it lands on that GPU. The check stops it after 5 s: `ffmpeg`'s `-t` counts stream time, not wall time. On the owner's PC the busy percentage went from 2 % to 99 % (2026-10-29).
+- **CPU Power through the group** means the check refuses to run its real part as root.
 
 **Tests**
 - These are the tests, plus probe unit tests over fake trees:
@@ -669,6 +677,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `cargo run -p odc-e2e -- --only sensors`: passes, and prints the summary.
 - On the owner's PC, with a `--require` list from `docs/local/` covering its CPU, power counter, GPU and board fans, every one of those runs real.
 - `AGENTS.md` Commands: add this, to run before any commit touching `odc-sensors`. Task 9 added the `odc-gpu-rank` one.
+- Done 2026-10-29: every check passed on the owner's PC, with its CPU sources, power counter, GPU and board fans real (the list in `docs/local/`), and the drivers it hasn't through fakes.
 
 ## Acceptance
 

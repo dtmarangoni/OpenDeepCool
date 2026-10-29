@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 odc-device = { path = "../odc-device" }
 odc-protocol = { path = "../odc-protocol" }
+odc-sensors = { path = "../odc-sensors" }
 
 [lints]
 workspace = true
