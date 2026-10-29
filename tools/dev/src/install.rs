@@ -4,12 +4,14 @@
 
 use std::fs::{self, OpenOptions};
 use std::io::{ErrorKind, Write};
-use std::os::unix::fs::{OpenOptionsExt, PermissionsExt, chown};
+use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt, chown};
 use std::path::Path;
 
 use odc_manifest::{Entry, GROUP, Manifest, SystemHost};
 
-use crate::system::{FILES, Tool, effective_uid, lp360_node, lp360_usb_device, user_name};
+use crate::system::{
+    FILES, Tool, effective_uid, lp360_node, lp360_usb_device, package_zones, user_name,
+};
 
 /// Refuses to run unless the effective user is root.
 pub fn require_root(euid: u32) -> Result<(), String> {
@@ -87,6 +89,19 @@ pub fn remove_root() -> Result<(), String> {
             .map_err(|e| format!("{}: {e}", authorized.display()))?;
         println!("reset {}", authorized.display());
     }
+    for zone in package_zones() {
+        // Likewise for the CPU power line: give each package counter's group back to root and
+        // take the group's read away (Phase 6 plan, Task 6).
+        let energy = zone.join("energy_uj");
+        fs::metadata(&energy)
+            .and_then(|meta| {
+                chown(&energy, None, Some(0))?;
+                let mode = meta.mode() & 0o7777 & !0o040;
+                fs::set_permissions(&energy, fs::Permissions::from_mode(mode))
+            })
+            .map_err(|e| format!("{}: {e}", energy.display()))?;
+        println!("reset {}", energy.display());
+    }
     retrigger()?;
     if !failures.is_empty() {
         return Err(format!(
@@ -154,8 +169,8 @@ fn write_atomic(target: &Path, content: &[u8], mode: u32) -> Result<(), String> 
     })
 }
 
-/// Sends the cooler's hidraw node and USB device through udev's rules again, so a change of
-/// access takes effect at once.
+/// Sends the cooler's hidraw node and USB device, and the CPU's package energy zones, through
+/// udev's rules again, so a change of access takes effect at once.
 fn retrigger() -> Result<(), String> {
     let node = lp360_node()?;
     let usb = lp360_usb_device();
@@ -169,6 +184,14 @@ fn retrigger() -> Result<(), String> {
     }
     if node.is_none() && usb.is_none() {
         println!("no LP360 attached: the rules apply when it's plugged in");
+    }
+    let zones = package_zones();
+    for zone in &zones {
+        let path = zone.to_string_lossy();
+        Tool::Udevadm.run(&["trigger", "--settle", "--action=change", &path])?;
+    }
+    if zones.is_empty() {
+        println!("no RAPL package zones: the CPU power line has nothing to apply to");
     }
     Ok(())
 }

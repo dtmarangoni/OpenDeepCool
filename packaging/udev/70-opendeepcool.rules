@@ -1,3 +1,7 @@
 # OpenDeepCool: the opendeepcool group may write to the DeepCool LP360's display,
 # the hidraw node of USB device 3633:000c, on any port.
 SUBSYSTEM=="hidraw", ATTRS{idVendor}=="3633", ATTRS{idProduct}=="000c", GROUP="opendeepcool", MODE="0660"
+# OpenDeepCool: the opendeepcool group may read the CPU's package energy counters, which the
+# kernel keeps root-only (CVE-2020-8694), for the display's CPU Power. Only the package zones of
+# the intel-rapl control type, which AMD CPUs use too: never a sub-zone or an MMIO zone.
+ACTION=="add|change", SUBSYSTEM=="powercap", KERNEL=="intel-rapl:*", ATTR{name}=="package-*", RUN+="/usr/bin/chgrp opendeepcool /sys%p/energy_uj", RUN+="/usr/bin/chmod g+r /sys%p/energy_uj"

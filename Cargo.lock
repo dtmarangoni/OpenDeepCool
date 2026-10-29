@@ -190,6 +190,7 @@ version = "0.0.0"
 dependencies = [
  "odc-device",
  "odc-manifest",
+ "odc-sensors",
  "odc-testkit",
 ]
 

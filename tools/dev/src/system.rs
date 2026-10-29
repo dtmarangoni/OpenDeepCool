@@ -1,5 +1,5 @@
 //! What the dev tool needs from the system: who runs it, the system tools it may start, the files
-//! it installs, and the cooler's device files.
+//! it installs, the cooler's device files and the CPU's energy counters.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -155,6 +155,11 @@ pub fn lp360_node() -> Result<Option<HidrawNode>, String> {
 /// The LP360's USB device folder, found by `idVendor` and `idProduct`.
 pub fn lp360_usb_device() -> Option<PathBuf> {
     usb_device(Path::new("/sys"), LP360_VENDOR, LP360_PRODUCT)
+}
+
+/// The CPU's RAPL package zones, found as the display service finds them.
+pub fn package_zones() -> Vec<PathBuf> {
+    odc_sensors::rapl_package_zones(Path::new("/sys"))
 }
 
 #[cfg(test)]

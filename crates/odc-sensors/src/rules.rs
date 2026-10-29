@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 
 use crate::hwmon::HwmonCandidate;
 use crate::model::{Metric, Unavailable};
+use crate::powercap::CpuPowerCandidate;
 use crate::procfs::{CpuUsageCandidate, MemoryLoadCandidate};
 use crate::registry::Candidate;
 
@@ -35,6 +36,8 @@ enum RuleSource {
     Hwmon(HwmonRule),
     /// The aggregate `cpu` line of `/proc/stat`.
     ProcStat,
+    /// The RAPL package zones' energy counters.
+    RaplPackages,
     /// `MemTotal` and `MemAvailable` of `/proc/meminfo`.
     Meminfo,
 }
@@ -88,6 +91,10 @@ static RULES: &[Rule] = &[
         source: RuleSource::ProcStat,
     },
     Rule {
+        metric: Metric::CpuPower,
+        source: RuleSource::RaplPackages,
+    },
+    Rule {
         metric: Metric::MemoryLoad,
         source: RuleSource::Meminfo,
     },
@@ -102,6 +109,7 @@ pub(crate) fn candidates(metric: Metric, roots: &Roots) -> Vec<Box<dyn Candidate
             match &rule.source {
                 RuleSource::Hwmon(hwmon) => Box::new(HwmonCandidate::new(hwmon, roots.clone())),
                 RuleSource::ProcStat => Box::new(CpuUsageCandidate::new(roots)),
+                RuleSource::RaplPackages => Box::new(CpuPowerCandidate::new(roots)),
                 RuleSource::Meminfo => Box::new(MemoryLoadCandidate::new(roots)),
             }
         })

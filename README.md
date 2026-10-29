@@ -69,7 +69,7 @@ cargo clippy --workspace --all-targets -- -D warnings
 cargo fmt --all --check
 ```
 
-`cargo run -p odc-oracle -- docs/spec/frames` rebuilds the expected frames from the spec's rules. The tests on the real cooler need access to it without root: `cargo run -p odc-dev -- setup` sets that up with one `pkexec` step, `check` reports it and `teardown` removes it. `cargo run -p odc-e2e` then runs the end-to-end checks, on the real cooler when one is attached.
+`cargo run -p odc-oracle -- docs/spec/frames` rebuilds the expected frames from the spec's rules. The tests on the real cooler need access to it without root, and so do the tests that read the CPU's power counter: `cargo run -p odc-dev -- setup` sets both up with one `pkexec` step, `check` reports them and `teardown` removes them. `cargo run -p odc-e2e` then runs the end-to-end checks, on the real cooler when one is attached.
 
 ## License
 

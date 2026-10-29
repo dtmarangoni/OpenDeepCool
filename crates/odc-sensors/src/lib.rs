@@ -5,10 +5,13 @@
 pub mod fake;
 mod hwmon;
 mod model;
+mod powercap;
 mod procfs;
 mod registry;
 mod rules;
+mod sysfs;
 
 pub use model::{Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, SystemClock, Unavailable};
+pub use powercap::rapl_package_zones;
 pub use registry::{Binding, Candidate, Registry, Source};
 pub use rules::Roots;

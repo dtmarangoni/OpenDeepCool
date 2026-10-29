@@ -79,7 +79,7 @@ fn setup() -> Result<(), String> {
     }
     println!(
         "  the group {} (systemd-sysusers), with you in it\n  the manifest {}\nthen reload udev \
-         and re-trigger the LP360's node and USB device.",
+         and re-trigger the LP360's node and USB device and the CPU's package energy zones.",
         odc_manifest::GROUP,
         odc_manifest::PATH
     );

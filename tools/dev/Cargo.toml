@@ -9,6 +9,7 @@ publish.workspace = true
 [dependencies]
 odc-device = { path = "../../crates/odc-device" }
 odc-manifest = { path = "../../crates/odc-manifest" }
+odc-sensors = { path = "../../crates/odc-sensors" }
 odc-testkit = { path = "../../crates/odc-testkit" }
 
 [lints]

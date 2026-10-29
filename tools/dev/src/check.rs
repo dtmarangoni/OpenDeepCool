@@ -6,13 +6,14 @@ use std::os::unix::fs::MetadataExt;
 use odc_manifest::{GROUP, Manifest};
 
 use crate::system::{
-    FILES, effective_uid, lp360_node, lp360_usb_device, parse_groups, process_status, repo_root,
-    user_name,
+    FILES, effective_uid, lp360_node, lp360_usb_device, package_zones, parse_groups,
+    process_status, repo_root, user_name,
 };
 
 /// Reports each installed file against the checkout, the group and the user's membership, the
-/// cooler node's group and mode, and the reconnect switch's group write. Fails on any mismatch;
-/// with no cooler attached, its two checks can't run and say so.
+/// cooler node's group and mode, the reconnect switch's group write, and the group read of the
+/// CPU's package energy counters. Fails on any mismatch; with no cooler attached, its two checks
+/// can't run and say so, as does the energy check without RAPL zones.
 pub fn check() -> Result<(), String> {
     let mut problems = Vec::new();
     let repo = repo_root();
@@ -86,6 +87,27 @@ pub fn check() -> Result<(), String> {
             }
         }
         (Some(_), None) => {}
+    }
+
+    let zones = package_zones();
+    if zones.is_empty() {
+        println!("skipped  no RAPL package zones: CPU power can't be checked");
+    }
+    if let Some(gid) = gid {
+        for zone in zones {
+            let energy = zone.join("energy_uj");
+            let meta = fs::metadata(&energy).map_err(|e| format!("{}: {e}", energy.display()))?;
+            if meta.gid() == gid && meta.mode() & 0o040 != 0 {
+                println!("ok       {}: group-readable", energy.display());
+            } else {
+                problems.push(format!(
+                    "{}: group ID {}, mode {:04o}; expected group-readable by {GROUP}",
+                    energy.display(),
+                    meta.gid(),
+                    meta.mode() & 0o777
+                ));
+            }
+        }
     }
 
     match fs::read_to_string(odc_manifest::PATH) {

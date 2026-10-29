@@ -3,13 +3,13 @@
 //! exact fraction (`docs/spec/sensors.md`, Driver rules).
 
 use std::fs;
-use std::io::ErrorKind;
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
 use crate::model::{Exact, Reading, Unavailable};
 use crate::registry::{Candidate, Source};
 use crate::rules::{HwmonRule, Roots};
+use crate::sysfs::read_integer;
 
 /// One rule over the hwmon devices under a root.
 pub(crate) struct HwmonCandidate {
@@ -133,19 +133,4 @@ impl Source for HwmonSource {
     fn describe(&self) -> String {
         format!("{}, {}", self.name, self.path.display())
     }
-}
-
-/// A sysfs file holding one integer, as the kernel writes it.
-pub(crate) fn read_integer(path: &Path) -> Result<i64, Unavailable> {
-    let text = fs::read_to_string(path).map_err(|e| match e.kind() {
-        ErrorKind::PermissionDenied => Unavailable::PermissionDenied {
-            path: path.to_owned(),
-        },
-        _ => Unavailable::ReadFailed {
-            path: path.to_owned(),
-        },
-    })?;
-    text.trim().parse().map_err(|_| Unavailable::ReadFailed {
-        path: path.to_owned(),
-    })
 }
