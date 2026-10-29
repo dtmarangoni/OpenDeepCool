@@ -1,0 +1,16 @@
+[package]
+name = "odc-service"
+description = "The display service: its settings, the engine and its threads, D-Bus, and the opendeepcoold binary"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+odc-render = { path = "../odc-render" }
+odc-sensors = { path = "../odc-sensors" }
+serde = { version = "1", features = ["derive"] }
+toml = "1"
+
+[lints]
+workspace = true
