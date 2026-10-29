@@ -61,7 +61,7 @@ Evidence: capture: sweeps of 2026-10-22; the limits (1000 % usage, 1000 °C, 537
   - **The cycle:** the strip followed by 4 blank columns, at least 21 columns as in DeepCreative (`100W` is 17 columns, so 21; `1234W` is 21, so 25).
   - **Stopping:** when every value is back to 99 or less, the strip keeps moving until it reaches home, then stops there. No jump, no restart. If the strip is at home at that moment and hasn't moved on yet, it stops at once (owner, 2026-10-24).
   - **Rising again before it stopped:** only the digits change; the strip keeps moving on its cycle.
-  - **Every change of a number** keeps the strip's position (Scrolling layout, point 5). The position is never reset by a reading, or by switching between moving and stopped.
+  - **Every change of a number** keeps the strip's position (Scrolling layout, point 5), except that a stopped picture is re-centred at its home when its width changes ([Movement, precisely](#movement-precisely); owner, 2026-10-29). The position is never reset by a reading, or by switching between moving and stopped.
   - **A mode switch resets it** (owner, 2026-10-24): the new mode's picture appears at home on the next frame ([Mode switches](#mode-switches)). A temperature unit change and a rotation change reset it the same way.
   - **Two values whose lengths change while scrolling** (owner, 2026-10-24): the strip's first column, the first digit place of the longer value, stays put; the shorter value stays aligned to the longer one's right end, so it moves. This holds when the other value becomes the longer one, too.
 - **Music Mode:** only the value area (rows 2–6) scrolls; the spectrum below it keeps moving with the sound ([music.md](music.md#value-area-modes-1822)).
@@ -227,7 +227,9 @@ The rules above as one procedure, which the Rust implementation and the test ora
   3. Draw the frame at *x*.
   4. If it's moving: *x* = *x* − 1, then while *x* ≤ *h* − *L*: *x* = *x* + *L*.
 - **A reset** (start-up, a mode switch, a rotation change, a unit change in a mode that shows a temperature, another GPU, Refresh): the new picture, *x* = *h*, moving if it needs to scroll.
-- **A new picture without a reset** (a reading changed): the copy whose first column is on the screen, the rightmost one if two are, keeps its first column where it was; if none is, the copy at *x* does. With the new *h* and *L*, while *x* ≤ *h* − *L*: *x* = *x* + *L*. *x* may end up right of *h*, for example a centred `7%` (*x* = 4) turning into `100%` (*h* = 2): the strip then moves left from where it is. The strip starts moving if the new picture needs to scroll, and a moving strip keeps moving.
+- **A new picture without a reset** (a reading changed):
+  - **while the strip is stopped and the new picture doesn't need to scroll:** it's drawn at its new home, *x* = *h*. A stopped picture is always at home, so one value is re-centred and two values keep ending at column 14 (S9; owner, 2026-10-29);
+  - **otherwise:** the copy whose first column is on the screen, the rightmost one if two are, keeps its first column where it was; if none is, the copy at *x* does. With the new *h* and *L*, while *x* ≤ *h* − *L*: *x* = *x* + *L*. *x* may end up right of *h*, for example a centred `7%` (*x* = 4) turning into `100%` (*h* = 2): the strip then moves left from where it is. The strip starts moving if the new picture needs to scroll, and a moving strip keeps moving.
 - **Choosing what is already set**, and a unit change in a mode without a temperature: nothing changes.
 
 ## Test scenarios (OpenDeepCool)

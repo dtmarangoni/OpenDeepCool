@@ -295,7 +295,7 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
 **Tests**
 - The generator's own checks:
   - the existing `mode-*.txt` cases are reproduced unchanged (as regenerated on 2026-10-26);
-  - the owner's scenarios come out as the owner described them: a drop one column after home runs *L* − 1 more frames and stops at home; up, down and up again before home never stops; a value reaching 100 keeps its first digit place; nothing ever moves by more than one column per frame except at a reset.
+  - the owner's scenarios come out as the owner described them: a drop one column after home runs *L* − 1 more frames and stops at home; up, down and up again before home never stops; a value reaching 100 keeps its first digit place; nothing ever moves by more than one column per frame except at a reset, or when a stopped picture is re-centred at its new home (S9; owner, 2026-10-29: a stopped picture is always at home).
 - The loader: every committed file loads, the new two included; a malformed reading or tick panics, naming its file and line.
 
 **Validation**
@@ -337,9 +337,9 @@ Each task ends with its own commit (rule 4) after its tests pass. **Each Load Mo
   Property: any reading of 0 or more gives a whole number from 0 to 9999, and any negative reading gives dashes.
 - **Picture:** *w*, *L*, *h* and "must scroll" for every value length from dashes to 4 digits, one and two values.
 - **Marquee properties** (random pictures and change sequences):
-  - between resets, every frame is the previous one shifted one column left, or the same frame;
+  - between resets, a moving strip's first column moves one column left per frame, wrapping by *L*, whatever the readings do, and a stopped strip is always at its home (owner, 2026-10-29);
   - a strip that needs no scrolling stops only at *h*, within *L* frames;
-  - an update never moves the copy whose first column is on the screen;
+  - an update of a moving strip, or one that starts it moving, never moves the copy whose first column is on the screen;
   - after a reset, the first frame is the picture at *h*.
 - **Mode table:** `mode_info` lists the metrics `display.md` gives for modes 1–12 and `music.md` gives for 13–23, top first, for all 23 modes; 23, Dancer, shows none.
 - **Matrix and scenarios:** Task 3.
