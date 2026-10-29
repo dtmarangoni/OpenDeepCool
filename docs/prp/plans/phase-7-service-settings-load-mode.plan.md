@@ -560,10 +560,14 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **Watchers:** `Watch()` adds the caller's unique name, or `TooManyWatchers` beyond 8 per Unix user (from `GetConnectionCredentials`) or 32 in all. A name that leaves the bus (`NameOwnerChanged`) is dropped. A second `Watch()` from the same name changes nothing.
 - **Re-check every second**, on the D-Bus side's own timer, never on the engine thread: each watcher is checked for `Use` again. A failing one is skipped by every `StateChanged` until it passes again, and then gets the whole state.
 - **Wake-up:** on `PrepareForSleep(false)` the `SleepWatcher` sends `Wake` to the device thread (`Lp360::reset_connection()`) and to the sensor thread (`Readings::restart_intervals()`), and the journal gets one line.
-- **`Diagnostics`** returns `Registry::bindings()` plus each state. The same list goes to the journal at start and at each rebind (PRD Diagnostics).
+- **`Diagnostics`** returns `Registry::bindings()` plus each state, one entry per metric in the spec's order (owner, 2026-10-29): its name as the spec writes it (`CPU Temperature`), its source as the registry describes it, empty when none is bound, and its state, `ok` while it has a value, otherwise the one-line reason (`no device found`). The same list goes to the journal at start and at each rebind (PRD Diagnostics).
 - **The dev interface** (only when started with `--dev`), at its own object path `/io/github/dtmarangoni/OpenDeepCool1/Dev`:
-  - `OverrideReadings(a{s(xt)}, a{ss})`: exact values (metric → numerator and denominator, like Phase 6's `Exact`), and unavailable metrics with their reasons. They replace the sensor thread's snapshots until `ClearOverride()`;
-  - `BeginTest()` and `EndTest()`, a test session (owner, 2026-10-27; solution review P7-16, P7-07). While one caller holds it, every change from any other caller is refused with `…Error.Busy` ("a test is running on this dev copy"), and the frame recording runs. The session, every override and the recording end on `EndTest()` or when the holder's connection leaves the bus (`NameOwnerChanged`), so a killed test cleans up too. `OverrideReadings` needs the session;
+  - `OverrideReadings(a{s(xt)}, a{ss})`: exact values (metric → numerator and denominator, like Phase 6's `Exact`), and unavailable metrics with their reasons. They replace the sensor thread's snapshots until `ClearOverride()`. Its rules (owner, 2026-10-29):
+    - all seven metrics, each in exactly one of the two maps, by the spec's names (`CPU Temperature` …); otherwise, or with a denominator of 0, `InvalidArgument`;
+    - an unavailable metric's reason is a kind: `no-rule`, `no-device`, `permission-denied`, `read-failed`, `not-yet`, `integrated-gpu-power`, `unknown-gpu-kind`, `driver-updated` or `library-failed`, so a test can make a mode unavailable for good (`no-rule`) or only draw dashes (`read-failed`);
+    - the fans keep their real readings;
+    - it applies from the next tick, whose number it returns; real snapshots still answer `Refresh`, carrying the override's values;
+  - `BeginTest()` and `EndTest()`, a test session (owner, 2026-10-27; solution review P7-16, P7-07). While one caller holds it, every change from any other caller is refused with `…Error.Busy` ("a test is running on this dev copy"), and the frame recording runs. The session, every override and the recording end on `EndTest()` or when the holder's connection leaves the bus (`NameOwnerChanged`), so a killed test cleans up too. `OverrideReadings`, `ClearOverride`, `ReleaseCooler` and `EndTest` need the session: from any other caller they get `Busy` while someone holds it, and `NotAuthorized` ("call BeginTest() first") while nobody does. `BeginTest()` from the holder again succeeds and changes nothing (owner, 2026-10-29);
   - `ReleaseCooler()`, for the session's holder only (owner, 2026-10-29): the device thread drops its connection, which closes the cooler's node (`Lp360::reset_connection()`), and writes nothing until the session ends; `CoolerState` is `released` meanwhile. When the session ends, the next frame reconnects, `03 08` first. The direct checks (`--only device`, `--only load`) call it while the dev service runs;
   - authorization, three ways (owner, 2026-10-26; solution review OV-13):
     - the D-Bus policy (group `opendeepcool`);
@@ -572,7 +576,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - it isn't registered at all without the switch.
 
 **Tests** (layer 3, CI)
-- zbus peer-to-peer connections over a socket pair: no bus daemon, and a fake `Authorizer`:
+- Each test on a private `dbus-daemon` of its own, started without root, with a fake `Authorizer` and fake `Credentials` (owner, 2026-10-29). Peer-to-peer connections were planned first, but their messages carry no sender, which polkit's subject, the addressed signals, the per-user cap and the `NameOwnerChanged` clean-up all need. `dbus-daemon` is installed here and in CI's Arch container (Arch's `systemd` depends on `dbus`):
   - allowed → the setting is stored, the engine gets `Apply`, and each authorized watcher gets `StateChanged` with the changed key;
   - denied → `NotAuthorized`, with nothing stored or applied;
   - mode 9 → `NotYetAvailable`;
@@ -580,11 +584,11 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - rotation 4 → `InvalidArgument`;
   - setting the mode, rotation, unit or GPU already set → success, nothing stored or applied, no signal;
   - `Refresh()` allowed → the engine gets `Apply(Refresh)`; denied → `NotAuthorized`;
-  - `Diagnostics` lists all seven metrics;
+  - `Diagnostics` lists all seven metrics, in the spec's order, each with its source and state;
   - without `--dev`, the dev interface and its object path don't exist;
   - an unknown PCI address, a fan triple not in `FanInputs`, a path-like device path (`../../etc/shadow`) and an over-long string → `InvalidArgument`, with nothing stored or applied;
   - with `--dev`, a caller outside the group is refused, both through a normal call and through a raw method call without an interface field; a caller inside the group passes;
-  - **test session** (P7-16): during a session, another caller's `SetMode` → `Busy`; the holder's connection closing, as when the test is killed, clears the override and ends the session, and changes pass again; `OverrideReadings` without a session → refused;
+  - **test session** (P7-16): during a session, another caller's `SetMode` → `Busy`; the holder's connection closing, as when the test is killed, clears the override and ends the session, and changes pass again; `OverrideReadings` without a session → `NotAuthorized`, and during another caller's session → `Busy`; `OverrideReadings` with a metric missing, given twice, unknown, an unknown reason kind or a denominator of 0 → `InvalidArgument`;
   - **releasing the cooler** (2026-10-29): after `ReleaseCooler()` the fake connector gets no write and its connection is closed; `CoolerState` is `released`; `ReleaseCooler()` without the session → refused; when the holder's connection closes, the next report is `03 08`, then that tick's frame;
   - **the recording** (fake clock and connector): the first 100 reports after the start, then nothing until a session, then every report; each line's tick and monotonic time; rotation at a small cap in the test, keeping one previous file; a flush at the session's end;
   - the introspection data lists no properties;
@@ -788,11 +792,13 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Two `syn` versions (owner, 2026-10-29) | `deny.toml` skips `syn` 2 with its reason; the entry goes once `nvml-wrapper` moves to `syn` 3, checked at each sign-off | Evidence, the comparison with Phases 5 and 6; `syn` runs only while macros compile | Without it, CI's bans check fails on the first commit with zbus or serde's derive |
 | The dev service holds the cooler from boot (Task 8) | The direct checks hold a test session that releases the cooler (owner, 2026-10-29) | Task 7, `ReleaseCooler()`; a killed check ends its session with its connection | Two writers would interleave frames, and the direct checks would fail |
 | The GPU-rank helper in the dev copy (owner, 2026-10-29) | Installed and pulled in like the product's; the detection stays out | Task 8 | Without a ranking, the owner's GPU stays unranked and its Gpu power is withheld as "kind unknown" until Phase 11 |
+| Task 7's D-Bus tests need a bus (owner, 2026-10-29) | A private `dbus-daemon` per test, started without root; the fake-polkit test stays peer-to-peer | zbus 6.2 sets a message's sender only from the unique name a bus gave the connection (`src/connection/mod.rs`, read 2026-10-29), so peer-to-peer messages carry none | Over peer-to-peer, the service would have to accept calls with no sender, which the system bus never sends |
 
 ## Agent Notes
 
 - Before Task 1 (2026-10-29), the plan was compared with what Phases 5 and 6 built (AGENTS.md, How to work). The corrections and the owner's four decisions of that day are folded in above, and listed in the Evidence and the Risks.
 - Installing or upgrading the dev copy is a `pkexec` system change. Show the owner the script's commands the first time; later upgrades of the same script follow the same approval (rule 7).
+- Phase 10's plan calls Task 7's tests peer-to-peer; they run on a private `dbus-daemon` since 2026-10-29 (owner), which Phase 10's comparison before its first task takes over.
 - The end-to-end run changes the cooler's picture for a few minutes, then restores the owner's settings. It must never leave the override active (the drop guard calls `ClearOverride`).
 - Mode names in code and in anything a user reads (journal lines, D-Bus error texts, `--help`): Load, Temperature, Power, Music, never "Guardian" or "… Mode" (owner, 2026-10-24). DeepCreative's names appear only where the spec describes DeepCreative.
 - The D-Bus state keys and method list in `odc-ipc` are the settings app's contract, described in `docs/spec/dbus.md`. If it changes, update `docs/spec/dbus.md` in the same commit, and `docs/spec/settings.md` "What the settings app must offer" so the UI designer sees it (owner's rule, 2026-10-24).

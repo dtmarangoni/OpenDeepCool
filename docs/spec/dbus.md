@@ -80,7 +80,7 @@ The names start with the project's public address, its GitHub repository, as the
 | `Refresh()` | `change-settings` | Fresh readings at once, and the picture from home; nothing is saved | `NotAuthorized` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller | `NotAuthorized`, `TooManyWatchers` |
-| `Diagnostics() → a(sss)` | `use` | Each metric: its name, its bound source, and its state | `NotAuthorized` |
+| `Diagnostics() → a(sss)` | `use` | One entry per metric, in the order of [sensors.md](sensors.md)'s Metrics: its name as the spec writes it (`CPU Temperature`), its source as the service describes it, empty when none is bound, and its state, `ok` while it has a value, otherwise the one-line reason (`no device found`) (owner, 2026-10-29) | `NotAuthorized` |
 | `StateChanged(a{sv})` | `use`, checked every second | The keys that changed; the whole state after a watcher passes its check again | — |
 
 Choosing what is already set succeeds and changes nothing: nothing is saved, sent to the display or signalled.
@@ -139,7 +139,16 @@ Only when the service starts with `--dev`, which only the dev copy's drop-in pas
 
 | Member | What it does |
 |---|---|
-| `OverrideReadings(a{s(xt)}, a{ss}) → t` | Exact values (metric → numerator and denominator) and unavailable metrics with their reasons replace the sensor thread's snapshots from the next tick on, whose number it returns. It needs the test session |
-| `ClearOverride()` | Back to the real readings |
-| `BeginTest()`, `EndTest()` | The test session: while one caller holds it, every change from any other caller gets `Busy`, and the frame recording runs. It ends, with every override and the recording, on `EndTest()` or when the holder's connection leaves the bus (owner, 2026-10-27; solution review P7-16) |
+| `OverrideReadings(a{s(xt)}, a{ss}) → t` | Exact values (metric → numerator and denominator) and unavailable metrics with their reasons replace the sensor thread's snapshots from the next tick on, whose number it returns (rules below). It needs the test session |
+| `ClearOverride()` | Back to the real readings. It needs the test session |
+| `BeginTest()`, `EndTest()` | The test session: while one caller holds it, every change from any other caller gets `Busy`, and the frame recording runs. It ends, with every override and the recording, on `EndTest()` or when the holder's connection leaves the bus (owner, 2026-10-27; solution review P7-16). `BeginTest()` from the holder again succeeds and changes nothing |
 | `ReleaseCooler()` | The session's holder only: the service closes the cooler and writes nothing until the session ends, then starts a new conversation, `03 08` first, so the direct checks share the cooler with the running dev service (owner, 2026-10-29) |
+
+A call that needs the test session (`OverrideReadings`, `ClearOverride`, `ReleaseCooler`, `EndTest`) from a caller who doesn't hold it gets `Busy` while another caller holds the session, and `NotAuthorized` ("call BeginTest() first") while nobody does (owner, 2026-10-29).
+
+`OverrideReadings` (owner, 2026-10-29):
+
+- It takes all seven metrics, each in exactly one of its two maps, by the names [sensors.md](sensors.md) gives them (`CPU Temperature` …). A metric missing, given twice or unknown, or a denominator of 0, gets `InvalidArgument`.
+- An unavailable metric's reason is one of these kinds, which the service treats as it treats the reading itself ([settings.md](settings.md), Availability): `no-rule`, `no-device`, `permission-denied`, `read-failed`, `not-yet`, `integrated-gpu-power`, `unknown-gpu-kind`, `driver-updated`, `library-failed`. Any other text gets `InvalidArgument`. So a test can make a mode unavailable for good (`no-rule`) or only draw dashes (`read-failed`).
+- The fans keep their real readings.
+- It applies from the next tick, whose number it returns. Real snapshots still answer `Refresh`, carrying the override's values.
