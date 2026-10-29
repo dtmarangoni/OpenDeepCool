@@ -78,10 +78,10 @@
 - This matches DeepCreative's long-run rate of 100.0 ms (`protocol.md` Timing, corrected 2026-10-24).
 - Readings refresh once per second (`sensors.md`): the sensor thread delivers a new snapshot every second, and the engine adopts the newest at its next tick.
 
-**D-Bus with zbus's blocking API.**
+**D-Bus with zbus 6, driven by `zbus::block_on`** (owner, 2026-10-29).
 - The owner chose D-Bus on 2026-10-24.
-- zbus 6's blocking `connection::Builder::system().name(…).serve_at(…).build()` runs the object server on zbus's own executor thread, so the service needs no async runtime of its own (zbus book, "blocking").
-  - zbus 6 has no `blocking-api` feature, unlike zbus 5. Its default features bring its own small runtime, `zruntime`, not tokio (crates.io, 2026-10-29). Task 4 checks the blocking API and the features it needs against zbus 6's documentation before writing code.
+- zbus 6.0 removed the blocking API (its CHANGELOG): a program with no async runtime of its own drives zbus's async API with `zbus::block_on`. That call runs zbus's own runtime, `zruntime`, on the calling thread, for every connection built in it; if it returns while a connection is alive, a helper thread of zbus takes over (zbus 6.1.0, `src/utils.rs`, read 2026-10-29). So the D-Bus thread calls `zbus::block_on` once, builds the connection there (`connection::Builder::system()…name(…)…serve_at(…)…build().await`) and serves from inside it: the service still needs no async runtime of its own. Interface methods are async, so the polkit check awaits its reply. `block_on` is never called from inside a served method, which zbus refuses.
+  - zbus 6's default features bring `zruntime`, not tokio (crates.io, 2026-10-29). zbus 5.19, the previous major, keeps the blocking API, but moving to 6 later would mean rewriting the D-Bus side (owner, 2026-10-29).
   - zbus's macros, and serde's derive since 1.0.229, are built with `syn` 3, while NVIDIA's NVML wrapper still needs `syn` 2, so `deny.toml` allows both (owner, 2026-10-29; Task 4).
 - polkit's `CheckAuthorization` takes a `system-bus-name` subject, the caller's unique name from the message header (`#[zbus(header)]`, `Header::sender()`). This is polkit's identification for D-Bus callers (polkit Authority interface docs).
 - **Arguments are checked against the service's own state** (owner, 2026-10-26; solution review OV-14). A GPU or a fan input is accepted only when it's on the lists the service found itself. Strings have length limits, and no file path is ever built from a caller's string (Task 7).
@@ -146,7 +146,7 @@
   - Settings app ↔ service: D-Bus, polkit `allow_active`;
   - Diagnostics: journal plus a D-Bus method;
   - dev footprint: the dev copy and its manifest.
-- zbus 6 (Context7, 2026-10-24): the blocking `connection::Builder`. Builder setters defer errors to `build()` in 6.0. `#[interface]`, `#[zbus(property)]`, `#[zbus(header)] Header` → `sender()`.
+- zbus 6 (Context7, 2026-10-24; corrected 2026-10-29 from the zbus 6.1.0 crate): no blocking API since 6.0, `zbus::block_on` instead; Builder setters defer errors to `build()` in 6.0. `#[interface]`, `#[zbus(property)]`, `#[zbus(header)] Header` → `sender()`; `SignalEmitter::set_destination`.
 - polkit Authority docs (freedesktop.org, read 2026-10-24): `CheckAuthorization(subject, action_id, details, flags, cancellation_id)`. Subject kind `system-bus-name` with key `name`.
 - This PC, 2026-10-24:
   - polkit (`man 8 polkit`) reads actions from `/etc/polkit-1/actions/` and `/usr/share/polkit-1/actions/`;
@@ -171,7 +171,7 @@
 
 ### Alternatives considered
 
-- **An async runtime (tokio) for the whole service:** one more large dependency. The service has one periodic loop and a handful of rare calls, and zbus's blocking API runs the server on its own thread.
+- **An async runtime (tokio) for the whole service:** one more large dependency. The service has one periodic loop and a handful of rare calls, and `zbus::block_on` runs zbus's own runtime on the D-Bus thread.
 - **The engine and D-Bus sharing one `Mutex<State>`:** a polkit round trip or a slow client could hold the lock across a tick. The channel keeps the tick independent.
 - **Testing the real service with real readings only:** the values can't be chosen, so frames can't be compared with the expected frames. The dev-only readings override keeps the comparison exact.
 - **JSON settings:** works equally well, but it's less readable in the state directory. TOML is the conventional choice for configuration.
@@ -181,7 +181,7 @@
 ```mermaid
 flowchart LR
   subgraph svc["opendeepcoold (new), User=opendeepcool, sandboxed"]
-    DB["D-Bus thread (zbus blocking)<br/>io.github.dtmarangoni.OpenDeepCool1"] -->|Apply(Settings)| CH((channel))
+    DB["D-Bus thread (zbus::block_on)<br/>io.github.dtmarangoni.OpenDeepCool1"] -->|Apply(Settings)| CH((channel))
     DB --> ST[(SettingsStore<br/>settings.toml v1)]
     DB -->|CheckAuthorization| PK[[polkit]]
     CH --> EN["Engine thread<br/>100 ms absolute ticks, no I/O"]
@@ -388,7 +388,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 ### 4. `odc-ipc`: the D-Bus contract
 
 **Files and integration points**
-- `crates/odc-ipc/`: CREATE, a library: `serde`, `zbus = "6"`, with the features its blocking API needs, checked in zbus 6's documentation first (zbus 6 has no `blocking-api` feature).
+- `crates/odc-ipc/`: CREATE, a library: `serde`, `zbus = "6"` with its default features (`zruntime`, the proxy and the object server). Its `#[proxy]` client is async: tests and Phase 10's app drive it with `zbus::block_on` or their own main loop.
 - `deny.toml`: UPDATE, in the commit that brings `syn` 3 in (owner, 2026-10-29): one `skip` entry for `syn` 2, with its reason: `nvml-wrapper`, through `thiserror` 1 and `wrapcenum-derive`, still needs `syn` 2, while zbus's macros and serde's derive need `syn` 3. `syn` runs only while macros compile, so nothing of it reaches the binaries. The entry goes once `nvml-wrapper` moves to `syn` 3, which each phase's sign-off checks along with CI's pinned actions.
 - `docs/spec/dbus.md`: CREATE (owner, 2026-10-27; solution review P4-04). The contract, in one document:
   - the introspection XML of both interfaces, every method and signal with its argument types;
@@ -784,6 +784,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Signals addressed to each watcher | Keep: the bus delivers them to their destination only; root can still monitor the bus, and root is trusted anyway | D-Bus specification; dbus-broker has no eavesdropping | A broadcast would reach every local process |
 | A wake-up can't be tested by a real suspend, unattended | Fake `SleepWatcher` in CI; the real watcher's sender check on a private bus; the device side real in Phase 5; a real suspend only in the optional attended tour | Waking an unattended PC needs root | — |
 | Readings refresh once per second, so a value can lag by up to 1 s | As DeepCreative: it drew a changed value 957 ms after the change (`display.md` Updates) | `sensors.md` refresh | — |
+| zbus 6 removed its blocking API (owner, 2026-10-29) | zbus 6.1, driven by `zbus::block_on` on the service's D-Bus thread, which serves from inside that one call | zbus 6.1.0's README, CHANGELOG and `src/utils.rs`, read 2026-10-29 | zbus 5.19 keeps the blocking API, but is the previous major |
 | Two `syn` versions (owner, 2026-10-29) | `deny.toml` skips `syn` 2 with its reason; the entry goes once `nvml-wrapper` moves to `syn` 3, checked at each sign-off | Evidence, the comparison with Phases 5 and 6; `syn` runs only while macros compile | Without it, CI's bans check fails on the first commit with zbus or serde's derive |
 | The dev service holds the cooler from boot (Task 8) | The direct checks hold a test session that releases the cooler (owner, 2026-10-29) | Task 7, `ReleaseCooler()`; a killed check ends its session with its connection | Two writers would interleave frames, and the direct checks would fail |
 | The GPU-rank helper in the dev copy (owner, 2026-10-29) | Installed and pulled in like the product's; the detection stays out | Task 8 | Without a ranking, the owner's GPU stays unranked and its Gpu power is withheld as "kind unknown" until Phase 11 |
