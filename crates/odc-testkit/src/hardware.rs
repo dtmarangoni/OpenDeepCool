@@ -47,11 +47,12 @@ pub enum Probe {
     Unusable { reason: String, fix: String },
 }
 
-/// The roots the probe looks under: `/sys` and `/dev`, or a fake tree's.
+/// The roots the probe looks under: `/sys`, `/dev` and `/proc`, or a fake tree's.
 #[derive(Clone, Debug)]
 pub struct Roots {
     pub sysfs: PathBuf,
     pub dev: PathBuf,
+    pub proc: PathBuf,
 }
 
 impl Roots {
@@ -59,6 +60,7 @@ impl Roots {
         Roots {
             sysfs: PathBuf::from("/sys"),
             dev: PathBuf::from("/dev"),
+            proc: PathBuf::from("/proc"),
         }
     }
 }

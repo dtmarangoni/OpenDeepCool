@@ -1,11 +1,12 @@
 //! Test support, only ever a dev-dependency of the program's crates, so none of it ships: the
 //! expected-frame loader, the picture diff, the capture-log reader, the sysfs lookups, fake
-//! trees and the hardware probe that the tests and dev tools of every phase share (PRD, Testing
-//! Strategy).
+//! trees and their sensor fixtures, and the hardware probe that the tests and dev tools of every
+//! phase share (PRD, Testing Strategy).
 
 pub mod capture;
 pub mod diff;
 pub mod expected;
 pub mod fake_tree;
+pub mod fixtures;
 pub mod hardware;
 pub mod sysfs;

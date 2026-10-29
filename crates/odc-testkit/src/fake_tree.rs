@@ -1,10 +1,12 @@
-//! Fake sysfs and `/dev` trees, for the tests and for the end-to-end program's fake mode. A
-//! regular file stands in for each device node. Every name and ID is made up, except the LP360's
-//! public USB ID (AGENTS.md rule 10).
+//! Fake sysfs, `/dev` and procfs trees, for the tests and for the end-to-end program's fake mode.
+//! A regular file stands in for each device node. Every name and ID is made up, except the LP360's
+//! public USB ID (AGENTS.md rule 10). The sensor fixtures built on it are in
+//! [`crate::fixtures`].
 
 use std::fs;
 use std::io;
-use std::path::{Path, PathBuf};
+use std::os::unix::fs::{PermissionsExt, symlink};
+use std::path::{Component, Path, PathBuf};
 
 use crate::hardware::Roots;
 
@@ -39,6 +41,61 @@ impl FakeTree {
         Roots {
             sysfs: self.root.join("sys"),
             dev: self.root.join("dev"),
+            proc: self.root.join("proc"),
+        }
+    }
+
+    /// The full path of `path`, which must be relative and stay inside the tree: an absolute
+    /// path would replace the root and reach the real system.
+    fn inside(&self, path: &Path) -> io::Result<PathBuf> {
+        if path
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        {
+            Ok(self.root.join(path))
+        } else {
+            Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{} isn't a relative path inside the tree", path.display()),
+            ))
+        }
+    }
+
+    /// A file at `path` with `contents`, its folders made as needed. Returns its full path.
+    pub fn file(&self, path: impl AsRef<Path>, contents: impl AsRef<[u8]>) -> io::Result<PathBuf> {
+        let full = self.inside(path.as_ref())?;
+        if let Some(dir) = full.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        fs::write(&full, contents)?;
+        Ok(full)
+    }
+
+    /// A symbolic link at `path` to `target`, written as given, so a relative link resolves
+    /// inside the tree as it does in sysfs. Returns the link's full path.
+    pub fn symlink(&self, path: impl AsRef<Path>, target: impl AsRef<Path>) -> io::Result<PathBuf> {
+        let full = self.inside(path.as_ref())?;
+        if let Some(dir) = full.parent() {
+            fs::create_dir_all(dir)?;
+        }
+        symlink(target, &full)?;
+        Ok(full)
+    }
+
+    /// Sets the permission bits of `path`.
+    pub fn mode(&self, path: impl AsRef<Path>, mode: u32) -> io::Result<()> {
+        let full = self.inside(path.as_ref())?;
+        fs::set_permissions(full, fs::Permissions::from_mode(mode))
+    }
+
+    /// Removes `path`: a file, a link (never what it points to), or a folder with everything in
+    /// it.
+    pub fn remove(&self, path: impl AsRef<Path>) -> io::Result<()> {
+        let full = self.inside(path.as_ref())?;
+        if fs::symlink_metadata(&full)?.is_dir() {
+            fs::remove_dir_all(full)
+        } else {
+            fs::remove_file(full)
         }
     }
 
