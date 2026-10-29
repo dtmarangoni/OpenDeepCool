@@ -409,6 +409,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "odc-render"
+version = "0.0.0"
+dependencies = [
+ "odc-protocol",
+ "odc-sensors",
+ "proptest",
+]
+
+[[package]]
 name = "odc-sensors"
 version = "0.0.0"
 dependencies = [

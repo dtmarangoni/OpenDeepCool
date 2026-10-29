@@ -1,0 +1,17 @@
+[package]
+name = "odc-render"
+description = "What the LP360's display shows, as pure code: glyphs, value rules, pictures, the mode table and the movement"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+odc-protocol = { path = "../odc-protocol" }
+odc-sensors = { path = "../odc-sensors" }
+
+[dev-dependencies]
+proptest.workspace = true
+
+[lints]
+workspace = true
