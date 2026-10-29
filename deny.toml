@@ -22,8 +22,15 @@ multiple-versions = "deny"
 wildcards = "deny"
 # The workspace's own crates are path dependencies without a version; they're never published.
 allow-wildcard-paths = true
-# Duplicate versions allowed, one at a time, each with its reason. None yet.
-skip = []
+# Duplicate versions allowed, one at a time, each with its reason.
+skip = [
+    # zbus's macros and serde's derive are built with syn 3, while nvml-wrapper (through
+    # thiserror 1 and wrapcenum-derive's darling 0.20), tracing-attributes (zbus's tracing) and
+    # bindgen 0.72, in the dev tool only, still need syn 2. syn runs only while macros compile,
+    # so nothing of it reaches the binaries. Owner, 2026-10-29 (Phase 7 plan, Task 4); removed
+    # once nvml-wrapper moves to syn 3, which each phase's sign-off checks.
+    { crate = "syn@2.0.119", reason = "nvml-wrapper, tracing-attributes and bindgen still build with syn 2 (owner, 2026-10-29)" },
+]
 
 [sources]
 unknown-registry = "deny"

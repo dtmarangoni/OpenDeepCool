@@ -1,0 +1,235 @@
+//! The D-Bus contract (Phase 7 plan, Task 4): the names are valid D-Bus names, the errors carry
+//! the prefix, the state round-trips through `a{sv}` and the D-Bus encoding, and
+//! `docs/spec/dbus.md` lists exactly the crate's state keys, each with its type. The service's
+//! introspection is checked against the document's XML in Task 7.
+
+use std::collections::HashMap;
+use std::fs;
+
+use odc_ipc::{
+    BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, ERROR_PREFIX, Error,
+    FanInput, FanSpeed, Gpu, GpuKind, INTERFACE, Input, OBJECT_PATH, STATE_KEYS, State, StateError,
+    TemperatureUnit, USE_ACTION,
+};
+use zbus::DBusError;
+use zbus::names::{ErrorName, InterfaceName, WellKnownName};
+use zbus::wire::serialized::Context;
+use zbus::wire::{LE, ObjectPath, OwnedVariant, Variant, to_bytes};
+
+const ERRORS: [&str; 6] = [
+    "NotAuthorized",
+    "ModeUnavailable",
+    "NotYetAvailable",
+    "InvalidArgument",
+    "TooManyWatchers",
+    "Busy",
+];
+
+#[test]
+fn the_names_are_valid_dbus_names() {
+    WellKnownName::try_from(BUS_NAME).expect("a well-known name");
+    InterfaceName::try_from(INTERFACE).expect("an interface name");
+    InterfaceName::try_from(DEV_INTERFACE).expect("an interface name");
+    ObjectPath::try_from(OBJECT_PATH).expect("an object path");
+    ObjectPath::try_from(DEV_PATH).expect("an object path");
+    for name in ERRORS {
+        ErrorName::try_from(format!("{ERROR_PREFIX}.{name}")).expect("an error name");
+    }
+    // polkit(8): an action id is made of [A-Z][a-z][0-9].-
+    for action in [USE_ACTION, CHANGE_SETTINGS_ACTION] {
+        assert!(
+            action
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-'),
+            "{action}"
+        );
+        assert!(action.starts_with(&format!("{BUS_NAME}.")), "{action}");
+    }
+}
+
+#[test]
+fn each_error_is_named_with_the_prefix() {
+    let errors = [
+        Error::NotAuthorized("x".into()),
+        Error::ModeUnavailable("x".into()),
+        Error::NotYetAvailable("x".into()),
+        Error::InvalidArgument("x".into()),
+        Error::TooManyWatchers("x".into()),
+        Error::Busy("x".into()),
+    ];
+    for (error, name) in errors.iter().zip(ERRORS) {
+        assert_eq!(error.name().as_str(), format!("{ERROR_PREFIX}.{name}"));
+        assert_eq!(error.description(), Some("x"));
+    }
+}
+
+/// Every key present, with made-up devices (AGENTS.md rule 10).
+fn full() -> State {
+    State {
+        mode: Some(4),
+        rotation: Some(3),
+        temperature_unit: Some(TemperatureUnit::Fahrenheit),
+        cooler_connected: Some(false),
+        cooler_state: Some(CoolerState::NoAccess),
+        available_modes: Some(vec![1, 3, 5]),
+        unavailable_reasons: Some(HashMap::from([
+            (2, "no device found".to_owned()),
+            (6, "no permission to read it".to_owned()),
+        ])),
+        gpus: Some(vec![
+            Gpu {
+                pci: "0000:0a:00.0".to_owned(),
+                driver: "amdgpu".to_owned(),
+                kind: GpuKind::Dedicated,
+            },
+            Gpu {
+                pci: "0000:00:02.0".to_owned(),
+                driver: "i915".to_owned(),
+                kind: GpuKind::QueryFailed,
+            },
+        ]),
+        chosen_gpu: Some("0000:0a:00.0".to_owned()),
+        fan_inputs: Some(vec![FanInput {
+            chip: "fakeboardchip".to_owned(),
+            device: "devices/platform/fakeboardchip.2592".to_owned(),
+            input: 2,
+            label: String::new(),
+        }]),
+        cooler_fan_input: Some(Some(Input {
+            chip: "fakeboardchip".to_owned(),
+            device: "devices/platform/fakeboardchip.2592".to_owned(),
+            input: 1,
+        })),
+        pump_input: Some(None),
+        cooler_fan_rpm: Some(FanSpeed::Rpm(1234)),
+        pump_rpm: Some(FanSpeed::Unavailable),
+    }
+}
+
+#[test]
+fn the_state_round_trips_through_a_dictionary_and_the_wire() {
+    let state = full();
+    let dict = state.to_dict();
+    assert_eq!(dict.len(), STATE_KEYS.len());
+    assert_eq!(State::from_dict(&dict), Ok(state.clone()));
+    // Through the D-Bus encoding, as GetState sends it.
+    let bytes = to_bytes(Context::new(LE, 0), &dict).expect("encodes");
+    let (back, _): (HashMap<String, OwnedVariant>, usize) = bytes.deserialize().expect("decodes");
+    assert_eq!(State::from_dict(&back), Ok(state));
+}
+
+#[test]
+fn each_key_has_the_contract_s_type() {
+    let dict = full().to_dict();
+    for (key, signature) in STATE_KEYS {
+        let value = dict.get(key).unwrap_or_else(|| panic!("{key} is sent"));
+        assert_eq!(value.value_signature().to_string(), signature, "{key}");
+    }
+}
+
+fn variant<'a>(value: impl Into<Variant<'a>>) -> OwnedVariant {
+    OwnedVariant::try_from(value.into()).expect("no file descriptor")
+}
+
+#[test]
+fn an_unknown_key_is_ignored_and_a_missing_key_stays_absent() {
+    let mut dict = State {
+        mode: Some(4),
+        ..State::default()
+    }
+    .to_dict();
+    // A key a later phase adds, which an older client doesn't know.
+    dict.insert("MusicPeakDots".to_owned(), variant(true));
+    let state = State::from_dict(&dict).expect("still a state");
+    assert_eq!(
+        state,
+        State {
+            mode: Some(4),
+            ..State::default()
+        }
+    );
+}
+
+#[test]
+fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
+    let one = |key: &str, value: OwnedVariant| HashMap::from([(key.to_owned(), value)]);
+    assert_eq!(
+        State::from_dict(&one("Mode", variant("four"))),
+        Err(StateError::WrongType("Mode"))
+    );
+    assert_eq!(
+        State::from_dict(&one("Rotation", variant(4_u8))),
+        Err(StateError::BadValue("Rotation", "4".into()))
+    );
+    assert_eq!(
+        State::from_dict(&one("TemperatureUnit", variant("kelvin"))),
+        Err(StateError::BadValue("TemperatureUnit", "kelvin".into()))
+    );
+    assert_eq!(
+        State::from_dict(&one("CoolerState", variant("on fire"))),
+        Err(StateError::BadValue("CoolerState", "on fire".into()))
+    );
+    let gpus = vec![(
+        "0000:0a:00.0".to_owned(),
+        "amdgpu".to_owned(),
+        "big".to_owned(),
+    )];
+    assert_eq!(
+        State::from_dict(&one("Gpus", variant(gpus))),
+        Err(StateError::BadValue("Gpus", "big".into()))
+    );
+    for rpm in [10_000.0, -1.0, 1.5, f64::INFINITY] {
+        assert!(
+            matches!(
+                State::from_dict(&one("PumpRpm", variant(rpm))),
+                Err(StateError::BadValue("PumpRpm", _))
+            ),
+            "{rpm}"
+        );
+    }
+}
+
+#[test]
+fn merging_takes_only_the_keys_sent() {
+    let mut state = full();
+    state.merge(State {
+        mode: Some(2),
+        cooler_state: Some(CoolerState::Connected),
+        ..State::default()
+    });
+    let want = State {
+        mode: Some(2),
+        cooler_state: Some(CoolerState::Connected),
+        ..full()
+    };
+    assert_eq!(state, want);
+}
+
+// docs/spec/dbus.md, State: the table the settings app's design reads lists exactly these keys,
+// in this order, each with its type.
+#[test]
+fn dbus_md_lists_exactly_the_state_keys_and_their_types() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/dbus.md");
+    let text = fs::read_to_string(path).expect("docs/spec/dbus.md");
+    let section = text
+        .split("\n## State\n")
+        .nth(1)
+        .and_then(|s| s.split("\n## ").next())
+        .expect("a State section");
+    let rows: Vec<(String, String)> = section
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .map(|line| {
+            let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+            (
+                cells[1].trim_matches('`').to_owned(),
+                cells[2].trim_matches('`').to_owned(),
+            )
+        })
+        .collect();
+    let want: Vec<(String, String)> = STATE_KEYS
+        .iter()
+        .map(|(key, signature)| ((*key).to_owned(), (*signature).to_owned()))
+        .collect();
+    assert_eq!(rows, want);
+}

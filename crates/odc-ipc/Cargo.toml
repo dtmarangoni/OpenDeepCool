@@ -1,0 +1,13 @@
+[package]
+name = "odc-ipc"
+description = "OpenDeepCool's D-Bus contract: names, the state, the methods, the errors and the client proxies"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+zbus = "6"
+
+[lints]
+workspace = true
