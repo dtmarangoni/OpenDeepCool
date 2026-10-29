@@ -270,6 +270,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 **Files and integration points**
 - `crates/odc-sensors/`: CREATE, a library. `lints.workspace = true`. It depends on `nvml-wrapper = "0.13"` (Task 8) and nothing else beyond `std`.
 - `crates/odc-sensors/src/model.rs`: CREATE.
+- `crates/odc-sensors/src/registry.rs`: CREATE, the registry's core: binding, rescans and `bindings()`. The sources it binds come with Tasks 4–8 (owner, 2026-10-28: the plan's order put this test before the fake trees and the first sources).
 
 **Implementation**
 - `Metric`: `CpuTemperature`, `CpuUsage`, `CpuPower`, `GpuTemperature`, `GpuUsage`, `GpuPower`, `MemoryLoad`. `Metric::spec_name()` returns DeepCreative's exact names (`CPU Temperature`, `Gpu usage`, …). These are the names `docs/spec/frames/` headings use, which Phase 7 maps.
@@ -284,6 +285,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
   - `restart_intervals()` drops the last sample of every reading averaged over the interval: CPU Usage, and power from an energy counter (CPU Power, and Gpu power on i915 and xe). Their next reading is `NotYet` again, as at start-up.
   - Phase 7 calls it after every wake-up from standby, so no average spans the sleep, whatever the counters did meanwhile (owner, 2026-10-26; `sensors.md` Updates and rounding).
 - **Binding and rescans** (owner, 2026-10-27; solution review P6-04): the registry, which implements `Readings`, binds each metric's source at its first scan. A metric left without a source is looked for again every 5 s for the first two minutes after start-up or `restart_intervals()` (a wake-up), then every 60 s, so a driver that loads late (`lm_sensors.service`, a GPU driver) is found without a restart. A read that fails looks for that metric's source again at once. Each new binding shows in `bindings()`, which Phase 7 logs.
+  - Each metric has an ordered list of candidate sources, which the rule rows of Tasks 4–8 fill. At a scan, the registry tries them in order and binds the first one found.
 - `trait Clock { fn now(&self) -> Instant; }`, with `SystemClock`.
 - `FakeReadings`: public; scripted snapshots for Phase 7's tests, and a count of `restart_intervals()` calls.
 
@@ -291,7 +293,12 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - `spec_name()` round-trips for all seven, and the names match the headings in `docs/spec/frames/` (read through `odc_testkit::expected`).
 - Each `Unavailable` reason has a non-empty one-line `Display`.
 - Integral sources give integral values: 57 000 m°C is exactly 57 °C; 2 000 000 µW is exactly 2 W.
-- **Late sources** (P6-04), with a fake clock: a fake tree that gains the GPU's hwmon after 30 s binds it at the next 5 s scan; one that gains it after 3 minutes binds it at the next 60 s scan; a source that stays missing is looked for at exactly those times and no more often.
+- **Late sources** (P6-04), with a fake clock and a scripted fake source:
+  - a source that appears after 30 s is bound at the next 5 s scan, and one that appears after 3 minutes at the next 60 s scan;
+  - a source that stays missing is looked for at exactly those times and no more often;
+  - `restart_intervals()` starts the 5 s rescans again;
+  - a read that fails looks for the source again at once.
+- The same test over fake trees comes with the first real sources: Task 4 (the CPU temperature driver appears late) and Task 8 (the GPU's hwmon appears late).
 
 **Validation**
 - `cargo test -p odc-sensors`: passes.
@@ -347,6 +354,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 - No CPU driver → `Unavailable(NoDevice)`.
 - An hwmon index change between scans (`hwmon2` → `hwmon5`) still binds by name.
 - A board chip with a `temp1_label` of `Package id 0` but `name` `fakeboardchip` isn't matched.
+- **Late source** (P6-04), with a fake clock: the CPU temperature driver's hwmon appears after 30 s and is bound at the next 5 s scan; appearing after 3 minutes, it's bound at the next 60 s scan.
 
 **Validation**
 - `cargo test -p odc-sensors --test cpu_temperature`: passes.
@@ -481,6 +489,7 @@ Each task ends with its own commit (rule 4) after its tests pass. The guard and 
 
 **Tests**
 - Fake trees for amdgpu dGPU, amdgpu APU (power unavailable), amdgpu of unknown kind (power `UnknownGpuKind`, P8-06), amdgpu with only `power1_input`, i915, xe and nouveau.
+- **Late source** (P6-04), with a fake clock: the chosen GPU's hwmon appears after 30 s and is bound at the next 5 s scan; appearing after 3 minutes, it's bound at the next 60 s scan.
 - `FakeNvml` with a matching bus ID and a non-matching one.
 - **NVML only for NVIDIA** (P6-06): with a counting fake, a PC whose chosen GPU isn't NVIDIA's never initialises NVML, not even once.
 - **NVML's reasons** (P6-12; overview cross-check, 2026-10-27): the fake's two load errors, a missing library and a refused one, each give `LibraryFailed` with its own message; driver not loaded gives `NoDevice`; version mismatch and no permission give `DriverUpdated` and `PermissionDenied`; any other start error gives `LibraryFailed` with NVML's message.
