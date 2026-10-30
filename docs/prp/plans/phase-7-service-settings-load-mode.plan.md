@@ -614,7 +614,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - loads settings, and builds the `Registry` and `Lp360<HidrawConnector>` (wrapped in `Recording` when started with `--dev`);
   - starts the sensor, device and engine threads and the zbus connection;
   - sends `READY=1` once the bus name is owned;
-  - stops cleanly on SIGTERM.
+  - stops cleanly on SIGTERM, caught with the `signal-hook` crate (owner, 2026-10-29): the bus name released, the dev recording flushed, the threads joined, exit status 0.
 - `Cargo.toml` (workspace): UPDATE, `[profile.release] panic = "abort"`.
 - `packaging/systemd/opendeepcool.service`: CREATE.
   - `Type=notify`, `NotifyAccess=main`, `WatchdogSec=15`;
@@ -630,7 +630,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - everyone may call the main interface at the main object path, and introspect it. The service checks every caller itself with polkit, because a D-Bus policy can't tell sessions apart;
   - only group `opendeepcool` may send to the dev object path;
   - nothing else is allowed for this destination.
-- `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26).
+- `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: CREATE. `use` and `change-settings`, each `allow_active` yes, `allow_inactive` no, `allow_any` no (PRD; owner, 2026-10-26). Both name the service's account as their owner, `<annotate key="org.freedesktop.policykit.owner">unix-user:opendeepcool</annotate>`: polkit lets only root, or an action's owner, ask whether a client of another user is authorized (polkit(8)), so without it every check fails and nothing can be changed or read over D-Bus (owner, 2026-10-29).
 - `packaging/sysusers/opendeepcool.conf`: UPDATE. `g` becomes `u! opendeepcool - "OpenDeepCool display service"`, with no login and no home.
 - `tools/dev/opendeepcool-dev.conf`: CREATE, the drop-in that runs the dev binary with `--dev`, installed as `/etc/systemd/system/opendeepcool.service.d/dev.conf`. Never packaged. With `--dev`, the recording writes each report with its tick number and write time (Task 9). If the product keeps `UMask=0077` and `StateDirectoryMode=0700` (P7-09), the drop-in relaxes them to `0027` and `0750`, so the tests, which run as the owner in group `opendeepcool`, can read the recording.
 - `tools/dev/opendeepcool-gpu-rank-dev.conf`: CREATE, the drop-in that runs the dev build of Phase 6's GPU-rank helper, installed as `/etc/systemd/system/opendeepcool-gpu-rank.service.d/dev.conf` (owner, 2026-10-29). Never packaged. The detection one-shot stays out of the dev copy: it runs as root and changes `/etc`, it ran once by hand on the owner's PC (Phase 6 Task 10), and the package brings it (Phase 11).
@@ -646,6 +646,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `systemd-analyze verify packaging/systemd/opendeepcool.service` passes.
 - A unit test reads `opendeepcool.service` and checks the supervision values: `Type=notify`, `WatchdogSec=15`, `StartLimitIntervalSec=0`, `RestartSteps=5`, `RestartMaxDelaySec=30`. It also checks the ordering: `After=` the rank helper and `lm_sensors.service`, never the detection (P6-02, P6-04).
 - `systemd-analyze security opendeepcool.service` on the dev copy gives an exposure level of "OK" or better. The output is pasted into the task's report, and any setting that can't be tightened is explained there.
+- A unit test reads the polkit policy: both actions, each `allow_active` yes, `allow_inactive` no and `allow_any` no, and each owned by `unix-user:opendeepcool`.
 - `xmllint --noout` on the D-Bus and polkit files. They're validated against their DTDs where the DTDs are installed; otherwise the check is "well-formed" only, and the report says so.
 
 **Validation**
@@ -793,6 +794,8 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | The dev service holds the cooler from boot (Task 8) | The direct checks hold a test session that releases the cooler (owner, 2026-10-29) | Task 7, `ReleaseCooler()`; a killed check ends its session with its connection | Two writers would interleave frames, and the direct checks would fail |
 | The GPU-rank helper in the dev copy (owner, 2026-10-29) | Installed and pulled in like the product's; the detection stays out | Task 8 | Without a ranking, the owner's GPU stays unranked and its Gpu power is withheld as "kind unknown" until Phase 11 |
 | Task 7's D-Bus tests need a bus (owner, 2026-10-29) | A private `dbus-daemon` per test, started without root; the fake-polkit test stays peer-to-peer | zbus 6.2 sets a message's sender only from the unique name a bus gave the connection (`src/connection/mod.rs`, read 2026-10-29), so peer-to-peer messages carry none | Over peer-to-peer, the service would have to accept calls with no sender, which the system bus never sends |
+| polkit refuses a non-root service's checks (owner, 2026-10-29) | Both actions name `unix-user:opendeepcool` as their owner (`org.freedesktop.policykit.owner`) | polkit(8): without the annotation only root may ask about a client of another user; reproduced on 2026-10-29: "Only trusted callers (e.g. uid 0 or an action owner) can use CheckAuthorization() for subjects belonging to other identities" | Every D-Bus call would be refused: nothing changed or read, only the default picture shown |
+| Stopping on SIGTERM (owner, 2026-10-29) | `signal-hook` 0.4 catches it; the service releases its name, flushes the dev recording, joins its threads and exits 0 | std can't catch signals and the workspace forbids unsafe code; `signal-hook` (MIT OR Apache-2.0) and `signal-hook-registry` (MIT OR Apache-2.0), which tokio and smol's `async-signal` build on (crates.io, 2026-10-29) | Without a handler the kernel ends the service at once, and the dev recording loses its last second |
 
 ## Agent Notes
 
