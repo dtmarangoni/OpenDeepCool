@@ -1,12 +1,13 @@
-//! What the service knows about itself, for its D-Bus side and journal (Phase 7 plan, Task 6):
-//! the link to the cooler, the settings in force, which modes can be shown, each metric's
-//! binding, the GPUs and fan inputs found, and the fans' speeds. The engine, device and sensor
-//! threads each write their part; the D-Bus side only reads (one `Arc<RwLock<Status>>`).
+//! What the service knows about itself, for its D-Bus side and journal (Phase 7 plan, Tasks 6
+//! and 7): the link to the cooler, which modes can be shown, each metric's binding and reading,
+//! the GPUs and fan inputs found, and the dev copy's release and override. The engine, device and
+//! sensor threads each write their part; the D-Bus side only reads (one `Arc<RwLock<Status>>`).
+//! The settings aren't here: the D-Bus side keeps the saved ones itself.
 
 use std::path::Path;
 
 use odc_device::Link;
-use odc_sensors::{Binding, Fan, FanInput, Gpu, Metric, RANK_FILE, gpus, review_ranking};
+use odc_sensors::{Binding, FanInput, Gpu, Metric, RANK_FILE, Snapshot, gpus, review_ranking};
 
 use crate::engine::{Availability, Engine};
 use crate::settings::Settings;
@@ -15,24 +16,36 @@ use crate::settings::Settings;
 pub struct Status {
     /// The link after the last write; `None` before the first.
     pub link: Option<Link>,
-    pub settings: Settings,
+    /// A test holds the cooler (the dev copy only).
+    pub released: bool,
     pub availability: Availability,
     pub bindings: Vec<(Metric, Binding)>,
     pub gpus: Vec<Gpu>,
     pub fan_inputs: Vec<FanInput>,
-    pub cooler_fans: Option<Fan>,
-    pub pump: Option<Fan>,
+    /// The readings drawn; `None` before the engine's first tick.
+    pub snapshot: Option<Snapshot>,
+    /// The last readings override the engine took: its number and its tick.
+    pub adopted: Option<(u64, u64)>,
 }
 
 impl Status {
-    /// The engine's part, after a tick.
-    pub fn from_engine(&mut self, engine: &Engine) {
-        if self.settings != *engine.settings() {
-            self.settings = engine.settings().clone();
+    /// The engine's part, after a tick; whether any of it changed.
+    pub fn from_engine(&mut self, engine: &Engine) -> bool {
+        let availability = engine.availability();
+        let mut changed = false;
+        if self.availability != availability {
+            self.availability = availability;
+            changed = true;
         }
-        self.availability = engine.availability();
-        self.cooler_fans = Some(engine.snapshot().cooler_fans.clone());
-        self.pump = Some(engine.snapshot().pump.clone());
+        if self.snapshot.as_ref() != Some(engine.snapshot()) {
+            self.snapshot = Some(engine.snapshot().clone());
+            changed = true;
+        }
+        if self.adopted != engine.adopted() {
+            self.adopted = engine.adopted();
+            changed = true;
+        }
+        changed
     }
 }
 

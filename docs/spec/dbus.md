@@ -117,6 +117,8 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `…Error.TooManyWatchers` | The caller's user already has 8 watchers, or there are 32 in all |
 | `…Error.Busy` | The dev copy only: a test session holds the service ("a test is running on this dev copy") |
 
+A failure inside the service, such as a settings file it can't write, gets zbus's own `org.freedesktop.zbus.Error` with the reason, and a line in the journal; nothing is changed.
+
 ## Dev interface
 
 Only when the service starts with `--dev`, which only the dev copy's drop-in passes; the packaged unit never does (owner, 2026-10-26; solution review OV-13).

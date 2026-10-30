@@ -17,14 +17,16 @@ use crate::settings::Settings;
 /// review P6-04): 1 200 ticks of 100 ms.
 pub const LATE_SOURCE_TICKS: u64 = 1200;
 
-/// What the D-Bus side posts for the engine: the newest complete settings, Refresh, and a
-/// wake-up from standby. A newer post replaces an older one not yet taken, so only the newest
-/// settings matter (owner, 2026-10-27; solution review P7-15); the flags add up.
+/// What the D-Bus side posts for the engine: the newest complete settings, Refresh, a wake-up
+/// from standby, and the dev copy's readings override. A newer post replaces an older one not yet
+/// taken, so only the newest settings and override matter (owner, 2026-10-27; solution review
+/// P7-15); the flags add up.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Apply {
     pub settings: Option<Settings>,
     pub refresh: bool,
     pub wake: bool,
+    pub readings: Option<Override>,
 }
 
 impl Apply {
@@ -34,8 +36,19 @@ impl Apply {
             settings: newer.settings.or(self.settings),
             refresh: self.refresh || newer.refresh,
             wake: self.wake || newer.wake,
+            readings: newer.readings.or(self.readings),
         }
     }
+}
+
+/// The dev copy's readings override (`docs/spec/dbus.md`, Dev interface), numbered so the D-Bus
+/// side learns the tick that took it, even when a newer one replaced it first.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Override {
+    pub id: u64,
+    /// The seven metrics' readings, from the tick that takes it until a clear; `None` clears it.
+    /// The fans in it are ignored: they keep their real readings.
+    pub readings: Option<Snapshot>,
 }
 
 /// A snapshot the sensor thread published.
@@ -96,7 +109,13 @@ pub struct Tick {
 /// The engine's state: the settings in force, the readings drawn, and the movement.
 pub struct Engine {
     settings: Settings,
+    /// The readings drawn: the real ones, or the override's metrics with the real fans.
     snapshot: Snapshot,
+    /// The last real snapshot.
+    real: Snapshot,
+    overridden: Option<Snapshot>,
+    /// The last override taken: its number and its tick.
+    adopted: Option<(u64, u64)>,
     marquee: Marquee,
     /// The next tick's number.
     tick: u64,
@@ -109,7 +128,7 @@ pub struct Engine {
 
 /// The mode the engine draws for the saved one: the saved mode when this build draws it, mode 1
 /// otherwise, which only a downgrade can bring about.
-fn shown_mode(settings: &Settings) -> Mode {
+pub(crate) fn shown_mode(settings: &Settings) -> Mode {
     Mode::new(settings.mode)
         .filter(|&mode| draws(mode))
         .or_else(|| Mode::new(1))
@@ -119,6 +138,15 @@ fn shown_mode(settings: &Settings) -> Mode {
 fn picture_of(settings: &Settings, snapshot: &Snapshot) -> Picture {
     let unit: Unit = settings.temperature_unit.into();
     picture(shown_mode(settings), &Values::of(snapshot), unit).expect("a drawn mode")
+}
+
+/// The override's metrics with the real snapshot's fans.
+fn overlay(readings: &Snapshot, real: &Snapshot) -> Snapshot {
+    Snapshot::new(
+        |metric| readings.get(metric).clone(),
+        real.cooler_fans.clone(),
+        real.pump.clone(),
+    )
 }
 
 fn rotation(settings: &Settings) -> Rotation {
@@ -132,7 +160,10 @@ impl Engine {
         Engine {
             marquee: Marquee::new(picture_of(&settings, &snapshot)),
             settings,
+            real: snapshot.clone(),
             snapshot,
+            overridden: None,
+            adopted: None,
             tick: 0,
             since: 0,
             waiting: None,
@@ -153,6 +184,11 @@ impl Engine {
         shown_mode(&self.settings)
     }
 
+    /// The last readings override the engine took: its number and the tick it took effect.
+    pub fn adopted(&self) -> Option<(u64, u64)> {
+        self.adopted
+    }
+
     /// One tick: adopt what arrived, reset or update the picture, then draw unless the deadline
     /// was missed. A missed tick draws nothing and doesn't move the strip (S22).
     pub fn tick(
@@ -163,7 +199,14 @@ impl Engine {
     ) -> Tick {
         let mut requests = Requests::default();
         let mut reset = false;
+        let mut drawn = None;
         if let Some(apply) = apply {
+            if let Some(change) = apply.readings {
+                // From this tick, not the next snapshot (Phase 7 plan, Task 9).
+                self.adopted = Some((change.id, self.tick));
+                self.overridden = change.readings;
+                drawn = Some(self.drawn());
+            }
             if apply.wake {
                 self.since = self.tick;
                 requests.restart = true;
@@ -192,14 +235,18 @@ impl Engine {
                 requests.snapshot = Some(self.requests);
             }
         }
-        let mut changed = false;
         if let Some(published) = published {
             if self.waiting.is_some_and(|id| published.answers >= id) {
                 self.waiting = None;
                 reset = true;
             }
-            changed = published.snapshot != self.snapshot;
-            self.snapshot = published.snapshot;
+            self.real = published.snapshot;
+            drawn = Some(self.drawn());
+        }
+        let mut changed = false;
+        if let Some(drawn) = drawn {
+            changed = drawn != self.snapshot;
+            self.snapshot = drawn;
         }
         let picture = picture_of(&self.settings, &self.snapshot);
         if reset {
@@ -214,6 +261,14 @@ impl Engine {
             number,
             frame,
             requests,
+        }
+    }
+
+    /// The readings to draw: the real ones, or the override's metrics with the real fans.
+    fn drawn(&self) -> Snapshot {
+        match &self.overridden {
+            Some(readings) => overlay(readings, &self.real),
+            None => self.real.clone(),
         }
     }
 

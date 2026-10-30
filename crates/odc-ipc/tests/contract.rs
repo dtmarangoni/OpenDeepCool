@@ -205,6 +205,31 @@ fn merging_takes_only_the_keys_sent() {
     assert_eq!(state, want);
 }
 
+#[test]
+fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
+    let older = full();
+    let newer = State {
+        rotation: Some(1),
+        pump_rpm: Some(FanSpeed::Rpm(2900)),
+        ..full()
+    };
+    let changes = newer.changed_since(&older);
+    assert_eq!(
+        changes,
+        State {
+            rotation: Some(1),
+            pump_rpm: Some(FanSpeed::Rpm(2900)),
+            ..State::default()
+        }
+    );
+    let mut merged = older.clone();
+    merged.merge(changes);
+    assert_eq!(merged, newer);
+    assert!(newer.changed_since(&newer).is_empty());
+    // From nothing, every key present is a change.
+    assert_eq!(full().changed_since(&State::default()), full());
+}
+
 // docs/spec/dbus.md, State: the table the settings app's design reads lists exactly these keys,
 // in this order, each with its type.
 #[test]

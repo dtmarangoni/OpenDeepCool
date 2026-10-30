@@ -14,7 +14,7 @@ use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
 use std::sync::{Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use odc_device::{Connector, DisplayPort, Link, Lp360};
+use odc_device::{Connector, DisplayPort, Link, Lp360, RecordingHandle};
 use odc_protocol::Frame;
 use odc_sensors::{Binding, Clock, FanInput, Gpu, Metric, PciAddr, Readings, Registry, Snapshot};
 
@@ -200,23 +200,70 @@ pub fn run_engine(
 /// The device thread's work: it owns the cooler and writes each frame it's given.
 pub struct Device<C: Connector> {
     lp360: Lp360<C>,
+    /// The dev copy's recording, told each frame's tick.
+    recording: Option<RecordingHandle>,
+    /// A test holds the cooler: nothing is written (owner, 2026-10-29).
+    released: bool,
 }
 
 impl<C: Connector> Device<C> {
     pub fn new(lp360: Lp360<C>) -> Self {
-        Device { lp360 }
+        Device {
+            lp360,
+            recording: None,
+            released: false,
+        }
     }
 
-    /// Writes `frame`; returns the link, and whether it changed since the last write.
-    pub fn write(&mut self, frame: &Frame) -> (Link, bool) {
+    /// The dev copy's: `lp360` writes through a recording, which this handle tells each frame's
+    /// tick, and flushes once a second.
+    pub fn recorded(lp360: Lp360<C>, recording: RecordingHandle) -> Self {
+        Device {
+            recording: Some(recording),
+            ..Device::new(lp360)
+        }
+    }
+
+    /// Writes `frame`, tick `tick`'s; returns the link, and whether it changed since the last
+    /// write. Nothing is written while a test holds the cooler.
+    pub fn write(&mut self, tick: u64, frame: &Frame) -> Option<(Link, bool)> {
+        if self.released {
+            return None;
+        }
+        if let Some(recording) = &self.recording {
+            recording.set_tick(tick);
+        }
         let link = self.lp360.show(frame);
-        (link, self.lp360.state_changed())
+        Some((link, self.lp360.state_changed()))
     }
 
     /// After a wake-up from standby: a new conversation, `03 08` first, even when the device
     /// node survived (owner, 2026-10-26).
     pub fn wake(&mut self) {
         self.lp360.reset_connection();
+    }
+
+    /// Hands the cooler to a test: the connection closes, and nothing is written until
+    /// [`Device::resume`], whose next frame starts a new conversation, `03 08` first (owner,
+    /// 2026-10-29).
+    pub fn release(&mut self) {
+        self.lp360.reset_connection();
+        self.released = true;
+    }
+
+    pub fn resume(&mut self) {
+        self.released = false;
+    }
+
+    pub fn released(&self) -> bool {
+        self.released
+    }
+
+    /// Flushes the recording once a second.
+    pub fn flush_if_due(&self) {
+        if let Some(recording) = &self.recording {
+            recording.flush_if_due();
+        }
     }
 
     pub fn lp360(&self) -> &Lp360<C> {
@@ -228,27 +275,58 @@ impl<C: Connector> Device<C> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum DeviceControl {
     Wake,
+    /// The dev copy only: a test session takes the cooler, and gives it back (owner, 2026-10-29).
+    Release,
+    Resume,
+}
+
+/// What the device thread reports.
+#[derive(Debug, PartialEq, Eq)]
+pub enum DeviceEvent<'a> {
+    /// Tick `tick`'s frame was written, or tried: the link, and whether it changed.
+    Written {
+        tick: u64,
+        link: &'a Link,
+        changed: bool,
+    },
+    /// The cooler was handed to a test, `true`, or taken back.
+    Released(bool),
 }
 
 /// The device thread: the newest frame from `frames`, written as it comes; a frame posted during
-/// a slow write replaces the unsent one. `on_write` gets each written frame's tick, the link, and
-/// whether the link changed.
+/// a slow write replaces the unsent one. `on_event` gets each written frame and each release.
 pub fn run_device<C: Connector>(
     device: &mut Device<C>,
     frames: &Slot<(u64, Frame)>,
     control: &Receiver<DeviceControl>,
     progress: &Progress,
-    on_write: &mut dyn FnMut(u64, &Link, bool),
+    on_event: &mut dyn FnMut(DeviceEvent<'_>),
     stop: &AtomicBool,
 ) {
     while !stop.load(Ordering::Relaxed) {
-        while let Ok(DeviceControl::Wake) = control.try_recv() {
-            device.wake();
+        while let Ok(order) = control.try_recv() {
+            match order {
+                DeviceControl::Wake => device.wake(),
+                DeviceControl::Release => {
+                    device.release();
+                    on_event(DeviceEvent::Released(true));
+                }
+                DeviceControl::Resume => {
+                    device.resume();
+                    on_event(DeviceEvent::Released(false));
+                }
+            }
         }
-        if let Some((tick, frame)) = frames.wait(TICK) {
-            let (link, changed) = device.write(&frame);
-            on_write(tick, &link, changed);
+        if let Some((tick, frame)) = frames.wait(TICK)
+            && let Some((link, changed)) = device.write(tick, &frame)
+        {
+            on_event(DeviceEvent::Written {
+                tick,
+                link: &link,
+                changed,
+            });
         }
+        device.flush_if_due();
         progress.device(Instant::now());
     }
 }

@@ -17,8 +17,8 @@ use odc_sensors::fake::{FakeClock, FakeReadings};
 use odc_sensors::{Binding, Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Choices, Engine, Published, Requests};
 use odc_service::runtime::{
-    Device, DeviceControl, Outputs, Progress, SensorLoop, SensorRequest, Sensors, Slot,
-    SystemTicker, TICK, Ticker, run_device, run_engine, run_sensors,
+    Device, DeviceControl, DeviceEvent, Outputs, Progress, SensorLoop, SensorRequest, Sensors,
+    Slot, SystemTicker, TICK, Ticker, run_device, run_engine, run_sensors,
 };
 use odc_service::settings::Settings;
 
@@ -327,14 +327,17 @@ fn the_tick_never_waits_for_a_slow_write_or_snapshot() {
                 written,
                 first: true,
             }));
-            let mut on_write =
-                |tick: u64, _: &Link, _: bool| ticks.lock().expect("ticks").push(tick);
+            let mut on_event = |event: DeviceEvent<'_>| {
+                if let DeviceEvent::Written { tick, .. } = event {
+                    ticks.lock().expect("ticks").push(tick);
+                }
+            };
             run_device(
                 &mut device,
                 &frames,
                 &control,
                 &progress,
-                &mut on_write,
+                &mut on_event,
                 &stop,
             );
         })
@@ -424,7 +427,7 @@ fn start_up_sends_03_08_then_the_saved_mode() {
     };
     let mut engine = Engine::new(saved.clone(), usage(42));
     let first = engine.tick(None, None, false).frame.expect("a frame");
-    assert_eq!(device.write(&first).0, Link::Connected);
+    assert_eq!(device.write(0, &first).expect("written").0, Link::Connected);
     let got = connections(&log);
     assert_eq!(got.len(), 1);
     assert!(got[0].0, "03 08 first");
@@ -454,7 +457,10 @@ fn a_reconnect_starts_with_03_08_and_the_strip_follows_the_ticks() {
     let log = connector.log();
     let mut device = Device::new(Lp360::new(connector));
     let frames = scrolling(30);
-    let links: Vec<Link> = frames.iter().map(|f| device.write(f).0).collect();
+    let links: Vec<Link> = (0..)
+        .zip(&frames)
+        .map(|(tick, f)| device.write(tick, f).expect("written").0)
+        .collect();
     // 03 08 and 5 frames, a failed write, 4 ticks away, then back.
     assert!(links[..5].iter().all(|l| *l == Link::Connected));
     assert!(
@@ -500,10 +506,10 @@ fn a_wake_up_starts_a_new_conversation_and_new_intervals() {
     let mut sensors = SensorLoop::new(FakeSensors(Arc::clone(&readings)));
     let mut engine = Engine::new(Settings::default(), usage(100));
     let mut alone = Engine::new(Settings::default(), usage(100));
-    for _ in 0..7 {
+    for tick in 0..7 {
         let f = engine.tick(None, None, false).frame.expect("a frame");
         alone.tick(None, None, false);
-        device.write(&f);
+        device.write(tick, &f);
     }
     // The wake-up: the D-Bus side tells the device and sensor threads, and the engine.
     device.wake();
@@ -525,7 +531,7 @@ fn a_wake_up_starts_a_new_conversation_and_new_intervals() {
         alone.tick(None, None, false).frame.expect("a frame"),
         "it continues"
     );
-    device.write(&frame);
+    device.write(7, &frame);
     let got = connections(&log);
     assert_eq!(got.len(), 2, "a new conversation");
     assert!(
@@ -570,9 +576,9 @@ fn a_wake_up_without_a_cooler_changes_nothing_on_the_device() {
     let log = connector.log();
     let mut device = Device::new(Lp360::new(connector));
     let frames = scrolling(3);
-    device.write(&frames[0]);
+    device.write(0, &frames[0]);
     device.wake();
-    let (link, changed) = device.write(&frames[1]);
+    let (link, changed) = device.write(1, &frames[1]).expect("tried");
     assert!(matches!(link, Link::Disconnected(_)));
     assert!(!changed, "still away, no new state");
     assert!(log.connections().is_empty());

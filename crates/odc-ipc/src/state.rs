@@ -366,4 +366,39 @@ impl State {
             pump_rpm
         );
     }
+
+    /// The keys whose value differs from `older`'s, as the service sends them in `StateChanged`;
+    /// merging the result into `older` gives `self` back.
+    pub fn changed_since(&self, older: &State) -> State {
+        let mut changes = State::default();
+        macro_rules! keep {
+            ($($field:ident),+) => {
+                $(if self.$field != older.$field {
+                    changes.$field = self.$field.clone();
+                })+
+            };
+        }
+        keep!(
+            mode,
+            rotation,
+            temperature_unit,
+            cooler_connected,
+            cooler_state,
+            available_modes,
+            unavailable_reasons,
+            gpus,
+            chosen_gpu,
+            fan_inputs,
+            cooler_fan_input,
+            pump_input,
+            cooler_fan_rpm,
+            pump_rpm
+        );
+        changes
+    }
+
+    /// Whether no key is present.
+    pub fn is_empty(&self) -> bool {
+        *self == State::default()
+    }
 }

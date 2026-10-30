@@ -1,6 +1,7 @@
-//! The capture-log reader. One message per line, `<unix ns> <pid> <tid> <dir> <len> <hex>`: the
-//! format of the research logger's captures, which the recording wrapper writes too (Phase 5
-//! plan, Tasks 5 and 6). A malformed line panics, naming its file and line.
+//! The capture-log readers. The research logger's captures hold one message per line,
+//! `<unix ns> <pid> <tid> <dir> <len> <hex>` (Phase 5 plan, Task 5). The recording wrapper writes
+//! `<ns> <tick> out 64 <hex>`: its time is monotonic and its tick the engine's (Phase 7 plan,
+//! Task 7). A malformed line panics, naming its file and line.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -111,4 +112,56 @@ mod tests {
             assert!(error.contains(reason), "{text:?}: {error}");
         }
     }
+}
+
+/// One report of a recording.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Recorded {
+    /// The line it was on, from 1.
+    pub line: usize,
+    /// Its write time, in ns since the recording began, on the monotonic clock.
+    pub ns: u64,
+    /// The engine's tick whose frame was being written.
+    pub tick: u64,
+    pub bytes: Vec<u8>,
+}
+
+/// Reads a recording the wrapper wrote, one report per line.
+///
+/// # Panics
+///
+/// When the file can't be opened or read, or a line is malformed, naming the file and line.
+pub fn read_recording(path: impl AsRef<Path>) -> impl Iterator<Item = Recorded> {
+    let path = path.as_ref().to_path_buf();
+    let file = File::open(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
+    BufReader::new(file)
+        .lines()
+        .enumerate()
+        .map(move |(i, text)| {
+            let line = i + 1;
+            let text = text.unwrap_or_else(|e| panic!("{}:{line}: {e}", path.display()));
+            let fail = |why: String| -> ! { panic!("{}:{line}: {why}", path.display()) };
+            let fields: Vec<&str> = text.split(' ').collect();
+            let [ns, tick, dir, len, hex] = fields.as_slice() else {
+                fail(format!("{} fields, not 5: {text:?}", fields.len()));
+            };
+            if *dir != "out" || *len != "64" || hex.len() != 128 {
+                fail(format!("not `out 64` and 64 bytes: {text:?}"));
+            }
+            let number = |field: &str, what: &str| {
+                field
+                    .parse::<u64>()
+                    .unwrap_or_else(|_| fail(format!("{field:?} isn't {what}")))
+            };
+            let bytes = (0..64)
+                .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16))
+                .collect::<Result<Vec<u8>, _>>()
+                .unwrap_or_else(|_| fail(format!("{hex:?} isn't hex")));
+            Recorded {
+                line,
+                ns: number(ns, "a time in ns"),
+                tick: number(tick, "a tick"),
+                bytes,
+            }
+        })
 }

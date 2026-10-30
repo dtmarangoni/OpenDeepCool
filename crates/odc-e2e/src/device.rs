@@ -86,7 +86,7 @@ pub(crate) fn recording_path(out_dir: &Path, name: &str) -> Result<PathBuf, Stri
 }
 
 pub(crate) fn read_recording(path: &Path) -> Result<Vec<Message>, String> {
-    capture::read(path)
+    capture::read_recording(path)
         .map(|c| {
             let bytes: [u8; 64] = c
                 .bytes

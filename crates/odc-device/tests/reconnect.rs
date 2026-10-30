@@ -152,7 +152,7 @@ fn the_recording_holds_exactly_the_successful_writes_in_order() {
         lp360.show(&frame(n));
     }
     assert_eq!(lp360.connector().failure(), None);
-    let recorded: Vec<Message> = capture::read(&path)
+    let recorded: Vec<Message> = capture::read_recording(&path)
         .map(|c| {
             let bytes: [u8; 64] = c.bytes.as_slice().try_into().expect("64 bytes");
             decode(&bytes).expect("a documented message")

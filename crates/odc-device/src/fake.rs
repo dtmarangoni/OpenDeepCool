@@ -88,6 +88,12 @@ pub struct FakeTransport {
     log: FakeLog,
 }
 
+impl Drop for FakeTransport {
+    fn drop(&mut self) {
+        self.log.closes.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
 impl Transport for FakeTransport {
     fn write_report(&mut self, report: &Report) -> io::Result<()> {
         match &mut self.writes_left {
@@ -105,6 +111,7 @@ impl Transport for FakeTransport {
 pub struct FakeLog {
     connections: Arc<Mutex<Vec<Vec<Report>>>>,
     connects: Arc<AtomicUsize>,
+    closes: Arc<AtomicUsize>,
 }
 
 impl FakeLog {
@@ -126,5 +133,11 @@ impl FakeLog {
     /// How many times `connect` was called.
     pub fn connect_calls(&self) -> usize {
         self.connects.load(Ordering::Relaxed)
+    }
+
+    /// How many connections are open: opened and not yet dropped.
+    pub fn open(&self) -> usize {
+        let opened = self.connections.lock().expect("the fake's log").len();
+        opened - self.closes.load(Ordering::Relaxed)
     }
 }
