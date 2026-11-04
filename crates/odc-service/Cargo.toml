@@ -23,6 +23,9 @@ zbus = "6"
 odc-gpu-rank = { path = "../odc-gpu-rank" }
 odc-manifest = { path = "../odc-manifest" }
 odc-testkit = { path = "../odc-testkit" }
+# The panic test's child turns its core dump off (owner, 2026-11-04); already in the tree through
+# zbus.
+rustix = { version = "1", features = ["process"] }
 # The fake polkit runs on a peer-to-peer connection (Phase 7 plan, Task 7); no new crate.
 zbus = { version = "6", features = ["p2p"] }
 

@@ -498,7 +498,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - **Timing:** 50 ticks → exactly 50 frames, at `start + n × 100 ms`. A tick delayed 250 ms produces one frame, and later deadlines stay on the grid.
 - **The tick never waits:** a fake device whose write sleeps 5 s, and a fake registry whose snapshot sleeps 2 s, leave every tick on its 100 ms grid. Frames posted during the slow write replace each other in the mailbox, and the device thread then writes the newest one.
 - **Watchdog:** a fake device thread that stops progressing makes the engine stop sending `WATCHDOG=1` within 10 s; a slow but progressing one doesn't.
-- **Panic:** a renderer that panics ends the process with `SIGABRT` (run in a child process).
+- **Panic:** a renderer that panics ends the process with `SIGABRT` (run in a child process). The child first turns its own core dump off (`rustix::process::set_dumpable_behavior`, owner 2026-11-04), so a run leaves no core and raises no crash notification; it still dies by `SIGABRT`, and the test fails if it doesn't.
 - **Refresh:** the reset lands on the first tick after the fresh snapshot.
 - **Start-up:** the reports are `03 08`, then the saved mode's picture in the first frame.
 - **Scenarios S14–S18 and S21–S26 for modes 1–6**, from `scenarios/load.txt` (Task 1), driven through the engine with the fakes, in all four rotations:

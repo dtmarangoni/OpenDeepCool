@@ -545,6 +545,7 @@ dependencies = [
  "odc-render",
  "odc-sensors",
  "odc-testkit",
+ "rustix",
  "serde",
  "signal-hook",
  "toml",

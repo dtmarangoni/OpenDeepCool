@@ -1,6 +1,8 @@
 //! A panic in the engine thread ends the whole process with SIGABRT, so systemd restarts the
 //! service instead of leaving it alive with a dead tick (Phase 7 plan, Task 6; solution review
-//! OV-03). The test runs itself again as a child, with `--panic-child`, and watches it die.
+//! OV-03). The test runs itself again as a child, with `--panic-child`, and watches it die. The
+//! child turns its own core dump off first, so the expected abort leaves no core file and raises
+//! no crash notification (owner, 2026-11-04); it still dies by SIGABRT.
 
 use std::os::unix::process::ExitStatusExt;
 use std::process::Command;
@@ -30,6 +32,8 @@ impl Outputs for Panics {
 }
 
 fn child() {
+    rustix::process::set_dumpable_behavior(rustix::process::DumpableBehavior::NotDumpable)
+        .expect("the child's core dump turned off");
     abort_on_panic();
     let engine = thread::spawn(|| {
         let snapshot = Snapshot::new(
