@@ -197,6 +197,7 @@ SystemCallErrorNumber=EPERM
 - **Evidence:** dbus-daemon(1) ("the interface field in messages is optional"; pair `send_interface` with `send_destination`).
 - **Recommendation:** pair interface and destination in every policy rule; give `.Dev` its own object path; check the caller's Unix user and group inside each `.Dev` method; test a call without an interface field.
 - **Outcome (2026-10-26):** accepted through OV-13. The in-method check uses `GetConnectionCredentials` `UnixGroupIDs` (absent means no), behind a `Credentials` trait.
+  - **Note (2026-11-04, owner):** the policy's catch-all deny names `send_type="method_call"`, so logind's broadcast `PrepareForSleep` still reaches the service (Phase 7 plan, Task 8; PRD Decisions Log).
 
 ### P7-05: Input validation
 
@@ -223,6 +224,7 @@ SystemCallErrorNumber=EPERM
 
 - **Recommendation:** try the additions above, one at a time, against `systemd-analyze security` and the layer 4 run; record each that had to be dropped and why.
 - **Outcome (2026-10-27):** accepted in Phase 7 Task 8, with two notes found at the cross-check: `UMask=0077` and `StateDirectoryMode=0700` would stop the dev tests, which run as the owner, from reading the recording, so the dev drop-in relaxes them to group-read if the product keeps them; and `ProtectProc=invisible` waits for P9-11, since Phase 9 logs the audio helper's unit from its process entry. The additions from OV-03 (`Type=notify`, the watchdog, the start limit) are already in the unit.
+  - **Note (2026-11-04, owner):** the additions are tried together, and bisected only on a failure, since each try is an install through `pkexec` (Phase 7 plan, Task 8; PRD Decisions Log).
 
 ### P7-10: Readiness and ordering
 
