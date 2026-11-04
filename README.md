@@ -14,7 +14,8 @@ Pre-alpha: planning and research. No installable app yet.
 - **Phase 4** (done, 2026-10-25): one implementation plan for each of Phases 5–11.
 - **Solution reviews** (done, 2026-10-27): every plan's [review](docs/prp/solution-reviews/README.md) was crossed with the owner, and the PRD, plans and spec follow the decisions.
 - **Phase 5** (done, 2026-10-28): the Rust workspace. Frames reach the cooler byte-exact, without root, and keep reaching it after a reconnect, all tested unattended on the real cooler. CI runs on every push. See [the report](docs/prp/reports/phase-5-device-protocol-core.report.md).
-- **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind, and a once-per-board detection loads the board's fan driver. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md). **Next, Phase 7**: the system service, its saved settings and Load.
+- **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind, and a once-per-board detection loads the board's fan driver. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md).
+- **Phase 7** (built 2026-11-04, awaiting sign-off): the MVP. A sandboxed system service shows Load on the cooler from boot, keeps its settings in one file, and takes changes over D-Bus, each checked with polkit. On the development PC, its end-to-end checks drive the real service through every Load mode and each scenario type a run can drive, unattended. **Next, Phase 8**: Temperature and Power.
 - **Releases** (Phase 12, after the package and its final validation in Phase 11): an alpha, then a beta, each a GitHub pre-release for one month and until its open bugs are fixed; then `v1.0.0`, on GitHub and the AUR.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.
@@ -71,6 +72,20 @@ cargo fmt --all --check
 ```
 
 `cargo run -p odc-oracle -- docs/spec/frames` rebuilds the expected frames from the spec's rules. The tests on the real cooler need access to it without root, and so do the tests that read the CPU's power counter: `cargo run -p odc-dev -- setup` sets both up with one `pkexec` step, `check` reports them and `teardown` removes them. `cargo run -p odc-e2e` then runs the end-to-end checks, on the real cooler when one is attached.
+
+From Phase 7, `odc-dev setup` also builds a development copy of the display service and installs it as `opendeepcool.service`, enabled at boot. It drives the cooler from then on, as the finished app will, and starts with `--dev`, which adds the test session the end-to-end checks use. Until the settings app exists (Phase 10), change its mode and rotation over D-Bus, and read its journal:
+
+```sh
+busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 \
+  io.github.dtmarangoni.OpenDeepCool1 SetMode u 4
+busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 \
+  io.github.dtmarangoni.OpenDeepCool1 SetRotation y 1
+busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 \
+  io.github.dtmarangoni.OpenDeepCool1 GetState
+journalctl -u opendeepcool
+```
+
+`cargo run -p odc-e2e -- --only service` drives the dev service through each Load mode and each scenario it can be driven through, unattended. It tests the installed copy, so run `odc-dev setup` again after changing the service. `--only baseline` measures its CPU and memory use over 10 minutes, and `--attended` is an optional tour to watch on the cooler.
 
 ## License
 

@@ -5,6 +5,7 @@
 //! because it touches real hardware when present.
 
 pub mod attended;
+pub mod baseline;
 pub mod device;
 pub mod gpu_rank;
 pub mod load;
@@ -26,7 +27,8 @@ pub const USAGE: &str = "usage: odc-e2e [--require <capability,...>] [--only <ar
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
                     gpu-load-tool, dev-service
   --only <area>     run one area's checks: device, load, gpu-rank, sensors,
-                    service
+                    service; or baseline, the dev service's resource use over
+                    10 minutes, which only runs when named
   --attended        the optional tour for you to watch on the cooler, through the
                     dev service: you answer each case; never a gate
   -h, --help        this text
@@ -47,6 +49,8 @@ pub enum Area {
     Sensors,
     /// The dev service's own checks (Phase 7 plan, Task 9).
     Service,
+    /// The resource baseline (Phase 7 plan, Task 10): only when named.
+    Baseline,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -83,6 +87,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                     "gpu-rank" => Area::GpuRank,
                     "sensors" => Area::Sensors,
                     "service" => Area::Service,
+                    "baseline" => Area::Baseline,
                     _ => return Err(format!("{area:?} isn't an area")),
                 });
             }
@@ -131,6 +136,9 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only.is_none_or(|area| area == Area::Service) {
         service::run(roots, tick, &mut summary);
+    }
+    if options.only == Some(Area::Baseline) {
+        baseline::run(roots, &mut summary);
     }
     summary
 }

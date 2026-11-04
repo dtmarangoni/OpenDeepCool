@@ -360,7 +360,7 @@ fn timing_fake(tick: Duration) -> Result<String, String> {
 }
 
 /// The writes' and the snapshots' durations since the session began.
-fn durations(session: &Session) -> Result<String, String> {
+pub(crate) fn durations(session: &Session) -> Result<String, String> {
     let (writes, snapshots) =
         zbus::block_on(session.dev().durations()).map_err(|e| format!("Durations: {e}"))?;
     if writes.is_empty() || snapshots.is_empty() {

@@ -41,6 +41,10 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         }))
     );
     assert_eq!(
+        parse_args(&args(&["--only", "baseline"])).map(|o| o.and_then(|o| o.only)),
+        Ok(Some(Area::Baseline))
+    );
+    assert_eq!(
         parse_args(&args(&["--only", "service", "--require", "dev-service"])),
         Ok(Some(Options {
             require: vec![Capability::DevService],
@@ -117,8 +121,9 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
     for check in ["test_images", "reconnect", "reset"] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
-    // The dev service's checks, in process (Phase 7 plan, Task 9).
+    // The dev service's checks, in process (Phase 7 plan, Task 9); the baseline only when named.
     assert!(table.contains("dev-service      fake"), "{table}");
+    assert!(!table.contains("baseline"), "{table}");
     for check in [
         "service_start",
         "service_timing",
