@@ -467,6 +467,7 @@ dependencies = [
  "odc-protocol",
  "odc-render",
  "odc-sensors",
+ "odc-service",
  "odc-testkit",
  "zbus",
 ]

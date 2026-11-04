@@ -34,6 +34,21 @@ fn flags_are_read_and_anything_unknown_is_refused() {
     assert_eq!(parse_args(&args(&[])), Ok(Some(Options::default())));
     assert_eq!(parse_args(&args(&["--help"])), Ok(None));
     assert_eq!(
+        parse_args(&args(&["--attended"])),
+        Ok(Some(Options {
+            attended: true,
+            ..Options::default()
+        }))
+    );
+    assert_eq!(
+        parse_args(&args(&["--only", "service", "--require", "dev-service"])),
+        Ok(Some(Options {
+            require: vec![Capability::DevService],
+            only: Some(Area::Service),
+            attended: false,
+        }))
+    );
+    assert_eq!(
         parse_args(&args(&[
             "--require",
             "lp360,lp360-reconnect",
@@ -43,6 +58,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         Ok(Some(Options {
             require: vec![Capability::Lp360, Capability::Lp360Reconnect],
             only: Some(Area::Device),
+            attended: false,
         }))
     );
     assert_eq!(
@@ -55,6 +71,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         Ok(Some(Options {
             require: vec![Capability::CpuTemp, Capability::BoardFans],
             only: Some(Area::Sensors),
+            attended: false,
         }))
     );
     assert_eq!(
@@ -67,6 +84,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         Ok(Some(Options {
             require: vec![Capability::GpuAmdgpu, Capability::GpuOther],
             only: Some(Area::GpuRank),
+            attended: false,
         }))
     );
     assert_eq!(
@@ -74,6 +92,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         Ok(Some(Options {
             require: vec![Capability::Lp360],
             only: Some(Area::Load),
+            attended: false,
         }))
     );
     for (bad, reason) in [
@@ -96,6 +115,22 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
     assert!(table.contains("lp360            fake"), "{table}");
     assert!(table.contains("lp360-reconnect  fake"), "{table}");
     for check in ["test_images", "reconnect", "reset"] {
+        assert!(table.contains(&format!("{check:<16} passed")), "{table}");
+    }
+    // The dev service's checks, in process (Phase 7 plan, Task 9).
+    assert!(table.contains("dev-service      fake"), "{table}");
+    for check in [
+        "service_start",
+        "service_timing",
+        "service_mode_1",
+        "service_mode_6",
+        "service_rotated",
+        "service_scrolling",
+        "service_dashes",
+        "service_S1",
+        "service_S18",
+        "service_S26",
+    ] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
     // Each Load mode drawn so far, through the fake cooler (Phase 7 plan, Task 3).
@@ -157,6 +192,7 @@ fn a_gpu_whose_kind_query_fails_fails_its_check_with_the_error() {
     let options = Options {
         require: Vec::new(),
         only: Some(Area::GpuRank),
+        attended: false,
     };
     let summary = run(&options, &t.roots(), &dir("gpu-query-fails"), TICK);
     let table = summary.table();
@@ -182,6 +218,7 @@ fn a_required_capability_that_is_absent_fails_the_run() {
     let options = Options {
         require: vec![Capability::Lp360],
         only: None,
+        attended: false,
     };
     let summary = run(&options, &t.roots(), &dir("required"), TICK);
     assert!(!summary.passed());

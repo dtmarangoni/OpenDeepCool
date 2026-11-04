@@ -13,6 +13,8 @@ odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-render = { path = "../odc-render" }
 odc-sensors = { path = "../odc-sensors" }
+# The engine and the start line's reader, for the service checks (Phase 7 plan, Task 9).
+odc-service = { path = "../odc-service" }
 odc-testkit = { path = "../odc-testkit" }
 # The dev service's test session, on the system bus (Phase 7 plan, Task 9).
 zbus = "6"

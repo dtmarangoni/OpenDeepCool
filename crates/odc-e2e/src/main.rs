@@ -23,6 +23,16 @@ fn main() -> ExitCode {
         }
     };
     let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/e2e");
+    if options.attended {
+        return match odc_e2e::attended::run(&Roots::system(), &out_dir) {
+            Ok(true) => ExitCode::SUCCESS,
+            Ok(false) => ExitCode::FAILURE,
+            Err(e) => {
+                eprintln!("odc-e2e: {e}");
+                ExitCode::from(2)
+            }
+        };
+    }
     let summary = odc_e2e::run(&options, &Roots::system(), &out_dir, TICK);
     print!("{}", summary.table());
     if summary.passed() {
