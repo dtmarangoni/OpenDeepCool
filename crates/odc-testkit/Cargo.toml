@@ -8,8 +8,11 @@ publish.workspace = true
 
 [dependencies]
 odc-device = { path = "../odc-device" }
+odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-sensors = { path = "../odc-sensors" }
+# The dev service's probe asks the system bus who owns its name (Phase 7 plan, Task 9).
+zbus = "6"
 
 [lints]
 workspace = true

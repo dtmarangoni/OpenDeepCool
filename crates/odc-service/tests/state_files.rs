@@ -38,6 +38,12 @@ fn names(dir: &Path) -> Vec<String> {
 #[test]
 fn every_file_the_service_and_its_helper_write_is_one_the_teardown_removes() {
     assert_eq!(STATE_DIR, odc_manifest::STATE_DIR);
+    // The end-to-end probe's copies (Phase 7 plan, Task 9).
+    assert_eq!(
+        Path::new(odc_testkit::hardware::DEV_RECORDING),
+        Path::new(STATE_DIR).join(RECORDING)
+    );
+    assert_eq!(odc_testkit::hardware::DEV_UNIT, odc_manifest::UNIT);
 
     // What stays: the settings and a refused copy, the ranking, and the recording rotated once.
     let dir = scratch("state-files");

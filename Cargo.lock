@@ -463,10 +463,12 @@ version = "0.0.0"
 dependencies = [
  "odc-device",
  "odc-gpu-rank",
+ "odc-ipc",
  "odc-protocol",
  "odc-render",
  "odc-sensors",
  "odc-testkit",
+ "zbus",
 ]
 
 [[package]]
@@ -557,8 +559,10 @@ name = "odc-testkit"
 version = "0.0.0"
 dependencies = [
  "odc-device",
+ "odc-ipc",
  "odc-protocol",
  "odc-sensors",
+ "zbus",
 ]
 
 [[package]]

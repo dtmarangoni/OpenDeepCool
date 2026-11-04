@@ -8,6 +8,7 @@ pub mod device;
 pub mod gpu_rank;
 pub mod load;
 pub mod sensors;
+pub mod session;
 
 use std::path::Path;
 use std::time::Duration;
@@ -19,12 +20,14 @@ pub const USAGE: &str = "usage: odc-e2e [--require <capability,...>] [--only <ar
   --require <list>  capabilities that must run real: lp360, lp360-reconnect,
                     cpu-temp, cpu-power, proc-stat, meminfo, gpu-amdgpu, gpu-i915,
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
-                    gpu-load-tool
+                    gpu-load-tool, dev-service
   --only <area>     run one area's checks: device, load, gpu-rank, sensors
   -h, --help        this text
 
 Each check probes the PC first: a device present and usable is tested for real,
 an absent one through fakes, and one present but unusable fails with its fix.
+While the dev service runs, the checks that write to the cooler themselves hold
+a test session that releases it, and the service takes it back afterwards.
 Don't run the research rig (DeepCreative) at the same time: it writes to the
 cooler too.";
 

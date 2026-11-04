@@ -271,10 +271,22 @@ fn capability_names_are_what_require_takes() {
         ("gpu-xe", Capability::GpuXe),
         ("gpu-nvidia", Capability::GpuNvidia),
         ("gpu-other", Capability::GpuOther),
+        ("dev-service", Capability::DevService),
     ] {
         assert_eq!(Capability::from_name(name), Some(capability));
         assert_eq!(capability.name(), name);
     }
     assert_eq!(Capability::from_name("lp36"), None);
     assert_eq!(Capability::from_name("gpu"), None);
+}
+
+#[test]
+fn a_fake_tree_has_no_dev_service() {
+    // No `systemctl` in the tree's bin: the probe never asks the real system about it.
+    let t = tree("no-dev-service");
+    t.hidraw(3, LP360_HID_ID).expect("a node");
+    assert!(matches!(
+        probe(Capability::DevService, &t.roots()),
+        Probe::Absent { .. }
+    ));
 }

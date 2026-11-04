@@ -7,6 +7,7 @@ use std::fs::{self, OpenOptions};
 use std::io::ErrorKind;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use odc_device::HidrawConnector;
 use odc_sensors::{NvmlSource, RealNvml, display_devices, fan_inputs, rapl_package_zones};
@@ -45,13 +46,16 @@ pub enum Capability {
     SensorsTool,
     /// `ffmpeg`, whose Vulkan filters load a GPU for the Gpu usage check.
     GpuLoadTool,
+    /// The dev copy of the display service (Phase 7 plan, Task 9): active, started with `--dev`,
+    /// owning its bus name, its recording readable by this account, and the LP360 usable.
+    DevService,
 }
 
 /// The drivers with a kind signal (`docs/spec/sensors.md`, GPU choice).
 const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
 
 impl Capability {
-    pub const ALL: [Capability; 14] = [
+    pub const ALL: [Capability; 15] = [
         Capability::Lp360,
         Capability::Lp360Reconnect,
         Capability::CpuTemp,
@@ -66,6 +70,7 @@ impl Capability {
         Capability::BoardFans,
         Capability::SensorsTool,
         Capability::GpuLoadTool,
+        Capability::DevService,
     ];
 
     /// The name `--require` takes.
@@ -85,6 +90,7 @@ impl Capability {
             Capability::BoardFans => "board-fans",
             Capability::SensorsTool => "sensors-tool",
             Capability::GpuLoadTool => "gpu-load-tool",
+            Capability::DevService => "dev-service",
         }
     }
 
@@ -265,7 +271,79 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
             "install lm-sensors: `sudo pacman -S lm_sensors`",
         ),
         Capability::GpuLoadTool => tool(roots, "ffmpeg", "install ffmpeg: `sudo pacman -S ffmpeg`"),
+        Capability::DevService => dev_service(roots),
     }
+}
+
+/// The dev copy's unit, which `odc-dev setup` installs.
+pub const DEV_UNIT: &str = "opendeepcool.service";
+
+/// The dev copy's frame recording: `odc_service::RECORDING` in its state directory.
+pub const DEV_RECORDING: &str = "/var/lib/opendeepcool/dev-frames.log";
+
+const SERVICE_FIX: &str = "run `cargo run -p odc-dev -- setup`; `cargo run -p odc-dev -- check` \
+                           says what's missing";
+
+/// The dev service, as `odc-dev check` finds it: its unit's state and main process from
+/// `<bin>/systemctl`, the process's arguments, the bus name's owner, and the recording. Where
+/// there's no `systemctl`, as in a fake tree, or no such unit, it's absent.
+fn dev_service(roots: &Roots) -> Probe {
+    let Ok(out) = Command::new(roots.bin.join("systemctl"))
+        .args(["show", "--property=LoadState,ActiveState,MainPID", DEV_UNIT])
+        .output()
+    else {
+        return absent("no systemctl to ask about the dev service");
+    };
+    let text = String::from_utf8_lossy(&out.stdout);
+    let value = |key: &str| {
+        text.lines()
+            .find_map(|line| line.strip_prefix(key)?.strip_prefix('='))
+            .unwrap_or("")
+            .to_owned()
+    };
+    if value("LoadState") != "loaded" {
+        return absent(&format!("the dev service ({DEV_UNIT}) isn't installed"));
+    }
+    let unusable = |reason: String| Probe::Unusable {
+        reason,
+        fix: SERVICE_FIX.to_owned(),
+    };
+    let state = value("ActiveState");
+    if state != "active" {
+        return unusable(format!("{DEV_UNIT} is {state}"));
+    }
+    let pid = value("MainPID");
+    let cmdline = roots.proc.join(&pid).join("cmdline");
+    match fs::read(&cmdline) {
+        Ok(args) if args.split(|b| *b == 0).any(|arg| arg == b"--dev") => {}
+        Ok(_) => {
+            return unusable(format!(
+                "{DEV_UNIT} runs without --dev: it's not the dev copy"
+            ));
+        }
+        Err(e) => return unusable(format!("{}: {e}", cmdline.display())),
+    }
+    if let Err(e) = bus_name_owner() {
+        return unusable(format!("{}: {e}", odc_ipc::BUS_NAME));
+    }
+    let recording = Path::new(DEV_RECORDING);
+    if let Err(e) = fs::File::open(recording) {
+        return unusable_with(recording, &e.to_string(), SETUP_FIX);
+    }
+    // Without a usable cooler, the real service has nothing to show: its checks run in-process.
+    probe(Capability::Lp360, roots)
+}
+
+/// The unique name that owns the service's bus name on the system bus.
+fn bus_name_owner() -> Result<String, String> {
+    zbus::block_on(async {
+        let connection = zbus::Connection::system().await?;
+        let dbus = zbus::fdo::DBusProxy::new(&connection).await?;
+        let name = zbus::names::BusName::try_from(odc_ipc::BUS_NAME)?;
+        let owner = dbus.get_name_owner(name).await?;
+        Ok::<String, zbus::Error>(owner.to_string())
+    })
+    .map_err(|e| e.to_string())
 }
 
 /// A tool in `<bin>`, which the checks start.
@@ -326,9 +404,13 @@ fn absent(reason: &str) -> Probe {
 }
 
 fn unusable(path: &Path, why: &str) -> Probe {
+    unusable_with(path, why, SETUP_FIX)
+}
+
+fn unusable_with(path: &Path, why: &str, fix: &str) -> Probe {
     Probe::Unusable {
         reason: format!("{}: {why}", path.display()),
-        fix: SETUP_FIX.to_owned(),
+        fix: fix.to_owned(),
     }
 }
 
