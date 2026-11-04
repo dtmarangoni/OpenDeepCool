@@ -263,7 +263,7 @@ flowchart LR
 | Concern | Decision and owned work |
 |---|---|
 | Rollout / reversibility | From Task 8 the dev copy drives the owner's cooler at every boot. `odc-dev teardown` removes it entirely, from the manifest. Every install or upgrade through `pkexec` is shown to the owner first (rule 7) |
-| Observability | The journal: start, bindings at start and on each rebind, cooler connect and disconnect with the reason (one line per change), each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
+| Observability | The journal: start, the first readings (owner, 2026-11-04), bindings at start and on each rebind, cooler connect and disconnect with the reason (one line per change), each wake-up from standby, rejected requests with the caller's reason, and settings file problems. Lines carry `sd-daemon` priority prefixes, so `journalctl -p` filters them |
 | Documentation | README: how to change the mode with `busctl` until Phase 10, and the journal command. AGENTS.md Commands: `--only load` (Task 3), `--only service` (Task 9), and the session the direct checks hold while the dev service runs (Task 7). PRD footprint: the dev copy rows already exist (2026-10-24), with the GPU-rank helper since 2026-10-29; add the D-Bus and polkit file names |
 
 ## Implementation
@@ -662,6 +662,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 - `crates/odc-e2e/src/service.rs`: CREATE, this phase's checks in the `odc-e2e` program (Phase 5 Task 9), run with `--only service`.
 - `crates/odc-e2e/src/device.rs` and `load.rs`: UPDATE. When `DevService` is Real, the direct checks hold a test session and call `ReleaseCooler()` first, and the session's drop guard ends it (owner, 2026-10-29).
 - `crates/odc-e2e/src/attended.rs`: CREATE, the attended tour behind the `--attended` flag.
+- `docs/spec/dbus.md`, `crates/odc-ipc/src/lib.rs`, `crates/odc-service/src/dbus.rs`: UPDATE, the dev interface's `Durations() → (at, at)` (owner, 2026-11-04): each frame write's and each snapshot's duration in µs since the test session began, the newest 100 000 of each. It needs the test session.
+- `crates/odc-device/src/record.rs`, `crates/odc-service/src/dbus.rs`: UPDATE. When a session that released the cooler ends, the recording keeps going until the first frame after the service's new `03 08`, then stops, so a run sees the service take the cooler back (owner, 2026-11-04).
+- `crates/odc-service/src/service.rs`: UPDATE, one Info line per start with the first snapshot's readings, exact (`first readings: CPU Temperature 45/1, …`), or each one's reason; product and dev alike (owner, 2026-11-04). The start check reads it.
 
 **Implementation**
 - **On the real cooler, one example of each mode and of each test type** (owner, 2026-10-26; solution review OV-04). The whole matrix and every scenario, at every position and in every rotation, run in-process in layers 1 and 3, where they take seconds; at the real 100 ms tick the whole cross would take many hours.
@@ -671,8 +674,9 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - for each of modes 1–6, one case (value set 2, rotation 0): `OverrideReadings`, then `SetMode` through `odc-ipc`'s proxy (the owner's active session passes polkit);
   - wait 3 ticks, then read the recorded frames since the call; the last 2 frames must match the expected case;
   - one example of each further type: a rotated case (`SetRotation`), a scrolling case (`100%`, its whole cycle), and one dash case of `unavailable.txt`.
-- **Durations:** with `--dev`, the device thread records each write's duration and the sensor thread each snapshot's. The summary prints their p50, p99 and maximum, and the report records them.
+- **Durations:** with `--dev`, the device thread records each write's duration and the sensor thread each snapshot's, and `Durations()` hands them over (owner, 2026-11-04). The summary prints their p50, p99 and maximum, and the report records them.
 - **Scenario examples** (`DevService` Real): one variant of each scenario type of `scenarios/load.txt` that applies to Load, in one mode and rotation 0, on the real, sandboxed service.
+  - Real wherever the run can drive the type, through D-Bus or, for S18's disconnect, the LP360's USB switch (owner, 2026-11-04). S17 is the start check below, since a restart needs root. S18's standby and S22 (a missed deadline) run in-process only, in layer 3. S25 runs real only on a PC with two GPUs. The summary names each type not run real, and why.
   - To line changes up with ticks exactly, the dev interface's `OverrideReadings` takes effect on the next tick (not the next snapshot) and returns that tick's number, and the dev recording writes each report with its tick number. Settings changes go through the normal methods, and their tick is read from the recording.
   - Every recorded frame from each change on must match the scenario's expected frame for that tick.
   - Unattended, every run; the summary prints the time it took.
@@ -688,13 +692,13 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - Later phases add one case of each of their modes and edge cases.
 - **Start check** (`DevService` Real; no reboot, owner 2026-10-25):
   - `systemctl is-enabled opendeepcool.service` is `enabled`, and the unit's `WantedBy=` is `multi-user.target` with no `After=`, `Requires=` or `Wants=` on a login, a session or `graphical.target`;
-  - in the running instance's recording (from its own start, whenever that was), the first report is `03 08` and the next is the saved mode's picture with the readings of that moment, its values checked against the journal's first snapshot line of that instance.
-  - Absent → it runs against a recorded journal and recording fixture and says so.
+  - in the running instance's recording (from its own start, whenever that was), the first report is `03 08` and the next is the saved mode's picture with the readings of that moment, its values checked against that instance's `first readings` journal line (Files above).
+  - Absent → it runs against a made-up journal and recording fixture, with fake chip names (rule 10: a recording from the owner's PC would name its drivers), and says so.
 
 **Validation**
 - `cargo run -p odc-e2e -- --only service`: passes, and prints the probe summary.
 - With `--require dev-service` on the owner's PC, the mode and scenario examples run real.
-- `cargo run -p odc-e2e -- --only device` and `--only load` pass while the dev service runs, and the service shows its mode again afterwards, `03 08` first.
+- `cargo run -p odc-e2e -- --only device` and `--only load` pass while the dev service runs, and the recording shows the service take the cooler back afterwards: `03 08`, then its first frame.
 - `cargo run -p odc-e2e -- --attended` works through the tour; the owner runs it when they want to look. The start check runs real once Task 8's dev copy is running.
 
 ### 10. Records, CI and the resource baseline
@@ -798,6 +802,10 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Stopping on SIGTERM (owner, 2026-10-29) | `signal-hook` 0.4 catches it; the service releases its name, flushes the dev recording, joins its threads and exits 0 | std can't catch signals and the workspace forbids unsafe code; `signal-hook` (MIT OR Apache-2.0) and `signal-hook-registry` (MIT OR Apache-2.0), which tokio and smol's `async-signal` build on (crates.io, 2026-10-29) | Without a handler the kernel ends the service at once, and the dev recording loses its last second |
 | The D-Bus policy's catch-all deny (owner, 2026-11-04) | It denies method calls only (`send_type="method_call"`); the listed calls are allowed, and signals pass as the system bus's default lets them | dbus-daemon(1): `send_destination` rules apply to the name's owner; `system.conf` already denies every method call no policy allows; the sleep watcher checks each signal's sender (Task 7) | A blanket deny could keep logind's broadcast `PrepareForSleep` from the service on dbus-broker, which only a real suspend could show |
 | The optional sandbox settings (owner, 2026-11-04) | All eight tried together; bisected only on a failure; the report lists each one dropped and why | P7-09; each try is an install through `pkexec`, so one at a time would take up to eight more password prompts | — |
+| Durations for the run (owner, 2026-11-04) | The dev interface's `Durations()` returns each write's and each snapshot's duration since the session began; the run computes p50, p99 and the maximum | Testable on the private bus; needs no journal access | A journal summary would need journal access and more code in the service |
+| Seeing the service take the cooler back (owner, 2026-11-04) | After a session that released the cooler, the recording keeps the new `03 08` and the first frame, then stops | Task 7 stopped the recording before the service wrote again | Checking only `CoolerState` wouldn't prove `03 08` came first |
+| Scenario types a run can't drive (owner, 2026-11-04) | Real where D-Bus or the USB switch drives them; S17 through the start check; S18's standby and S22 in-process; S25 real only with two GPUs | A restart needs root, a standby a real suspend, a missed tick a stall; the owner's PC has one GPU | — |
+| The first readings in the journal (owner, 2026-11-04) | One Info line per start, product and dev alike, exact | The start check compares the first frame with it; it also says what the display showed at boot | A made-up fixture stands in on PCs without the dev service (rule 10) |
 
 ## Agent Notes
 
