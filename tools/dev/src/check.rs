@@ -1,25 +1,34 @@
 //! `odc-dev check`: whether the development setup is in place, as the user, with no change.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 
-use odc_manifest::{GROUP, Manifest};
+use odc_manifest::{GROUP, Manifest, STATE_DIR, UNIT, USER};
+use odc_sensors::{PciAddr, RANK_FILE, RankedKind, Ranking, display_devices};
 
 use crate::system::{
-    FILES, effective_uid, lp360_node, lp360_usb_device, package_zones, parse_groups,
-    process_status, repo_root, user_name,
+    BINARIES, BUS_NAME, FILES, SERVICE_FILES, Tool, effective_uid, lp360_node, lp360_usb_device,
+    package_zones, parse_groups, process_status, repo_root, user_name,
 };
 
-/// Reports each installed file against the checkout, the group and the user's membership, the
-/// cooler node's group and mode, the reconnect switch's group write, and the group read of the
-/// CPU's package energy counters. Fails on any mismatch; with no cooler attached, its two checks
-/// can't run and say so, as does the energy check without RAPL zones.
+/// Reports each installed file and binary against the checkout and its release build, the group
+/// and the user's membership, the cooler node's group and mode, the reconnect switch's group
+/// write, the group read of the CPU's package energy counters, and the dev copy of the display
+/// service. Fails on any mismatch; with no cooler attached, its two checks can't run and say so,
+/// as does the energy check without RAPL zones.
 pub fn check() -> Result<(), String> {
     let mut problems = Vec::new();
     let repo = repo_root();
-    for file in FILES {
-        let wanted =
-            fs::read(repo.join(file.source)).map_err(|e| format!("{}: {e}", file.source))?;
+    for file in FILES.iter().chain(&SERVICE_FILES).chain(&BINARIES) {
+        let wanted = match fs::read(repo.join(file.source)) {
+            Ok(wanted) => wanted,
+            Err(e) => {
+                problems.push(format!("{}: {e}", file.source));
+                continue;
+            }
+        };
         match fs::read(file.target) {
             Ok(current) if current == wanted => println!("ok       {}", file.target),
             Ok(_) => problems.push(format!("{} differs from {}", file.target, file.source)),
@@ -110,6 +119,9 @@ pub fn check() -> Result<(), String> {
         }
     }
 
+    check_service(&mut problems)?;
+    check_ranking(&mut problems);
+
     match fs::read_to_string(odc_manifest::PATH) {
         Ok(text) => match Manifest::parse(&text) {
             Ok(m) => println!(
@@ -133,5 +145,113 @@ pub fn check() -> Result<(), String> {
             "{} problems; `odc-dev setup` fixes most",
             problems.len()
         ))
+    }
+}
+
+/// The dev copy of the display service: enabled at boot and active, started from its dev build
+/// with `--dev`, and owning its bus name as the user `opendeepcool`.
+fn check_service(problems: &mut Vec<String>) -> Result<(), String> {
+    for (state, word) in [("is-enabled", "enabled at boot"), ("is-active", "active")] {
+        if Tool::Systemctl.succeeds(&["--quiet", state, UNIT])? {
+            println!("ok       {UNIT}: {word}");
+        } else {
+            problems.push(format!("{UNIT} isn't {word}"));
+        }
+    }
+
+    let pid = Tool::Systemctl
+        .output(&["show", "--property=MainPID", "--value", UNIT])?
+        .unwrap_or_default();
+    let pid = pid.trim();
+    let wanted = [BINARIES[0].target, "--dev"];
+    // systemd says 0 when the unit has no main process.
+    let cmdline = match pid {
+        "" | "0" => Err(None),
+        pid => fs::read(format!("/proc/{pid}/cmdline")).map_err(Some),
+    };
+    match cmdline {
+        Err(None) => problems.push(format!("{UNIT} has no main process")),
+        Ok(cmdline) => {
+            let args: Vec<String> = cmdline
+                .split(|b| *b == 0)
+                .filter(|arg| !arg.is_empty())
+                .map(|arg| String::from_utf8_lossy(arg).into_owned())
+                .collect();
+            if args == wanted {
+                println!("ok       {UNIT}: runs {}", wanted.join(" "));
+            } else {
+                problems.push(format!(
+                    "{UNIT} runs {args:?}, not {}: is the dev drop-in in place?",
+                    wanted.join(" ")
+                ));
+            }
+        }
+        Err(Some(e)) => problems.push(format!("{UNIT}'s main process {pid}: {e}")),
+    }
+
+    let uid = Tool::Getent
+        .output(&["passwd", USER])?
+        .and_then(|line| line.split(':').nth(2)?.parse::<u32>().ok());
+    let owner = Tool::Busctl.output(&[
+        "--system",
+        "call",
+        "org.freedesktop.DBus",
+        "/org/freedesktop/DBus",
+        "org.freedesktop.DBus",
+        "GetConnectionUnixUser",
+        "s",
+        BUS_NAME,
+    ]);
+    // busctl prints the reply as `u <user ID>`.
+    let owner = owner.map(|out| out.and_then(|o| o.trim().strip_prefix("u ")?.parse::<u32>().ok()));
+    match (owner, uid) {
+        (Ok(Some(owner)), Some(uid)) if owner == uid => {
+            println!("ok       {BUS_NAME}: owned by the user {USER} ({uid})");
+        }
+        (Ok(Some(owner)), _) => problems.push(format!(
+            "{BUS_NAME} is owned by the user ID {owner}, not by {USER} ({uid:?})"
+        )),
+        (Ok(None), _) => problems.push(format!("{BUS_NAME}: busctl's reply isn't a user ID")),
+        (Err(e), _) => problems.push(format!("{BUS_NAME} has no owner on the system bus ({e})")),
+    }
+    Ok(())
+}
+
+/// The ranking the GPU rank helper wrote: well-formed, and listing exactly this PC's GPUs.
+fn check_ranking(problems: &mut Vec<String>) {
+    let path = Path::new(STATE_DIR).join(RANK_FILE);
+    let ranking = match fs::read_to_string(&path).map(|text| Ranking::parse(&text)) {
+        Ok(Ok(ranking)) => ranking,
+        Ok(Err(why)) => return problems.push(format!("{}: {why}", path.display())),
+        Err(e) => return problems.push(format!("{}: {e}", path.display())),
+    };
+    let present: BTreeSet<PciAddr> = display_devices(Path::new("/sys"))
+        .into_iter()
+        .map(|(pci, _)| pci)
+        .collect();
+    let ranked: BTreeSet<PciAddr> = ranking.gpus.iter().map(|gpu| gpu.pci).collect();
+    if present != ranked {
+        let list = |set: &BTreeSet<PciAddr>| {
+            set.iter()
+                .map(PciAddr::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        };
+        return problems.push(format!(
+            "{} ranks [{}], but this PC's GPUs are [{}]",
+            path.display(),
+            list(&ranked),
+            list(&present)
+        ));
+    }
+    println!("ok       {}: ranks this PC's GPUs", path.display());
+    for gpu in &ranking.gpus {
+        let kind = match &gpu.kind {
+            RankedKind::Dedicated { signal } => format!("dedicated ({signal})"),
+            RankedKind::Integrated { signal } => format!("integrated ({signal})"),
+            RankedKind::NoSignal => "unknown, no signal".to_owned(),
+            RankedKind::QueryFailed { error } => format!("unknown, the query failed: {error}"),
+        };
+        println!("           {} ({}): {kind}", gpu.pci, gpu.driver);
     }
 }

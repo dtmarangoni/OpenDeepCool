@@ -14,14 +14,22 @@ odc-protocol = { path = "../odc-protocol" }
 odc-render = { path = "../odc-render" }
 odc-sensors = { path = "../odc-sensors" }
 serde = { version = "1", features = ["derive"] }
+signal-hook = "0.4"
 toml = "1"
 zbus = "6"
 
 [dev-dependencies]
+# The state files' names, checked against the dev teardown's list (Phase 7 plan, Task 8).
+odc-gpu-rank = { path = "../odc-gpu-rank" }
+odc-manifest = { path = "../odc-manifest" }
 odc-testkit = { path = "../odc-testkit" }
 # The fake polkit runs on a peer-to-peer connection (Phase 7 plan, Task 7); no new crate.
 zbus = { version = "6", features = ["p2p"] }
 
+
+[[bin]]
+name = "opendeepcoold"
+path = "src/main.rs"
 
 [[test]]
 name = "panic"

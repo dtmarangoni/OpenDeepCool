@@ -18,24 +18,95 @@ pub const PATH: &str = "/var/lib/opendeepcool-dev/manifest";
 /// The only group a manifest may name.
 pub const GROUP: &str = "opendeepcool";
 
-/// The folders a recorded file may be in. Its name must contain `opendeepcool` too.
-pub const DEV_DIRS: &[&str] = &["/etc/sysusers.d", "/etc/udev/rules.d"];
+/// The shared folders a recorded file may be in; its name must contain `opendeepcool` too,
+/// whatever the letter case.
+pub const DEV_DIRS: &[&str] = &[
+    "/etc/sysusers.d",
+    "/etc/udev/rules.d",
+    "/etc/systemd/system",
+    "/etc/dbus-1/system.d",
+    "/etc/polkit-1/actions",
+];
+
+/// The dev copy's own folders (Phase 7 plan, Task 8): any file in them is OpenDeepCool's.
+pub const OWN_DIRS: &[&str] = &[
+    "/usr/local/libexec/opendeepcool-dev",
+    "/etc/systemd/system/opendeepcool.service.d",
+    "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+];
+
+/// The folders the setup may create, when they're missing, and so remove: its own, and the
+/// shared ones Arch doesn't create (checked on the development PC, 2026-10-29). A folder is
+/// removed only when empty.
+pub const CREATED_DIRS: &[&str] = &[
+    "/usr/local/libexec",
+    "/usr/local/libexec/opendeepcool-dev",
+    "/etc/dbus-1",
+    "/etc/dbus-1/system.d",
+    "/etc/polkit-1/actions",
+    "/etc/systemd/system/opendeepcool.service.d",
+    "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+];
+
+/// The service's account (Phase 7 plan, Task 8: `u!` in the sysusers file).
+pub const USER: &str = "opendeepcool";
+
+/// The service's state folder, systemd's `StateDirectory=opendeepcool`: its saved data.
+pub const STATE_DIR: &str = "/var/lib/opendeepcool";
+
+/// The unit the setup enables at boot.
+pub const UNIT: &str = "opendeepcool.service";
+
+/// Whether a file in the state folder is one the service or its GPU rank helper writes: the
+/// settings, their temporary and refused copies (`odc-service`, settings.rs), the ranking and its
+/// temporary file (`odc-gpu-rank`), and the dev recording with its previous file (`odc-device`,
+/// record.rs). Nothing else there is removed.
+pub fn is_state_file(name: &str) -> bool {
+    matches!(
+        name,
+        "settings.toml"
+            | "settings.toml.new"
+            | "gpu-rank.json"
+            | ".gpu-rank.json.new"
+            | "dev-frames.log"
+            | "dev-frames.log.1"
+    ) || name
+        .strip_prefix("settings.toml.invalid-")
+        .is_some_and(|stamp| {
+            !stamp.is_empty() && stamp.chars().all(|c| c.is_ascii_digit() || c == '-')
+        })
+}
 
 /// One thing the development setup created, or took over from the hand-made setup of 2026-10-24.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Entry {
     /// `file <absolute path>`: a file it installed.
     File(PathBuf),
+    /// `dir <absolute path>`: a folder it created, one of [`CREATED_DIRS`].
+    Dir(PathBuf),
     /// `group opendeepcool`: the group.
     Group,
     /// `member opendeepcool <user>`: a user it added to the group.
     Member(String),
+    /// `user opendeepcool`: the service's account.
+    User,
+    /// `state /var/lib/opendeepcool`: the service's saved data.
+    State,
+    /// `enabled opendeepcool.service`: the unit it enabled at boot.
+    Enabled,
 }
 
 impl Entry {
     /// A file entry, checked.
     pub fn file(path: impl Into<PathBuf>) -> Result<Entry, String> {
         let entry = Entry::File(path.into());
+        entry.check()?;
+        Ok(entry)
+    }
+
+    /// A folder entry, checked.
+    pub fn dir(path: impl Into<PathBuf>) -> Result<Entry, String> {
+        let entry = Entry::Dir(path.into());
         entry.check()?;
         Ok(entry)
     }
@@ -53,12 +124,19 @@ impl Entry {
         };
         let entry = match kind {
             "file" => Entry::File(PathBuf::from(rest)),
+            "dir" => Entry::Dir(PathBuf::from(rest)),
             "group" if rest == GROUP => Entry::Group,
             "group" => return Err(format!("the group {rest:?} isn't {GROUP}")),
             "member" => match rest.split_once(' ') {
                 Some((GROUP, user)) => Entry::Member(user.to_owned()),
                 _ => return Err(format!("{line:?} isn't `member {GROUP} <user>`")),
             },
+            "user" if rest == USER => Entry::User,
+            "user" => return Err(format!("the user {rest:?} isn't {USER}")),
+            "state" if rest == STATE_DIR => Entry::State,
+            "state" => return Err(format!("{rest:?} isn't {STATE_DIR}")),
+            "enabled" if rest == UNIT => Entry::Enabled,
+            "enabled" => return Err(format!("the unit {rest:?} isn't {UNIT}")),
             _ => return Err(format!("{kind:?} isn't a kind of entry")),
         };
         entry.check()?;
@@ -68,7 +146,14 @@ impl Entry {
     fn check(&self) -> Result<(), String> {
         match self {
             Entry::File(path) => check_file(path),
-            Entry::Group => Ok(()),
+            Entry::Dir(path) => match path.to_str() {
+                Some(text) if CREATED_DIRS.contains(&text) => Ok(()),
+                _ => Err(format!(
+                    "{} isn't a folder the setup creates",
+                    path.display()
+                )),
+            },
+            Entry::Group | Entry::User | Entry::State | Entry::Enabled => Ok(()),
             Entry::Member(user) => check_user(user),
         }
     }
@@ -76,8 +161,12 @@ impl Entry {
     fn render(&self) -> String {
         match self {
             Entry::File(path) => format!("file {}", path.display()),
+            Entry::Dir(path) => format!("dir {}", path.display()),
             Entry::Group => format!("group {GROUP}"),
             Entry::Member(user) => format!("member {GROUP} {user}"),
+            Entry::User => format!("user {USER}"),
+            Entry::State => format!("state {STATE_DIR}"),
+            Entry::Enabled => format!("enabled {UNIT}"),
         }
     }
 }
@@ -98,10 +187,12 @@ fn check_file(path: &Path) -> Result<(), String> {
         return Err(format!("{text:?} isn't a plain path"));
     }
     let (dir, name) = text.rsplit_once('/').expect("an absolute path has a slash");
-    if !DEV_DIRS.contains(&dir) || !name.contains("opendeepcool") {
+    let shared = DEV_DIRS.contains(&dir) && name.to_lowercase().contains("opendeepcool");
+    if !shared && !OWN_DIRS.contains(&dir) {
         return Err(format!(
-            "{text:?} isn't an OpenDeepCool file in {}",
-            DEV_DIRS.join(" or ")
+            "{text:?} isn't an OpenDeepCool file in {} or in {}",
+            DEV_DIRS.join(", "),
+            OWN_DIRS.join(", ")
         ));
     }
     Ok(())
@@ -215,6 +306,31 @@ impl Manifest {
                     Ok(None) => Ok(format!("the group {GROUP}: already gone")),
                     Err(e) => Err(format!("{GROUP}: {e}")),
                 },
+                Entry::Dir(path) => match host.remove_dir(path) {
+                    Ok(()) => Ok(format!("removed {}", path.display())),
+                    Err(e) if e.kind() == ErrorKind::NotFound => {
+                        Ok(format!("{}: already gone", path.display()))
+                    }
+                    // Something else keeps files there now: the folder is no longer only ours.
+                    Err(e) if e.kind() == ErrorKind::DirectoryNotEmpty => {
+                        Ok(format!("kept {}: not empty", path.display()))
+                    }
+                    Err(e) => Err(format!("{}: {e}", path.display())),
+                },
+                Entry::User => match host.user_exists(USER) {
+                    Ok(true) => host
+                        .remove_user(USER)
+                        .map(|()| format!("removed the user {USER}"))
+                        .map_err(|e| format!("the user {USER}: {e}")),
+                    Ok(false) => Ok(format!("the user {USER}: already gone")),
+                    Err(e) => Err(format!("{USER}: {e}")),
+                },
+                Entry::State => remove_state(host),
+                Entry::Enabled => match host.disable(UNIT) {
+                    Ok(true) => Ok(format!("stopped and disabled {UNIT}")),
+                    Ok(false) => Ok(format!("{UNIT}: already gone")),
+                    Err(e) => Err(format!("{UNIT}: {e}")),
+                },
             };
             match result {
                 Ok(line) => host.say(&line),
@@ -228,10 +344,53 @@ impl Manifest {
     }
 }
 
+/// Removes the service's saved data: each file it writes, then the folder. A file it doesn't write
+/// is kept, and said, and the folder with it.
+fn remove_state(host: &mut impl Host) -> Result<String, String> {
+    let dir = Path::new(STATE_DIR);
+    let mut names = match host.list_dir(dir) {
+        Ok(names) => names,
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            return Ok(format!("{STATE_DIR}: already gone"));
+        }
+        Err(e) => return Err(format!("{STATE_DIR}: {e}")),
+    };
+    // In order, so a teardown says the same every time.
+    names.sort();
+    let (ours, others): (Vec<String>, Vec<String>) =
+        names.into_iter().partition(|name| is_state_file(name));
+    for name in &ours {
+        let path = dir.join(name);
+        match host.remove_file(&path) {
+            Ok(()) => host.say(&format!("removed {}", path.display())),
+            Err(e) if e.kind() == ErrorKind::NotFound => {}
+            Err(e) => return Err(format!("{}: {e}", path.display())),
+        }
+    }
+    if !others.is_empty() {
+        return Err(format!(
+            "{STATE_DIR}: kept, with files the service doesn't write: {}",
+            others.join(", ")
+        ));
+    }
+    host.remove_dir(dir)
+        .map(|()| format!("removed {STATE_DIR}"))
+        .map_err(|e| format!("{STATE_DIR}: {e}"))
+}
+
 /// What removing needs from the system.
 pub trait Host {
     /// Removes one file or link, never a folder.
     fn remove_file(&mut self, path: &Path) -> io::Result<()>;
+    /// Removes one empty folder, never its contents.
+    fn remove_dir(&mut self, path: &Path) -> io::Result<()>;
+    /// The names in a folder.
+    fn list_dir(&mut self, path: &Path) -> io::Result<Vec<String>>;
+    fn user_exists(&mut self, user: &str) -> io::Result<bool>;
+    /// Removes the account, never a home folder.
+    fn remove_user(&mut self, user: &str) -> io::Result<()>;
+    /// Stops and disables a unit; `false` when it was neither enabled nor running.
+    fn disable(&mut self, unit: &str) -> io::Result<bool>;
     /// The group's members, or `None` when there's no such group.
     fn group_members(&mut self, group: &str) -> io::Result<Option<Vec<String>>>;
     fn remove_member(&mut self, group: &str, user: &str) -> io::Result<()>;
@@ -243,14 +402,60 @@ pub trait Host {
 const GETENT: &str = "/usr/bin/getent";
 const GPASSWD: &str = "/usr/bin/gpasswd";
 const GROUPDEL: &str = "/usr/bin/groupdel";
+const USERDEL: &str = "/usr/bin/userdel";
+const SYSTEMCTL: &str = "/usr/bin/systemctl";
 
-/// The real system: the files themselves, and `getent`, `gpasswd` and `groupdel`, started
-/// without a shell and by their full paths.
+/// The real system: the files themselves, and `getent`, `gpasswd`, `groupdel`, `userdel` and
+/// `systemctl`, started without a shell and by their full paths.
 pub struct SystemHost;
 
 impl Host for SystemHost {
     fn remove_file(&mut self, path: &Path) -> io::Result<()> {
         fs::remove_file(path)
+    }
+
+    fn remove_dir(&mut self, path: &Path) -> io::Result<()> {
+        fs::remove_dir(path)
+    }
+
+    fn list_dir(&mut self, path: &Path) -> io::Result<Vec<String>> {
+        fs::read_dir(path)?
+            .map(|entry| Ok(entry?.file_name().to_string_lossy().into_owned()))
+            .collect()
+    }
+
+    fn user_exists(&mut self, user: &str) -> io::Result<bool> {
+        let out = Command::new(GETENT).args(["passwd", user]).output()?;
+        match out.status.code() {
+            Some(0) => Ok(true),
+            Some(2) => Ok(false),
+            _ => Err(io::Error::other(format!(
+                "getent passwd {user}: {}",
+                out.status
+            ))),
+        }
+    }
+
+    fn remove_user(&mut self, user: &str) -> io::Result<()> {
+        // Never `-r`: the account's home is `/` (sysusers.d(5)).
+        run(USERDEL, &[user])
+    }
+
+    fn disable(&mut self, unit: &str) -> io::Result<bool> {
+        // Each fails for a unit that isn't so, or whose file is gone, alike.
+        let is = |state: &str| -> io::Result<bool> {
+            Ok(Command::new(SYSTEMCTL)
+                .args(["--quiet", state, unit])
+                .status()?
+                .success())
+        };
+        let (enabled, active) = (is("is-enabled")?, is("is-active")?);
+        if enabled {
+            run(SYSTEMCTL, &["disable", "--now", unit])?;
+        } else if active {
+            run(SYSTEMCTL, &["stop", unit])?;
+        }
+        Ok(enabled || active)
     }
 
     fn group_members(&mut self, group: &str) -> io::Result<Option<Vec<String>>> {
@@ -346,6 +551,75 @@ mod tests {
         assert_eq!(Manifest::parse(""), Ok(Manifest::default()));
     }
 
+    /// What the setup adds in Phase 7, after Phase 5's entries: the dev copy of the service.
+    fn service_entries() -> Vec<Entry> {
+        let mut entries: Vec<Entry> = [
+            "/usr/local/libexec",
+            "/usr/local/libexec/opendeepcool-dev",
+            "/etc/systemd/system/opendeepcool.service.d",
+            "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+            "/etc/dbus-1",
+            "/etc/dbus-1/system.d",
+            "/etc/polkit-1/actions",
+        ]
+        .into_iter()
+        .map(|d| Entry::dir(d).expect("a created folder"))
+        .collect();
+        for f in [
+            "/usr/local/libexec/opendeepcool-dev/opendeepcoold",
+            "/usr/local/libexec/opendeepcool-dev/odc-gpu-rank",
+            "/etc/systemd/system/opendeepcool.service",
+            "/etc/systemd/system/opendeepcool-gpu-rank.service",
+            "/etc/systemd/system/opendeepcool.service.d/dev.conf",
+            "/etc/systemd/system/opendeepcool-gpu-rank.service.d/dev.conf",
+            "/etc/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf",
+            "/etc/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy",
+        ] {
+            entries.push(Entry::file(f).expect("a dev file"));
+        }
+        entries.extend([Entry::User, Entry::State, Entry::Enabled]);
+        entries
+    }
+
+    #[test]
+    fn what_the_setup_writes_for_the_service_is_accepted() {
+        let mut m = setup_manifest();
+        for entry in service_entries() {
+            m.push(entry).expect("new");
+        }
+        let text = m.render();
+        assert!(text.ends_with(
+            "user opendeepcool\nstate /var/lib/opendeepcool\nenabled opendeepcool.service\n"
+        ));
+        assert_eq!(Manifest::parse(&text), Ok(m));
+    }
+
+    #[test]
+    fn only_the_files_the_service_and_its_helper_write_are_state_files() {
+        for name in [
+            "settings.toml",
+            "settings.toml.new",
+            "settings.toml.invalid-1793232821",
+            "settings.toml.invalid-1793232821-2",
+            "gpu-rank.json",
+            ".gpu-rank.json.new",
+            "dev-frames.log",
+            "dev-frames.log.1",
+        ] {
+            assert!(is_state_file(name), "{name}");
+        }
+        for name in [
+            "settings.toml.invalid-",
+            "settings.toml.invalid-x",
+            "settings.toml.old",
+            "dev-frames.log.2",
+            "notes.txt",
+            "..",
+        ] {
+            assert!(!is_state_file(name), "{name}");
+        }
+    }
+
     #[test]
     fn a_malformed_manifest_is_refused_whole() {
         let good = "file /etc/udev/rules.d/70-opendeepcool.rules\n";
@@ -381,7 +655,33 @@ mod tests {
             ),
             ("member opendeepcool -a", "isn't a user name"),
             ("member opendeepcool Dev", "isn't a user name"),
-            ("dir /etc/udev/rules.d", "isn't a kind of entry"),
+            ("dir /etc/udev/rules.d", "isn't a folder the setup creates"),
+            ("dir /etc", "isn't a folder the setup creates"),
+            (
+                "dir /usr/local/libexec/opendeepcool-dev/..",
+                "isn't a folder the setup creates",
+            ),
+            (
+                "file /usr/local/libexec/opendeepcool-dev/x/opendeepcoold",
+                "isn't an OpenDeepCool file",
+            ),
+            ("file /usr/local/libexec/sh", "isn't an OpenDeepCool file"),
+            (
+                "file /etc/systemd/system/sshd.service",
+                "isn't an OpenDeepCool file",
+            ),
+            (
+                "file /etc/systemd/system/opendeepcool.service.d/../../shadow",
+                "isn't a plain path",
+            ),
+            ("user root", "isn't opendeepcool"),
+            ("state /var/lib", "isn't /var/lib/opendeepcool"),
+            (
+                "state /var/lib/opendeepcool/..",
+                "isn't /var/lib/opendeepcool",
+            ),
+            ("enabled sshd.service", "isn't opendeepcool.service"),
+            ("tmpfiles /etc/tmpfiles.d", "isn't a kind of entry"),
             (good.trim_end(), "is there twice"),
         ];
         for (bad, reason) in refused {

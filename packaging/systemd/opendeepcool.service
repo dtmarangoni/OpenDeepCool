@@ -1,0 +1,59 @@
+# OpenDeepCool's display service (docs/spec/settings.md): drives the DeepCool LP360's display
+# from boot, the same for every user, and serves the settings app on the system bus. Phase 7
+# plan, Task 8: a crash or a hang ends in a restart; it waits for the GPU ranking and the board's
+# sensor driver, but never for the sensor detection; and it runs sandboxed as its own account.
+[Unit]
+Description=OpenDeepCool display service
+Wants=opendeepcool-gpu-rank.service opendeepcool-sensors-detect.service
+After=opendeepcool-gpu-rank.service lm_sensors.service
+# systemd's default limit, 5 starts in 10 s, would stop restarting for good.
+StartLimitIntervalSec=0
+
+[Service]
+Type=notify
+NotifyAccess=main
+ExecStart=/usr/bin/opendeepcoold
+WatchdogSec=15
+Restart=on-failure
+RestartSec=1
+RestartSteps=5
+RestartMaxDelaySec=30
+User=opendeepcool
+Group=opendeepcool
+StateDirectory=opendeepcool
+StateDirectoryMode=0700
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# The system bus is a socket in the file system, which a private network leaves in reach
+# (systemd.exec(5)).
+PrivateNetwork=yes
+IPAddressDeny=any
+RestrictAddressFamilies=AF_UNIX
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# A call outside the filter fails instead of killing the service: NVIDIA's library runs inside
+# it, untested in this sandbox (owner, 2026-10-27).
+SystemCallErrorNumber=EPERM
+DevicePolicy=closed
+DeviceAllow=char-hidraw rw
+
+[Install]
+WantedBy=multi-user.target

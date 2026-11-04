@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+        "https://www.freedesktop.org/standards/PolicyKit/1/policyconfig.dtd">
+<!--
+  OpenDeepCool's polkit actions (docs/spec/dbus.md, Names; Phase 7 plan, Task 8). Only the
+  active local session may read or change anything (owner, 2026-10-26). Each action names the
+  service's account as its owner, so the service, which isn't root, may ask polkit about its
+  callers (polkit(8), Declaring actions; owner, 2026-10-29).
+-->
+<policyconfig>
+  <vendor>OpenDeepCool</vendor>
+  <vendor_url>https://github.com/dtmarangoni/OpenDeepCool</vendor_url>
+
+  <action id="io.github.dtmarangoni.OpenDeepCool1.use">
+    <description>Read the cooler display's settings and status</description>
+    <message>Authentication is required to read the cooler display's settings</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.owner">unix-user:opendeepcool</annotate>
+  </action>
+
+  <action id="io.github.dtmarangoni.OpenDeepCool1.change-settings">
+    <description>Change the cooler display's settings</description>
+    <message>Authentication is required to change the cooler display's settings</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>yes</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.owner">unix-user:opendeepcool</annotate>
+  </action>
+</policyconfig>

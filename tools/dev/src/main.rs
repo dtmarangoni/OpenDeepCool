@@ -1,10 +1,11 @@
 //! `odc-dev` installs, checks and removes OpenDeepCool's development setup on the development PC:
-//! the dev copies of the udev rule and the group file, the dev-only reconnect rule, and the
-//! user's membership, all recorded in a manifest (PRD, System Footprint). It's a dev-only tool,
-//! never shipped.
+//! the dev copies of the udev rule and the sysusers file, the dev-only reconnect rule, the user's
+//! membership, and from Phase 7 the dev copy of the display service with its GPU rank helper, all
+//! recorded in a manifest (PRD, System Footprint). It's a dev-only tool, never shipped.
 //!
 //! `setup` and `teardown` run as the user and never as root; each hands only its root step to
-//! `pkexec`, and that step never builds (owner, 2026-10-27; solution review P5-03).
+//! `pkexec`, and that step never builds (owner, 2026-10-27; solution review P5-03): `setup`
+//! builds first, as the user.
 
 mod check;
 mod install;
@@ -68,23 +69,65 @@ fn refuse_root(euid: u32) -> Result<(), String> {
     }
 }
 
-/// Builds what the dev copy needs (nothing yet in Phase 5; Phase 7 adds the service), then hands
+/// Builds the dev copy's binaries as the user, says everything the root step will do, then hands
 /// the install to `pkexec`.
 fn setup() -> Result<(), String> {
     refuse_root(system::effective_uid()?)?;
     let repo = system::repo_root();
+    build(&repo)?;
     println!("odc-dev setup will install, through pkexec:");
     for file in system::FILES {
         println!("  {}  (from {})", file.target, file.source);
     }
+    println!("  the folders, those missing: {}", system::DIRS.join(", "));
+    for file in system::BINARIES.iter().chain(&system::SERVICE_FILES) {
+        println!("  {}  (from {})", file.target, file.source);
+    }
     println!(
-        "  the group {} (systemd-sysusers), with you in it\n  the manifest {}\nthen reload udev \
-         and re-trigger the LP360's node and USB device and the CPU's package energy zones.",
-        odc_manifest::GROUP,
-        odc_manifest::PATH
+        "  the user and group {group} (systemd-sysusers), with you in the group\n  the manifest \
+         {manifest}\nthen reload udev and re-trigger the LP360's node and USB device and the \
+         CPU's package energy zones, reload the system bus's policies, polkit's actions and \
+         systemd's units, and enable {unit} at boot and (re)start it, which runs the GPU rank helper while there's no \
+         ranking. Its saved data goes in {state}.",
+        group = odc_manifest::GROUP,
+        manifest = odc_manifest::PATH,
+        unit = odc_manifest::UNIT,
+        state = odc_manifest::STATE_DIR,
     );
     let repo = repo.to_str().ok_or("the checkout's path isn't UTF-8")?;
     as_root(&["install-root", "--repo", repo])
+}
+
+/// The dev copy's two binaries, built `--release` from the checkout's lock file, by the cargo
+/// that built this tool (solution review P5-03).
+const BUILD: [&str; 11] = [
+    "build",
+    "--release",
+    "--locked",
+    "-p",
+    "odc-service",
+    "--bin",
+    "opendeepcoold",
+    "-p",
+    "odc-gpu-rank",
+    "--bin",
+    "odc-gpu-rank",
+];
+
+/// Builds [`BUILD`] in the checkout, as the user: the only build `odc-dev` starts.
+fn build(repo: &Path) -> Result<(), String> {
+    let cargo = env!("CARGO");
+    println!("building: cargo {}", BUILD.join(" "));
+    let status = Command::new(cargo)
+        .args(BUILD)
+        .current_dir(repo)
+        .status()
+        .map_err(|e| format!("{cargo}: {e}"))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(format!("cargo {}: {status}", BUILD.join(" ")))
+    }
 }
 
 fn teardown() -> Result<(), String> {

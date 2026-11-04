@@ -1,5 +1,6 @@
 //! What the dev tool needs from the system: who runs it, the system tools it may start, the files
-//! it installs, the cooler's device files and the CPU's energy counters.
+//! it installs, the cooler's device files and the CPU's energy counters, and from Phase 7 the dev
+//! copy of the display service (Phase 7 plan, Task 8).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -16,16 +17,20 @@ pub enum Tool {
     Udevadm,
     Gpasswd,
     Getent,
+    Systemctl,
+    Busctl,
 }
 
 impl Tool {
     /// Every tool, so a test can check the list.
     #[cfg(test)]
-    pub const ALL: [Tool; 4] = [
+    pub const ALL: [Tool; 6] = [
         Tool::SystemdSysusers,
         Tool::Udevadm,
         Tool::Gpasswd,
         Tool::Getent,
+        Tool::Systemctl,
+        Tool::Busctl,
     ];
 
     pub fn path(self) -> &'static str {
@@ -34,6 +39,8 @@ impl Tool {
             Tool::Udevadm => "/usr/bin/udevadm",
             Tool::Gpasswd => "/usr/bin/gpasswd",
             Tool::Getent => "/usr/bin/getent",
+            Tool::Systemctl => "/usr/bin/systemctl",
+            Tool::Busctl => "/usr/bin/busctl",
         }
     }
 
@@ -48,6 +55,16 @@ impl Tool {
         } else {
             Err(format!("{} {}: {status}", self.path(), args.join(" ")))
         }
+    }
+
+    /// Whether the tool exits with status 0, its output unread: `systemctl is-active` and the
+    /// like.
+    pub fn succeeds(self, args: &[&str]) -> Result<bool, String> {
+        Command::new(self.path())
+            .args(args)
+            .output()
+            .map(|out| out.status.success())
+            .map_err(|e| format!("{}: {e}", self.path()))
     }
 
     /// Runs the tool and returns its standard output, or `None` for exit status 2, `getent`'s
@@ -129,7 +146,8 @@ pub struct Install {
     pub target: &'static str,
 }
 
-/// The product's udev rule and group file, and the dev-only reconnect rule (owner, 2026-10-24).
+/// The product's udev rule and sysusers file, and the dev-only reconnect rule (owner,
+/// 2026-10-24).
 pub const FILES: [Install; 3] = [
     Install {
         source: "packaging/sysusers/opendeepcool.conf",
@@ -144,6 +162,62 @@ pub const FILES: [Install; 3] = [
         target: "/etc/udev/rules.d/71-opendeepcool-dev-reconnect.rules",
     },
 ];
+
+/// The folders the dev copy needs, parents first; each one missing is created and recorded.
+pub const DIRS: [&str; 7] = [
+    "/usr/local/libexec",
+    "/usr/local/libexec/opendeepcool-dev",
+    "/etc/systemd/system/opendeepcool.service.d",
+    "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+    "/etc/dbus-1",
+    "/etc/dbus-1/system.d",
+    "/etc/polkit-1/actions",
+];
+
+/// The dev copy of the display service and of the GPU rank helper, built `--release` by the
+/// user's side of `setup` (solution review P5-03); the root step only copies them.
+pub const BINARIES: [Install; 2] = [
+    Install {
+        source: "target/release/opendeepcoold",
+        target: "/usr/local/libexec/opendeepcool-dev/opendeepcoold",
+    },
+    Install {
+        source: "target/release/odc-gpu-rank",
+        target: "/usr/local/libexec/opendeepcool-dev/odc-gpu-rank",
+    },
+];
+
+/// The dev copy's units and their drop-ins, the D-Bus policy and the polkit actions (Phase 7
+/// plan, Task 8; owner, 2026-10-29). The detection one-shot isn't part of the dev copy.
+pub const SERVICE_FILES: [Install; 6] = [
+    Install {
+        source: "packaging/systemd/opendeepcool.service",
+        target: "/etc/systemd/system/opendeepcool.service",
+    },
+    Install {
+        source: "tools/dev/opendeepcool-dev.conf",
+        target: "/etc/systemd/system/opendeepcool.service.d/dev.conf",
+    },
+    Install {
+        source: "packaging/systemd/opendeepcool-gpu-rank.service",
+        target: "/etc/systemd/system/opendeepcool-gpu-rank.service",
+    },
+    Install {
+        source: "tools/dev/opendeepcool-gpu-rank-dev.conf",
+        target: "/etc/systemd/system/opendeepcool-gpu-rank.service.d/dev.conf",
+    },
+    Install {
+        source: "packaging/dbus/io.github.dtmarangoni.OpenDeepCool1.conf",
+        target: "/etc/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf",
+    },
+    Install {
+        source: "packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy",
+        target: "/etc/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy",
+    },
+];
+
+/// The display service's bus name, which `check` looks for.
+pub const BUS_NAME: &str = "io.github.dtmarangoni.OpenDeepCool1";
 
 /// The LP360's hidraw node, found by USB ID.
 pub fn lp360_node() -> Result<Option<HidrawNode>, String> {
@@ -183,19 +257,31 @@ mod tests {
                 "/usr/bin/udevadm",
                 "/usr/bin/gpasswd",
                 "/usr/bin/getent",
+                "/usr/bin/systemctl",
+                "/usr/bin/busctl",
             ]
         );
     }
 
     #[test]
-    fn every_installed_file_is_one_the_manifest_accepts() {
-        for file in FILES {
+    fn every_installed_file_and_folder_is_one_the_manifest_accepts() {
+        for file in FILES.iter().chain(&SERVICE_FILES) {
             assert!(
                 odc_manifest::Entry::file(file.target).is_ok(),
                 "{}",
                 file.target
             );
             assert!(repo_root().join(file.source).is_file(), "{}", file.source);
+        }
+        for binary in &BINARIES {
+            assert!(
+                odc_manifest::Entry::file(binary.target).is_ok(),
+                "{}",
+                binary.target
+            );
+        }
+        for dir in DIRS {
+            assert!(odc_manifest::Entry::dir(dir).is_ok(), "{dir}");
         }
     }
 }

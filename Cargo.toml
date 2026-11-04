@@ -13,3 +13,8 @@ unsafe_code = "forbid"
 
 [workspace.dependencies]
 proptest = "1.12"
+
+# A panic in any thread ends the whole service, so systemd restarts it (Phase 7 plan, Task 8;
+# solution review OV-03).
+[profile.release]
+panic = "abort"
