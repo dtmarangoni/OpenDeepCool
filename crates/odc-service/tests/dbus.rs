@@ -37,10 +37,10 @@ use odc_service::polkit::{
     Action, Answer, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer,
 };
 use odc_service::pulse::Pulse;
-use odc_service::runtime::{DeviceControl, Sensors, Slot};
+use odc_service::runtime::{DeviceControl, Durations, Sensors, Slot};
 use odc_service::service::{Config, Running};
 use odc_service::settings::{SavedInput, Settings, SettingsStore, TemperatureUnit};
-use odc_service::status::Status;
+use odc_service::status::{FIRST_READINGS, Status, parse_first_readings};
 use odc_testkit::bus::{PrivateBus, sleep, within};
 use odc_testkit::capture::read_recording;
 use zbus::message::Header;
@@ -283,6 +283,8 @@ struct Harness {
     apply: Arc<Slot<Apply>>,
     device: Receiver<DeviceControl>,
     journal: Arc<Recorded>,
+    /// The threads' durations, which the test writes itself.
+    durations: Arc<Durations>,
 }
 
 impl Harness {
@@ -304,6 +306,7 @@ impl Harness {
         let status = Arc::new(RwLock::new(status));
         let journal = Arc::new(Recorded::default());
         let (device_tx, device) = mpsc::channel();
+        let durations = Arc::new(Durations::default());
         let side = Side::start(Parts {
             bus: Bus::Address(bus.address().to_owned()),
             checks: Checks::Given {
@@ -317,7 +320,7 @@ impl Harness {
             device: device_tx,
             pulse: Arc::new(Pulse::default()),
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
-            dev: dev.then(|| (GROUP, recording.handle())),
+            dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
         })
         .expect("the D-Bus side starts");
         Harness {
@@ -329,6 +332,7 @@ impl Harness {
             apply,
             device,
             journal,
+            durations,
         }
     }
 
@@ -992,8 +996,22 @@ fn the_test_session_holds_the_service_until_its_holder_leaves() {
             holder.dev.end_test().await,
             Err(Error::NotAuthorized(_))
         ));
+        assert!(matches!(
+            holder.dev.durations().await,
+            Err(Error::NotAuthorized(_))
+        ));
+        // A session starts the durations afresh (owner, 2026-11-04).
+        h.durations.write(Duration::from_micros(9));
+        h.durations.snapshot(Duration::from_micros(9));
         holder.dev.begin_test().await.expect("the session");
         holder.dev.begin_test().await.expect("again: no change");
+        h.durations.write(Duration::from_micros(1_234));
+        h.durations.snapshot(Duration::from_millis(56));
+        assert_eq!(
+            holder.dev.durations().await.expect("the durations"),
+            (vec![1_234], vec![56_000])
+        );
+        assert!(matches!(other.dev.durations().await, Err(Error::Busy(_))));
         // Everyone else is refused.
         assert!(matches!(other.main.set_mode(3).await, Err(Error::Busy(_))));
         assert!(matches!(other.main.refresh().await, Err(Error::Busy(_))));
@@ -1480,6 +1498,10 @@ fn an_override_applies_from_the_tick_it_returns_and_a_release_hands_the_cooler_o
         assert!(from_tick.len() >= 5, "{}", from_tick.len());
         let want = home(overridden);
         assert!(from_tick.iter().all(|f| *f == want), "from tick {tick} on");
+        // The threads timed each write and snapshot of the session (owner, 2026-11-04).
+        let (writes, snapshots) = holder.dev.durations().await.expect("the durations");
+        assert!(writes.len() >= from_tick.len(), "{}", writes.len());
+        assert!(!snapshots.is_empty());
         // The release: the connection closes and nothing more is written.
         holder.dev.release_cooler().await.expect("released");
         assert_eq!(s.log.open(), 0, "the cooler's node is closed");
@@ -1523,6 +1545,25 @@ fn an_override_applies_from_the_tick_it_returns_and_a_release_hands_the_cooler_o
                 .any(|(_, l)| l.contains("taken back"))
         );
     });
+}
+
+#[test]
+fn the_journal_says_the_readings_the_first_frame_is_drawn_from() {
+    let s = Service::start("first-readings", vec![Presence::Present], false);
+    let lines = s.journal.lines();
+    let line = lines
+        .iter()
+        .map(|(_, l)| l.as_str())
+        .find(|l| l.starts_with(FIRST_READINGS))
+        .expect("a first readings line");
+    let first = parse_first_readings(line).expect("the line reads back");
+    let want = readings(value(51));
+    assert!(
+        first
+            .iter()
+            .all(|(metric, reading)| reading == want.get(*metric)),
+        "{line}"
+    );
 }
 
 #[test]

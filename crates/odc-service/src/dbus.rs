@@ -32,7 +32,7 @@ use crate::engine::{Apply, Override, shown_mode};
 use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
-use crate::runtime::{DeviceControl, Slot};
+use crate::runtime::{DeviceControl, Durations, Slot};
 use crate::settings::{SavedInput, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
@@ -71,15 +71,18 @@ struct DevSide {
     session: Mutex<Option<String>>,
     /// Whether the session asked for the cooler, so its end gives it back.
     released: AtomicBool,
+    /// Each frame write's and each snapshot's, cleared when a session begins.
+    durations: Arc<Durations>,
 }
 
 impl DevSide {
-    fn new(group: u32, recording: RecordingHandle) -> DevSide {
+    fn new(group: u32, recording: RecordingHandle, durations: Arc<Durations>) -> DevSide {
         DevSide {
             group,
             recording,
             session: Mutex::new(None),
             released: AtomicBool::new(false),
+            durations,
         }
     }
 }
@@ -338,13 +341,16 @@ impl Shared {
     }
 
     /// Ends the test session: the override goes, the recording stops, and a released cooler is
-    /// taken back, `03 08` first.
+    /// taken back, `03 08` first. Then the recording keeps that `03 08` and the frame after it,
+    /// so a test sees the service take the cooler back (owner, 2026-11-04).
     fn end_session(&self, dev: &DevSide) {
         *lock(&dev.session) = None;
         self.post_override(None);
-        dev.recording.end_session();
         if dev.released.swap(false, Ordering::Relaxed) {
+            dev.recording.end_session_keeping_return();
             let _ = self.device.send(DeviceControl::Resume);
+        } else {
+            dev.recording.end_session();
         }
     }
 
@@ -812,6 +818,7 @@ impl Dev {
             None => {
                 *session = Some(sender.clone());
                 drop(session);
+                dev.durations.clear();
                 dev.recording.begin_session();
                 self.shared.journal.write(
                     Priority::Notice,
@@ -833,6 +840,20 @@ impl Dev {
             &format!("the test session of {sender} ended"),
         );
         Ok(())
+    }
+
+    /// Each frame write's and each snapshot's duration in µs since the session began, the newest
+    /// 100 000 of each (owner, 2026-11-04). It needs the test session.
+    #[zbus(out_args("writes", "snapshots"))]
+    async fn durations(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+    ) -> Result<(Vec<u64>, Vec<u64>), Error> {
+        let call = "Durations";
+        let (sender, dev) = self.shared.dev_caller(&header, call).await?;
+        self.shared
+            .logged(call, &sender, Shared::holds(dev, &sender))?;
+        Ok(dev.durations.lists())
     }
 
     /// Closes the cooler until the session ends (owner, 2026-10-29); returns once the device
@@ -882,8 +903,8 @@ pub struct Parts {
     pub device: Sender<DeviceControl>,
     pub pulse: Arc<Pulse>,
     pub journal: Arc<dyn Journal>,
-    /// With `--dev`: the service's group and the recording.
-    pub dev: Option<(u32, RecordingHandle)>,
+    /// With `--dev`: the service's group, the recording, and the threads' durations.
+    pub dev: Option<(u32, RecordingHandle, Arc<Durations>)>,
 }
 
 /// The running D-Bus side: its thread, inside one `zbus::block_on` call, and its timer.
@@ -1008,7 +1029,7 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
         journal: parts.journal,
         dev: parts
             .dev
-            .map(|(group, recording)| DevSide::new(group, recording)),
+            .map(|(group, recording, durations)| DevSide::new(group, recording, durations)),
         overrides: AtomicU64::new(0),
     });
     let server = conn.object_server();

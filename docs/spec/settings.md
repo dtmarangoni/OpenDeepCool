@@ -88,7 +88,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
   - in the fan and pump pickers, a note when no fan sensors were found.
 
-  Details, such as which source each value comes from, go to the service's journal, not the app.
+  Details, such as which source each value comes from, and the first readings at each start, exact (`first readings: CPU Temperature 45000/1000, CPU Usage not-yet, …`; owner, 2026-11-04), go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. There's no theme setting in v1; choosing another desktop's theme comes after v1.
 - **Opacity and blur** (owner, 2026-10-23: the app takes the theme's opacity, blur and so on): on Omarchy, Hyprland applies window opacity and blur to every window by its own rules, so the app must not override them. Its own surfaces use the alpha values of the current theme's `shell.toml`: background, and the hover, focus, selected and pressed fills (PRD, Theme).
 - **Music Mode audio** comes from the session of the user at the PC. Before anyone logs in, the spectrum shows silence. Sound is taken only while a Music mode is shown (owner, 2026-10-26).

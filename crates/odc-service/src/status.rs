@@ -7,10 +7,55 @@
 use std::path::Path;
 
 use odc_device::Link;
-use odc_sensors::{Binding, FanInput, Gpu, Metric, RANK_FILE, Snapshot, gpus, review_ranking};
+use odc_sensors::{
+    Binding, Exact, FanInput, Gpu, Metric, RANK_FILE, Reading, Snapshot, gpus, review_ranking,
+};
 
+use crate::dbus::{kind_of, reason_of};
 use crate::engine::{Availability, Engine};
 use crate::settings::Settings;
+
+/// How the journal line with the first snapshot's readings begins.
+pub const FIRST_READINGS: &str = "first readings: ";
+
+/// The journal line the service writes once per start, with the snapshot its first frame is drawn
+/// from (owner, 2026-11-04; Phase 7 plan, Task 9): each metric by its spec name, then its exact
+/// value as `num/den` or its reason's kind, as `OverrideReadings` takes them (`not-yet`).
+pub fn first_readings(snapshot: &Snapshot) -> String {
+    let readings: Vec<String> = Metric::ALL
+        .iter()
+        .map(|&metric| {
+            let reading = match snapshot.get(metric) {
+                Reading::Value(exact) => format!("{}/{}", exact.num(), exact.den()),
+                Reading::Unavailable(reason) => kind_of(reason).to_owned(),
+            };
+            format!("{} {reading}", metric.spec_name())
+        })
+        .collect();
+    format!("{FIRST_READINGS}{}", readings.join(", "))
+}
+
+/// The readings of a [`first_readings`] line, every metric's in the order of [`Metric::ALL`];
+/// `None` when the line isn't one.
+pub fn parse_first_readings(line: &str) -> Option<Vec<(Metric, Reading)>> {
+    let readings: Vec<(Metric, Reading)> = line
+        .strip_prefix(FIRST_READINGS)?
+        .split(", ")
+        .map(|entry| {
+            let (name, reading) = entry.rsplit_once(' ')?;
+            let metric = Metric::from_spec_name(name)?;
+            let reading = match reading.split_once('/') {
+                Some((num, den)) => {
+                    Reading::Value(Exact::new(num.parse().ok()?, den.parse().ok()?)?)
+                }
+                None => Reading::Unavailable(reason_of(reading)?),
+            };
+            Some((metric, reading))
+        })
+        .collect::<Option<_>>()?;
+    let metrics: Vec<Metric> = readings.iter().map(|(metric, _)| *metric).collect();
+    (metrics == Metric::ALL).then_some(readings)
+}
 
 #[derive(Clone, Debug, Default)]
 pub struct Status {
@@ -67,5 +112,53 @@ pub fn gpus_at_start(sys: &Path, state_dir: &Path, settings: &Settings) -> GpusA
     GpusAtStart {
         gpus: gpus(sys, review.ranking.as_ref()),
         deleted: review.deleted,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use odc_sensors::{Fan, Unavailable};
+
+    use super::*;
+
+    #[test]
+    fn the_first_readings_line_reads_back_exactly() {
+        let snapshot = Snapshot::new(
+            |metric| match metric {
+                Metric::CpuUsage => Reading::Unavailable(Unavailable::NotYet),
+                Metric::GpuPower => Reading::Unavailable(Unavailable::IntegratedGpuPower),
+                other => {
+                    Reading::Value(Exact::new(45_000 + other as i64, 1000).expect("a denominator"))
+                }
+            },
+            Fan::NotChosen,
+            Fan::NotChosen,
+        );
+        let line = first_readings(&snapshot);
+        assert!(line.starts_with("first readings: CPU Temperature 45000/1000, CPU Usage not-yet"));
+        let read = parse_first_readings(&line).expect("it reads back");
+        for (metric, reading) in read {
+            match (reading, snapshot.get(metric)) {
+                (Reading::Value(a), Reading::Value(b)) => {
+                    assert_eq!(
+                        (a.num(), a.den()),
+                        (b.num(), b.den()),
+                        "{metric:?} as given"
+                    );
+                }
+                (Reading::Unavailable(a), Reading::Unavailable(b)) => {
+                    assert_eq!(kind_of(&a), kind_of(b));
+                }
+                other => panic!("{metric:?}: {other:?}"),
+            }
+        }
+        for broken in [
+            "first readings: CPU Temperature 1/1",
+            "readings: CPU Temperature 1/1",
+            &line.replace("45000/1000", "45000/0"),
+            &line.replace("not-yet", "soon"),
+        ] {
+            assert_eq!(parse_first_readings(broken), None, "{broken}");
+        }
     }
 }

@@ -108,4 +108,7 @@ pub trait Dev {
     async fn end_test(&self) -> Result<(), Error>;
     /// Hands the cooler over until the session ends (owner, 2026-10-29).
     async fn release_cooler(&self) -> Result<(), Error>;
+    /// Each frame write's and each snapshot's duration in µs since the session began, the
+    /// newest 100 000 of each (owner, 2026-11-04). Needs the test session.
+    async fn durations(&self) -> Result<(Vec<u64>, Vec<u64>), Error>;
 }

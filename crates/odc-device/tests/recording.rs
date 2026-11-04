@@ -67,6 +67,53 @@ fn the_first_100_reports_then_only_what_a_session_holds() {
 }
 
 #[test]
+fn after_a_session_that_released_the_cooler_it_keeps_the_return_then_stops() {
+    let path = path("return");
+    let recording = Recording::dev(FakeConnector::new([Presence::Present]), &path, u64::MAX)
+        .expect("a recording");
+    let handle = recording.handle();
+    let mut lp360 = Lp360::new(recording);
+    // Past the first 100 reports, which are kept anyway.
+    for tick in 0..120 {
+        handle.set_tick(tick);
+        lp360.show(&Frame::blank());
+    }
+    handle.begin_session();
+    for tick in 120..125 {
+        handle.set_tick(tick);
+        lp360.show(&Frame::blank());
+    }
+    // The session released the cooler: its end keeps the return (owner, 2026-11-04).
+    lp360.reset_connection();
+    handle.end_session_keeping_return();
+    for tick in 125..140 {
+        handle.set_tick(tick);
+        lp360.show(&Frame::blank());
+    }
+    handle.flush();
+    let recorded = read(&path);
+    assert_eq!(recorded.len(), 100 + 5 + 2);
+    let returned: Vec<u64> = recorded[105..].iter().map(|r| r.tick).collect();
+    assert_eq!(
+        returned,
+        [125, 125],
+        "03 08 and the frame of the tick it came with"
+    );
+    assert_eq!(
+        recorded[105].bytes,
+        odc_protocol::startup_report().as_bytes(),
+        "03 08 first"
+    );
+    // A session that kept the cooler ends as before: nothing after it.
+    handle.begin_session();
+    lp360.show(&Frame::blank());
+    handle.end_session();
+    lp360.show(&Frame::blank());
+    handle.flush();
+    assert_eq!(read(&path).len(), 100 + 5 + 2 + 1);
+}
+
+#[test]
 fn the_recording_rotates_keeping_one_previous_file() {
     let path = path("rotated");
     // A line is 140 bytes or so: rotate after 11 or so of them.

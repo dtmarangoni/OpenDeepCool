@@ -18,7 +18,7 @@ use odc_testkit::expected::{
 use odc_testkit::hardware::{Capability, Mode as RunMode, Probe, Roots, Summary, probe};
 
 use crate::device::{Pace, fake_lp360, hidraw, read_recording, recording_path};
-use crate::session::release_for_direct;
+use crate::session::{handed_back, release_for_direct};
 
 pub fn run(roots: &Roots, out_dir: &Path, tick: Duration, summary: &mut Summary) {
     let modes = Mode::all().filter(|&m| mode_info(m).kind == ModeKind::Load && draws(m));
@@ -39,8 +39,8 @@ fn check(
     match probe(Capability::Lp360, roots) {
         Probe::Real => {
             summary.mode(Capability::Lp360, RunMode::Real);
-            let _session = release_for_direct(roots, summary)?;
-            show(hidraw(roots), mode, &examples, out_dir, tick)
+            let session = release_for_direct(roots, summary)?;
+            handed_back(session, show(hidraw(roots), mode, &examples, out_dir, tick))
         }
         Probe::Absent { reason } => {
             summary.mode(Capability::Lp360, RunMode::Fake { reason });

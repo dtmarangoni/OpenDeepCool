@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
-use odc_protocol::Report;
+use odc_protocol::{Report, startup_report};
 
 use crate::lp360::{Connector, OpenError, Transport};
 
@@ -24,6 +24,17 @@ pub enum Keep {
     /// after the start, for the start check, and every report while a test session is held;
     /// buffered, flushed once a second and at a session's end.
     StartAndSessions { first: u64 },
+}
+
+/// After a session that released the cooler: the recording keeps the service's new `03 08` and
+/// the report after it, then stops (owner, 2026-11-04).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Return {
+    No,
+    /// Waiting for the new conversation's `03 08`.
+    Startup,
+    /// `03 08` recorded: the next report is the last.
+    FirstFrame,
 }
 
 /// The dev copy's recording rotates at this size, keeping one previous file.
@@ -48,6 +59,7 @@ struct Log {
     /// Reports written to the cooler since the start, recorded or not.
     reports: u64,
     session: bool,
+    returning: Return,
     size: u64,
     rotate_at: u64,
     flushed: Instant,
@@ -86,7 +98,9 @@ impl Log {
         self.reports += 1;
         let kept = match self.keep {
             Keep::All => true,
-            Keep::StartAndSessions { first: n } => self.reports <= n || self.session,
+            Keep::StartAndSessions { first: n } => {
+                self.reports <= n || self.session || self.returning != Return::No
+            }
         };
         if !kept || self.failure.is_some() {
             return;
@@ -103,7 +117,18 @@ impl Log {
             return;
         }
         self.size += line.len() as u64;
-        if self.keep == Keep::All || first {
+        let returned = match self.returning {
+            Return::Startup if *report == startup_report() => {
+                self.returning = Return::FirstFrame;
+                false
+            }
+            Return::FirstFrame => {
+                self.returning = Return::No;
+                true
+            }
+            _ => false,
+        };
+        if self.keep == Keep::All || first || returned {
             self.flush();
         }
         if self.size >= self.rotate_at
@@ -146,6 +171,7 @@ impl<C> Recording<C> {
                 tick: 0,
                 reports: 0,
                 session: false,
+                returning: Return::No,
                 size: 0,
                 rotate_at,
                 flushed: now,
@@ -187,6 +213,17 @@ impl RecordingHandle {
     pub fn end_session(&self) {
         let mut log = lock(&self.log);
         log.session = false;
+        log.returning = Return::No;
+        log.flush();
+    }
+
+    /// Ends the session's recording of a session that released the cooler, but keeps the new
+    /// conversation's `03 08` and the report after it, so a test sees the service take the cooler
+    /// back (owner, 2026-11-04); that report is flushed at once.
+    pub fn end_session_keeping_return(&self) {
+        let mut log = lock(&self.log);
+        log.session = false;
+        log.returning = Return::Startup;
         log.flush();
     }
 

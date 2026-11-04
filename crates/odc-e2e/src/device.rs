@@ -21,7 +21,7 @@ use odc_testkit::fake_tree::{FakeTree, LP360_HID_ID};
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
-use crate::session::release_for_direct;
+use crate::session::{handed_back, release_for_direct};
 
 /// Before any probe (owner, 2026-10-27; solution review P5-09): a run killed during the reconnect
 /// check skips its guard, and the cooler would stay switched off and probe as absent. Switch it
@@ -204,8 +204,8 @@ fn test_images(
     match probe(Capability::Lp360, roots) {
         Probe::Real => {
             summary.mode(Capability::Lp360, Mode::Real);
-            let _session = release_for_direct(roots, summary)?;
-            images_on(hidraw(roots), out_dir, tick)
+            let session = release_for_direct(roots, summary)?;
+            handed_back(session, images_on(hidraw(roots), out_dir, tick))
         }
         Probe::Absent { reason } => {
             summary.mode(Capability::Lp360, Mode::Fake { reason });
@@ -304,8 +304,8 @@ fn reconnect(
     match (node, switch) {
         (Probe::Real, Probe::Real) => {
             summary.mode(Capability::Lp360Reconnect, Mode::Real);
-            let _session = release_for_direct(roots, summary)?;
-            reconnect_real(roots, out_dir, tick)
+            let session = release_for_direct(roots, summary)?;
+            handed_back(session, reconnect_real(roots, out_dir, tick))
         }
         (Probe::Unusable { reason, fix }, _) | (_, Probe::Unusable { reason, fix }) => {
             summary.mode(
@@ -479,8 +479,8 @@ fn reset(
     match probe(Capability::Lp360, roots) {
         Probe::Real => {
             summary.mode(Capability::Lp360, Mode::Real);
-            let _session = release_for_direct(roots, summary)?;
-            reset_on(hidraw(roots), out_dir, tick)
+            let session = release_for_direct(roots, summary)?;
+            handed_back(session, reset_on(hidraw(roots), out_dir, tick))
         }
         Probe::Absent { reason } => {
             summary.mode(Capability::Lp360, Mode::Fake { reason });

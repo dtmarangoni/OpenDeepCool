@@ -140,28 +140,37 @@ pub fn read_recording(path: impl AsRef<Path>) -> impl Iterator<Item = Recorded> 
         .map(move |(i, text)| {
             let line = i + 1;
             let text = text.unwrap_or_else(|e| panic!("{}:{line}: {e}", path.display()));
-            let fail = |why: String| -> ! { panic!("{}:{line}: {why}", path.display()) };
-            let fields: Vec<&str> = text.split(' ').collect();
-            let [ns, tick, dir, len, hex] = fields.as_slice() else {
-                fail(format!("{} fields, not 5: {text:?}", fields.len()));
-            };
-            if *dir != "out" || *len != "64" || hex.len() != 128 {
-                fail(format!("not `out 64` and 64 bytes: {text:?}"));
-            }
-            let number = |field: &str, what: &str| {
-                field
-                    .parse::<u64>()
-                    .unwrap_or_else(|_| fail(format!("{field:?} isn't {what}")))
-            };
-            let bytes = (0..64)
-                .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16))
-                .collect::<Result<Vec<u8>, _>>()
-                .unwrap_or_else(|_| fail(format!("{hex:?} isn't hex")));
-            Recorded {
-                line,
-                ns: number(ns, "a time in ns"),
-                tick: number(tick, "a tick"),
-                bytes,
-            }
+            parse_recorded(line, &text)
+                .unwrap_or_else(|why| panic!("{}:{line}: {why}", path.display()))
         })
+}
+
+/// One line of a recording, the `line`th: `<ns> <tick> out 64 <hex>`.
+///
+/// # Errors
+///
+/// When the line is malformed, saying how.
+pub fn parse_recorded(line: usize, text: &str) -> Result<Recorded, String> {
+    let fields: Vec<&str> = text.split(' ').collect();
+    let [ns, tick, dir, len, hex] = fields.as_slice() else {
+        return Err(format!("{} fields, not 5: {text:?}", fields.len()));
+    };
+    if *dir != "out" || *len != "64" || hex.len() != 128 {
+        return Err(format!("not `out 64` and 64 bytes: {text:?}"));
+    }
+    let number = |field: &str, what: &str| {
+        field
+            .parse::<u64>()
+            .map_err(|_| format!("{field:?} isn't {what}"))
+    };
+    let bytes = (0..64)
+        .map(|i| u8::from_str_radix(&hex[2 * i..2 * i + 2], 16))
+        .collect::<Result<Vec<u8>, _>>()
+        .map_err(|_| format!("{hex:?} isn't hex"))?;
+    Ok(Recorded {
+        line,
+        ns: number(ns, "a time in ns")?,
+        tick: number(tick, "a tick")?,
+        bytes,
+    })
 }

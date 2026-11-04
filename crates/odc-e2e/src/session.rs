@@ -3,9 +3,18 @@
 //! service (owner, 2026-10-29). Dropping a session ends it, and a killed run ends it with its
 //! connection.
 
+use std::fs;
+use std::thread;
+use std::time::{Duration, Instant};
+
 use odc_ipc::{DevProxy, OpenDeepCoolProxy};
-use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
+use odc_protocol::{Message, decode};
+use odc_testkit::capture::parse_recorded;
+use odc_testkit::hardware::{Capability, DEV_RECORDING, Mode, Probe, Roots, Summary, probe};
 use zbus::Connection;
+
+/// How long the service may take to write again after a session that released the cooler.
+const RETURN_WITHIN: Duration = Duration::from_secs(3);
 
 pub struct Session {
     dev: DevProxy<'static>,
@@ -58,6 +67,76 @@ impl Session {
         self.ended = true;
         zbus::block_on(self.dev.end_test()).map_err(|e| format!("EndTest: {e}"))
     }
+
+    /// `EndTest()` for a session that released the cooler; then the recording must show the
+    /// service take it back: its new `03 08`, then a frame (owner, 2026-11-04).
+    pub fn end_seeing_return(self) -> Result<String, String> {
+        let before = recorded()?.len();
+        self.end()?;
+        let since = Instant::now();
+        loop {
+            let messages = recorded()?;
+            let back = messages
+                .iter()
+                .skip(before)
+                .position(|m| *m == Message::Startup)
+                .map(|i| before + i);
+            match back.map(|at| messages.get(at + 1)) {
+                Some(Some(Message::Frame(_))) => {
+                    return Ok(format!(
+                        "the service took the cooler back after {} ms: 03 08, then its frame",
+                        since.elapsed().as_millis()
+                    ));
+                }
+                Some(Some(Message::Startup)) => {
+                    return Err(format!(
+                        "{DEV_RECORDING}: two 03 08 in a row after the session"
+                    ));
+                }
+                _ if since.elapsed() > RETURN_WITHIN => {
+                    return Err(format!(
+                        "{DEV_RECORDING}: the service didn't take the cooler back within {} s",
+                        RETURN_WITHIN.as_secs()
+                    ));
+                }
+                _ => thread::sleep(Duration::from_millis(100)),
+            }
+        }
+    }
+}
+
+/// The dev recording's reports so far. The service may be writing its last line: one without its
+/// newline is left out.
+fn recorded() -> Result<Vec<Message>, String> {
+    let text = fs::read_to_string(DEV_RECORDING).map_err(|e| format!("{DEV_RECORDING}: {e}"))?;
+    text.split_inclusive('\n')
+        .filter_map(|line| line.strip_suffix('\n'))
+        .enumerate()
+        .map(|(i, line)| {
+            let report = parse_recorded(i + 1, line)
+                .map_err(|why| format!("{DEV_RECORDING}:{}: {why}", i + 1))?;
+            let bytes: [u8; 64] = report
+                .bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| format!("{DEV_RECORDING}:{}: not 64 bytes", i + 1))?;
+            decode(&bytes).map_err(|e| format!("{DEV_RECORDING}:{}: {e}", i + 1))
+        })
+        .collect()
+}
+
+/// A direct check's result, with its session ended: while the dev service ran, the check passes
+/// only if the service then took the cooler back.
+pub fn handed_back(
+    session: Option<Session>,
+    result: Result<String, String>,
+) -> Result<String, String> {
+    let Some(session) = session else {
+        return result;
+    };
+    let back = session.end_seeing_return();
+    let note = result?;
+    Ok(format!("{note}; {}", back?))
 }
 
 impl Drop for Session {

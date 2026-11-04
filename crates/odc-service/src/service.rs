@@ -18,11 +18,11 @@ use crate::engine::{Apply, Engine, Published, Requests};
 use crate::log::{Journal, Priority};
 use crate::pulse::Pulse;
 use crate::runtime::{
-    Device, DeviceEvent, Outputs, Progress, SensorLoop, SensorRequest, Sensors, Slot, SystemTicker,
-    forward, run_device, run_engine, run_sensors, sd_notify,
+    Device, DeviceEvent, Durations, Outputs, Progress, SensorLoop, SensorRequest, Sensors, Slot,
+    SystemTicker, forward, run_device, run_engine, run_sensors, sd_notify,
 };
 use crate::settings::{Settings, SettingsStore};
-use crate::status::Status;
+use crate::status::{Status, first_readings};
 
 /// What the service starts with.
 pub struct Config<C: Connector, S: Sensors> {
@@ -151,10 +151,16 @@ impl Running {
         let apply = Arc::new(Slot::<Apply>::default());
         let published = Arc::new(Slot::<Published>::default());
         let frames = Arc::new(Slot::<(u64, Frame)>::default());
+        // The dev copy's durations, for the end-to-end run (owner, 2026-11-04).
+        let durations = config.dev.as_ref().map(|_| Arc::new(Durations::default()));
         let mut sensors = SensorLoop::new(config.sensors);
+        if let Some(durations) = &durations {
+            sensors = sensors.timed(Arc::clone(durations));
+        }
         let first = sensors.snapshot();
         let bindings = sensors.sensors.bindings();
         journal.write(Priority::Info, &binding_lines(&bindings));
+        journal.write(Priority::Info, &first_readings(&first.snapshot));
         let status = Arc::new(RwLock::new(Status {
             bindings,
             gpus: config.gpus,
@@ -202,9 +208,12 @@ impl Running {
                     Arc::clone(&pulse),
                     Arc::clone(&journal),
                 );
-                let mut device = match &config.dev {
-                    Some((_, recording)) => Device::recorded(config.lp360, recording.clone()),
-                    None => Device::new(config.lp360),
+                let mut device = match (&config.dev, &durations) {
+                    (Some((_, recording)), Some(durations)) => {
+                        Device::recorded(config.lp360, recording.clone())
+                            .timed(Arc::clone(durations))
+                    }
+                    _ => Device::new(config.lp360),
                 };
                 move || {
                     let mut on_event = |event: DeviceEvent<'_>| {
@@ -281,7 +290,10 @@ impl Running {
                 device: control_tx,
                 pulse,
                 journal,
-                dev: config.dev,
+                dev: config
+                    .dev
+                    .zip(durations)
+                    .map(|((group, recording), durations)| (group, recording, durations)),
             })
             .map_err(io::Error::other)
         });

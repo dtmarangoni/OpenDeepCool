@@ -135,6 +135,10 @@ Only when the service starts with `--dev`, which only the dev copy's drop-in pas
     <method name="BeginTest"/>
     <method name="EndTest"/>
     <method name="ReleaseCooler"/>
+    <method name="Durations">
+      <arg name="writes" type="at" direction="out"/>
+      <arg name="snapshots" type="at" direction="out"/>
+    </method>
   </interface>
 </node>
 ```
@@ -144,9 +148,10 @@ Only when the service starts with `--dev`, which only the dev copy's drop-in pas
 | `OverrideReadings(a{s(xt)}, a{ss}) → t` | Exact values (metric → numerator and denominator) and unavailable metrics with their reasons replace the sensor thread's snapshots from the next tick on, whose number it returns (rules below). It needs the test session |
 | `ClearOverride()` | Back to the real readings. It needs the test session |
 | `BeginTest()`, `EndTest()` | The test session: while one caller holds it, every change from any other caller gets `Busy`, and the frame recording runs. It ends, with every override and the recording, on `EndTest()` or when the holder's connection leaves the bus (owner, 2026-10-27; solution review P7-16). `BeginTest()` from the holder again succeeds and changes nothing |
-| `ReleaseCooler()` | The session's holder only: the service closes the cooler and writes nothing until the session ends, then starts a new conversation, `03 08` first, so the direct checks share the cooler with the running dev service (owner, 2026-10-29) |
+| `ReleaseCooler()` | The session's holder only: the service closes the cooler and writes nothing until the session ends, then starts a new conversation, `03 08` first, so the direct checks share the cooler with the running dev service (owner, 2026-10-29). The recording keeps that `03 08` and the frame after it, then stops, so a test sees the service take the cooler back (owner, 2026-11-04) |
+| `Durations() → (at, at)` | Each frame write's and each snapshot's duration in µs since the session began, oldest first, the newest 100 000 of each, for the end-to-end run's timings (owner, 2026-11-04). It needs the test session |
 
-A call that needs the test session (`OverrideReadings`, `ClearOverride`, `ReleaseCooler`, `EndTest`) from a caller who doesn't hold it gets `Busy` while another caller holds the session, and `NotAuthorized` ("call BeginTest() first") while nobody does (owner, 2026-10-29).
+A call that needs the test session (`OverrideReadings`, `ClearOverride`, `ReleaseCooler`, `Durations`, `EndTest`) from a caller who doesn't hold it gets `Busy` while another caller holds the session, and `NotAuthorized` ("call BeginTest() first") while nobody does (owner, 2026-10-29).
 
 `OverrideReadings` (owner, 2026-10-29):
 

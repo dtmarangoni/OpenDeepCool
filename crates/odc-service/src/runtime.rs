@@ -4,6 +4,7 @@
 //! second and on request. They meet only through one-slot mailboxes, so a stalled USB write or a
 //! slow driver delays only its own thread, and nothing queues up.
 
+use std::collections::VecDeque;
 use std::io;
 use std::os::linux::net::SocketAddrExt;
 use std::os::unix::net::{SocketAddr, UnixDatagram};
@@ -11,7 +12,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, RecvTimeoutError, Sender};
-use std::sync::{Condvar, Mutex, MutexGuard};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard};
 use std::time::{Duration, Instant};
 
 use odc_device::{Connector, DisplayPort, Link, Lp360, RecordingHandle};
@@ -35,6 +36,49 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
+/// The dev copy's durations (Phase 7 plan, Task 9; owner, 2026-11-04): each frame write's and
+/// each snapshot's, in µs, the newest [`Durations::KEPT`] of each. A test session's start clears
+/// them, and the dev interface's `Durations()` hands them over.
+#[derive(Debug, Default)]
+pub struct Durations {
+    writes: Mutex<VecDeque<u64>>,
+    snapshots: Mutex<VecDeque<u64>>,
+}
+
+impl Durations {
+    /// About 2 h 45 min of writes at one per tick.
+    pub const KEPT: usize = 100_000;
+
+    pub fn write(&self, took: Duration) {
+        keep(&self.writes, took);
+    }
+
+    pub fn snapshot(&self, took: Duration) {
+        keep(&self.snapshots, took);
+    }
+
+    pub fn clear(&self) {
+        lock(&self.writes).clear();
+        lock(&self.snapshots).clear();
+    }
+
+    /// The writes' and the snapshots', oldest first.
+    pub fn lists(&self) -> (Vec<u64>, Vec<u64>) {
+        (
+            lock(&self.writes).iter().copied().collect(),
+            lock(&self.snapshots).iter().copied().collect(),
+        )
+    }
+}
+
+fn keep(list: &Mutex<VecDeque<u64>>, took: Duration) {
+    let mut list = lock(list);
+    if list.len() == Durations::KEPT {
+        list.pop_front();
+    }
+    list.push_back(u64::try_from(took.as_micros()).unwrap_or(u64::MAX));
 }
 
 /// A one-slot mailbox: a post replaces what's there, so the reader only ever takes the newest.
@@ -204,6 +248,8 @@ pub struct Device<C: Connector> {
     recording: Option<RecordingHandle>,
     /// A test holds the cooler: nothing is written (owner, 2026-10-29).
     released: bool,
+    /// The dev copy's: each frame write's duration.
+    durations: Option<Arc<Durations>>,
 }
 
 impl<C: Connector> Device<C> {
@@ -212,6 +258,7 @@ impl<C: Connector> Device<C> {
             lp360,
             recording: None,
             released: false,
+            durations: None,
         }
     }
 
@@ -224,6 +271,15 @@ impl<C: Connector> Device<C> {
         }
     }
 
+    /// Times each frame write into `durations`.
+    #[must_use]
+    pub fn timed(self, durations: Arc<Durations>) -> Self {
+        Device {
+            durations: Some(durations),
+            ..self
+        }
+    }
+
     /// Writes `frame`, tick `tick`'s; returns the link, and whether it changed since the last
     /// write. Nothing is written while a test holds the cooler.
     pub fn write(&mut self, tick: u64, frame: &Frame) -> Option<(Link, bool)> {
@@ -233,7 +289,11 @@ impl<C: Connector> Device<C> {
         if let Some(recording) = &self.recording {
             recording.set_tick(tick);
         }
+        let start = Instant::now();
         let link = self.lp360.show(frame);
+        if let Some(durations) = &self.durations {
+            durations.write(start.elapsed());
+        }
         Some((link, self.lp360.state_changed()))
     }
 
@@ -413,6 +473,8 @@ impl SensorRequest {
 pub struct SensorLoop<S: Sensors> {
     pub sensors: S,
     answers: u64,
+    /// The dev copy's: each snapshot's duration.
+    durations: Option<Arc<Durations>>,
 }
 
 impl<S: Sensors> SensorLoop<S> {
@@ -420,6 +482,16 @@ impl<S: Sensors> SensorLoop<S> {
         SensorLoop {
             sensors,
             answers: 0,
+            durations: None,
+        }
+    }
+
+    /// Times each snapshot into `durations`.
+    #[must_use]
+    pub fn timed(self, durations: Arc<Durations>) -> Self {
+        SensorLoop {
+            durations: Some(durations),
+            ..self
         }
     }
 
@@ -442,8 +514,13 @@ impl<S: Sensors> SensorLoop<S> {
     }
 
     pub fn snapshot(&mut self) -> Published {
+        let start = Instant::now();
+        let snapshot = self.sensors.snapshot();
+        if let Some(durations) = &self.durations {
+            durations.snapshot(start.elapsed());
+        }
         Published {
-            snapshot: self.sensors.snapshot(),
+            snapshot,
             answers: self.answers,
         }
     }
