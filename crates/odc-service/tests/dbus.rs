@@ -481,6 +481,64 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
     });
 }
 
+// Phase 8 plan, Task 7: Power · CPU is drawn and selectable; a unit change in it is stored and
+// announced, and the engine gets the new settings, whose unit no Power picture reads (the engine's
+// scenarios prove no frame changes, S15).
+#[test]
+fn mode_10_is_selectable_and_a_unit_change_in_it_is_only_stored() {
+    let h = Harness::start(
+        "power",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (watcher, caller) = (h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        caller.main.set_mode(10).await.expect("mode 10");
+        assert_eq!(h.saved_settings().mode, 10, "stored");
+        let applied = h.apply.take().and_then(|a| a.settings);
+        assert_eq!(applied.map(|s| s.mode), Some(10));
+        let signal = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("StateChanged");
+        assert_eq!(keys(&signal.args().expect("its changes").changes), ["Mode"]);
+        caller
+            .main
+            .set_temperature_unit("fahrenheit")
+            .await
+            .expect("stored");
+        let saved = h.saved_settings();
+        assert_eq!(
+            (saved.mode, saved.temperature_unit),
+            (10, TemperatureUnit::Fahrenheit)
+        );
+        let applied = h
+            .apply
+            .take()
+            .and_then(|a| a.settings)
+            .expect("the settings");
+        assert_eq!(
+            (applied.mode, applied.temperature_unit),
+            (10, TemperatureUnit::Fahrenheit)
+        );
+        let signal = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("StateChanged");
+        assert_eq!(
+            keys(&signal.args().expect("its changes").changes),
+            ["TemperatureUnit"]
+        );
+    });
+}
+
 #[test]
 fn arguments_outside_what_the_service_found_are_refused() {
     let h = Harness::start(

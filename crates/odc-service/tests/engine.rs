@@ -631,6 +631,28 @@ fn mode_9_leaves_available_modes_when_either_temperature_has_no_rule() {
     );
 }
 
+// Phase 8 plan, Task 7: without the udev rule that lets the service read the CPU's energy
+// counter, mode 10 leaves AvailableModes at once, with its reason; it's never drawn as 0 W.
+#[test]
+fn mode_10_leaves_available_modes_when_the_cpu_power_counter_is_denied() {
+    let denied = Snapshot::new(
+        |metric| match metric {
+            Metric::CpuPower => Reading::Unavailable(Unavailable::PermissionDenied {
+                path: "/sys/fake/energy_uj".into(),
+            }),
+            _ => value(50),
+        },
+        Fan::NotChosen,
+        Fan::NotChosen,
+    );
+    for settled in [false, true] {
+        let a = availability(&denied, settled);
+        assert!(!a.modes.contains(&10), "{:?}", a.modes);
+        assert_eq!(a.reasons[&10], "CPU Power: no permission to read it");
+        assert!(a.modes.contains(&7), "the other CPU modes stay");
+    }
+}
+
 // The first second of a reading averaged over the interval draws dashes, then digits.
 #[test]
 fn not_yet_draws_dashes_then_digits() {

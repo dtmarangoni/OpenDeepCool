@@ -8,6 +8,7 @@ mod load;
 mod marquee;
 mod mode;
 mod picture;
+mod power;
 mod temperature;
 mod value;
 
@@ -80,7 +81,7 @@ pub struct NotYetImplemented(pub Mode);
 /// Whether [`picture`] draws `mode`. It's the one source for both the service's refusal and its
 /// `AvailableModes` (owner, 2026-10-27; solution review P8-03).
 pub fn draws(mode: Mode) -> bool {
-    load::draws(mode) || temperature::draws(mode)
+    load::draws(mode) || temperature::draws(mode) || power::draws(mode)
 }
 
 /// The picture of `mode` for `values`: its strip, its home and whether it must scroll. The
@@ -90,7 +91,8 @@ pub fn picture(mode: Mode, values: &Values, unit: Unit) -> Result<Picture, NotYe
     match mode_info(mode).kind {
         Kind::Load => load::picture(mode, values),
         Kind::Temperature => temperature::picture(mode, values, unit),
-        Kind::Power | Kind::Music => None,
+        Kind::Power => power::picture(mode, values),
+        Kind::Music => None,
     }
     .ok_or(NotYetImplemented(mode))
 }
