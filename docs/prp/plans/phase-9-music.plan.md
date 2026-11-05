@@ -302,7 +302,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - for *H* = 12 and *H* = 6;
   - with peaks on and off;
   - with every bar fall stop and every peak fall stop.
-- `docs/spec/frames/scenarios/music.txt`: CREATE, generated.
+- `docs/spec/frames/scenarios/mode-013.txt` to `mode-023.txt`: CREATE, generated, one file per mode, as Phase 8 writes modes 1–12 (owner, 2026-11-05: every file under the commit guard's 2 MiB limit).
   - Every scenario S1–S26 that applies, for the value modes 18–22, both units for 18–19, in silence: the spectrum is then the floor line, so every pixel is exact.
   - S14–S18 for modes 13–17. S14 here is a switch at every loop position, and the next frame is the loop's first picture.
   - Switches between Music modes while a burst train plays, at every *k*: the spectrum's levels continue and the top area resets.
@@ -530,7 +530,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Layer 1:**
   - all cases of `mode-013.txt` in silence, with `?` resolved by the floor line; the spectrum signals at *H* = 12;
   - rows 1–2 always off.
-- **Layer 1, scenarios:** S14–S18 for mode 13 from `scenarios/music.txt`, in all four rotations.
+- **Layer 1, scenarios:** S14–S18 for mode 13 from `scenarios/mode-013.txt`, in all four rotations.
 - **Layer 2 (local):**
   - every captured mode-13 step has rows 1–2 off;
   - every frame meets the DeepCreative layout (solid bars, floor lit), compared with peaks off. DeepCreative draws no peaks.
@@ -579,7 +579,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - all cases of `mode-0NN.txt`: the value area exact, the spectrum in silence and with the signals;
   - mode 18 in °F shows the CPU Temperature, never the GPU's (rule 11; `music.md` quirk).
 - **Scenarios:**
-  - every scenario S1–S26 from `scenarios/music.txt` for this mode, in all four rotations;
+  - every scenario S1–S26 from the mode's `scenarios/mode-0NN.txt`, in all four rotations;
   - the property that rows 9–14 are always exactly the spectrum's rows, whatever the value area does.
 - **Layer 2 (local):** the captured steps where both sets of rules agree. Static steps are compared frame for frame; scrolling °F steps (mode 19) with `cycle_match` on rows 1–8. Every other step is listed with its reason; mode 18 °F's reason is "DeepCreative draws the Gpu temperature".
 - **Layer 3:**

@@ -148,7 +148,7 @@ flowchart LR
   end
   D -->|"refuse only what isn't drawn"| DB["D-Bus SetMode (Phase 7)"]
   M --> EN["Engine (unchanged):<br/>unit change resets only in 7–9"]
-  O[("docs/spec/frames<br/>mode-007…012, unavailable.txt,<br/>scenarios/load.txt (regenerated),<br/>temperature.txt, power.txt")] -.oracle.-> TESTS["matrix, scenarios, engine,<br/>differential (cycle order),<br/>odc-e2e --only display/service --modes"]
+  O[("docs/spec/frames<br/>mode-007…012, unavailable.txt,<br/>scenarios/mode-001…012<br/>(one file per mode)")] -.oracle.-> TESTS["matrix, scenarios, engine,<br/>differential (cycle order),<br/>odc-e2e --only display/service --modes"]
 ```
 
 ## Implementation Context
@@ -169,7 +169,7 @@ flowchart LR
 - **Phase 7, mode by mode:**
   - Task 3 is the precedent for one commit per mode: the matrix, dash cases, scenarios in four rotations, properties and differential, all for that mode;
   - this phase follows it with `matrix_temperature.rs`, `matrix_power.rs` and their scenario and differential siblings.
-- **Phase 7 Task 1:** the generator writes `scenarios/load.txt` from the spec text's movement procedure. This phase runs the same generator for modes 7–12.
+- **Phase 7 Task 1:** the generator writes `scenarios/load.txt` from the spec text's movement procedure. This phase generalises it to modes 1–12, one file per mode.
 - **`odc_testkit::{expected, diff, sweep}`** (Phases 5 and 7): this phase adds a cycle comparison to `diff`.
 - **The engine's scenario tests** (Phase 7 Task 6): this phase adds cases to the same `engine` test target.
 
@@ -218,13 +218,14 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 
 **Files and integration points**
 - `tools/oracle/` (the Rust oracle, since Phase 5 Task 0): UPDATE, in the same commit as the frames it regenerates. Its rules already have the 9999 cap (2026-10-25) and the nearest rule (2026-10-26).
-  - `src/scenarios.rs`, built in Phase 7 Task 1 for Load only (modes 1–6, the Load metrics and their levels, switches into 1–6), is generalised to modes 1–12: each kind's metrics and levels, both units where a temperature is shown, and one file per kind.
+  - `src/scenarios.rs`, built in Phase 7 Task 1 for Load only (modes 1–6, the Load metrics and their levels, switches into 1–6), is generalised to modes 1–12: each kind's metrics and levels, both units where a temperature is shown, and one file per mode.
   - `src/main.rs` and `src/frames.rs`: the usage text and the files written.
 - **The scenario format gains the unit** (`frames/README.md`, Dash cases and scenarios):
   - tick 0 may name it, `unit celsius` or `unit fahrenheit`; a scenario that names none runs in °C, so no Load scenario has to;
   - a unit change in a mode that shows a temperature is a reset, `reset unit celsius` or `reset unit fahrenheit`; in any other mode it stays `unit …, only saved`;
   - tick 0 gives every metric modes 1–12 show, all seven, so a switch into another kind draws named readings, never a test's filler (the oracle shares no code with `odc_testkit::expected`, so it can't know the fillers).
-- `docs/spec/frames/scenarios/load.txt`: UPDATE, regenerated:
+- **One scenario file per mode** (owner, 2026-11-05): `docs/spec/frames/scenarios/mode-001.txt` to `mode-012.txt`, named like the frame files; every scenario of a file starts in its mode. In one file per kind, as first planned, `load.txt` came to 2.87 MB and `temperature.txt` to 2.72 MB, over the commit guard's 2 MiB limit (Phase 2), which stays as it is. Per mode, the largest is mode 9's, 1.41 MB.
+- `docs/spec/frames/scenarios/load.txt`: DELETE. Its scenarios move to `mode-001.txt`–`mode-006.txt`, regenerated:
   - tick 0 names all seven metrics;
   - S14 switches from each Load mode into every other mode 1–12, into modes 7–9 in both units;
   - the "not yet available" example moves from mode 9 to mode 13, which this phase never draws. Once mode 9 is drawn (Task 6), `SetMode(9)` succeeds, and `odc-e2e`'s real run would fail on the old example. When Phase 9 draws mode 13, its own plan check moves or removes the example.
@@ -234,19 +235,19 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - mode 10 with CPU Power not yet read (`--W`);
   - mode 12 with CPU Power 1234 and Gpu power unavailable;
   - mode 11 with a negative reading.
-- `docs/spec/frames/scenarios/temperature.txt`: CREATE, generated. Every scenario S1–S26 that applies, for modes 7, 8, 9, **in °C and in °F**, in rotation 0, S14's switches into every other mode 1–12 included:
+- `docs/spec/frames/scenarios/mode-007.txt`–`mode-009.txt`: CREATE, generated. Every scenario S1–S26 that applies, for modes 7, 8, 9, **in °C and in °F**, in rotation 0, S14's switches into every other mode 1–12 included:
   - two-value mode 9 with the change in the top value, the bottom value and both;
   - the cycle-position scenarios at every *k* from 0 to *L* − 1;
   - S7 at the °F boundary (37.49 °C → `99°F` static, 37.5 °C → `100°F` scrolling);
   - S15 both ways (`57°C` → `135°F`, `135°F` → `57°C`, static and scrolling);
   - S12 and S20 including 5536 ↔ 5537 °C in °F (`9997°F` ↔ `9999°F`), 5537.49 ↔ 5537.5 °C (`9999°F`, then 10 000 capped) and 10⁹ °C (`9999°C`, `9999°F`).
-- `docs/spec/frames/scenarios/power.txt`: CREATE, generated. The same for modes 10, 11, 12, switches into every other mode 1–12 included:
+- `docs/spec/frames/scenarios/mode-010.txt`–`mode-012.txt`: CREATE, generated. The same for modes 10, 11, 12, switches into every other mode 1–12 included:
   - S15 here is "a unit change changes nothing on the cooler" at every *k*;
   - S12 is `9999W` and 123456 W (`9999W`) in one band and in both;
   - S17 includes CPU Power's first-second `--W` turning into `120W`.
-- `docs/spec/frames/README.md`: UPDATE: the unit in the scenario format, the two new scenario files, `load.txt`'s changes and the new dash cases, with each file's scenario and frame counts.
-- `crates/odc-testkit/src/expected.rs`: UPDATE. `Scenario` gains its unit (tick 0's, °C when none), and `Reset` gains `Unit(Unit)`; a unit named after tick 0 without `reset` or `only saved`, or twice at tick 0, panics with its file and line.
-- The replays, so the workspace's tests pass on the new files: `crates/odc-render/tests/scenarios_load.rs` draws in the scenario's unit and resets on `reset unit`; `crates/odc-service/tests/engine.rs` starts the engine in the scenario's unit, changes it on `reset unit`, and skips a scenario that switches into a mode the build doesn't draw, as `odc-render`'s replay already does. `odc-e2e` reads the unit in Task 3.
+- `docs/spec/frames/README.md`: UPDATE: the unit in the scenario format, the files per mode, what changed for modes 1–6 and the new dash cases, with the scenario and frame counts.
+- `crates/odc-testkit/src/expected.rs`: UPDATE. `Scenario` gains its unit (tick 0's, °C when none), and `Reset` gains `Unit(Unit)`; a unit named after tick 0 without `reset` or `only saved`, or twice at tick 0, panics with its file and line. A loader reads one mode's file.
+- The replays, so the workspace's tests pass on the new files: `crates/odc-render/tests/scenarios_load.rs` reads each Load mode's file, draws in the scenario's unit and resets on `reset unit`; `crates/odc-service/tests/engine.rs` reads every mode's file, starts the engine in the scenario's unit, changes it on `reset unit`, and skips a scenario that shows a mode the build doesn't draw, as `odc-render`'s replay already does. `odc-e2e`'s `load.rs` and `service.rs` read modes 1–6's files; it reads the unit in Task 3.
 
 **Tests**
 - The generator's own checks, as in Phase 7 Task 1: the existing `mode-*.txt` cases, as regenerated on 2026-10-26 with the nearest rule, come out unchanged. Its scenarios keep the owner's movement rules (stop only at home, no jump of more than one column except at a reset). A unit change in a Power or Load mode leaves every frame identical to the run without it.
@@ -254,9 +255,9 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - The loader: every committed scenario file loads; a scenario's unit and `reset unit` come back typed; a malformed unit line panics, naming its file and line.
 
 **Validation**
-- `git diff --stat docs/spec/frames/` shows only `load.txt`, `unavailable.txt`, the two new scenario files and the README; every `mode-*.txt` is unchanged.
+- `git diff --stat docs/spec/frames/` shows only `unavailable.txt`, the README, `scenarios/load.txt` deleted and the twelve `scenarios/mode-0NN.txt` created; every `mode-*.txt` frame file is unchanged, and every scenario file is under 2 MiB.
 - `cargo test --workspace`: passes. The replays skip each switch into modes 7–12 until its mode is drawn.
-- The Phase 8 report gives the scenario files' sizes. They grow from 1.8 MB (`load.txt` today) to an estimated 6 MB, unverified until generated.
+- The Phase 8 report gives the scenario files' sizes: 7.2 MB in all, measured 2026-11-05, from 1.8 MB for `load.txt` before.
 
 ### 2. `odc-render`: the `°C`, `°F` and `W` glyphs, and the temperature and power value rules
 
@@ -303,7 +304,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - `crates/odc-e2e/src/lib.rs`: UPDATE. The flags are parsed here: `--modes`, and the area `load` renamed `display`, with the usage text.
 - `crates/odc-e2e/src/load.rs` → `display.rs`: RENAME and UPDATE, from each drawn Load mode to each drawn mode, in the case's unit, limited by `--modes`; its checks are named `display_mode_<n>`.
 - `crates/odc-e2e/src/plays.rs`: UPDATE. A `Plan` gets its unit: from a case's heading or a scenario's tick 0, set with `SetTemperatureUnit` before its tick 0, and changed at `reset unit`; the mode it switches from first is any other drawn mode, not one of 1–6.
-- `crates/odc-e2e/src/service.rs`, `attended.rs`: UPDATE, from modes 1–6 in °C to every drawn mode in each unit it shows, and from `load.txt` to every scenario file.
+- `crates/odc-e2e/src/service.rs`, `attended.rs`: UPDATE, from modes 1–6 in °C to every drawn mode in each unit it shows, and from modes 1–6's scenario files to every mode's.
 - `crates/odc-e2e/tests/flags_and_fakes.rs`: UPDATE, the flag tests.
 - `AGENTS.md` Commands: `--only display` in place of `--only load`, and `--modes`, in this commit (AGENTS.md: a changed command updates it in the same commit). The PRD's Decisions Log row "Sharing the cooler with the dev service" names `--only display` too.
 
@@ -352,7 +353,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - Every metric gets a distinct non-zero value, including the ones mode 7 doesn't show, so drawing the Gpu temperature fails (rule 5).
   - Scrolling cases are compared frame by frame from home over the whole cycle.
 - **Dash cases:** mode 7's in `unavailable.txt`.
-- **Layer 1, scenarios:** mode 7's in `scenarios/temperature.txt`, both units, all four rotations (the expected frames turned).
+- **Layer 1, scenarios:** mode 7's in `scenarios/mode-007.txt`, both units, all four rotations (the expected frames turned).
 - **Properties:** only rows 6–10 ever light; the °F number of a reading is the nearest whole number to its exact °F value.
 - **Layer 2 (local, `#[ignore]`):** every captured mode-7 sweep step.
   - Two-digit °C steps must equal the picture at home in every steady frame.
@@ -416,7 +417,7 @@ As Task 4, for mode 9: CPU Temperature in rows 2–6 over Gpu temperature in row
 - **Layer 1:**
   - all 12 cases of `mode-010.txt`;
   - mode 10's dash cases;
-  - `scenarios/power.txt` for mode 10 in four rotations, including S12 `9999W` and S20 `10000` → `9999W`.
+  - `scenarios/mode-010.txt` in four rotations, including S12 `9999W` and S20 `10000` → `9999W`.
 - **Layer 2:**
   - three-digit steps through `cycle_match`;
   - skipped:
@@ -525,7 +526,7 @@ After this phase, 60 of the 112 matrix combinations are covered: modes 1–12 in
 |---|---|---|---|
 | Every value capped at 9999, everywhere (owner, 2026-10-25) | Done: in every metric, °F capped after conversion, the same number on the cooler, over D-Bus and in the journal. The spec, PRD, Phase 7 plan, UI brief and oracle follow it | `display.md` Values; commit `e1988cb` | — |
 | Phase 7's final names could differ from its plan (`picture`, `Marquee`, `mode_info`, `odc_testkit::sweep`, the refusal step) | Done 2026-11-05: the plan was checked against the Phase 5–7 code and corrected with the owner's OK (Evidence, "The comparison with Phases 5–7") | AGENTS.md: a plan that contradicts what you see is stopped and fixed first | — |
-| The scenario files grow with modes 7–12 in both units and every switch pair | Keep every scenario the plan lists; the Phase 8 report gives the files' sizes | `load.txt` is 1.8 MB for 2,499 scenarios; an estimated 6 MB in all, unverified until generated | Fewer cycle positions would leave movement cases untested |
+| The scenario files grow with modes 7–12 in both units and every switch pair | Keep every scenario the plan lists, one file per mode under the commit guard's 2 MiB limit (owner, 2026-11-05); the Phase 8 report gives the files' sizes | `load.txt` was 1.8 MB for 2,499 scenarios; 7.2 MB in all for 10,403, the largest file 1.41 MB (mode 9), measured 2026-11-05 | Fewer cycle positions would leave movement cases untested; one file per kind would break the guard's limit |
 | The real-cooler run before each mode's commit | One example of each mode and test type on the cooler (owner, 2026-10-26), limited by `--modes`; the whole cross runs in-process; the run prints its duration | Rule 4 needs the run before each mode's commit; rule 3 needs no person | At the real 100 ms tick, the whole cross would take many hours per commit |
 | DeepCreative's capture of mode 9 °C can't be compared (column shift) | Rely on layer 1's 12 °C cases of `mode-009.txt` and the scenarios; list the skip reason | Owner, 2026-10-24: two values end at column 14 | — |
 | Comparing scrolling captures in order could fail on a dropped captured frame | It didn't on any of the 50 scrolling steps (recounted 2026-10-26; 68 under the old rule); a failure stops the commit and is investigated, never loosened to a set comparison | `display.md` Scrolling layout point 3: every frame-to-frame change is a one-column shift | A weaker check would accept frames out of order |
