@@ -3,7 +3,7 @@
 **Plan:** [phase-7-service-settings-load-mode.plan.md](../plans/phase-7-service-settings-load-mode.plan.md)
 **PRD phase:** 7 — Service, settings & Load (MVP)
 **Branch:** `phase-7-service-settings-load-mode`
-**Status:** built, 2026-11-04: every task is committed and validated on the owner's PC; awaiting the owner's sign-off, then the push, CI and the fast-forward of `main`.
+**Status:** complete, 2026-11-05: every task is committed and validated on the owner's PC, the owner signed the phase off, CI passed on the branch on its first run, and `main` was fast-forwarded to the branch (no pull request).
 
 ## Outcome
 
@@ -76,6 +76,7 @@ Each was agreed with the owner, and the plan, its companion and the PRD say so w
 - **Frame intervals:** the engine sends on exact deadlines, but a write takes 4–9 ms, so the intervals between write-end times spread about ±4 ms around 100 ms (p50 96.9 ms, p99 104.2 ms); the mean stays 100.000 ms.
 - **No way back to an automatic GPU choice:** settled before sign-off (owner, 2026-11-04): Automatic and the GPU-change rule, under Changes from the plan. The settings app's mockups still show the earlier missing-GPU hint and no Automatic entry; the designer updates them before Phase 10's code.
 - **The e2e service checks test the installed copy:** after a change to the service, `odc-dev setup` again (one password prompt) before `--only service`.
+- **`syn` 2 stays allowed in `deny.toml`:** at sign-off, the newest nvml-wrapper (0.13.0, through thiserror 1 and wrapcenum-derive's darling 0.20) and the newest tracing-attributes (0.1.31, through zbus's tracing) still build with syn 2, and so does bindgen 0.72.1 in the dev tool.
 
 ## Validation
 
@@ -91,8 +92,8 @@ Each was agreed with the owner, and the plan, its companion and the PRD say so w
 | `--only baseline --require dev-service` | Mode 4, 600 s: mean CPU 0.21 % of one core, peak RSS 5.4 MiB; writes p50 4.3 ms, p99 8.2 ms, max 9.0 ms; snapshots p50 0.8 ms, p99 2.1 ms, max 2.8 ms |
 | `systemd-analyze security` | 0.5 SAFE, dev copy and product unit |
 | `--attended` | Written, not run: it's the owner's optional tour |
-| CI | At sign-off, on the pushed branch |
+| CI on the branch | Passed on its first run: the dependency audit (`cargo deny check`: advisories, bans, licences and sources; its first run on Phase 7's dependencies), format, lint, the workspace's tests as root (377, 2 ignored, as on the owner's PC), the udev rules and the privacy job. It passed again with `jdx/mise-action` moved to v5.2.6, the newest release at sign-off; `actions/checkout` v7.0.1 was already the newest |
 
 ## Commits
 
-From `9cc513b` (the plan follows what Phases 5 and 6 built) to `1916741` (Task 10): 25 commits on the branch, one per task, per Load mode and per owner decision; `git log main..phase-7-service-settings-load-mode` lists them.
+From `9cc513b` (the plan follows what Phases 5 and 6 built) to `1916741` (Task 10): 25 commits on the branch, one per task, per Load mode and per owner decision. Then this report (`007fb22`), the owner's three changes before sign-off (`4fbbb2c` `Error.Failed`, `1f11adb` the GPU choice's Automatic, `e305b97` S25 on a PC with two GPUs), the action pin at sign-off (`65765e6`) and the sign-off itself. `git log` from Phase 6's sign-off, `dc7ed7a`, to the sign-off lists them.
