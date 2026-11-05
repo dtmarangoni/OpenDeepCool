@@ -10,11 +10,11 @@ mod mode;
 mod picture;
 mod value;
 
-pub use glyph::{DASH, DIGITS, Glyph, PERCENT};
+pub use glyph::{CELSIUS, DASH, DIGITS, FAHRENHEIT, Glyph, PERCENT, WATT};
 pub use marquee::Marquee;
 pub use mode::{Kind, Mode, ModeInfo, mode_info};
 pub use picture::{Band, Picture, layout};
-pub use value::{CAP, Shown, number};
+pub use value::{CAP, Shown, fahrenheit, number};
 
 use odc_sensors::{Exact, Metric, Reading, Snapshot};
 

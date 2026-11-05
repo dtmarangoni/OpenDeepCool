@@ -2,7 +2,7 @@
 //! scroll, for every value length from dashes to four digits (Phase 7 plan, Task 2;
 //! `docs/spec/display.md`, Static layout and Movement, precisely).
 
-use odc_render::{Band, PERCENT, Picture, Shown, layout};
+use odc_render::{Band, CELSIUS, FAHRENHEIT, Glyph, PERCENT, Picture, Shown, WATT, layout};
 
 /// One value of each length: dashes, then 1 to 4 digits.
 const LENGTHS: [(Shown, usize); 5] = [
@@ -18,6 +18,10 @@ fn band(shown: Shown) -> Band {
         shown,
         symbol: &PERCENT,
     }
+}
+
+fn band_of(shown: Shown, symbol: &'static Glyph) -> Band {
+    Band { shown, symbol }
 }
 
 fn scrolls(shown: Shown) -> bool {
@@ -65,6 +69,78 @@ fn two_values_of_every_length_end_at_the_same_column() {
             );
         }
     }
+}
+
+// Phase 8 plan, Task 2: the same for `°C`, 4 wide, and for `°F` and `W`, 5 wide like `%`.
+#[test]
+fn one_value_of_every_length_with_each_symbol() {
+    let four_wide = [
+        (12, 21, 2),
+        (8, 21, 4),
+        (12, 21, 2),
+        (16, 21, 2),
+        (20, 24, 2),
+    ];
+    let five_wide = [
+        (13, 21, 2),
+        (9, 21, 4),
+        (13, 21, 2),
+        (17, 21, 2),
+        (21, 25, 2),
+    ];
+    for (symbol, want) in [
+        (&CELSIUS, four_wide),
+        (&FAHRENHEIT, five_wide),
+        (&WATT, five_wide),
+    ] {
+        for ((shown, _), (w, cycle, home)) in LENGTHS.into_iter().zip(want) {
+            let p = layout(&[band_of(shown, symbol)]);
+            assert_eq!(
+                (p.width(), p.cycle(), p.home(), p.must_scroll()),
+                (w, cycle, home, scrolls(shown)),
+                "{shown:?} with {symbol:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn two_values_of_every_length_end_at_the_same_column_with_each_symbol() {
+    for (symbol, symbol_width) in [(&CELSIUS, 4), (&FAHRENHEIT, 5), (&WATT, 5)] {
+        for (top, top_places) in LENGTHS {
+            for (bottom, bottom_places) in LENGTHS {
+                let p = layout(&[band_of(top, symbol), band_of(bottom, symbol)]);
+                let w = i32::try_from(4 * top_places.max(bottom_places) + symbol_width).unwrap();
+                let home = if w > 14 { 2 } else { 15 - w };
+                let cycle = w + 4.max(21 - w);
+                assert_eq!(
+                    (p.width(), p.cycle(), p.home(), p.must_scroll()),
+                    (w, cycle, home, scrolls(top) || scrolls(bottom)),
+                    "{top:?} over {bottom:?} with {symbol:?}"
+                );
+            }
+        }
+    }
+}
+
+// Phase 8 plan, Task 2: one-value `57°C` is 12 wide at home 2, `5°C` 8 wide at home 4; two-value
+// `57°C` over `38°C` starts at column 3 and ends at 14, `°C` one column right of DeepCreative's
+// place (display.md, OpenDeepCool: alignment).
+#[test]
+fn temperatures_in_celsius_sit_where_the_alignment_rule_puts_them() {
+    let one = layout(&[band_of(Shown::Number(57), &CELSIUS)]);
+    assert_eq!((one.width(), one.home()), (12, 2));
+    let columns = lit_columns(&one);
+    assert_eq!((columns[0], *columns.last().unwrap()), (2, 13));
+    let five = layout(&[band_of(Shown::Number(5), &CELSIUS)]);
+    assert_eq!((five.width(), five.home()), (8, 4));
+    let two = layout(&[
+        band_of(Shown::Number(57), &CELSIUS),
+        band_of(Shown::Number(38), &CELSIUS),
+    ]);
+    assert_eq!(two.home(), 3);
+    let columns = lit_columns(&two);
+    assert_eq!((columns[0], *columns.last().unwrap()), (3, 14));
 }
 
 /// The columns of `picture` at home that hold a lit pixel, from 1.
