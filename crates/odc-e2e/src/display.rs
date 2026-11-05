@@ -1,31 +1,41 @@
-//! The Load checks (Phase 7 plan, Task 3; owner, 2026-10-29: AGENTS.md rule 4 asks for the run on
-//! the cooler in each mode's commit). Before the service exists, each drawn Load mode's examples,
-//! drawn by `odc-render`, go straight to the cooler at the tick: value set 2 upright and turned
-//! once, value set 3, and the mode's dash case where it has one. Where value set 3 doesn't scroll
-//! (modes 2, 3 and 6), scenario S1 of the mode's `scenarios/mode-NNN.txt` brings the scrolling
-//! example. Every report written is recorded and compared with the expected frames; nobody looks
-//! at the cooler. Without a cooler, the same runs through a fake one.
+//! The display checks, `--only display` (Phase 7 plan, Task 3, as `--only load`; owner,
+//! 2026-10-29: AGENTS.md rule 4 asks for the run on the cooler in each mode's commit; owner,
+//! 2026-11-05: every drawn mode). Each listed mode's examples, drawn by the code just built, go
+//! straight to the cooler at the tick, without the service: value set 2 upright and turned once,
+//! value set 3, in each unit a temperature mode has, and the mode's dash cases. Where no example
+//! scrolls, scenario S1 of the mode's `scenarios/mode-NNN.txt` brings one. Every report written is
+//! recorded and compared with the expected frames; nobody looks at the cooler. Without a cooler,
+//! the same runs through a fake one.
 
 use std::path::Path;
 use std::time::Duration;
 
 use odc_device::{Connector, DisplayPort, Link, Lp360, Recording};
 use odc_protocol::{Frame, Message};
-use odc_render::{Kind as ModeKind, Marquee, Mode, Unit, Values, draws, mode_info, picture};
+use odc_render::{Marquee, Mode, Unit, Values, picture};
 use odc_testkit::diff;
 use odc_testkit::expected::{
-    Case, Change, Kind, Picture, every_metric, load_mode, load_unavailable, mode_scenarios,
+    self, Case, Change, Kind, Picture, every_metric, load_mode, load_unavailable, mode_scenarios,
 };
 use odc_testkit::hardware::{Capability, Mode as RunMode, Probe, Roots, Summary, probe};
 
 use crate::device::{Pace, fake_lp360, hidraw, read_recording, recording_path};
 use crate::session::{handed_back, release_for_direct};
 
-pub fn run(roots: &Roots, out_dir: &Path, tick: Duration, summary: &mut Summary) {
-    let modes = Mode::all().filter(|&m| mode_info(m).kind == ModeKind::Load && draws(m));
-    for mode in modes {
+/// Runs the examples of each of `modes`, which the flags checked are drawn by this build.
+pub fn run(roots: &Roots, out_dir: &Path, tick: Duration, modes: &[u16], summary: &mut Summary) {
+    for &n in modes {
+        let mode = Mode::new(n).expect("a mode the flags checked");
         let result = check(mode, roots, out_dir, tick, summary);
-        summary.check(&format!("load_mode_{}", mode.number()), result);
+        summary.check(&format!("display_mode_{n}"), result);
+    }
+}
+
+/// The renderer's unit for a case's; a case that names none is in °C.
+pub(crate) fn unit(unit: Option<expected::Unit>) -> Unit {
+    match unit {
+        Some(expected::Unit::Fahrenheit) => Unit::Fahrenheit,
+        Some(expected::Unit::Celsius) | None => Unit::Celsius,
     }
 }
 
@@ -45,7 +55,7 @@ fn check(
         }
         Probe::Absent { reason } => {
             summary.mode(Capability::Lp360, RunMode::Fake { reason });
-            let tree = fake_lp360(out_dir, &format!("fake-load-{}", mode.number()))?;
+            let tree = fake_lp360(out_dir, &format!("fake-display-{}", mode.number()))?;
             show(hidraw(&tree.roots()), mode, &examples, out_dir, tick)
         }
         Probe::Unusable { reason, fix } => {
@@ -67,32 +77,41 @@ struct Example {
     expected: Vec<Picture>,
 }
 
-/// The mode's examples, one of each test type (owner, 2026-10-26: the full cross runs in
-/// process).
+/// The mode's examples, one of each test type, in each unit a temperature mode has (owner,
+/// 2026-10-26: the full cross runs in process).
 fn examples(mode: Mode) -> Result<Vec<Example>, String> {
     let n = mode.number();
     let file = load_mode(n);
     // The value sets in file order: 1, 2 and 3 (docs/spec/frames/README.md, Readings used).
-    let set = |rotation: u8, index: usize| {
+    let set = |rotation: u8, unit: Option<expected::Unit>, index: usize| {
         file.cases
             .iter()
-            .filter(|c| c.rotation.setting() == rotation)
+            .filter(|c| c.rotation.setting() == rotation && c.unit == unit)
             .nth(index)
             .ok_or_else(|| {
                 format!(
-                    "mode-{n:03}.txt: no value set {} in rotation {rotation}",
+                    "mode-{n:03}.txt: no value set {} in rotation {rotation}, {unit:?}",
                     index + 1
                 )
             })
     };
-    let mut cases = vec![set(0, 1)?, set(1, 1)?, set(0, 2)?];
-    let dashes = load_unavailable();
-    if let Some((_, case)) = dashes
-        .iter()
-        .find(|(m, c)| *m == n && c.rotation.setting() == 0)
-    {
-        cases.push(case);
+    let mut units: Vec<Option<expected::Unit>> = Vec::new();
+    for case in &file.cases {
+        if !units.contains(&case.unit) {
+            units.push(case.unit);
+        }
     }
+    let mut cases = Vec::new();
+    for &unit in &units {
+        cases.extend([set(0, unit, 1)?, set(1, unit, 1)?, set(0, unit, 2)?]);
+    }
+    let dashes = load_unavailable();
+    cases.extend(
+        dashes
+            .iter()
+            .filter(|(m, c)| *m == n && c.rotation.setting() == 0)
+            .map(|(_, case)| case),
+    );
     let scrolls = cases.iter().any(|c| matches!(c.kind, Kind::Scrolling(_)));
     let mut examples: Vec<Example> = cases
         .into_iter()
@@ -127,7 +146,8 @@ fn scrolling(mode: Mode) -> Result<Example, String> {
     for (metric, value) in every_metric(&start) {
         values.set(metric, value);
     }
-    let p = picture(mode, &values, Unit::Celsius).map_err(|_| format!("mode {n} isn't drawn"))?;
+    let p =
+        picture(mode, &values, unit(Some(s1.unit))).map_err(|_| format!("mode {n} isn't drawn"))?;
     let mut marquee = Marquee::new(p);
     let (mut frames, mut expected) = (Vec::new(), Vec::new());
     for tick in &s1.ticks {
@@ -153,13 +173,13 @@ fn draw(mode: Mode, case: &Case) -> Result<Example, String> {
     for (metric, value) in every_metric(&case.readings) {
         values.set(metric, value);
     }
-    let p = picture(mode, &values, Unit::Celsius)
+    let p = picture(mode, &values, unit(case.unit))
         .map_err(|_| format!("mode {} isn't drawn", mode.number()))?;
     let mut marquee = Marquee::new(p);
     let expected: Vec<Picture> = match &case.kind {
         Kind::Static(picture) => vec![picture.clone(); 3],
         Kind::Scrolling(cycle) => cycle.clone(),
-        Kind::Loop(_) => return Err(format!("{}: Load has no loop", case.heading)),
+        Kind::Loop(_) => return Err(format!("{}: a loop, not a value", case.heading)),
     };
     let frames = expected
         .iter()
@@ -180,7 +200,7 @@ fn show<C: Connector>(
     out_dir: &Path,
     tick: Duration,
 ) -> Result<String, String> {
-    let path = recording_path(out_dir, &format!("load-mode-{}", mode.number()))?;
+    let path = recording_path(out_dir, &format!("display-mode-{}", mode.number()))?;
     let recording =
         Recording::create(connector, &path).map_err(|e| format!("{}: {e}", path.display()))?;
     let mut lp360 = Lp360::new(recording);

@@ -1,8 +1,9 @@
 //! The attended tour (owner, 2026-10-24; Phase 7 plan, Task 9), `odc-e2e --attended`: a short run
 //! for the owner to watch on the cooler, never a gate (AGENTS.md rule 3: every required test stays
-//! unattended). Each Load mode with a one-digit, a two-digit and a `100%` value and its dashes,
-//! then one variant of each scenario type the dev service can be driven through, each shown on
-//! the real cooler, with the expected picture as text and one line on what should happen. The
+//! unattended). Each listed mode's upright cases, its three value sets in each unit it shows, and
+//! its dashes, then one variant of each scenario type the dev service can be driven through for
+//! each kind of mode, each shown on the real cooler, with the expected picture as text and one
+//! line on what should happen (`--modes` lists the modes; Phase 8 plan, Task 3). The
 //! owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
 //! standby. The answers go to `target/e2e/attended-<unix time>.txt`, and any `n` makes the exit
 //! status non-zero. Afterwards the owner's settings are as the tour found them. Later phases add
@@ -14,7 +15,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use odc_protocol::Message;
-use odc_testkit::expected::{Case, Kind, Picture, load_mode, load_unavailable};
+use odc_render::{Mode, draws};
+use odc_testkit::expected::{Case, Kind, Picture, Unit, load_mode, load_unavailable};
 use odc_testkit::hardware::{Capability, Probe, Roots, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
@@ -87,7 +89,12 @@ fn describe(case: &Case) -> String {
         ),
         Kind::Loop(_) => "a loop".to_owned(),
     };
-    format!("{}: {movement}", readings.join(", "))
+    let unit = match case.unit {
+        Some(Unit::Celsius) => "in °C, ",
+        Some(Unit::Fahrenheit) => "in °F, ",
+        None => "",
+    };
+    format!("{unit}{}: {movement}", readings.join(", "))
 }
 
 fn print_picture(picture: &Picture) {
@@ -95,7 +102,7 @@ fn print_picture(picture: &Picture) {
 }
 
 /// Runs the tour; `Ok(true)` when every answer was `y`.
-pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
+pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String> {
     match probe(Capability::DevService, roots) {
         Probe::Real => {}
         Probe::Absent { reason } => {
@@ -105,11 +112,10 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
     }
     let session = Session::begin()?;
     let found = state(&session)?;
+    let offered = found.available_modes.clone().unwrap_or_default();
+    let accepted =
+        |mode: u16| Mode::new(mode).is_some_and(draws) && offered.contains(&u32::from(mode));
     let current = Current {
-        unit: found
-            .temperature_unit
-            .map_or("celsius", |u| u.as_str())
-            .to_owned(),
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
         gpus: gpu_addresses(&found),
     };
@@ -126,14 +132,13 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
     let io = |e: io::Error| format!("stdin: {e}");
 
     println!("The tour shows each case on the cooler. Watch it, then answer.\n");
-    for mode in 1..=6 {
+    for &mode in modes {
         let file = load_mode(mode);
         let dashes = load_unavailable();
         let cases = file
             .cases
             .iter()
             .filter(|c| c.rotation.setting() == 0)
-            .take(3)
             .chain(
                 dashes
                     .iter()
@@ -146,7 +151,7 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
             let first = match &case.kind {
                 Kind::Static(p) => p,
                 Kind::Scrolling(cycle) => &cycle[0],
-                Kind::Loop(_) => return Err("Load has no loop".into()),
+                Kind::Loop(_) => return Err(format!("mode {mode}: a loop, not a value")),
             };
             loop {
                 println!("== {name}");
@@ -169,7 +174,7 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
         }
     }
 
-    for (id, plan) in scenario_plans() {
+    for (id, _, plan) in scenario_plans(modes, &accepted) {
         if let Err(why) = real_or_why(&id, current.gpus.len(), switch.is_some()) {
             println!("== {id} isn't shown: {why}");
             continue;

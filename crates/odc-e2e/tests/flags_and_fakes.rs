@@ -50,6 +50,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             require: vec![Capability::DevService],
             only: Some(Area::Service),
             attended: false,
+            modes: None,
         }))
     );
     assert_eq!(
@@ -63,6 +64,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             require: vec![Capability::Lp360, Capability::Lp360Reconnect],
             only: Some(Area::Device),
             attended: false,
+            modes: None,
         }))
     );
     assert_eq!(
@@ -76,6 +78,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             require: vec![Capability::CpuTemp, Capability::BoardFans],
             only: Some(Area::Sensors),
             attended: false,
+            modes: None,
         }))
     );
     assert_eq!(
@@ -89,25 +92,61 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             require: vec![Capability::GpuAmdgpu, Capability::GpuOther],
             only: Some(Area::GpuRank),
             attended: false,
+            modes: None,
         }))
     );
     assert_eq!(
-        parse_args(&args(&["--require", "lp360", "--only", "load"])),
+        parse_args(&args(&["--require", "lp360", "--only", "display"])),
         Ok(Some(Options {
             require: vec![Capability::Lp360],
-            only: Some(Area::Load),
+            only: Some(Area::Display),
             attended: false,
+            modes: None,
         }))
     );
     for (bad, reason) in [
         (&["--require", "lp361"][..], "isn't a capability"),
         (&["--only", "nowhere"][..], "isn't an area"),
+        // Phase 7's name for the display area (owner, 2026-11-05).
+        (&["--only", "load"][..], "isn't an area"),
         (&["--fast"][..], "isn't an option"),
         (&["--require"][..], "needs a list"),
+        (&["--modes"][..], "needs a list"),
     ] {
         let error = parse_args(&args(bad)).expect_err(bad[0]);
         assert!(error.contains(reason), "{bad:?}: {error}");
     }
+}
+
+// Phase 8 plan, Task 3: `--modes` takes numbers and ranges of modes this build draws.
+#[test]
+fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
+    let modes = |list: &str| parse_args(&args(&["--modes", list])).map(|o| o.and_then(|o| o.modes));
+    assert_eq!(modes("1"), Ok(Some(vec![1])));
+    assert_eq!(modes("4-6,1,5"), Ok(Some(vec![1, 4, 5, 6])));
+    let drawn = |n: u16| odc_render::Mode::new(n).is_some_and(odc_render::draws);
+    // Modes 7–12 come one by one in Phase 8; each is accepted once drawn.
+    assert_eq!(modes("7").is_ok(), drawn(7));
+    assert_eq!(
+        modes("7-9,12").is_ok(),
+        [7, 8, 9, 12].into_iter().all(drawn)
+    );
+    for (bad, reason) in [
+        ("0", "isn't in the mode table"),
+        ("24", "isn't in the mode table"),
+        ("9-7", "a range goes from the lower mode up"),
+        ("x", "isn't a mode or a range of modes"),
+        ("1,", "isn't a mode or a range of modes"),
+        ("-3", "isn't a mode or a range of modes"),
+        // Music is Phase 9's.
+        ("13", "isn't drawn by this build yet"),
+    ] {
+        let error = modes(bad).expect_err(bad);
+        assert!(error.contains(reason), "{bad:?}: {error}");
+    }
+    // Without the flag, every mode this build draws.
+    assert_eq!(Options::default().modes(), odc_e2e::drawn_modes());
+    assert!(odc_e2e::drawn_modes().starts_with(&[1, 2, 3, 4, 5, 6]));
 }
 
 #[test]
@@ -138,12 +177,9 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
     ] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
-    // Each Load mode drawn so far, through the fake cooler (Phase 7 plan, Task 3).
-    let load = odc_render::Mode::all().filter(|&m| {
-        odc_render::mode_info(m).kind == odc_render::Kind::Load && odc_render::draws(m)
-    });
-    for mode in load {
-        let check = format!("load_mode_{}", mode.number());
+    // Each mode drawn so far, through the fake cooler (Phase 7 plan, Task 3; Phase 8 plan, Task 3).
+    for mode in odc_e2e::drawn_modes() {
+        let check = format!("display_mode_{mode}");
         assert!(
             table.contains(&format!("{check:<16} passed  03 08, then")),
             "{table}"
@@ -198,6 +234,7 @@ fn a_gpu_whose_kind_query_fails_fails_its_check_with_the_error() {
         require: Vec::new(),
         only: Some(Area::GpuRank),
         attended: false,
+        modes: None,
     };
     let summary = run(&options, &t.roots(), &dir("gpu-query-fails"), TICK);
     let table = summary.table();
@@ -224,6 +261,7 @@ fn a_required_capability_that_is_absent_fails_the_run() {
         require: vec![Capability::Lp360],
         only: None,
         attended: false,
+        modes: None,
     };
     let summary = run(&options, &t.roots(), &dir("required"), TICK);
     assert!(!summary.passed());

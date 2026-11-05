@@ -1,5 +1,5 @@
-//! What the service checks show, as plans (Phase 7 plan, Task 9): a mode, a rotation, the
-//! readings at the start, and for each tick its changes and the frame expected. A Load case of
+//! What the service checks show, as plans (Phase 7 plan, Task 9): a mode, a rotation, a unit, the
+//! readings at the start, and for each tick its changes and the frame expected. A case of
 //! `docs/spec/frames/` is a plan without changes; a scenario of `scenarios/mode-NNN.txt` is a plan
 //! as written. Two players run them: the real dev service over D-Bus, its frames read back by tick
 //! from its recording, and the engine in process, for a PC without the dev service.
@@ -12,7 +12,7 @@ use std::time::{Duration, Instant};
 
 use odc_ipc::Error;
 use odc_protocol::{Frame, Message, Rotation, decode};
-use odc_render::{Mode, mode_info};
+use odc_render::{Mode, draws, mode_info};
 use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Engine, Published};
 use odc_service::settings::{Settings, TemperatureUnit};
@@ -64,30 +64,34 @@ fn rotation(turns: u8) -> Rotation {
     Rotation::from_setting(turns % 4).expect("0–3")
 }
 
-/// One plan: the mode and rotation it starts in, the readings at its start, and ticks 0, 1, 2 …
+/// One plan: the mode, rotation and unit it starts in, the readings at its start, and ticks 0,
+/// 1, 2 …
 #[derive(Clone, Debug)]
 pub struct Plan {
     pub name: String,
     pub mode: u16,
     pub rotation: u8,
+    /// °C for a case or scenario that names no unit.
+    pub unit: Unit,
     pub start: Vec<(String, Option<Exact>)>,
     /// Each tick's changes (tick 0's are its start) and its frame; `None` for a missed tick.
     pub ticks: Vec<(Vec<Change>, Option<Expected>)>,
 }
 
 impl Plan {
-    /// A Load case: its picture, already turned, for a few ticks, or its whole scrolling cycle
-    /// and its first frame again.
+    /// A case of a mode with values: its picture, already turned, for a few ticks, or its whole
+    /// scrolling cycle and its first frame again, in the case's unit.
     pub fn of_case(mode: u16, case: &Case) -> Result<Plan, String> {
         let pictures: Vec<Picture> = match &case.kind {
             Kind::Static(picture) => vec![picture.clone(); 5],
             Kind::Scrolling(cycle) => cycle.iter().chain(cycle.first()).cloned().collect(),
-            Kind::Loop(_) => return Err(format!("{}: Load has no loop", case.heading)),
+            Kind::Loop(_) => return Err(format!("{}: a loop, not a value", case.heading)),
         };
         Ok(Plan {
             name: case.heading.trim_start_matches("## ").to_owned(),
             mode,
             rotation: case.rotation.setting(),
+            unit: case.unit.unwrap_or(Unit::Celsius),
             start: case.readings.clone(),
             ticks: pictures
                 .into_iter()
@@ -126,6 +130,7 @@ impl Plan {
             name: scenario.heading.trim_start_matches("## ").to_owned(),
             mode: scenario.mode,
             rotation: 0,
+            unit: scenario.unit,
             start,
             ticks,
         }
@@ -177,9 +182,9 @@ pub(crate) fn override_args(
 }
 
 /// The settings a real play may change, as the run found them, so each play starts from them.
+/// The unit is each plan's own.
 #[derive(Clone, Debug)]
 pub struct Current {
-    pub unit: String,
     /// The GPU the user chose; `None` for Automatic.
     pub chosen_gpu: Option<String>,
     /// The service's GPUs by PCI address, best first: Automatic reads the first.
@@ -209,9 +214,11 @@ pub fn play_real(
     switch: Switch<'_>,
 ) -> Result<String, String> {
     let refused = plan.refused_unavailable();
-    let other = (1..=6)
+    let other = Mode::all()
+        .filter(|&m| draws(m))
+        .map(Mode::number)
         .find(|m| *m != plan.mode && !refused.contains(m))
-        .ok_or("no other Load mode")?;
+        .ok_or("no other drawn mode")?;
     let mut readings = plan.start.clone();
     let (values, unavailable) = override_args(&readings, plan.mode, &refused);
     let dev = session.dev();
@@ -220,6 +227,9 @@ pub fn play_real(
     zbus::block_on(dev.override_readings(values.clone(), unavailable.clone()))
         .map_err(|e| said("OverrideReadings", e))?;
     zbus::block_on(main.set_rotation(plan.rotation)).map_err(|e| said("SetRotation", e))?;
+    let mut unit_now = plan.unit;
+    zbus::block_on(main.set_temperature_unit(unit_name(unit_now)))
+        .map_err(|e| said("SetTemperatureUnit", e))?;
     zbus::block_on(main.set_mode(u32::from(other))).map_err(|e| said("SetMode", e))?;
     let synced = zbus::block_on(dev.override_readings(values, unavailable))
         .map_err(|e| said("OverrideReadings", e))?;
@@ -278,17 +288,14 @@ pub fn play_real(
                 }
                 // The same call either way; the service decides whether the picture resets.
                 Change::UnitSaved(unit) | Change::Reset(Reset::Unit(unit)) => {
-                    let unit = match unit {
-                        Unit::Celsius => "celsius",
-                        Unit::Fahrenheit => "fahrenheit",
-                    };
-                    zbus::block_on(main.set_temperature_unit(unit))
+                    unit_now = *unit;
+                    zbus::block_on(main.set_temperature_unit(unit_name(unit_now)))
                         .map_err(|e| said("SetTemperatureUnit", e))?;
                 }
                 Change::AlreadySet(what) => match what.as_str() {
                     "mode" => zbus::block_on(main.set_mode(u32::from(current_mode(plan, n))))
                         .map_err(|e| said("SetMode", e))?,
-                    "unit" => zbus::block_on(main.set_temperature_unit(&current.unit))
+                    "unit" => zbus::block_on(main.set_temperature_unit(unit_name(unit_now)))
                         .map_err(|e| said("SetTemperatureUnit", e))?,
                     "rotation" => zbus::block_on(main.set_rotation(rotation_now))
                         .map_err(|e| said("SetRotation", e))?,
@@ -359,6 +366,22 @@ pub fn play_real(
             .map_err(|e| said("ChooseGpu", e))?;
     }
     result
+}
+
+/// The unit as `SetTemperatureUnit` takes it.
+fn unit_name(unit: Unit) -> &'static str {
+    match unit {
+        Unit::Celsius => "celsius",
+        Unit::Fahrenheit => "fahrenheit",
+    }
+}
+
+/// The settings' unit for a plan's.
+fn settings_unit(unit: Unit) -> TemperatureUnit {
+    match unit {
+        Unit::Celsius => TemperatureUnit::Celsius,
+        Unit::Fahrenheit => TemperatureUnit::Fahrenheit,
+    }
 }
 
 /// The mode shown at tick `n`: the plan's, or the last mode switch's before it.
@@ -490,6 +513,7 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
     let start = Settings {
         mode: plan.mode,
         rotation: plan.rotation,
+        temperature_unit: settings_unit(plan.unit),
         ..Settings::default()
     };
     let mut engine = Engine::new(start, snapshot(&readings));
@@ -520,10 +544,7 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                 }
                 Change::Reset(Reset::Refresh) => refresh = true,
                 Change::UnitSaved(unit) | Change::Reset(Reset::Unit(unit)) => {
-                    settings.temperature_unit = match unit {
-                        Unit::Celsius => TemperatureUnit::Celsius,
-                        Unit::Fahrenheit => TemperatureUnit::Fahrenheit,
-                    };
+                    settings.temperature_unit = settings_unit(*unit);
                     set = true;
                 }
                 Change::AlreadySet(_) => set = true,

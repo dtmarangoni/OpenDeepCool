@@ -1,7 +1,9 @@
 //! The service checks (Phase 7 plan, Task 9), `--only service`. The real, sandboxed dev service
-//! drives the cooler through one example of each Load mode and of each test type, one variant of
-//! each scenario type a run can drive, a five-minute timing run and the start check, unattended
-//! and compared with the expected frames; afterwards the owner's settings are as they were found.
+//! drives the cooler through one example of each listed mode, in each unit it shows, and of each
+//! test type, one variant of each scenario type a run can drive for each kind of mode, a
+//! five-minute timing run and the start check, unattended and compared with the expected frames;
+//! afterwards the owner's settings are as they were found. `--modes` limits the examples and the
+//! scenarios to its modes (Phase 8 plan, Task 3).
 //! Without a dev service, the examples and scenarios run through the engine in process, the
 //! timing through the engine's own loop, and the start check against a made-up journal and
 //! recording (rule 10: one from the owner's PC would name its drivers).
@@ -12,13 +14,16 @@ use std::time::{Duration, Instant};
 
 use odc_ipc::State;
 use odc_protocol::{Frame, Message, encode_frame, startup_report};
-use odc_render::{Marquee, Mode as RenderMode, Unit as RenderUnit, Values, picture};
+use odc_render::{Kind as ModeKind, Marquee, Mode as RenderMode, Unit as RenderUnit, Values};
+use odc_render::{draws, mode_info, picture};
 use odc_sensors::{Exact, Metric, Reading};
 use odc_service::engine::{Apply, Engine, Published, Requests};
 use odc_service::runtime::{Outputs, Progress, Slot, SystemTicker, run_engine};
 use odc_service::settings::Settings;
 use odc_service::status::{FIRST_READINGS, parse_first_readings};
-use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable, mode_scenarios};
+use odc_testkit::expected::{
+    Case, Change, Kind, Reset, Scenario, Unit, load_mode, load_unavailable, mode_scenarios,
+};
 use odc_testkit::hardware::{Capability, DEV_UNIT, Mode, Probe, Roots, Summary, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
@@ -37,15 +42,16 @@ const MEAN_WITHIN: (f64, f64) = (99.98, 100.06);
 /// Every interval between two frames, in ms: no frame dropped or doubled.
 const EACH_WITHIN: (f64, f64) = (50.0, 150.0);
 
-pub fn run(roots: &Roots, tick: Duration, summary: &mut Summary) {
+/// Runs the checks for `modes`, which the flags checked are drawn by this build.
+pub fn run(roots: &Roots, tick: Duration, modes: &[u16], summary: &mut Summary) {
     match probe(Capability::DevService, roots) {
         Probe::Real => {
             summary.mode(Capability::DevService, Mode::Real);
-            real(roots, summary);
+            real(roots, modes, summary);
         }
         Probe::Absent { reason } => {
             summary.mode(Capability::DevService, Mode::Fake { reason });
-            fake(tick, summary);
+            fake(tick, modes, summary);
         }
         Probe::Unusable { reason, fix } => {
             summary.mode(
@@ -127,7 +133,7 @@ pub(crate) fn state(session: &Session) -> Result<State, String> {
     State::from_dict(&dict).map_err(|e| format!("GetState: {e}"))
 }
 
-fn real(roots: &Roots, summary: &mut Summary) {
+fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
     let session = match Session::begin() {
         Ok(session) => session,
         Err(e) => return summary.check("service", Err(e)),
@@ -139,13 +145,13 @@ fn real(roots: &Roots, summary: &mut Summary) {
     // First, before anything changes: the instance's own start.
     summary.check("service_start", start_real(&found));
     let current = Current {
-        unit: found
-            .temperature_unit
-            .map_or("celsius", |u| u.as_str())
-            .to_owned(),
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
         gpus: gpu_addresses(&found),
     };
+    // A scenario runs when this build draws every mode it shows and the service offers them.
+    let offered = found.available_modes.clone().unwrap_or_default();
+    let accepted = |mode: u16| drawn(mode) && offered.contains(&u32::from(mode));
+    let plans = scenario_plans(modes, &accepted);
     let _restore = Restore {
         session: &session,
         state: found,
@@ -157,12 +163,11 @@ fn real(roots: &Roots, summary: &mut Summary) {
         .map(|usb| usb.join("authorized"))
         .filter(|_| probe(Capability::Lp360Reconnect, roots) == Probe::Real);
     let started = Instant::now();
-    for (name, plan) in examples() {
+    for (name, plan) in examples(modes) {
         let result = plan.and_then(|plan| play_real(&session, &plan, &current, None));
         summary.check(&name, result);
     }
-    for (id, plan) in scenario_plans() {
-        let name = format!("service_{id}");
+    for (id, name, plan) in plans {
         let result = match real_or_why(&id, current.gpus.len(), switch.is_some()) {
             Ok(()) => play_real(&session, &plan, &current, switch.as_deref()),
             Err(why) => play_engine(&plan).map(|note| format!("in process: {why}; {note}")),
@@ -175,69 +180,116 @@ fn real(roots: &Roots, summary: &mut Summary) {
     );
 }
 
-fn fake(tick: Duration, summary: &mut Summary) {
+fn fake(tick: Duration, modes: &[u16], summary: &mut Summary) {
     summary.check("service_start", start_fake());
     summary.check("service_timing", timing_fake(tick));
-    for (name, plan) in examples() {
+    for (name, plan) in examples(modes) {
         let result = plan.and_then(|plan| play_engine(&plan));
         summary.check(&name, result);
     }
-    for (id, plan) in scenario_plans() {
-        summary.check(&format!("service_{id}"), play_engine(&plan));
+    for (_, name, plan) in scenario_plans(modes, &drawn) {
+        summary.check(&name, play_engine(&plan));
     }
 }
 
-/// One example of each Load mode, value set 2 upright, and of each further test type: a rotated
-/// case, a scrolling case's whole cycle, and a dash case (Phase 7 plan, Task 9).
-fn examples() -> Vec<(String, Result<Plan, String>)> {
-    let case = |mode: u16, rotation: u8, index: usize| -> Result<Plan, String> {
+fn drawn(mode: u16) -> bool {
+    RenderMode::new(mode).is_some_and(draws)
+}
+
+/// One example of each of `modes`, value set 2 upright, in each unit the mode shows, and of each
+/// further test type among them: a rotated case, a scrolling case's whole cycle, and a dash case
+/// (Phase 7 plan, Task 9). A listed mode with no scrolling or dash case leaves that type out.
+fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
+    let case = |mode: u16, rotation: u8, unit: Option<Unit>, index: usize| {
         let file = load_mode(mode);
         let case: &Case = file
             .cases
             .iter()
-            .filter(|c| c.rotation.setting() == rotation)
+            .filter(|c| c.rotation.setting() == rotation && c.unit == unit)
             .nth(index)
             .ok_or_else(|| format!("mode-{mode:03}.txt: no value set {}", index + 1))?;
         Plan::of_case(mode, case)
     };
-    let mut examples: Vec<(String, Result<Plan, String>)> = (1..=6)
-        .map(|mode| (format!("service_mode_{mode}"), case(mode, 0, 1)))
-        .collect();
-    examples.push(("service_rotated".into(), case(1, 1, 1)));
-    let scrolling = (1..=6)
-        .find_map(|mode| {
-            let file = load_mode(mode);
-            file.cases
-                .iter()
-                .find(|c| c.rotation.setting() == 0 && matches!(c.kind, Kind::Scrolling(_)))
-                .map(|c| Plan::of_case(mode, c))
-        })
-        .unwrap_or_else(|| Err("no Load mode has a scrolling case".into()));
-    examples.push(("service_scrolling".into(), scrolling));
+    let mut examples: Vec<(String, Result<Plan, String>)> = Vec::new();
+    for &mode in modes {
+        let mut units: Vec<Option<Unit>> = Vec::new();
+        for c in &load_mode(mode).cases {
+            if !units.contains(&c.unit) {
+                units.push(c.unit);
+            }
+        }
+        for unit in units {
+            let name = match unit {
+                Some(Unit::Fahrenheit) => format!("service_mode_{mode}_fahrenheit"),
+                _ => format!("service_mode_{mode}"),
+            };
+            examples.push((name, case(mode, 0, unit, 1)));
+        }
+    }
+    if let Some(&first) = modes.first() {
+        let unit = load_mode(first).cases.first().and_then(|c| c.unit);
+        examples.push(("service_rotated".into(), case(first, 1, unit, 1)));
+    }
+    let scrolling = modes.iter().find_map(|&mode| {
+        let file = load_mode(mode);
+        file.cases
+            .iter()
+            .find(|c| c.rotation.setting() == 0 && matches!(c.kind, Kind::Scrolling(_)))
+            .map(|c| Plan::of_case(mode, c))
+    });
+    if let Some(plan) = scrolling {
+        examples.push(("service_scrolling".into(), plan));
+    }
     let dashes = load_unavailable()
         .into_iter()
-        .find(|(_, c)| c.rotation.setting() == 0)
-        .map_or_else(
-            || Err("unavailable.txt has no upright Load case".into()),
-            |(mode, c)| Plan::of_case(mode, &c),
-        );
-    examples.push(("service_dashes".into(), dashes));
+        .find(|(mode, c)| modes.contains(mode) && c.rotation.setting() == 0);
+    if let Some((mode, c)) = dashes {
+        examples.push(("service_dashes".into(), Plan::of_case(mode, &c)));
+    }
     examples
 }
 
-/// The first variant of each scenario type of the Load modes' scenarios, mode by mode in file
-/// order.
-pub(crate) fn scenario_plans() -> Vec<(String, Plan)> {
+/// The modes a scenario shows: the one it starts in and each it switches into.
+fn shown_modes(scenario: &Scenario) -> impl Iterator<Item = u16> + '_ {
+    let switches = scenario
+        .ticks
+        .iter()
+        .flat_map(|t| &t.changes)
+        .filter_map(|c| match c {
+            Change::Reset(Reset::Mode(m)) => Some(*m),
+            _ => None,
+        });
+    std::iter::once(scenario.mode).chain(switches)
+}
+
+/// The first variant of each scenario type, for each kind of mode among `modes` (a unit change
+/// resets a Temperature mode and is only saved in Load or Power), mode by mode in file order: its
+/// type, the check's name, and the plan. A scenario that shows a mode `accepted` refuses is left
+/// out. Load's checks keep Phase 7's names, `service_S1`; the others name their kind,
+/// `service_S15_temperature`.
+pub(crate) fn scenario_plans(
+    modes: &[u16],
+    accepted: &dyn Fn(u16) -> bool,
+) -> Vec<(String, String, Plan)> {
     let mut seen = Vec::new();
     let mut plans = Vec::new();
-    for scenario in (1..=6).flat_map(mode_scenarios) {
-        let id = scenario.heading.trim_start_matches("## ");
-        let id = id.split(' ').next().unwrap_or(id).to_owned();
-        if seen.contains(&id) {
+    for scenario in modes.iter().flat_map(|&mode| mode_scenarios(mode)) {
+        if !shown_modes(&scenario).all(accepted) {
             continue;
         }
-        seen.push(id.clone());
-        plans.push((id, Plan::of_scenario(&scenario)));
+        let id = scenario.heading.trim_start_matches("## ");
+        let id = id.split(' ').next().unwrap_or(id).to_owned();
+        let kind = RenderMode::new(scenario.mode).map(|m| mode_info(m).kind);
+        let name = match kind {
+            Some(ModeKind::Temperature) => format!("service_{id}_temperature"),
+            Some(ModeKind::Power) => format!("service_{id}_power"),
+            _ => format!("service_{id}"),
+        };
+        if seen.contains(&name) {
+            continue;
+        }
+        seen.push(name.clone());
+        plans.push((id, name, Plan::of_scenario(&scenario)));
     }
     plans
 }

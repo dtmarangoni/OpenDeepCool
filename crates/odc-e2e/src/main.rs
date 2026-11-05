@@ -4,6 +4,7 @@ use std::path::Path;
 use std::process::ExitCode;
 use std::time::Duration;
 
+use odc_e2e::Area;
 use odc_testkit::hardware::Roots;
 
 /// One frame per 100 ms tick (`docs/spec/protocol.md`, Timing).
@@ -24,7 +25,7 @@ fn main() -> ExitCode {
     };
     let out_dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/e2e");
     if options.attended {
-        return match odc_e2e::attended::run(&Roots::system(), &out_dir) {
+        return match odc_e2e::attended::run(&Roots::system(), &out_dir, &options.modes()) {
             Ok(true) => ExitCode::SUCCESS,
             Ok(false) => ExitCode::FAILURE,
             Err(e) => {
@@ -35,6 +36,14 @@ fn main() -> ExitCode {
     }
     let summary = odc_e2e::run(&options, &Roots::system(), &out_dir, TICK);
     print!("{}", summary.table());
+    // The modes the display and service checks took (Phase 8 plan, Task 3).
+    if options
+        .only
+        .is_none_or(|area| matches!(area, Area::Display | Area::Service))
+    {
+        let modes: Vec<String> = options.modes().iter().map(u16::to_string).collect();
+        println!("modes            {}", modes.join(", "));
+    }
     if summary.passed() {
         ExitCode::SUCCESS
     } else {

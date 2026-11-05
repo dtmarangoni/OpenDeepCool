@@ -7,8 +7,8 @@
 pub mod attended;
 pub mod baseline;
 pub mod device;
+pub mod display;
 pub mod gpu_rank;
-pub mod load;
 pub mod plays;
 pub mod sensors;
 pub mod service;
@@ -17,18 +17,22 @@ pub mod session;
 use std::path::Path;
 use std::time::Duration;
 
+use odc_render::draws;
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 
-pub const USAGE: &str = "usage: odc-e2e [--require <capability,...>] [--only <area>]
-       odc-e2e --attended
+pub const USAGE: &str =
+    "usage: odc-e2e [--require <capability,...>] [--only <area>] [--modes <list>]
+       odc-e2e --attended [--modes <list>]
 
   --require <list>  capabilities that must run real: lp360, lp360-reconnect,
                     cpu-temp, cpu-power, proc-stat, meminfo, gpu-amdgpu, gpu-i915,
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
                     gpu-load-tool, dev-service
-  --only <area>     run one area's checks: device, load, gpu-rank, sensors,
+  --only <area>     run one area's checks: device, display, gpu-rank, sensors,
                     service; or baseline, the dev service's resource use over
                     10 minutes, which only runs when named
+  --modes <list>    the modes display, service and the tour take, as numbers and
+                    ranges: 7, or 7-9,12; without it, every mode this build draws
   --attended        the optional tour for you to watch on the cooler, through the
                     dev service: you answer each case; never a gate
   -h, --help        this text
@@ -44,7 +48,9 @@ cooler too.";
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Area {
     Device,
-    Load,
+    /// Each mode's examples, written straight to the cooler (owner, 2026-11-05: Phase 7's
+    /// `load`, for every drawn mode).
+    Display,
     GpuRank,
     Sensors,
     /// The dev service's own checks (Phase 7 plan, Task 9).
@@ -59,6 +65,52 @@ pub struct Options {
     pub only: Option<Area>,
     /// The attended tour instead of the unattended checks (owner, 2026-10-24).
     pub attended: bool,
+    /// The modes `--modes` lists, in order; `None` for every mode this build draws.
+    pub modes: Option<Vec<u16>>,
+}
+
+impl Options {
+    /// The modes the display, service and tour checks take.
+    pub fn modes(&self) -> Vec<u16> {
+        self.modes.clone().unwrap_or_else(drawn_modes)
+    }
+}
+
+/// Every mode this build draws, in order.
+pub fn drawn_modes() -> Vec<u16> {
+    odc_render::Mode::all()
+        .filter(|&mode| draws(mode))
+        .map(odc_render::Mode::number)
+        .collect()
+}
+
+/// A `--modes` list: numbers and ranges, comma-separated (Phase 8 plan, Task 3). A mode outside
+/// the mode table, or one this build doesn't draw yet, is an error.
+fn parse_modes(list: &str) -> Result<Vec<u16>, String> {
+    let mut modes = Vec::new();
+    for part in list.split(',') {
+        let (first, last) = part.split_once('-').unwrap_or((part, part));
+        let number = |text: &str| {
+            text.parse::<u16>()
+                .map_err(|_| format!("{part:?} isn't a mode or a range of modes"))
+        };
+        let (first, last) = (number(first)?, number(last)?);
+        if first > last {
+            return Err(format!("{part:?}: a range goes from the lower mode up"));
+        }
+        for n in first..=last {
+            let mode = odc_render::Mode::new(n)
+                .ok_or_else(|| format!("mode {n} isn't in the mode table"))?;
+            if !draws(mode) {
+                return Err(format!("mode {n} isn't drawn by this build yet"));
+            }
+            if !modes.contains(&n) {
+                modes.push(n);
+            }
+        }
+    }
+    modes.sort_unstable();
+    Ok(modes)
 }
 
 /// The options, or `None` for `--help`. An unknown flag, capability or area is an error.
@@ -79,11 +131,15 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                     }
                 }
             }
+            "--modes" => {
+                let list = args.next().ok_or("--modes needs a list")?;
+                options.modes = Some(parse_modes(list)?);
+            }
             "--only" => {
                 let area = args.next().ok_or("--only needs an area")?;
                 options.only = Some(match area.as_str() {
                     "device" => Area::Device,
-                    "load" => Area::Load,
+                    "display" => Area::Display,
                     "gpu-rank" => Area::GpuRank,
                     "sensors" => Area::Sensors,
                     "service" => Area::Service,
@@ -125,8 +181,8 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     if options.only.is_none_or(|area| area == Area::Device) {
         device::run(roots, out_dir, tick, &mut summary);
     }
-    if options.only.is_none_or(|area| area == Area::Load) {
-        load::run(roots, out_dir, tick, &mut summary);
+    if options.only.is_none_or(|area| area == Area::Display) {
+        display::run(roots, out_dir, tick, &options.modes(), &mut summary);
     }
     if options.only.is_none_or(|area| area == Area::GpuRank) {
         gpu_rank::run(roots, out_dir, &mut summary);
@@ -135,7 +191,7 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
         sensors::run(roots, out_dir, &mut summary);
     }
     if options.only.is_none_or(|area| area == Area::Service) {
-        service::run(roots, tick, &mut summary);
+        service::run(roots, tick, &options.modes(), &mut summary);
     }
     if options.only == Some(Area::Baseline) {
         baseline::run(roots, &mut summary);
