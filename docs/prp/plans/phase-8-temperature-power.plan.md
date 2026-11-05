@@ -33,30 +33,32 @@
 **Approach:** no new crate, process or setting.
 - **`odc-render`** gets:
   - the `°C`, `°F` and `W` glyphs;
-  - the value rules for temperature (both units) and power, capped at 9999;
+  - the °F value rule (Phase 7's `number` is already the °C and power rule, capped at 9999);
   - the pictures for modes 7–12, one mode at a time.
-- **`picture` and `Marquee`** from Phase 7 draw and move them unchanged.
+- **`layout` and `Marquee`** from Phase 7 draw and move them unchanged.
 - **The service** stops refusing modes 7–12. The refusal is derived from what `odc-render` draws, so there is no second list to edit.
-- **The oracle** gets the dash cases and the movement scenarios for these modes.
+- **The oracle** gets the dash cases for these modes, and its scenario generator, Load-only so far, covers modes 1–12 in both units.
 - **The tests:**
+  - the scenario files gain the temperature unit, and every replay reads it;
   - the differential test learns to compare a scrolling capture with the expected cycle, frame by frame;
-  - `odc-e2e` learns `--modes`, so each mode's commit can run its own real-cooler check (rule 4).
+  - `odc-e2e` learns `--modes`, so each mode's commit can run its own real-cooler checks (rule 4), and its direct check covers every drawn mode as `--only display` (owner, 2026-11-05).
 
 ## Recommendation
 
 **Reuse Phase 7's strip and movement as they are.**
 - `display.md` defines one strip for every mode: digit places of 4 columns, then the symbol. The static picture is that strip stopped at home, and the same movement procedure drives every mode.
 - The only things that differ per mode are the metrics, the symbol and the value rule.
-- So Phase 8 is data, plus three glyphs and two value rules:
+- So Phase 8 is data, plus three glyphs and one new value rule:
   - `mode_info` already lists modes 7–12 and their metrics (Phase 7 Task 2);
-  - the engine already resets on a unit change in a mode that shows a temperature, and does nothing in a mode without one (Phase 7 Task 6).
+  - the engine already resets on a unit change in a mode that shows a temperature, and does nothing in a mode without one (Phase 7 Task 6: `shows_temperature` reads the mode's metrics, so modes 7–9, and Music's 18 and 19 later);
+  - readings are already exact fractions in °C and W (Phase 6's `Exact`), and Phase 7's `value::number` already rounds them to the nearest, draws dashes for a negative one and caps at 9999. That is the °C rule and the power rule; only °F is new.
 - Nothing in the engine, D-Bus or settings changes shape. Settings stay `version = 1`, because `temperature_unit` is already a field.
 
 **The value rules, on whole numbers, with the cap applied last** (`display.md` Values: OpenDeepCool's no caps, capped at 9999 everywhere, owner, 2026-10-25; the nearest whole number in exact whole-number arithmetic, owner, 2026-10-26).
 - **Not drawable:** a negative reading → dashes, before any rounding. Readings are exact fractions of whole numbers (Phase 6's `Exact`), so not-a-number and infinite can't occur.
-- **°C:** the nearest whole number, halves up: (*m* + 500) div 1000 on millidegrees *m*, with intermediates in `i128` as in Phase 7.
-- **°F:** rounded once, to the nearest, from the exact °C reading: (9 · *m* + 162 500) div 5000, which is 9/5 · *m*/1000 + 32, halves up. DeepCreative rounded the °C reading up, converted, then dropped the fraction; OpenDeepCool rounds once (owner, 2026-10-26). So 37 °C (98.6) draws `99°F`, and 57 °C (134.6) draws `135°F`.
-- **Power:** the nearest whole number, halves up, (2 · num + den) div (2 · den), on µW ÷ 10⁶, mW ÷ 1000, or µJ ÷ µs.
+- **°C:** the nearest whole number, halves up: (*m* + 500) div 1000 on millidegrees *m*, with intermediates in `i128` as in Phase 7. This is `number`'s (2 · num + den) div (2 · den) on the reading num/den in °C.
+- **°F:** rounded once, to the nearest, from the exact °C reading: (9 · *m* + 162 500) div 5000, which is 9/5 · *m*/1000 + 32, halves up. On the reading num/den in °C it is (18 · num + 325 · den) div (10 · den), the same number. DeepCreative rounded the °C reading up, converted, then dropped the fraction; OpenDeepCool rounds once (owner, 2026-10-26). So 37 °C (98.6) draws `99°F`, and 57 °C (134.6) draws `135°F`.
+- **Power:** the nearest whole number, halves up, (2 · num + den) div (2 · den), on µW ÷ 10⁶, mW ÷ 1000, or µJ ÷ µs: `number` as it is.
 - **The cap:** a number above 9999 → 9999. For °F it's applied to the converted number: 5536 °C gives `9997°F` (9996.8), 5537 °C gives `9999°F` (9998.6), and from 5537.5 °C (10 000 °F) the cap draws `9999°F`.
 - **Overflow:** intermediates are `i128`, so even the largest reading an `Exact` can hold (`i64::MAX` millidegrees) can't overflow.
 - **The oracle** (its value rules, in the Rust oracle `tools/oracle/` from Phase 5 Task 0; owner, 2026-10-28) already has the same rule. The Python version it was ported from regenerated the frames on 2026-10-26, which changed 24 °F cases: 57 °C → `135°F`, 7 °C → `45°F` (`frames/README.md`).
@@ -64,7 +66,7 @@
 **Lift the refusal through `odc-render`, not a list.**
 - Phase 7 refuses later-phase modes with `NotYetAvailable` (Phase 7 Task 7, step 3), and `picture` returns `Err(NotYetImplemented)` for them (Task 2).
 - The D-Bus check and `AvailableModes` ask `odc_render::draws(mode)`, true exactly where `picture` is implemented; it exists from Phase 7 (owner, 2026-10-27; solution review P8-03). Then each mode's commit makes that mode selectable, and nothing else has to be kept in step.
-- If the Phase 7 code holds a separate list of implemented modes, this phase deletes it.
+- Phase 7 built it so: `SetMode` and the engine's availability both call `draws`, and `draws` asks each kind's module (`load::draws` today). There is no second list to delete (checked 2026-11-05).
 
 **Differential tests for scrolling compare the whole cycle in order.**
 - DeepCreative scrolls with a 21-column cycle; it starts at another point of that cycle than OpenDeepCool's home, and it scrolls even values that OpenDeepCool keeps static.
@@ -93,6 +95,11 @@
 - A `--modes <list>` flag (`--modes 7`, `--modes 7-9,12`) limits the examples to those modes. One example of a mode switch involving a listed mode is included.
 - Without the flag, every mode's examples run. It's a flag, not an environment variable (AGENTS.md rule 5).
 
+**The direct check covers every drawn mode, as `--only display`** (owner, 2026-11-05).
+- AGENTS.md runs `odc-e2e --only load` before any commit that touches `odc-render`, and every mode commit of this phase does. Phase 7 built that area for Load only: each drawn Load mode's examples, drawn by `odc-render` and written straight to the cooler, without the service.
+- From Task 3 it shows each drawn mode's examples, Load, Temperature and Power (Music in Phase 9), takes `--modes`, and is named `display`, since `load` would no longer say what it shows.
+- It tests the code just built even when the installed dev copy is older; `--only service --modes <n>` tests the dev copy. Each mode's commit runs both.
+
 ### Evidence
 
 - `docs/spec/display.md`:
@@ -117,6 +124,9 @@
 - Local research tools (`research/`, never committed):
   - `research/hook/render-check.py` `expected` (DeepCreative's rules, local) and the Rust oracle's picture and window rules in `tools/oracle/` (OpenDeepCool's);
   - the 2026-10-25 agreement count above came from these, over `research/logs/sweep-*.json` and `lp360-hidraw.log`.
+- **The comparison with Phases 5–7, before Task 1** (2026-11-05; AGENTS.md, How to work):
+  - as planned: `odc_render::{picture, layout, Marquee, mode_info, Kind, Mode, Unit, Values, draws, NotYetImplemented}`, `value::{number, CAP, Shown}`; `odc_sensors::{Exact, Metric, Unavailable}` with `IntegratedGpuPower` and `UnknownGpuKind`; `odc_testkit::{expected, diff, sweep}` (a sweep step carries its unit); `Error::NotYetAvailable`; `SetTemperatureUnit`; the engine's `shows_temperature`; `odc-e2e --only service`, `--attended`, `--require dev-service`; `mode-007.txt`–`mode-012.txt`, 108 cases;
+  - different from this plan as first written, and corrected in it: `number` is already the °C and power rule; `picture.rs` needs no change, because each kind's module picks its symbol (`load.rs` with `%`); `SetMode` and availability already share `draws`; the scenario files and `expected::Scenario` have no unit, and know a unit change only as "only saved"; the oracle's scenario generator is Load-only (modes 1–6, the Load metrics, switches into 1–6); 24 scenarios of `load.txt` use mode 9 as the "not yet available" example, and `odc-e2e`'s real run expects `SetMode(9)` refused; the engine's scenario replay would draw mode 1 for a switch into a mode not drawn yet, where `odc-render`'s replay skips it; `odc-e2e` parses its flags in `lib.rs`, and `plays.rs`, `service.rs`, `load.rs` and `attended.rs` take only modes 1–6 in °C; `odc-render`'s test helpers are Load-only, and its matrix test expects 12 cases per file.
 
 ### Alternatives considered
 
@@ -131,14 +141,14 @@
 flowchart LR
   subgraph render["odc-render (Phase 7)"]
     G["glyph.rs<br/>+ °C, °F, W (new)"] --> P["picture(mode, values, unit)"]
-    V["value.rs<br/>+ temperature °C/°F, power (new)"] --> P
+    V["value.rs: number (°C, W, as is)<br/>+ °F (new)"] --> P
     T["temperature.rs: modes 7, 8, 9 (new)<br/>power.rs: modes 10, 11, 12 (new)"] --> P
     P --> M["Marquee (unchanged)"]
-    D["draws(mode) (new)"]
+    D["draws(mode) (Phase 7)<br/>+ temperature, power"]
   end
   D -->|"refuse only what isn't drawn"| DB["D-Bus SetMode (Phase 7)"]
   M --> EN["Engine (unchanged):<br/>unit change resets only in 7–9"]
-  O[("docs/spec/frames<br/>mode-007…012, unavailable.txt,<br/>scenarios/temperature.txt, power.txt")] -.oracle.-> TESTS["matrix, scenarios, engine,<br/>differential (cycle order), odc-e2e --modes"]
+  O[("docs/spec/frames<br/>mode-007…012, unavailable.txt,<br/>scenarios/load.txt (regenerated),<br/>temperature.txt, power.txt")] -.oracle.-> TESTS["matrix, scenarios, engine,<br/>differential (cycle order),<br/>odc-e2e --only display/service --modes"]
 ```
 
 ## Implementation Context
@@ -165,10 +175,11 @@ flowchart LR
 
 ### Integration points
 
-- `odc_render::mode_info`: already describes 7–12 (kind `Temperature` or `Power`). The engine's unit-change rule reads the kind, so it needs no change.
-- `odc_render::picture`: returns `Ok` for 7–12 after this phase.
-- The D-Bus `SetMode` refusal step (Phase 7 Task 7, step 3) reads `odc_render::draws`.
-- `odc-e2e`'s service area (Phase 7 Task 9): it gets `--modes`, and it reads the new scenario files.
+- `odc_render::mode_info`: already describes 7–12 (kind `Temperature` or `Power`). The engine's unit-change rule, `shows_temperature`, reads the mode's metrics, so it needs no change.
+- `odc_render::picture` and `draws`: they dispatch on the mode's kind to `load.rs` today; this phase adds `temperature.rs` and `power.rs`, each with its own list of drawn modes, as `load.rs` has. `picture` returns `Ok` for 7–12 after this phase.
+- The D-Bus `SetMode` refusal step (Phase 7 Task 7, step 3) and the engine's availability read `odc_render::draws`.
+- `odc-e2e`: the service area (Phase 7 Task 9) gets `--modes` and reads every scenario file; the direct area `load` (Phase 7 Task 3) becomes `display`, for every drawn mode (Task 3).
+- The scenario replays: `odc-render`'s `scenarios_*` tests, the engine's `engine.rs`, and `odc-e2e`'s `plays.rs` read each scenario's unit (Task 1, Task 3).
 - Music (Phase 9): modes 18 and 19 reuse this phase's temperature value rule and `°C`/`°F` glyphs in the value area (`music.md`).
 
 ## Scope
@@ -180,8 +191,8 @@ flowchart LR
 - Dashes for unavailable readings in these modes, including CPU Power's first second, `PermissionDenied` and `IntegratedGpuPower`.
 - The unit change rule, tested for real: a reset in 7–9, only saved in 10–12 and 1–6.
 - Making 7–12 selectable over D-Bus, and in `AvailableModes` when their metrics are available.
-- The oracle's dash cases and movement scenarios for these modes.
-- Tests in all four layers. The differential cycle comparison. `odc-e2e --modes`. This phase's cases in the attended tour.
+- The oracle's dash cases for these modes, and its scenario generator for modes 1–12 in both units, the temperature unit written in the scenario files.
+- Tests in all four layers. The differential cycle comparison. `odc-e2e --modes`, and its direct area for every drawn mode, `--only display` (owner, 2026-11-05). This phase's cases in the attended tour.
 
 ### Not building
 
@@ -197,55 +208,72 @@ flowchart LR
 | Compatibility / migration | Settings v1 already has `temperature_unit`; a saved `mode = 7`–`12` was impossible before (refused), so no stored data changes |
 | Rollout / reversibility | Each mode commit updates the dev copy through `odc-dev setup` (the owner approves the `pkexec` run, rule 7); `git revert` of a mode commit makes that mode refused again |
 | Observability | The journal line for a refused mode already names the reason; the e2e summary prints each mode's case counts and the time the run took |
-| Documentation | README: `busctl` examples for a Temperature mode and the unit; AGENTS.md Commands: `--modes` and the new test targets (Task 9) |
+| Documentation | README: `busctl` examples for a Temperature mode and the unit (Task 9). AGENTS.md Commands: `--only display` in place of `--only load`, and `--modes`, in Task 3's commit, where the command changes (AGENTS.md: a changed command updates it in the same commit); the new test targets in Task 9 |
 
 ## Implementation
 
-Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 are one commit per mode: implement it, run all its tests, including the unattended run on the cooler, then commit.
+Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 are one commit per mode: implement it, run all its tests, including the unattended runs on the cooler, then commit. A mode's layer 4 is always both checks with `--modes <n>`: `--only display` (the code just built, straight to the cooler) and `--only service` (the dev copy, updated first with `odc-dev setup`); "`--modes <n>`" below means both.
 
 ### 1. The oracle gets the Temperature and Power dash cases and movement scenarios
 
 **Files and integration points**
-- `tools/oracle/` (the Rust oracle, since Phase 5 Task 0): UPDATE, in the same commit as the frames it regenerates. Its rules already have the 9999 cap (2026-10-25) and the nearest rule (2026-10-26). The scenario generator built in Phase 7 Task 1 runs for modes 7–12.
+- `tools/oracle/` (the Rust oracle, since Phase 5 Task 0): UPDATE, in the same commit as the frames it regenerates. Its rules already have the 9999 cap (2026-10-25) and the nearest rule (2026-10-26).
+  - `src/scenarios.rs`, built in Phase 7 Task 1 for Load only (modes 1–6, the Load metrics and their levels, switches into 1–6), is generalised to modes 1–12: each kind's metrics and levels, both units where a temperature is shown, and one file per kind.
+  - `src/main.rs` and `src/frames.rs`: the usage text and the files written.
+- **The scenario format gains the unit** (`frames/README.md`, Dash cases and scenarios):
+  - tick 0 may name it, `unit celsius` or `unit fahrenheit`; a scenario that names none runs in °C, so no Load scenario has to;
+  - a unit change in a mode that shows a temperature is a reset, `reset unit celsius` or `reset unit fahrenheit`; in any other mode it stays `unit …, only saved`;
+  - tick 0 gives every metric modes 1–12 show, all seven, so a switch into another kind draws named readings, never a test's filler (the oracle shares no code with `odc_testkit::expected`, so it can't know the fillers).
+- `docs/spec/frames/scenarios/load.txt`: UPDATE, regenerated:
+  - tick 0 names all seven metrics;
+  - S14 switches from each Load mode into every other mode 1–12, into modes 7–9 in both units;
+  - the "not yet available" example moves from mode 9 to mode 13, which this phase never draws. Once mode 9 is drawn (Task 6), `SetMode(9)` succeeds, and `odc-e2e`'s real run would fail on the old example. When Phase 9 draws mode 13, its own plan check moves or removes the example.
 - `docs/spec/frames/unavailable.txt`: UPDATE, generated. New cases, each in rotations 0–3:
   - mode 7 with CPU Temperature unavailable, in °C and °F (`--°C`, `--°F`);
   - mode 9 in °F with CPU Temperature 120 and Gpu temperature unavailable (scrolling, `248°F` over `--°F`);
   - mode 10 with CPU Power not yet read (`--W`);
   - mode 12 with CPU Power 1234 and Gpu power unavailable;
   - mode 11 with a negative reading.
-- `docs/spec/frames/scenarios/temperature.txt`: CREATE, generated. Every scenario S1–S26 that applies, for modes 7, 8, 9, **in °C and in °F**, in rotation 0:
+- `docs/spec/frames/scenarios/temperature.txt`: CREATE, generated. Every scenario S1–S26 that applies, for modes 7, 8, 9, **in °C and in °F**, in rotation 0, S14's switches into every other mode 1–12 included:
   - two-value mode 9 with the change in the top value, the bottom value and both;
   - the cycle-position scenarios at every *k* from 0 to *L* − 1;
   - S7 at the °F boundary (37.49 °C → `99°F` static, 37.5 °C → `100°F` scrolling);
   - S15 both ways (`57°C` → `135°F`, `135°F` → `57°C`, static and scrolling);
   - S12 and S20 including 5536 ↔ 5537 °C in °F (`9997°F` ↔ `9999°F`), 5537.49 ↔ 5537.5 °C (`9999°F`, then 10 000 capped) and 10⁹ °C (`9999°C`, `9999°F`).
-- `docs/spec/frames/scenarios/power.txt`: CREATE, generated. The same for modes 10, 11, 12:
+- `docs/spec/frames/scenarios/power.txt`: CREATE, generated. The same for modes 10, 11, 12, switches into every other mode 1–12 included:
   - S15 here is "a unit change changes nothing on the cooler" at every *k*;
   - S12 is `9999W` and 123456 W (`9999W`) in one band and in both;
   - S17 includes CPU Power's first-second `--W` turning into `120W`.
-- `docs/spec/frames/README.md`: UPDATE, listing the two scenario files and the new dash cases.
+- `docs/spec/frames/README.md`: UPDATE: the unit in the scenario format, the two new scenario files, `load.txt`'s changes and the new dash cases, with each file's scenario and frame counts.
+- `crates/odc-testkit/src/expected.rs`: UPDATE. `Scenario` gains its unit (tick 0's, °C when none), and `Reset` gains `Unit(Unit)`; a unit named after tick 0 without `reset` or `only saved`, or twice at tick 0, panics with its file and line.
+- The replays, so the workspace's tests pass on the new files: `crates/odc-render/tests/scenarios_load.rs` draws in the scenario's unit and resets on `reset unit`; `crates/odc-service/tests/engine.rs` starts the engine in the scenario's unit, changes it on `reset unit`, and skips a scenario that switches into a mode the build doesn't draw, as `odc-render`'s replay already does. `odc-e2e` reads the unit in Task 3.
 
 **Tests**
-- The generator's own checks, as in Phase 7 Task 1: the existing `mode-*.txt` cases, as regenerated on 2026-10-26 with the nearest rule, come out unchanged. Its scenarios keep the owner's movement rules (stop only at home, no jump of more than one column except at a reset). A unit change in a Power mode leaves every frame identical to the run without it.
+- The generator's own checks, as in Phase 7 Task 1: the existing `mode-*.txt` cases, as regenerated on 2026-10-26 with the nearest rule, come out unchanged. Its scenarios keep the owner's movement rules (stop only at home, no jump of more than one column except at a reset). A unit change in a Power or Load mode leaves every frame identical to the run without it.
+- Every scenario names a mode from 1 to 12, starts with a reset, and its tick 0 names all seven metrics; every ordered pair of modes 1–12 has an S14 switch.
+- The loader: every committed scenario file loads; a scenario's unit and `reset unit` come back typed; a malformed unit line panics, naming its file and line.
 
 **Validation**
-- `git diff --stat docs/spec/frames/` shows only `unavailable.txt`, the two new scenario files and the README.
+- `git diff --stat docs/spec/frames/` shows only `load.txt`, `unavailable.txt`, the two new scenario files and the README; every `mode-*.txt` is unchanged.
+- `cargo test --workspace`: passes. The replays skip each switch into modes 7–12 until its mode is drawn.
+- The Phase 8 report gives the scenario files' sizes. They grow from 1.8 MB (`load.txt` today) to an estimated 6 MB, unverified until generated.
 
 ### 2. `odc-render`: the `°C`, `°F` and `W` glyphs, and the temperature and power value rules
 
 **Files and integration points**
 - `crates/odc-render/src/glyph.rs`: UPDATE, adding `°C` (4 × 5), `°F` (5 × 5) and `W` (5 × 5, top row blank), typed as `#`/`.` rows from `display.md` Glyphs.
-- `crates/odc-render/src/value.rs`: UPDATE.
-- `crates/odc-render/src/picture.rs`: UPDATE. The symbol comes from the mode's kind and the unit: Load `%`, Temperature `°C` or `°F`, Power `W`.
-- `crates/odc-render/src/lib.rs`: UPDATE. `draws(mode) -> bool` (from Phase 7, P8-03) follows `picture`: true for 1–6 until Task 4, then each mode's task makes it true for its mode.
+- `crates/odc-render/src/value.rs`: UPDATE, adding the °F rule beside `number`.
+- `crates/odc-render/src/lib.rs`: UPDATE, exporting the new glyphs and the °F rule. `draws(mode) -> bool` (from Phase 7, P8-03) follows `picture`: true for 1–6 until Task 4, then each mode's task makes it true for its mode.
+- `picture.rs` (`layout`, `Band`) doesn't change: a band carries its symbol, which each kind's module picks, as `load.rs` picks `%`; Temperature picks `°C` or `°F` from the unit, Power `W` (Tasks 4 and 7).
 
 **Implementation**
-- **Temperature** (`display.md` Values), on the exact millidegrees *m*, in integers with `i128` intermediates:
-  - a negative reading → dashes;
-  - °C → (*m* + 500) div 1000; °F → (9 · *m* + 162 500) div 5000, rounded once from the exact reading;
+- **Temperature** (`display.md` Values), on the exact reading num/den in °C (*m*/1000 from millidegrees), in integers with `i128` intermediates:
+  - a negative reading → dashes, before any conversion;
+  - °C → `number` as it is: (2 · num + den) div (2 · den), which is (*m* + 500) div 1000;
+  - °F → (18 · num + 325 · den) div (10 · den), which is (9 · *m* + 162 500) div 5000, rounded once from the exact reading;
   - then capped at 9999.
-- **Power:** a negative reading → dashes; the nearest whole number, (2 · num + den) div (2 · den); capped at 9999.
-- **One cap function** for every metric (Phase 7's usage and Memory Load rules call it too), so the cooler, the D-Bus interface and the journal can't show different numbers (owner: capped everywhere).
+- **Power:** `number` as it is: a negative reading → dashes; the nearest whole number, (2 · num + den) div (2 · den); capped at 9999.
+- **One cap function** for every metric, taken out of `number` so the °F rule calls it too, so the cooler, the D-Bus interface and the journal can't show different numbers (owner: capped everywhere).
 - **Readings are exact** (owner, 2026-10-26; solution review OV-08): Phase 6 delivers fractions of whole numbers, so 37 000 m°C is exactly 37 °C (98.6 °F) and draws `99°F`, with no floating point anywhere. The S7 tests below pin it.
 - **Phase 7's mode table** isn't touched: modes 7–12 already have their metrics and kind.
 
@@ -261,17 +289,23 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 - **Properties:**
   - for every millidegree reading *m* from 0 to 9 999 000, °F equals min((9*m* + 162 500) div 5000, 9999), the nearest whole number to 9/5 · *m*/1000 + 32;
   - any reading of 0 or more gives a number from 0 to 9999; any negative reading gives dashes.
-- **Picture:** *w*, *L*, *h* and "must scroll" for `°C` (4 wide) and `°F`/`W` (5 wide), one and two values, every length from dashes to four digits.
+- **Picture:** *w*, *L*, *h* and "must scroll" of `layout` with the `°C` (4 wide) and `°F`/`W` (5 wide) symbols, one and two values, every length from dashes to four digits.
   - For example, one-value `57°C` is 12 wide at *h* = 2. One-value `5°C` is 8 wide at *h* = 4. Two-value `57°C` over `38°C` starts at column 3.
+- These go in `tests/glyphs_and_values.rs` and `tests/pictures.rs`, Phase 7's targets for the same parts.
 
 **Validation**
 - `cargo test -p odc-render`: passes. `draws` is still false for 7–12, so the service behaves as before.
 
-### 3. Test tools: the ordered cycle comparison and `odc-e2e --modes`
+### 3. Test tools: the ordered cycle comparison, `odc-e2e --modes` and `--only display`
 
 **Files and integration points**
 - `crates/odc-testkit/src/diff.rs`: UPDATE, adding `cycle_match(captured: &[Frame], cycle: &[Frame]) -> Result<usize, Mismatch>`.
-- `crates/odc-e2e/src/main.rs`, `service.rs`, `attended.rs`: UPDATE.
+- `crates/odc-e2e/src/lib.rs`: UPDATE. The flags are parsed here: `--modes`, and the area `load` renamed `display`, with the usage text.
+- `crates/odc-e2e/src/load.rs` → `display.rs`: RENAME and UPDATE, from each drawn Load mode to each drawn mode, in the case's unit, limited by `--modes`; its checks are named `display_mode_<n>`.
+- `crates/odc-e2e/src/plays.rs`: UPDATE. A `Plan` gets its unit: from a case's heading or a scenario's tick 0, set with `SetTemperatureUnit` before its tick 0, and changed at `reset unit`; the mode it switches from first is any other drawn mode, not one of 1–6.
+- `crates/odc-e2e/src/service.rs`, `attended.rs`: UPDATE, from modes 1–6 in °C to every drawn mode in each unit it shows, and from `load.txt` to every scenario file.
+- `crates/odc-e2e/tests/flags_and_fakes.rs`: UPDATE, the flag tests.
+- `AGENTS.md` Commands: `--only display` in place of `--only load`, and `--modes`, in this commit (AGENTS.md: a changed command updates it in the same commit). The PRD's Decisions Log row "Sharing the cooler with the dev service" names `--only display` too.
 
 **Implementation**
 - **`cycle_match`:**
@@ -280,9 +314,10 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   3. Otherwise fail with the first differing frame and its pixel diff, printed with `odc_testkit::diff`'s two-picture output.
 - **`--modes <list>`:** numbers and ranges, comma-separated (`7`, `7-9,12`).
   - It limits `--only service`'s examples (one per mode, and one of each test type: rotation, scrolling, dashes, a unit change, a mode switch, each scenario type) to the listed modes.
-  - It limits `--attended` to the listed modes' cases.
+  - It limits `--only display`'s examples, and `--attended`, to the listed modes' cases.
   - An unknown or not-yet-drawn mode is an error at start.
   - The summary names the modes run.
+- **`--only display`** (owner, 2026-11-05): Phase 7's direct check, each drawn mode's examples drawn by `odc-render` and written straight to the cooler through a test session, compared frame for frame with the expected frames; a temperature mode's examples in both units. Without a cooler, the same runs through a fake one, as before.
 - **Scenario files:** the service area reads every `docs/spec/frames/scenarios/*.txt`. It runs the scenarios of the modes `odc_render::draws` (the in-process fake run) or the dev service's `AvailableModes` (the real run) accepts, so a mode's scenarios start running in the commit that makes it drawable.
 
 **Tests**
@@ -292,22 +327,25 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - a run with two frames swapped → failure at the first one;
   - a run that is a different cycle's windows → failure.
 - `--modes` parsing: `7`, `7-9,12`, `0`, `9-7`, `x`, and a later phase's `13` (error until Phase 9).
+- `--only display` is accepted and `--only load` is an unknown area.
+- A plan's unit: a °F case or scenario sets the unit before its tick 0, and the run restores the owner's unit afterwards (Phase 7's restore).
 
 **Validation**
 - `cargo test -p odc-testkit -p odc-e2e`: passes.
-- `cargo run -p odc-e2e -- --only service --modes 1`: runs only mode 1's examples, and prints them.
+- `cargo run -p odc-e2e -- --only display --modes 1 --require lp360` and `--only service --modes 1 --require dev-service`: each runs only mode 1's examples on the cooler, and prints them.
 
 ### 4. Temperature, CPU (mode 7)
 
 **Files and integration points**
-- `crates/odc-render/src/temperature.rs`: CREATE. Mode 7 → CPU Temperature in the one-value band (rows 6–10), with the unit's symbol. `draws(7)` becomes true.
+- `crates/odc-render/src/temperature.rs`: CREATE, with its list of drawn modes, as `load.rs` has. Mode 7 → CPU Temperature in the one-value band (rows 6–10), with the unit's symbol. `draws(7)` becomes true; `lib.rs`'s `draws` and `picture` dispatch the kind `Temperature` to it.
+- `crates/odc-render/tests/common/mod.rs`: UPDATE. Its helpers serve every kind: the drawn modes of a kind, and an expected picture turned.
 - `crates/odc-render/tests/matrix_temperature.rs`, `scenarios_temperature.rs`, `differential_temperature.rs`: CREATE.
 - `crates/odc-service/tests/engine.rs`, `dbus.rs`: UPDATE.
 - `crates/odc-e2e/src/attended.rs`: UPDATE.
 
 **Implementation**
 - A CPU option reads only CPU metrics (rule 11). Mode 7 shows CPU Temperature, never Gpu temperature.
-- If Phase 7 implemented the D-Bus refusal with its own list of implemented modes, replace it here with `odc_render::draws`, and delete the list.
+- The D-Bus refusal and `AvailableModes` already follow `draws` (Phase 7), so making `draws(7)` true makes mode 7 selectable.
 
 **Tests**
 - **Layer 1, matrix:** all 24 cases of `mode-007.txt` (4 rotations × °C/°F × 3 value sets).
@@ -328,12 +366,14 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - `AvailableModes` drops 7 when CPU Temperature is `NoRule` (for example k10temp before family 17h), with its reason.
 - **D-Bus:** `SetMode(7)` succeeds and is applied. The `NotYetAvailable` test moves to mode 13.
 - **Layer 4:**
+  - `odc-e2e --only display --modes 7 --require lp360`: mode 7's examples, drawn by the code just built, straight to the real cooler, in each unit, unattended;
   - `odc-e2e --only service --modes 7 --require dev-service`: on the real cooler, one case of mode 7 in each unit, its dash case, and one example of each test type it adds (S7, the °F boundary; S15, the unit change), unattended;
   - the attended tour gains mode 7: `5°C`, `57°C`, `120°C`, `39°F`, `135°F`, `--°C`, and one variant each of S7 (°F boundary) and S15 (unit change).
 
 **Validation**
 - `cargo test -p odc-render --test matrix_temperature --test scenarios_temperature`, `cargo test -p odc-service`: pass.
 - `cargo test -p odc-render --test differential_temperature -- --ignored`: passes and prints its counts.
+- `cargo run -p odc-e2e -- --only display --modes 7 --require lp360` passes.
 - After the owner approves the dev copy update: `cargo run -p odc-e2e -- --only service --modes 7 --require dev-service` passes.
 
 ### 5. Temperature, GPU (mode 8)
@@ -365,7 +405,7 @@ As Task 4, for mode 9: CPU Temperature in rows 2–6 over Gpu temperature in row
 ### 7. Power, CPU (mode 10)
 
 **Files and integration points**
-- `crates/odc-render/src/power.rs`: CREATE.
+- `crates/odc-render/src/power.rs`: CREATE, with its list of drawn modes; `lib.rs`'s `draws` and `picture` dispatch the kind `Power` to it.
 - `crates/odc-render/tests/matrix_power.rs`, `scenarios_power.rs`, `differential_power.rs`: CREATE.
 - `engine.rs`, `dbus.rs`, `attended.rs`: UPDATE, as in Task 4.
 
@@ -408,12 +448,12 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
   - Layer 2 compares the captured steps where both values have at most three digits, `65W` over `250W` among them.
   - Availability: `AvailableModes` drops 12 when either power metric is persistently unavailable.
   - Switch pairs with modes 1–11, so all 132 ordered pairs among modes 1–12 have run by the end.
-  - Layer 4: `--modes 12`, then one `--only service` run with no `--modes`: one example of each mode 1–12 and of each test type, unattended.
+  - Layer 4: `--modes 12`, then one `--only display` run and one `--only service` run with no `--modes`: one example of each mode 1–12 and of each test type, unattended.
 
 ### 9. Records
 
 **Files and integration points**
-- `AGENTS.md` Commands: the `--modes` flag; the new test targets; that a mode's commit runs `odc-e2e --only service --modes <n>`.
+- `AGENTS.md` Commands (`--only display` and `--modes` landed with Task 3): the new test targets, the layer 2 command for `odc-render`'s differential tests, and that a mode's commit runs `odc-e2e --only display --modes <n>` and `--only service --modes <n>`.
 - `README.md`:
   - Status;
   - `busctl` examples for `SetMode 7`, `SetTemperatureUnit fahrenheit`, `SetMode 10`.
@@ -449,8 +489,8 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
 5. **AC5 — DeepCreative's captures:** every captured step of modes 7–12 where the two sets of rules agree matches with 0 differing pixels: static steps frame for frame, scrolling steps as consecutive windows of the cycle. Every other step is listed with its reason (Tasks 3–8).
 6. **AC6 — Selectable and available:** `SetMode` accepts 7–12, refusing only through `odc_render::draws` and availability. `AvailableModes` drops each of these modes with the first reason of a persistently unavailable metric (`PermissionDenied` CPU Power, `IntegratedGpuPower`, a missing GPU) (Tasks 4–8).
 7. **AC7 — Real cooler, unattended:**
-   - each mode's `odc-e2e --only service --modes <n>` run passed before its commit;
-   - the final run without `--modes` passes one example of each mode 1–12 and of each test type, while every case runs in-process;
+   - each mode's `odc-e2e --only display --modes <n>` and `--only service --modes <n>` runs passed before its commit;
+   - the final runs without `--modes` pass one example of each mode 1–12 and of each test type, while every case runs in-process;
    - other computers run the same checks against fakes (Tasks 3–8).
 8. **AC8 — Records:** README, AGENTS.md Commands and the Phase 8 report's parity table match what was built (Task 9).
 
@@ -461,8 +501,9 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
 | Format, lint | `cargo fmt --all --check`; `cargo clippy --workspace --all-targets -- -D warnings` | Style; no warnings |
 | Layers 1 + 3 | `cargo test --workspace` | AC1, AC2, AC3, AC4, AC6 |
 | Layer 2 (local) | `cargo test -p odc-render --test differential_temperature --test differential_power -- --ignored` | AC5 |
+| Layer 4, direct, per mode (local, unattended) | `cargo run -p odc-e2e -- --only display --modes <n> --require lp360` | AC1, AC7, before each mode's commit |
 | Layer 4, per mode (local, unattended) | `cargo run -p odc-e2e -- --only service --modes <n> --require dev-service` | AC7, before each mode's commit |
-| Layer 4, every mode's examples (local, unattended) | `cargo run -p odc-e2e -- --only service --require dev-service` | AC7 |
+| Layer 4, every mode's examples (local, unattended) | `cargo run -p odc-e2e -- --only display --require lp360` and `--only service --require dev-service` | AC7 |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended --modes 7-12` | The owner's own look; never a gate |
 | CI | GitHub Actions on the pushed branch | Layers 1 + 3 |
 
@@ -470,8 +511,8 @@ Two sub-steps, **each its own commit** (rule 4), as Task 7.
 
 | Matrix cases | Layer 1 | Layer 2 | Layer 4 |
 |---|---|---|---|
-| Modes 7–9 × rotations 0–3 × °C/°F × value sets 1–3 (24 of the 112 mode, rotation and unit cases; 72 sections) | `matrix_temperature` | the steps where both rules agree (46 with the nearest rule, recounted 2026-10-26; 68 under the old rule) | one case per mode and unit, on the dev service, or fakes where absent |
-| Modes 10–12 × rotations 0–3 × value sets 1–3 (12 cases; 36 sections) | `matrix_power` | the steps where both rules agree (24 on 2026-10-25; recounted with the nearest rule) | one case per mode, on the dev service, or fakes |
+| Modes 7–9 × rotations 0–3 × °C/°F × value sets 1–3 (24 of the 112 mode, rotation and unit cases; 72 sections) | `matrix_temperature` | the steps where both rules agree (46 with the nearest rule, recounted 2026-10-26; 68 under the old rule) | one case per mode and unit, directly and on the dev service, or fakes where absent |
+| Modes 10–12 × rotations 0–3 × value sets 1–3 (12 cases; 36 sections) | `matrix_power` | the steps where both rules agree (24 on 2026-10-25; recounted with the nearest rule) | one case per mode, directly and on the dev service, or fakes |
 | Dash and impossible-reading cases (`unavailable.txt`) | both matrix targets | — (DeepCreative has no dashes) | one dash case |
 | Movement scenarios S1–S13, S19, S20, S22 × modes 7–12 × units × top, bottom, both × 4 rotations × every listed cycle position | `scenarios_temperature`, `scenarios_power` | — (OpenDeepCool's own rules) | one variant of each scenario type |
 | Resets and settings: S14–S18, S21, S23–S26 (132 ordered mode pairs among 1–12, unit in and out of temperature modes, rotation, GPU, Refresh, start-up with `NotYet`, reconnect) × 4 rotations | `engine` | — | one variant of each scenario type |
@@ -483,7 +524,8 @@ After this phase, 60 of the 112 matrix combinations are covered: modes 1–12 in
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
 | Every value capped at 9999, everywhere (owner, 2026-10-25) | Done: in every metric, °F capped after conversion, the same number on the cooler, over D-Bus and in the journal. The spec, PRD, Phase 7 plan, UI brief and oracle follow it | `display.md` Values; commit `e1988cb` | — |
-| Phase 7 isn't implemented yet; its final names may differ from its plan (`picture`, `Marquee`, `mode_info`, `odc_testkit::sweep`, the refusal step) | Before Task 1, check this plan against the Phase 7 code and report; update names here with the owner's OK if they differ | AGENTS.md: a plan that contradicts what you see is stopped and fixed first | Tasks would cite files that don't exist |
+| Phase 7's final names could differ from its plan (`picture`, `Marquee`, `mode_info`, `odc_testkit::sweep`, the refusal step) | Done 2026-11-05: the plan was checked against the Phase 5–7 code and corrected with the owner's OK (Evidence, "The comparison with Phases 5–7") | AGENTS.md: a plan that contradicts what you see is stopped and fixed first | — |
+| The scenario files grow with modes 7–12 in both units and every switch pair | Keep every scenario the plan lists; the Phase 8 report gives the files' sizes | `load.txt` is 1.8 MB for 2,499 scenarios; an estimated 6 MB in all, unverified until generated | Fewer cycle positions would leave movement cases untested |
 | The real-cooler run before each mode's commit | One example of each mode and test type on the cooler (owner, 2026-10-26), limited by `--modes`; the whole cross runs in-process; the run prints its duration | Rule 4 needs the run before each mode's commit; rule 3 needs no person | At the real 100 ms tick, the whole cross would take many hours per commit |
 | DeepCreative's capture of mode 9 °C can't be compared (column shift) | Rely on layer 1's 12 °C cases of `mode-009.txt` and the scenarios; list the skip reason | Owner, 2026-10-24: two values end at column 14 | — |
 | Comparing scrolling captures in order could fail on a dropped captured frame | It didn't on any of the 50 scrolling steps (recounted 2026-10-26; 68 under the old rule); a failure stops the commit and is investigated, never loosened to a set comparison | `display.md` Scrolling layout point 3: every frame-to-frame change is a one-column shift | A weaker check would accept frames out of order |

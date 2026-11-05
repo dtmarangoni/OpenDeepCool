@@ -120,6 +120,19 @@ Modes 10 and 12 need the package energy counter to be group-readable, which the 
 
 - Real-hardware tiering (overview Q1) applies here too. Nothing else specific to this phase.
 
+## Before Task 1 (2026-11-05)
+
+The plan was compared with what Phases 5–7 built (AGENTS.md, How to work), and corrected where they differ:
+
+- Phase 7's `value::number` is already the °C and power rule, so only °F is new, and `picture.rs` doesn't change;
+- `SetMode` and `AvailableModes` already share `draws` (P8-03's outcome, built in Phase 7);
+- the scenario files gain the temperature unit, which they lacked, and the oracle's scenario generator, Load-only, covers modes 1–12;
+- `load.txt` is regenerated: tick 0 names all seven metrics, mode switches reach modes 7–12, and the "not yet available" example moves from mode 9 to mode 13;
+- the engine's scenario replay skips a switch into a mode not drawn yet;
+- `odc-e2e`'s plays, examples and tour take every drawn mode and its unit.
+
+The owner also decided (PRD Decisions Log): the direct real-cooler check covers every drawn mode, renamed `--only display`, and each mode's commit runs it beside `--only service --modes <n>`. This adds to P8-02's outcome, which set one example of each mode and test type on the real cooler.
+
 ## Sources
 
 - The plan's own evidence; `display.md` and `sensors.md` at the commit above.
