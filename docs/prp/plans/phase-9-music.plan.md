@@ -79,7 +79,7 @@
 - **Data rate:** 48 000 × 2 × 4 bytes = 384 kB/s through a pipe. It's negligible, and the sandboxed service parses nothing but floats.
 
 **No PipeWire library in Rust.**
-- The `pipewire` crate (0.10.1) and cpal's `pipewire` feature (cpal 0.18.2) both need `libspa-sys`, which runs `bindgen` and so needs libclang to build. Clang isn't installed here, and it would become a build dependency of the package.
+- The `pipewire` crate (0.10.1) and cpal's `pipewire` feature (cpal 0.18.2) both need `libspa-sys`, which runs `bindgen` and so needs libclang to build. Clang is installed on this PC only for the dev tool `odc-bindings` (Phase 6, 2026-10-29); the package and CI build without it, and this would make it a build dependency of both.
 - `pw-record` ships with PipeWire itself (`pipewire-audio` on this PC), so it's already wherever this phase can work at all.
 - The FFT is `realfft` 3.5.0 on `rustfft` 6.4.1, pure Rust (crates.io, 2026-10-25). Look its API up in Context7 before use (CLAUDE.md).
 
@@ -145,6 +145,9 @@
   - zbus (Context7, 2026-10-25): file descriptors pass as `Fd`/`OwnedFd`, D-Bus type `h`.
   - org.freedesktop.login1(5), read 2026-10-26: "Whenever ActiveSession, Sessions, CanGraphical, CanTTY, or the idle state changes, PropertyChanged signals are sent out" for a seat.
   - systemd.unit(5), read 2026-10-26: `ConditionUser=` takes "the special value `@system`", which "can be used to check if the user id is within the system user range".
+- **The comparison with Phases 5–8, before Task 0** (2026-11-05; AGENTS.md, How to work):
+  - as planned: settings v1 keeps unknown fields and takes new ones with defaults; polkit's `Action` has `Use` and `ChangeSettings`, beside which `FeedAudio` goes; `odc-ipc` has no Music member yet; `odc_render::{draws, picture, mode_info}` with `Kind::Music`; the dev interface's test session, `OverrideReadings` and `ClearOverride`; `odc-e2e --modes`; scenario files per mode; PipeWire 1.6.9 and WirePlumber 0.5.18, as on 2026-10-25;
+  - different from this plan as first written, and corrected in it: clang is now installed, for `odc-bindings` only; zbus 6 has no blocking API (Phase 7), so the helper uses zbus with `block_on`; the D-Bus tests run on a private `dbus-daemon` per test (`odc_testkit::bus::PrivateBus`, Phase 7), not peer-to-peer; fake programs on `PATH` are Rust test programs (AGENTS.md rule 13), as `odc-sensors-detect`'s tests make them; the dev manifest has no entry for a globally enabled user unit; the scenario format has no audio and no Music setting; the oracle's scenario generator stops at mode 12; the scenarios of modes 1–12 and a D-Bus test use mode 13 as S23's "not yet available" example; `odc-e2e`'s display and service examples expect value sets and refuse loops and spectrum pixels; each mode's commit also runs `--only display --modes <n>` (owner, 2026-11-05).
 - **DeepCreative's Music captures,** compared with OpenDeepCool's rules by a scratch check on 2026-10-25 (session scratchpad, not kept). **79 steps agree** in the top area. Recounted on 2026-10-26 with the nearest rule and the regenerated frames by `research/hook/diffcount-music.py` (local), which first reproduced the old count: still 79, and every one matches the capture. No Music step's numbers change with the rounding:
 
   | Mode | Steps that agree | What agrees |
@@ -271,7 +274,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - What happens when nothing tagged Music plays: silence, or a fall-back to the monitor?
 
 **Method**
-- Read the tags with `pw-dump` while each player plays a test tone.
+- Read the tags with `pw-dump` while each installed player plays a test tone: mpv, Spotify and Chrome. VLC, Firefox and Chromium aren't installed; their tags come from their source code and PipeWire's documentation, marked as not measured (owner, 2026-11-05). Nothing is installed for this task.
 - Try a capture limited to tagged streams in a throwaway program in the session scratchpad, never committed.
 - Read PipeWire's and WirePlumber's documentation for the linking rules.
 
@@ -302,6 +305,9 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - for *H* = 12 and *H* = 6;
   - with peaks on and off;
   - with every bar fall stop and every peak fall stop.
+- `tools/oracle/src/scenarios.rs`: its generator, written for modes 1–12 (`kind`, `next_in_kind`, the S23 choice, the units), covers modes 13–23.
+- **The scenario format gains audio and the Music settings** (`frames/README.md`, Dash cases and scenarios): `audio <signal>` plays a signal of `spectrum/signals.txt` from that tick, and a scenario without one is silent; `music peaks on|off`, `music bar fall <stop>` and `music peak fall <stop>` change a setting without a reset. `odc_testkit::expected` parses them, and the replays (`odc-render`'s, the engine's, `odc-e2e`'s plays) follow them.
+- **S23's refused mode outside the table** (owner, 2026-11-05): S23's "not yet available" example, mode 13, would break once mode 13 is drawn, and after this phase no mode is "not yet available". From this task S23 asks for mode 24, refused as not in the mode table (`InvalidArgument`), in the scenarios of modes 1–23; `display.md`'s S23 reads "an unavailable mode, a mode outside the table". The scenario files of modes 1–12 are regenerated, their S23 lines only; `odc-e2e`'s plays expect `InvalidArgument` for it. The D-Bus test of `NotYetAvailable` moves from mode to mode as below.
 - `docs/spec/frames/scenarios/mode-013.txt` to `mode-023.txt`: CREATE, generated, one file per mode, as Phase 8 writes modes 1–12 (owner, 2026-11-05: every file under the commit guard's 2 MiB limit).
   - Every scenario S1–S26 that applies, for the value modes 18–22, both units for 18–19, in silence: the spectrum is then the floor line, so every pixel is exact.
   - S14–S18 for modes 13–17. S14 here is a switch at every loop position, and the next frame is the loop's first picture.
@@ -325,7 +331,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - with peaks on, at most one lit pixel above each bar.
 
 **Validation**
-- `git diff --stat docs/spec/frames/` shows only the new files and the README.
+- `git diff --stat docs/spec/frames/` shows only the new files, the README, and the S23 lines of `scenarios/mode-001.txt` to `mode-012.txt`.
 
 ### 2. `odc-render`: the spectrum, the emoji loop and the Music pictures, none drawable yet
 
@@ -419,7 +425,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Settings v1:** the three fields with their defaults; validation of the stop names.
 - **Dev recording:** each report already carries its monotonic write time (Phase 7; solution review P7-13), which the delay measurement in Task 5 uses.
 
-**Tests** (layer 3, CI; p2p D-Bus and a fake `Authorizer`, as Phase 7 Task 7)
+**Tests** (layer 3, CI; a private bus and a fake `Authorizer`, as Phase 7's D-Bus tests run them)
 - **`AttachAudio`:**
   - allowed → a pipe, and samples written to it reach the engine's window;
   - denied → `NotAuthorized` and no pipe.
@@ -441,13 +447,14 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 ### 4. The helper `opendeepcool-audio` and its user unit, in the dev copy
 
 **Files and integration points**
-- `crates/odc-audio/`: CREATE, the binary `opendeepcool-audio` (zbus blocking, no other dependency).
+- `crates/odc-audio/`: CREATE, the binary `opendeepcool-audio` (zbus, driven with `block_on` as the service is, since zbus 6 has no blocking API; no other dependency).
 - `packaging/systemd-user/opendeepcool-audio.service`: CREATE.
   - `ExecStart=` the helper; `Restart=on-failure`;
   - `ConditionUser=!@system`: never for system accounts (owner, 2026-10-26);
   - `WantedBy=default.target`;
   - in a user unit these settings imply `PrivateUsers=`, which needs unprivileged user namespaces (systemd.exec(5), read 2026-10-27). So the unit is tested as written: capture works, polkit passes, `AudioConnected` turns true; the report lists every setting that had to go, with its reason (solution review P9-04);
   - `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `RestrictAddressFamilies=AF_UNIX`, `LockPersonality=yes`, `RestrictRealtime=no` (PipeWire's client may ask for realtime scheduling: unverified, so not restricted).
+- `crates/odc-manifest/`: UPDATE, an entry for a user unit enabled for every user (`systemctl --global enable`), which its removal disables.
 - `tools/dev/` (`odc-dev`'s `setup`, `teardown`, `check`): UPDATE.
   - **setup** installs the helper to `/usr/local/libexec/opendeepcool-dev/` and the unit to `/etc/systemd/user/`, with `ExecStart` pointing there, then runs `systemctl --global enable opendeepcool-audio.service`, all recorded in the manifest.
   - **teardown** runs `systemctl --global disable` and removes them.
@@ -474,7 +481,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Unit tests** cover:
   - the exact `pw-record` argument list;
   - flag parsing.
-- **A fake `pw-record` script**, placed first on `PATH` in the test, writes known floats. Through a p2p fake service, they arrive in the pipe. When the fake service closes the pipe, the child exits, and the helper attaches again only if `AudioWanted` is still true.
+- **A fake `pw-record`**, a Rust test program placed first on `PATH` as `odc-sensors-detect`'s tests make theirs (AGENTS.md rule 13), writes known floats. Through a fake service on a private bus, they arrive in the pipe. When the fake service closes the pipe, the child exits, and the helper attaches again only if `AudioWanted` is still true.
 - **Events, not polling:**
   - with `AudioWanted` false, no `pw-record` runs; turning it true attaches and starts the fake one; turning it false stops it within one second;
   - a refused attach logs one line, then retries only on a watched change or the fallback timer: a minute of refusals writes one line, not 30;
@@ -491,7 +498,8 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 
 **Files and integration points**
 - `crates/odc-testkit/src/hardware.rs`: UPDATE, with the capability `pipewire`: Real when the user's PipeWire runs and `pw-record`, `pw-play` and `pactl` exist.
-- `crates/odc-e2e/src/music.rs`: CREATE, run with `--only music`.
+- `crates/odc-e2e/src/music.rs`: CREATE, run with `--only music`; `lib.rs` gets the area.
+- `crates/odc-e2e/src/display.rs`, `service.rs`, `plays.rs`, `attended.rs`: UPDATE, so each Music mode's examples run (owner, 2026-11-05: `--only display` covers every drawn mode): a mode with one case per rotation and no value sets, an emoji loop frame by frame, the spectrum's `?` pixels as the floor line in silence, a test signal through `OverrideAudio` on the service; Music's scenario types named apart, as `service_S14_music`.
 
 **Implementation**
 - **At start, before the harness** (owner, 2026-10-27; solution review P9-10): a leftover null sink named `odc-e2e` is unloaded, and the owner's `opendeepcool-audio` is started if it's stopped, each with a printed note. A killed run skips the harness's drop guard, which would otherwise leave both behind; the audio override already ends with the test session (Phase 7).
@@ -514,7 +522,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Fake mode** (`pipewire` Absent): the same signals through `FakeAudio` in an in-process engine. The delay check is reported as not run, never as passed.
 
 **Tests**
-- Parsing of the null sink's module index and of `pw-dump`'s monitor node; the drop guard restores the unit even when a check panics (tested with a fake `systemctl` and `pactl` on `PATH`); and the start-up repair, with a fake `pactl` listing a leftover `odc-e2e` sink and a fake `systemctl` reporting the helper stopped (P9-10).
+- Parsing of the null sink's module index and of `pw-dump`'s monitor node; the drop guard restores the unit even when a check panics (tested with a fake `systemctl` and `pactl` on `PATH`, Rust test programs); and the start-up repair, with a fake `pactl` listing a leftover `odc-e2e` sink and a fake `systemctl` reporting the helper stopped (P9-10).
 
 **Validation**
 - `cargo test -p odc-e2e`: passes. The real run comes with Task 6.
@@ -540,6 +548,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - entering 13 from Load starts the levels at 0.
 - **D-Bus:** `SetMode(13)` succeeds; the `NotYetAvailable` test moves to mode 14.
 - **Layer 4:**
+  - `odc-e2e --only display --modes 13`: mode 13's cases in silence, straight to the cooler;
   - `odc-e2e --only service --modes 13`: one case of mode 13 through `OverrideAudio`, in silence and with one signal, plus one example of each test type it adds;
   - `odc-e2e --only music`: the real capture check, with one signal, and **the delay measurement**, whose 200 bursts are one test that needs that many samples for its 95th percentile;
   - the tour gains mode 13 with the burst train, peaks on and off, and the slowest and fastest stops.
@@ -547,7 +556,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 **Validation**
 - `cargo test -p odc-render --test matrix_music --test scenarios_music`, `cargo test -p odc-service`: pass.
 - `cargo test -p odc-render --test differential_music -- --ignored`: passes and prints its counts.
-- `cargo run -p odc-e2e -- --only service --modes 13 --require dev-service` and `cargo run -p odc-e2e -- --only music --require dev-service,pipewire`: pass, with the delay's 95th percentile at 150 ms or less.
+- `cargo run -p odc-e2e -- --only display --modes 13 --require lp360,dev-service`, `--only service --modes 13 --require dev-service` and `--only music --require dev-service,pipewire`: pass, with the delay's 95th percentile at 150 ms or less.
 
 ### 7. Music, emojis over the spectrum (modes 14, 15, 16, 17)
 
@@ -558,7 +567,7 @@ Four sub-steps, **each its own commit** (rule 4).
 - **Scenarios:** S14–S18 for that mode. The loop restarts on a switch into it, on a rotation change, on another GPU and on Refresh, at every loop position. A unit change and a Music setting change don't restart it.
 - **Layer 2 (local):** the captured steps' top areas (rows 1–8) are exactly the loop's pictures, and pass `cycle_match` against the loop in order. 6 steps per mode agreed on 2026-10-25.
 - **Layer 3:** every ordered switch between this mode and the modes drawable before it, at every *k*.
-- **Layer 4:** `--modes 1N`. The tour gains this emoji, with one Refresh mid-loop.
+- **Layer 4:** `--only display --modes 1N` and `--only service --modes 1N`. The tour gains this emoji, with one Refresh mid-loop.
 
 ### 8. Music, a value over the spectrum (modes 18, 19, 20, 21, 22)
 
@@ -587,7 +596,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - S25: another GPU resets 19 and 21;
   - availability: `AvailableModes` drops the mode with its metric's reason, as in Phase 8;
   - every ordered switch with the modes drawable before it.
-- **Layer 4:** `--modes 18` … `--modes 22`. The tour gains each mode with a `100%` or `135°F` value scrolling over the burst train.
+- **Layer 4:** `--only display` and `--only service`, `--modes 18` … `--modes 22`. The tour gains each mode with a `100%` or `135°F` value scrolling over the burst train.
 
 ### 9. Music, the Dancer (mode 23)
 
@@ -610,8 +619,8 @@ Five sub-steps, **each its own commit** (rule 4):
   - `SetMode(23)` succeeds. Every mode in the table is now drawable, so `NotYetAvailable` is no longer returned; its test becomes a mode outside the table (0, 24, 100) → `InvalidArgument`.
 - **Layer 2:** none: DeepCreative has no Dancer.
 - **Layer 4:**
-  - `--modes 23`: one case of mode 23 through `OverrideAudio`, in silence and with one dancer signal;
-  - then one `--only service` run with no `--modes`, one example of each mode 1–23 and of each test type, and one `--only music` run;
+  - `--only display --modes 23`, and `--only service --modes 23`: one case of mode 23 through `OverrideAudio`, in silence and with one dancer signal;
+  - then one `--only display` and one `--only service` run with no `--modes`, one example of each mode 1–23 and of each test type, and one `--only music` run;
   - the tour gains the Dancer with the demo burst train, soft then loud, then silence.
 
 ### 10. Records
@@ -667,7 +676,7 @@ Five sub-steps, **each its own commit** (rule 4):
    - the spectrum's levels continue between Music modes and start at 0 when entering from another family (Tasks 1, 6–9).
 7. **AC7 — DeepCreative's captures:** the agreeing steps (79, unchanged by the nearest rule, recounted 2026-10-26) match in the top area (0 differing pixels, emoji and scrolling steps in order), every Music frame captured meets the layout with peaks off, and every other step is listed with its reason (Tasks 6–8).
 8. **AC8 — Real cooler, unattended:**
-   - each mode's `--modes` run passes before its commit;
+   - each mode's `--only display` and `--only service` runs with `--modes` pass before its commit;
    - the real capture through a virtual output draws the expected spectrum;
    - **the delay is at most 150 ms for 95 % of 200 bursts**;
    - the owner's own audio and units are left as they were;
@@ -683,6 +692,7 @@ Five sub-steps, **each its own commit** (rule 4):
 | Layer 2 (local) | `cargo test -p odc-render --test differential_music -- --ignored` | AC7 |
 | User unit | `systemd-analyze verify --user packaging/systemd-user/opendeepcool-audio.service`; `xmllint --noout packaging/polkit/*.policy` | AC5 (syntax), AC4 (policy) |
 | Dev copy | `cargo run -p odc-dev -- check`; `busctl call … GetState` (`AudioConnected`) | AC5 |
+| Layer 4, direct, per mode (local, unattended) | `cargo run -p odc-e2e -- --only display --modes <n> --require lp360,dev-service` | AC2, AC8, before each mode's commit |
 | Layer 4, per mode (local, unattended) | `cargo run -p odc-e2e -- --only service --modes <n> --require dev-service` | AC8, before each mode's commit |
 | Layer 4, sound and delay (local, unattended) | `cargo run -p odc-e2e -- --only music --require dev-service,pipewire` | AC5, AC8 (delay) |
 | Attended tour (optional, the owner) | `cargo run -p odc-e2e -- --attended --modes 13-23` | The owner's own look; never a gate |

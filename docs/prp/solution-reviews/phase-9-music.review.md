@@ -214,6 +214,13 @@ The music harness loads a null sink with `pactl`, stops the owner's helper and r
 1. Capture sound only while a Music mode is shown (P9-01; overview Q3)?
 2. Real-hardware tiering for the 506 mode pairs (P9-14; overview Q1).
 
+## Before Task 0 (2026-11-05)
+
+The plan was compared with what Phases 5–8 built (AGENTS.md, How to work), and corrected where they differ: clang is now installed, for `odc-bindings` only; zbus 6 has no blocking API, so the helper uses `block_on` as the service does; the D-Bus tests run on a private bus; fake programs on `PATH` are Rust test programs (rule 13); the dev manifest gains an entry for a user unit enabled for every user; the scenario format gains audio and the Music settings, and the oracle's generator covers modes 13–23; `odc-e2e`'s display and service checks learn Music's loops and spectrum pixels, and each Music mode's commit runs `--only display` beside `--only service` (owner, 2026-11-05). The owner also decided (PRD Decisions Log):
+
+- S23 asks for mode 24, refused as outside the mode table, in place of mode 13, which this phase draws;
+- Task 0 measures the installed players (mpv, Spotify, Chrome) and answers VLC, Firefox and Chromium from their source, installing nothing.
+
 ## Sources
 
 - systemd.exec(5), read 2026-10-26: sandboxing in per-user managers implies `PrivateUsers=`.
