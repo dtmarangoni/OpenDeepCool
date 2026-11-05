@@ -2,8 +2,9 @@
 //! the cooler in each mode's commit). Before the service exists, each drawn Load mode's examples,
 //! drawn by `odc-render`, go straight to the cooler at the tick: value set 2 upright and turned
 //! once, value set 3, and the mode's dash case where it has one. Where value set 3 doesn't scroll
-//! (modes 2, 3 and 6), scenario S1 of `scenarios/load.txt` brings the scrolling example. Every report written is recorded and compared with the expected frames; nobody looks at
-//! the cooler. Without a cooler, the same runs through a fake one.
+//! (modes 2, 3 and 6), scenario S1 of the mode's `scenarios/mode-NNN.txt` brings the scrolling
+//! example. Every report written is recorded and compared with the expected frames; nobody looks
+//! at the cooler. Without a cooler, the same runs through a fake one.
 
 use std::path::Path;
 use std::time::Duration;
@@ -13,7 +14,7 @@ use odc_protocol::{Frame, Message};
 use odc_render::{Kind as ModeKind, Marquee, Mode, Unit, Values, draws, mode_info, picture};
 use odc_testkit::diff;
 use odc_testkit::expected::{
-    Case, Change, Kind, Picture, every_metric, load_mode, load_scenarios, load_unavailable,
+    Case, Change, Kind, Picture, every_metric, load_mode, load_unavailable, mode_scenarios,
 };
 use odc_testkit::hardware::{Capability, Mode as RunMode, Probe, Roots, Summary, probe};
 
@@ -106,11 +107,11 @@ fn examples(mode: Mode) -> Result<Vec<Example>, String> {
 /// The mode's scenario S1, a value of 100 or more scrolling from home, as the oracle drew it.
 fn scrolling(mode: Mode) -> Result<Example, String> {
     let n = mode.number();
-    let scenarios = load_scenarios("load.txt");
+    let scenarios = mode_scenarios(n);
     let s1 = scenarios
         .iter()
-        .find(|s| s.id == "S1" && s.mode == n)
-        .ok_or_else(|| format!("scenarios/load.txt: no S1 in mode {n}"))?;
+        .find(|s| s.id == "S1")
+        .ok_or_else(|| format!("scenarios/mode-{n:03}.txt: no S1"))?;
     let start: Vec<_> = s1
         .ticks
         .first()

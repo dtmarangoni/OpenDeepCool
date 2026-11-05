@@ -40,7 +40,7 @@ const PROFILES: [Profile; 3] = [
 
 /// Each file's title: the mode's name in the settings app, `<group> · <option>`
 /// (docs/design/settings-app.md, the tile gallery; owner, 2026-10-28).
-const TITLES: [&str; 22] = [
+pub(crate) const TITLES: [&str; 22] = [
     "Load · CPU",
     "Load · GPU",
     "Load · RAM",
@@ -89,38 +89,70 @@ pub fn files() -> Vec<(String, String)> {
         .map(|mode| (format!("mode-{mode:03}.txt"), file(mode)))
         .collect();
     files.push(("unavailable.txt".to_owned(), unavailable_file()));
-    files.push(("scenarios/load.txt".to_owned(), crate::scenarios::file()));
+    files.extend(crate::scenarios::files());
     files
 }
 
-/// The dash cases (`display.md`, Unavailable values; Phase 7 plan, Task 1): a reading that's
-/// unavailable, or negative, in rotations 0–3. With exact readings, not-a-number and infinite
-/// readings can't occur.
-const DASH_CASES: [(u16, &[(&str, &str)]); 5] = [
-    (1, &[("CPU Usage", "unavailable")]),
-    (1, &[("CPU Usage", "-5")]),
-    (4, &[("CPU Usage", "42"), ("Gpu usage", "unavailable")]),
-    (4, &[("CPU Usage", "100"), ("Gpu usage", "unavailable")]),
+/// The dash cases (`display.md`, Unavailable values; Phase 7 plan, Task 1; Phase 8 plan, Task 1):
+/// a reading that's unavailable, or negative, in rotations 0–3, in °C or °F where the mode shows
+/// a temperature (`Some(true)` for °F). With exact readings, not-a-number and infinite readings
+/// can't occur.
+type DashCase = (u16, Option<bool>, &'static [(&'static str, &'static str)]);
+
+const DASH_CASES: [DashCase; 11] = [
+    (1, None, &[("CPU Usage", "unavailable")]),
+    (1, None, &[("CPU Usage", "-5")]),
+    (
+        4,
+        None,
+        &[("CPU Usage", "42"), ("Gpu usage", "unavailable")],
+    ),
+    (
+        4,
+        None,
+        &[("CPU Usage", "100"), ("Gpu usage", "unavailable")],
+    ),
     (
         6,
+        None,
         &[("Gpu usage", "unavailable"), ("Memory Load", "unavailable")],
+    ),
+    (7, Some(false), &[("CPU Temperature", "unavailable")]),
+    (7, Some(true), &[("CPU Temperature", "unavailable")]),
+    (
+        9,
+        Some(true),
+        &[
+            ("CPU Temperature", "120"),
+            ("Gpu temperature", "unavailable"),
+        ],
+    ),
+    (10, None, &[("CPU Power", "unavailable")]),
+    (11, None, &[("Gpu power", "-3")]),
+    (
+        12,
+        None,
+        &[("CPU Power", "1234"), ("Gpu power", "unavailable")],
     ),
 ];
 
 fn unavailable_file() -> String {
     let mut lines = vec!["# Unavailable values: dashes".to_owned(), String::new()];
-    for (mode, readings) in DASH_CASES {
+    for (mode, unit, readings) in DASH_CASES {
         let values: Vec<Option<Ratio>> = readings.iter().map(|&(_, v)| Ratio::decimal(v)).collect();
-        let named = readings
+        let mut named = readings
             .iter()
             .map(|(name, value)| format!("{name} = {value}"))
             .collect::<Vec<_>>()
             .join(", ");
+        if let Some(fahrenheit) = unit {
+            named = format!("{}, {named}", if fahrenheit { "°F" } else { "°C" });
+        }
         for rotation in 0..4 {
             lines.push(format!("## mode {mode}, rotation {rotation}, {named}"));
             lines.push(String::new());
             let turn = |g: Frame| drawing::rotate_cw(&g, rotation);
-            let frames = match rules::picture(mode, &values, false) {
+            let frames = match rules::picture(mode, &values, unit == Some(true)) {
                 Picture::Static(g) => vec![turn(g)],
                 Picture::Scrolling(cycle) => {
                     let frames: Vec<Frame> =

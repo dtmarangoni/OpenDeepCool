@@ -18,7 +18,7 @@ use odc_service::engine::{Apply, Engine, Published, Requests};
 use odc_service::runtime::{Outputs, Progress, Slot, SystemTicker, run_engine};
 use odc_service::settings::Settings;
 use odc_service::status::{FIRST_READINGS, parse_first_readings};
-use odc_testkit::expected::{Case, Kind, load_mode, load_scenarios, load_unavailable};
+use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable, mode_scenarios};
 use odc_testkit::hardware::{Capability, DEV_UNIT, Mode, Probe, Roots, Summary, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
@@ -225,11 +225,12 @@ fn examples() -> Vec<(String, Result<Plan, String>)> {
     examples
 }
 
-/// The first variant of each scenario type of `scenarios/load.txt`, in file order.
+/// The first variant of each scenario type of the Load modes' scenarios, mode by mode in file
+/// order.
 pub(crate) fn scenario_plans() -> Vec<(String, Plan)> {
     let mut seen = Vec::new();
     let mut plans = Vec::new();
-    for scenario in load_scenarios("load.txt") {
+    for scenario in (1..=6).flat_map(mode_scenarios) {
         let id = scenario.heading.trim_start_matches("## ");
         let id = id.split(' ').next().unwrap_or(id).to_owned();
         if seen.contains(&id) {

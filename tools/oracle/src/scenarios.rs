@@ -1,34 +1,69 @@
-//! `docs/spec/frames/scenarios/load.txt`: the test scenarios of `docs/spec/display.md` (S1–S26)
-//! that apply to Load, for each of modes 1–6, in rotation 0, with the frame expected at every
-//! tick (Phase 7 plan, Task 1). The rotations 1–3 aren't written: their frames are these, turned.
-//! Each scenario is a script of changes at chosen ticks, run through the movement procedure.
+//! `docs/spec/frames/scenarios/`: the test scenarios of `docs/spec/display.md` (S1–S26) for each
+//! mode with values, 1–12, in rotation 0, with the frame expected at every tick (Phase 7 plan,
+//! Task 1; Phase 8 plan, Task 1): one file per mode, `mode-001.txt` to `mode-012.txt`, each under
+//! the commit guard's 2 MiB limit (owner, 2026-11-05), modes 7–9 in °C and in °F. The rotations
+//! 1–3 aren't written: their frames are these, turned. Each scenario is a script of changes at
+//! chosen ticks, run through the movement procedure.
 
 use std::collections::{BTreeMap, HashMap};
 
-use crate::drawing::{Frame, value_mode};
-use crate::frames::text;
+use crate::drawing::{Frame, Kind, value_mode};
+use crate::frames::{TITLES, text};
 use crate::movement::Movement;
 use crate::rules::{Ratio, strip_of};
 
-/// The metrics Load shows, in the order the scenarios list them.
-const LOAD: [&str; 3] = ["CPU Usage", "Gpu usage", "Memory Load"];
+/// Every metric modes 1–12 show, in the order of the mode table. Tick 0 names them all, so a
+/// switch into another kind of mode draws named readings.
+const METRICS: [&str; 7] = [
+    "CPU Usage",
+    "Gpu usage",
+    "Memory Load",
+    "CPU Temperature",
+    "Gpu temperature",
+    "CPU Power",
+    "Gpu power",
+];
 
-/// Each metric's readings at the levels the scenarios use: every metric its own value.
-fn level(metric: &str, level: Level) -> String {
-    let column = level as usize;
+/// The readings averaged over the interval on every PC: dashes in their first second, and again
+/// after a wake-up (`display.md`, Unavailable values).
+const RATES: [&str; 2] = ["CPU Usage", "CPU Power"];
+
+/// The readings another GPU brings (S25): a static one, and one of 100 or more for a GPU metric
+/// the scenario's change applies to.
+const ANOTHER_GPU: [(&str, &str, &str); 3] = [
+    ("Gpu usage", "71", "116"),
+    ("Gpu temperature", "36", "107"),
+    ("Gpu power", "52", "260"),
+];
+
+fn is_temperature(metric: &str) -> bool {
+    metric.ends_with("emperature")
+}
+
+/// Each metric's readings at the levels the scenarios use, temperatures in °C: every metric its
+/// own value. No reading draws one digit in °F (0 °C is 32 °F); there the temperatures' largest
+/// readings draw 9999 and 9997 (9998.6 and 9996.8), so the two values of mode 9 still differ.
+fn level(metric: &str, fahrenheit: bool, level: Level) -> String {
     let row: [&str; 5] = match metric {
         "CPU Usage" => ["42", "3", "100", "1000", "9999"],
         "Gpu usage" => ["67", "6", "104", "1500", "9998"],
         "Memory Load" => ["85", "8", "109", "2048", "9997"],
-        _ => panic!("{metric} isn't shown by Load"),
+        "CPU Temperature" if fahrenheit => ["29", "4", "101", "1001", "5537"],
+        "CPU Temperature" => ["29", "4", "101", "1001", "9996"],
+        "Gpu temperature" if fahrenheit => ["34", "2", "105", "1501", "5536"],
+        "Gpu temperature" => ["34", "2", "105", "1501", "9995"],
+        "CPU Power" => ["65", "7", "120", "1234", "9994"],
+        "Gpu power" => ["48", "5", "250", "1999", "9993"],
+        _ => panic!("{metric} isn't shown by modes 1–12"),
     };
-    row[column].to_owned()
+    row[level as usize].to_owned()
 }
 
 #[derive(Clone, Copy)]
 enum Level {
     /// Two digits.
     Base,
+    /// One digit; two in °F.
     OneDigit,
     /// Three digits, 100 or more.
     High,
@@ -39,21 +74,56 @@ enum Level {
 }
 
 /// A reading close to another, for the same metric: `base + step · i`.
-fn offset(metric: &str, base: Level, step: i64, i: i64) -> String {
-    let start: i64 = level(metric, base).parse().expect("a whole number");
+fn offset(metric: &str, fahrenheit: bool, base: Level, step: i64, i: i64) -> String {
+    let start: i64 = level(metric, fahrenheit, base)
+        .parse()
+        .expect("a whole number");
     (start + step * i).to_string()
 }
 
-/// Readings on either side of 99.5, distinct for each metric (S7).
-fn near_limit(metric: &str, above: bool) -> &'static str {
-    match (metric, above) {
-        ("CPU Usage", false) => "99.49",
-        ("Gpu usage", false) => "99.48",
-        ("Memory Load", false) => "99.47",
-        ("CPU Usage", true) => "99.5",
-        ("Gpu usage", true) => "99.51",
-        ("Memory Load", true) => "99.52",
-        _ => panic!("{metric} isn't shown by Load"),
+/// Readings on either side of the number 99.5, distinct for each metric of a mode (S7). In °F
+/// the °C readings whose °F is 99.48, 99.46, 99.5 and 99.52.
+fn near_limit(metric: &str, fahrenheit: bool, above: bool) -> &'static str {
+    match (metric, fahrenheit && is_temperature(metric), above) {
+        ("CPU Temperature", true, false) => "37.49",
+        ("Gpu temperature", true, false) => "37.48",
+        ("CPU Temperature", true, true) => "37.5",
+        ("Gpu temperature", true, true) => "37.51",
+        ("CPU Usage" | "CPU Temperature" | "CPU Power", _, false) => "99.49",
+        ("Gpu usage" | "Gpu temperature" | "Gpu power", _, false) => "99.48",
+        ("Memory Load", _, false) => "99.47",
+        ("CPU Usage" | "CPU Temperature" | "CPU Power", _, true) => "99.5",
+        ("Gpu usage" | "Gpu temperature" | "Gpu power", _, true) => "99.51",
+        ("Memory Load", _, true) => "99.52",
+        _ => panic!("{metric} isn't shown by modes 1–12"),
+    }
+}
+
+/// A reading that draws `n`, 999 or 99: in °F, the °C reading that does (998.6 and 98.6).
+fn drawing(metric: &str, fahrenheit: bool, n: u32) -> String {
+    if !(fahrenheit && is_temperature(metric)) {
+        return n.to_string();
+    }
+    match n {
+        999 => "537",
+        99 => "37",
+        _ => panic!("no °C reading chosen for {n} °F"),
+    }
+    .to_owned()
+}
+
+/// The readings either side of each rounding point where a number gains a digit (S20): in °F,
+/// the °C readings that draw 32, 99 ↔ 100, 999 ↔ 1000, 9997 ↔ 9999 and 9999 ↔ 10 000, capped.
+fn boundaries(metric: &str, fahrenheit: bool) -> &'static [&'static str] {
+    if fahrenheit && is_temperature(metric) {
+        &[
+            "0", "37.49", "37.5", "537.49", "537.5", "5536", "5537", "5537.49", "5537.5",
+        ]
+    } else {
+        &[
+            "0", "0.49", "0.5", "9.49", "9.5", "99.49", "99.5", "999.49", "999.5", "9999.49",
+            "9999.5",
+        ]
     }
 }
 
@@ -62,6 +132,8 @@ enum Step {
     Reset(Cause),
     /// A metric's new reading: a decimal, or `unavailable`.
     Set(&'static str, String),
+    /// The unit a scenario starts in: tick 0 only.
+    Unit(bool),
     /// A unit change in a mode without a temperature: only saved.
     UnitSaved(bool),
     AlreadySet(&'static str),
@@ -78,8 +150,14 @@ enum Cause {
     Mode(u16),
     /// Quarter turns added to the rotation.
     Rotation(u8),
+    /// A unit change in a mode that shows a temperature.
+    Unit(bool),
     AnotherGpu,
     Refresh,
+}
+
+fn unit_name(fahrenheit: bool) -> &'static str {
+    if fahrenheit { "fahrenheit" } else { "celsius" }
 }
 
 impl Step {
@@ -88,11 +166,12 @@ impl Step {
             Step::Reset(Cause::StartUp) => "reset start-up".into(),
             Step::Reset(Cause::Mode(m)) => format!("reset mode {m}"),
             Step::Reset(Cause::Rotation(d)) => format!("reset rotation +{d}"),
+            Step::Reset(Cause::Unit(f)) => format!("reset unit {}", unit_name(*f)),
             Step::Reset(Cause::AnotherGpu) => "reset another GPU".into(),
             Step::Reset(Cause::Refresh) => "reset Refresh".into(),
             Step::Set(metric, value) => format!("{metric} = {value}"),
-            Step::UnitSaved(true) => "unit fahrenheit, only saved".into(),
-            Step::UnitSaved(false) => "unit celsius, only saved".into(),
+            Step::Unit(f) => format!("unit {}", unit_name(*f)),
+            Step::UnitSaved(f) => format!("unit {}, only saved", unit_name(*f)),
             Step::AlreadySet(what) => format!("already set: {what}"),
             Step::Refused(mode, why) => format!("refused: mode {mode}, {why}"),
             Step::CoolerAway => "cooler away".into(),
@@ -112,9 +191,13 @@ enum End {
     UntilStopped(u32),
 }
 
+#[derive(Clone)]
 struct Scenario {
     heading: String,
     mode: u16,
+    /// The unit tick 0 names: `Some(true)` for °F. Named where a mode it shows has a
+    /// temperature; `None` runs in °C.
+    unit: Option<bool>,
     script: BTreeMap<u32, Vec<Step>>,
     end: End,
 }
@@ -179,30 +262,62 @@ impl Variant {
 }
 
 fn shown(mode: u16) -> &'static [&'static str] {
-    value_mode(mode).expect("a Load mode").1
+    value_mode(mode).expect("a mode with values").1
+}
+
+fn kind(mode: u16) -> Kind {
+    value_mode(mode).expect("a mode with values").0
+}
+
+fn shows_temperature(mode: u16) -> bool {
+    shown(mode).iter().any(|m| is_temperature(m))
+}
+
+fn fahrenheit(unit: Option<bool>) -> bool {
+    unit == Some(true)
+}
+
+/// The next mode of the same kind, the first after the last (S21, S23).
+fn next_in_kind(mode: u16) -> u16 {
+    let (first, count) = match mode {
+        1..=6 => (1, 6),
+        7..=9 => (7, 3),
+        10..=12 => (10, 3),
+        _ => panic!("mode {mode} has no values"),
+    };
+    first + (mode - first + 1) % count
 }
 
 /// Builds one scenario's script.
 struct Script {
     mode: u16,
+    unit: Option<bool>,
     heading: String,
     script: BTreeMap<u32, Vec<Step>>,
 }
 
 impl Script {
-    /// A scenario starting at tick 0 with every Load metric at `base`, the `roles` at `start`.
-    fn new(id: &str, mode: u16, detail: &[String], roles: &[&'static str], start: Level) -> Self {
+    /// A scenario starting at tick 0 with every metric at `base`, the `roles` at `start`.
+    fn new(
+        id: &str,
+        mode: u16,
+        unit: Option<bool>,
+        detail: &[String],
+        roles: &[&'static str],
+        start: Level,
+    ) -> Self {
         let readings: Vec<(&'static str, String)> = roles
             .iter()
-            .map(|&metric| (metric, level(metric, start)))
+            .map(|&metric| (metric, level(metric, fahrenheit(unit), start)))
             .collect();
-        Script::with(id, mode, detail, &readings)
+        Script::with(id, mode, unit, detail, &readings)
     }
 
     /// A scenario starting at tick 0 with the `roles` at `value`, a decimal or `unavailable`.
     fn literal(
         id: &str,
         mode: u16,
+        unit: Option<bool>,
         detail: &[String],
         roles: &[&'static str],
         value: &str,
@@ -211,29 +326,40 @@ impl Script {
             .iter()
             .map(|&metric| (metric, value.to_owned()))
             .collect();
-        Script::with(id, mode, detail, &readings)
+        Script::with(id, mode, unit, detail, &readings)
     }
 
-    /// A scenario starting at tick 0 with the given readings, every other Load metric at its
-    /// two-digit base.
-    fn with(id: &str, mode: u16, detail: &[String], readings: &[(&'static str, String)]) -> Self {
+    /// A scenario starting at tick 0 with the given readings, every other metric at its
+    /// two-digit base, in `unit` when it's named.
+    fn with(
+        id: &str,
+        mode: u16,
+        unit: Option<bool>,
+        detail: &[String],
+        readings: &[(&'static str, String)],
+    ) -> Self {
         let mut heading = format!("## {id} · mode {mode}");
+        if let Some(f) = unit {
+            heading += if f { " · °F" } else { " · °C" };
+        }
         for part in detail {
             heading += " · ";
             heading += part;
         }
         let mut steps = vec![Step::Reset(Cause::StartUp)];
-        for metric in LOAD {
-            let value = readings
-                .iter()
-                .find(|(m, _)| *m == metric)
-                .map_or_else(|| level(metric, Level::Base), |(_, v)| v.clone());
+        steps.extend(unit.map(Step::Unit));
+        for metric in METRICS {
+            let value = readings.iter().find(|(m, _)| *m == metric).map_or_else(
+                || level(metric, fahrenheit(unit), Level::Base),
+                |(_, v)| v.clone(),
+            );
             steps.push(Step::Set(metric, value));
         }
         let mut script = BTreeMap::new();
         script.insert(0, steps);
         Script {
             mode,
+            unit,
             heading,
             script,
         }
@@ -246,9 +372,10 @@ impl Script {
 
     /// The `roles` at `level` from `tick` on.
     fn set(self, tick: u32, roles: &[&'static str], level_: Level) -> Self {
+        let f = fahrenheit(self.unit);
         let steps: Vec<Step> = roles
             .iter()
-            .map(|&metric| Step::Set(metric, level(metric, level_)))
+            .map(|&metric| Step::Set(metric, level(metric, f, level_)))
             .collect();
         self.at(tick, steps)
     }
@@ -257,6 +384,7 @@ impl Script {
         Scenario {
             heading: self.heading,
             mode: self.mode,
+            unit: self.unit,
             script: self.script,
             end,
         }
@@ -279,32 +407,45 @@ fn tick_at(k: u32, cycle: u32) -> u32 {
     if k == 0 { cycle } else { k }
 }
 
-/// Every scenario, mode by mode.
-fn scenarios() -> Vec<Scenario> {
+/// The units a mode's scenarios run in: °C and °F where it shows a temperature.
+fn units(mode: u16) -> &'static [Option<bool>] {
+    if shows_temperature(mode) {
+        &[Some(false), Some(true)]
+    } else {
+        &[None]
+    }
+}
+
+/// Every scenario of one mode's file, °C before °F.
+fn scenarios(mode: u16) -> Vec<Scenario> {
     let mut all = Vec::new();
-    for mode in 1..=6 {
-        all.extend(movement_scenarios(mode));
-        all.extend(settings_scenarios(mode));
+    for &unit in units(mode) {
+        all.extend(movement_scenarios(mode, unit));
+        all.extend(settings_scenarios(mode, unit));
     }
     all
 }
 
 /// S1–S13, S19, S20 and S22: values and movement.
-fn movement_scenarios(mode: u16) -> Vec<Scenario> {
+fn movement_scenarios(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
     use Level::{Base, Four, High, Max, OneDigit};
+    let f = fahrenheit(unit);
     let mut out = Vec::new();
     let pair = shown(mode).len() == 2;
     for &v in Variant::of(mode) {
         let roles = v.roles(mode);
         let s = |id: &str, rest: &[&str], start: Level| {
-            Script::new(id, mode, &detail(v, rest), &roles, start)
+            Script::new(id, mode, unit, &detail(v, rest), &roles, start)
         };
         let sv = |id: &str, rest: &[&str], value: &str| {
-            Script::literal(id, mode, &detail(v, rest), &roles, value)
+            Script::literal(id, mode, unit, &detail(v, rest), &roles, value)
         };
         let set = |metric: &'static str, value: &str| Step::Set(metric, value.to_owned());
         out.push(s("S1", &[], High).end(End::Total(43)));
         for (from, label) in [(Base, "from two digits"), (OneDigit, "from one digit")] {
+            if f && label == "from one digit" {
+                continue;
+            }
             out.push(
                 s("S2", &[label], from)
                     .set(3, &roles, High)
@@ -340,17 +481,18 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
         let near = |above: bool| -> Vec<Step> {
             roles
                 .iter()
-                .map(|&m| set(m, near_limit(m, above)))
+                .map(|&m| set(m, near_limit(m, f, above)))
                 .collect()
         };
         out.push(
             Script::with(
                 "S7",
                 mode,
+                unit,
                 &detail(v, &[]),
                 &roles
                     .iter()
-                    .map(|&m| (m, near_limit(m, false).to_owned()))
+                    .map(|&m| (m, near_limit(m, f, false).to_owned()))
                     .collect::<Vec<_>>(),
             )
             .at(2, near(true))
@@ -358,18 +500,25 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
             .end(End::UntilStopped(2)),
         );
         let all_at = |value: &str| -> Vec<Step> { roles.iter().map(|&m| set(m, value)).collect() };
+        let all_drawing = |n: u32| -> Vec<Step> {
+            roles
+                .iter()
+                .map(|&m| Step::Set(m, drawing(m, f, n)))
+                .collect()
+        };
         out.push(
             Script::with(
                 "S8",
                 mode,
+                unit,
                 &detail(v, &["999 and 1000"]),
                 &roles
                     .iter()
-                    .map(|&m| (m, "999".to_owned()))
+                    .map(|&m| (m, drawing(m, f, 999)))
                     .collect::<Vec<_>>(),
             )
             .set(5, &roles, Four)
-            .at(15, all_at("999"))
+            .at(15, all_drawing(999))
             .set(25, &roles, Base)
             .end(End::UntilStopped(2)),
         );
@@ -380,24 +529,27 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
                 .set(25, &roles, Base)
                 .end(End::UntilStopped(2)),
         );
-        // S9: the other value one-digit too, so two values re-align when the width changes.
-        let others: Vec<(&'static str, String)> = shown(mode)
-            .iter()
-            .map(|&m| {
-                let value = if roles.contains(&m) {
-                    "9".to_owned()
-                } else {
-                    level(m, OneDigit)
-                };
-                (m, value)
-            })
-            .collect();
-        out.push(
-            Script::with("S9", mode, &detail(v, &[]), &others)
-                .at(2, all_at("10"))
-                .at(4, all_at("9"))
-                .end(End::Total(6)),
-        );
+        // S9: the other value one-digit too, so two values re-align when the width changes. No
+        // reading draws one digit in °F.
+        if !f {
+            let others: Vec<(&'static str, String)> = shown(mode)
+                .iter()
+                .map(|&m| {
+                    let value = if roles.contains(&m) {
+                        "9".to_owned()
+                    } else {
+                        level(m, f, OneDigit)
+                    };
+                    (m, value)
+                })
+                .collect();
+            out.push(
+                Script::with("S9", mode, unit, &detail(v, &[]), &others)
+                    .at(2, all_at("10"))
+                    .at(4, all_at("9"))
+                    .end(End::Total(6)),
+            );
+        }
         out.push(
             sv("S11", &["while static"], "unavailable")
                 .set(2, &roles, OneDigit)
@@ -427,7 +579,7 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
         for i in 1..=21 {
             let steps: Vec<Step> = roles
                 .iter()
-                .map(|&m| Step::Set(m, offset(m, High, 11, i64::from(i))))
+                .map(|&m| Step::Set(m, offset(m, f, High, 11, i64::from(i))))
                 .collect();
             every_tenth = every_tenth.at(10 * i, steps);
         }
@@ -437,7 +589,7 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
             for i in 1..=5 {
                 let steps: Vec<Step> = roles
                     .iter()
-                    .map(|&m| Step::Set(m, offset(m, Four, 111, i64::from(i))))
+                    .map(|&m| Step::Set(m, offset(m, f, Four, 111, i64::from(i))))
                     .collect();
                 every_tenth = every_tenth.at(10 * i + phase, steps);
             }
@@ -456,15 +608,13 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
                 .at(20, all_at("-7"))
                 .end(End::UntilStopped(2)),
         );
-        let boundaries = [
-            "0", "0.49", "0.5", "9.49", "9.5", "99.49", "99.5", "999.49", "999.5", "9999.49",
-            "9999.5",
-        ];
-        let mut s20 = sv("S20", &[], boundaries[0]);
-        for (tick, value) in (1..).zip(&boundaries[1..]) {
+        let points = boundaries(roles[0], f);
+        let mut s20 = sv("S20", &[], points[0]);
+        for (tick, value) in (1..).zip(&points[1..]) {
             s20 = s20.at(tick, all_at(value));
         }
-        out.push(s20.set(11, &roles, Base).end(End::UntilStopped(2)));
+        let after = u32::try_from(points.len()).expect("a few boundaries");
+        out.push(s20.set(after, &roles, Base).end(End::UntilStopped(2)));
         out.push(
             s("S22", &[], High)
                 .at(5, [Step::Missed])
@@ -477,7 +627,7 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
         let names = shown(mode);
         let (top, bottom) = (&names[..1], &names[1..]);
         out.push(
-            Script::new("S10", mode, &[], top, High)
+            Script::new("S10", mode, unit, &[], top, High)
                 .set(6, bottom, High)
                 .set(12, top, Base)
                 .set(18, top, High)
@@ -486,10 +636,10 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
                 .end(End::UntilStopped(2)),
         );
         out.push(
-            Script::new("S10b", mode, &[], top, Four)
-                .at(5, [Step::Set(names[0], "999".to_owned())])
+            Script::new("S10b", mode, unit, &[], top, Four)
+                .at(5, [Step::Set(names[0], drawing(names[0], f, 999))])
                 .set(10, top, Four)
-                .at(15, [Step::Set(names[0], "99".to_owned())])
+                .at(15, [Step::Set(names[0], drawing(names[0], f, 99))])
                 .set(15, bottom, Four)
                 .set(25, names, Base)
                 .end(End::UntilStopped(2)),
@@ -499,22 +649,18 @@ fn movement_scenarios(mode: u16) -> Vec<Scenario> {
 }
 
 /// S14–S18, S21 and S23–S26: settings, mode switches and the device.
-fn settings_scenarios(mode: u16) -> Vec<Scenario> {
+fn settings_scenarios(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
     use Level::{Base, High};
+    let f = fahrenheit(unit);
     let mut out = Vec::new();
-    out.extend(mode_switches(mode));
+    out.extend(mode_switches(mode, unit));
     for &v in Variant::of(mode) {
         let roles = v.roles(mode);
         let s = |id: &str, rest: &[&str], start: Level| {
-            Script::new(id, mode, &detail(v, rest), &roles, start)
+            Script::new(id, mode, unit, &detail(v, rest), &roles, start)
         };
+        out.extend(unit_changes(mode, unit, v));
         for (start, label) in [(Base, "static"), (High, "scrolling")] {
-            out.push(
-                s("S15", &[label], start)
-                    .at(3, [Step::UnitSaved(true)])
-                    .at(8, [Step::UnitSaved(false)])
-                    .end(End::Total(12)),
-            );
             let mut turns = s("S16", &[label], start);
             for (tick, d) in [(2, 1), (4, 1), (6, 1), (8, 1), (10, 2), (13, 3), (16, 1)] {
                 turns = turns.at(tick, [Step::Reset(Cause::Rotation(d))]);
@@ -523,9 +669,18 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
         }
         out.push(s("S17", &["99 or less"], Base).end(End::Total(3)));
         out.push(s("S17", &["100 or more"], High).end(End::Total(23)));
-        let cpu = |value: &str| Step::Set("CPU Usage", value.to_owned());
-        let cpu_back =
-            |start: Level| Step::Set("CPU Usage", start_value("CPU Usage", &roles, start));
+        let rates_away = || {
+            RATES
+                .iter()
+                .map(|&m| Step::Set(m, "unavailable".to_owned()))
+                .collect::<Vec<_>>()
+        };
+        let rates_back = |start: Level| {
+            RATES
+                .iter()
+                .map(|&m| Step::Set(m, start_value(m, f, &roles, start)))
+                .collect::<Vec<_>>()
+        };
         out.push(
             s("S18", &["the cooler away"], High)
                 .at(5, [Step::CoolerAway])
@@ -534,15 +689,17 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
         );
         out.push(
             s("S18", &["wake-up, node still there"], High)
-                .at(7, [Step::Wake, cpu("unavailable")])
-                .at(17, [cpu_back(High)])
+                .at(7, [Step::Wake])
+                .at(7, rates_away())
+                .at(17, rates_back(High))
                 .end(End::Total(30)),
         );
         out.push(
             s("S18", &["wake-up, node gone"], High)
-                .at(7, [Step::Wake, Step::CoolerAway, cpu("unavailable")])
+                .at(7, [Step::Wake, Step::CoolerAway])
+                .at(7, rates_away())
                 .at(12, [Step::CoolerBack])
-                .at(17, [cpu_back(High)])
+                .at(17, rates_back(High))
                 .end(End::Total(30)),
         );
         out.push(
@@ -551,7 +708,7 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
                 .set(6, &roles, Base)
                 .end(End::Total(10)),
         );
-        let next = mode % 6 + 1;
+        let next = next_in_kind(mode);
         out.push(
             s("S21", &[&format!("into mode {next}")], High)
                 .at(6, [Step::Reset(Cause::Mode(next))])
@@ -559,9 +716,10 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
                 .end(End::Total(10)),
         );
         for (start, label) in [(Base, "static"), (High, "scrolling")] {
+            // Mode 13 comes in a later version (Phase 9).
             out.push(
                 s("S23", &[label], start)
-                    .at(3, [Step::Refused(9, "not yet available")])
+                    .at(3, [Step::Refused(13, "not yet available")])
                     .at(6, [Step::Refused(next, "unavailable")])
                     .end(End::Total(10)),
             );
@@ -577,16 +735,28 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
                 .at(3, already())
                 .end(End::Total(6)),
         );
-        let gpu = |value: &str| Step::Set("Gpu usage", value.to_owned());
+        // Another GPU brings its own readings for every GPU metric.
+        let another_gpu = |scrolling: bool| -> Vec<Step> {
+            let mut steps = vec![Step::Reset(Cause::AnotherGpu)];
+            for (metric, static_, high) in ANOTHER_GPU {
+                let value = if scrolling && roles.contains(&metric) {
+                    high
+                } else {
+                    static_
+                };
+                steps.push(Step::Set(metric, value.to_owned()));
+            }
+            steps
+        };
         out.push(
             s("S25", &["static"], Base)
-                .at(3, [Step::Reset(Cause::AnotherGpu), gpu("71")])
+                .at(3, another_gpu(false))
                 .end(End::Total(6)),
         );
         let fresh = |base: Level| -> Vec<Step> {
             roles
                 .iter()
-                .map(|&m| Step::Set(m, offset(m, base, 2, 1)))
+                .map(|&m| Step::Set(m, offset(m, f, base, 2, 1)))
                 .collect()
         };
         out.push(
@@ -609,14 +779,9 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
                     .at(t, already())
                     .end(End::Total(t + 4)),
             );
-            let new_reading = if roles.contains(&"Gpu usage") {
-                "116"
-            } else {
-                "71"
-            };
             out.push(
                 s("S25", &["scrolling", &at_k], High)
-                    .at(t, [Step::Reset(Cause::AnotherGpu), gpu(new_reading)])
+                    .at(t, another_gpu(true))
                     .end(End::Total(t + 4)),
             );
             out.push(
@@ -627,70 +792,139 @@ fn settings_scenarios(mode: u16) -> Vec<Scenario> {
             );
         }
     }
-    // S17's first second: CPU Usage, a reading averaged over the interval, shows dashes until
-    // its second sample (display.md, Unavailable values).
-    if shown(mode).contains(&"CPU Usage") {
+    // S17's first second: a reading averaged over the interval shows dashes until its second
+    // sample (display.md, Unavailable values).
+    for rate in RATES.into_iter().filter(|m| shown(mode).contains(m)) {
         out.push(
             Script::with(
                 "S17",
                 mode,
+                unit,
                 &["the first second's dashes, then 100 or more".to_owned()],
-                &[("CPU Usage", "unavailable".to_owned())],
+                &[(rate, "unavailable".to_owned())],
             )
-            .set(10, &["CPU Usage"], Level::High)
+            .set(10, &[rate], Level::High)
             .end(End::Total(32)),
         );
     }
     out
 }
 
-/// The reading `metric` starts at in a scenario whose `roles` start at `start`.
-fn start_value(metric: &'static str, roles: &[&'static str], start: Level) -> String {
-    if roles.contains(&metric) {
-        level(metric, start)
+/// S15: a unit change. In a mode that shows a temperature it resets, like a mode switch: static
+/// and scrolling, `57°C` ↔ `135°F`, and at every k of a scrolling strip. In any other mode it's
+/// only saved: static and scrolling, and in Power at every k too.
+fn unit_changes(mode: u16, unit: Option<bool>, v: Variant) -> Vec<Scenario> {
+    use Level::{Base, High};
+    let roles = v.roles(mode);
+    let s = |rest: &[&str], start: Level| {
+        Script::new("S15", mode, unit, &detail(v, rest), &roles, start)
+    };
+    let mut out = Vec::new();
+    let (there, back) = if shows_temperature(mode) {
+        let f = fahrenheit(unit);
+        (Step::Reset(Cause::Unit(!f)), Step::Reset(Cause::Unit(f)))
     } else {
-        level(metric, Level::Base)
+        (Step::UnitSaved(true), Step::UnitSaved(false))
+    };
+    for (start, label) in [(Base, "static"), (High, "scrolling")] {
+        out.push(
+            s(&[label], start)
+                .at(3, [there.clone()])
+                .at(8, [back.clone()])
+                .end(End::Total(12)),
+        );
+    }
+    if shows_temperature(mode) {
+        // 57 °C is static and 135 °F scrolls; the other value of mode 9 at 56 °C, 133 °F.
+        let readings: Vec<(&'static str, String)> = roles
+            .iter()
+            .zip(["57", "56"])
+            .map(|(&m, value)| (m, value.to_owned()))
+            .collect();
+        out.push(
+            Script::with("S15", mode, unit, &detail(v, &["57 °C, 135 °F"]), &readings)
+                .at(3, [there.clone()])
+                .at(8, [back.clone()])
+                .end(End::Total(30)),
+        );
+    }
+    if kind(mode) != Kind::Usage {
+        for k in 0..21 {
+            let t = tick_at(k, 21);
+            out.push(
+                s(&["scrolling", &format!("k {k}")], High)
+                    .at(t, [there.clone()])
+                    .end(End::Total(t + 5)),
+            );
+        }
+    }
+    out
+}
+
+/// The reading `metric` starts at in a scenario whose `roles` start at `start`.
+fn start_value(
+    metric: &'static str,
+    fahrenheit: bool,
+    roles: &[&'static str],
+    start: Level,
+) -> String {
+    if roles.contains(&metric) {
+        level(metric, fahrenheit, start)
+    } else {
+        level(metric, fahrenheit, Level::Base)
     }
 }
 
-/// S14: a switch from `mode` into every other Load mode, at every k of a scrolling strip, with
-/// values below 100, above it, and mixed.
-fn mode_switches(mode: u16) -> Vec<Scenario> {
-    let sets: [(&str, [&str; 3]); 3] = [
-        ("values below 100", ["42", "67", "85"]),
-        ("values above 100", ["100", "104", "109"]),
-        ("CPU above 100", ["100", "67", "85"]),
-    ];
+/// One set of S14's readings: its label, and whether a metric is 100 or more in it.
+type SwitchSet = (&'static str, fn(&str) -> bool);
+
+/// The readings of S14's switches: every metric below 100, every metric 100 or more, and only
+/// the CPU's above it.
+const SWITCH_SETS: [SwitchSet; 3] = [
+    ("values below 100", |_| false),
+    ("values above 100", |_| true),
+    ("CPU above 100", |metric| metric.starts_with("CPU ")),
+];
+
+/// S14: a switch from `mode` into every other mode 1–12, at every k of a scrolling strip, with
+/// values below 100, above it, and mixed. A switch into a mode that shows a temperature runs in
+/// both units, from a mode without one too.
+fn mode_switches(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
     let mut out = Vec::new();
-    for target in (1..=6).filter(|&t| t != mode) {
-        for (label, values) in &sets {
-            let readings: Vec<(&'static str, String)> = LOAD
-                .iter()
-                .zip(values)
-                .map(|(&m, &v)| (m, v.to_owned()))
-                .collect();
-            let scrolls = shown(mode).iter().any(|m| {
-                let i = LOAD.iter().position(|l| l == m).expect("a Load metric");
-                values[i].len() >= 3
-            });
-            let into = format!("into mode {target}");
-            if scrolls {
-                for k in 0..21 {
-                    let t = tick_at(k, 21);
-                    let detail = [into.clone(), (*label).to_owned(), format!("k {k}")];
+    for target in (1..=12).filter(|&t| t != mode) {
+        let into_units: Vec<Option<bool>> = match unit {
+            Some(_) => vec![unit],
+            None => units(target).to_vec(),
+        };
+        for u in into_units {
+            for (label, high) in SWITCH_SETS {
+                let readings: Vec<(&'static str, String)> = METRICS
+                    .iter()
+                    .map(|&m| {
+                        let at = if high(m) { Level::High } else { Level::Base };
+                        (m, level(m, fahrenheit(u), at))
+                    })
+                    .collect();
+                let scrolls = shown(mode).iter().any(|m| high(m));
+                let into = format!("into mode {target}");
+                if scrolls {
+                    for k in 0..21 {
+                        let t = tick_at(k, 21);
+                        let detail = [into.clone(), label.to_owned(), format!("k {k}")];
+                        out.push(
+                            Script::with("S14", mode, u, &detail, &readings)
+                                .at(t, [Step::Reset(Cause::Mode(target))])
+                                .end(End::Total(t + 5)),
+                        );
+                    }
+                } else {
+                    let detail = [into.clone(), label.to_owned()];
                     out.push(
-                        Script::with("S14", mode, &detail, &readings)
-                            .at(t, [Step::Reset(Cause::Mode(target))])
-                            .end(End::Total(t + 5)),
+                        Script::with("S14", mode, u, &detail, &readings)
+                            .at(3, [Step::Reset(Cause::Mode(target))])
+                            .end(End::Total(8)),
                     );
                 }
-            } else {
-                let detail = [into.clone(), (*label).to_owned()];
-                out.push(
-                    Script::with("S14", mode, &detail, &readings)
-                        .at(3, [Step::Reset(Cause::Mode(target))])
-                        .end(End::Total(8)),
-                );
             }
         }
     }
@@ -711,6 +945,7 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
     let last = *scenario.script.keys().last().expect("tick 0");
     let mut values: HashMap<&'static str, Option<Ratio>> = HashMap::new();
     let mut mode = scenario.mode;
+    let mut in_fahrenheit = fahrenheit(scenario.unit);
     let mut movement: Option<Movement> = None;
     let mut ticks = Vec::new();
     let mut stopped = 0;
@@ -729,7 +964,13 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
                     mode = *m;
                     reset = true;
                 }
+                Step::Reset(Cause::Unit(f)) => {
+                    in_fahrenheit = *f;
+                    reset = true;
+                }
                 Step::Reset(_) => reset = true,
+                // Saved for the next mode that shows a temperature; this one draws none.
+                Step::UnitSaved(f) => in_fahrenheit = *f,
                 Step::Missed => missed = true,
                 _ => {}
             }
@@ -739,10 +980,10 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
             .map(|m| {
                 *values
                     .get(m)
-                    .expect("every Load metric has a reading from tick 0")
+                    .expect("every metric has a reading from tick 0")
             })
             .collect();
-        let strip = strip_of(mode, &readings, false);
+        let strip = strip_of(mode, &readings, in_fahrenheit);
         let m = match &mut movement {
             Some(m) if !reset => {
                 if changed {
@@ -782,26 +1023,32 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
     ticks
 }
 
-/// Every scenario's heading and run, in file order.
-pub fn runs() -> Vec<(String, u16, Vec<Tick>)> {
-    scenarios()
-        .iter()
-        .map(|s| (s.heading.clone(), s.mode, run(s)))
+/// The scenario files, one per mode with values: each one's path under `docs/spec/frames/` and
+/// its text.
+pub fn files() -> Vec<(String, String)> {
+    (1..=12)
+        .map(|mode| (format!("scenarios/mode-{mode:03}.txt"), file(mode)))
         .collect()
 }
 
-/// The file: the scenarios, then every frame they name, once.
-pub fn file() -> String {
+/// One mode's file: the scenarios, then every frame they name, once.
+fn file(mode: u16) -> String {
     let mut ids: HashMap<String, usize> = HashMap::new();
     let mut frames: Vec<String> = Vec::new();
-    let mut lines = vec![
-        "# Load scenarios: modes 1–6, rotation 0".to_owned(),
-        String::new(),
-    ];
-    for (heading, _, ticks) in runs() {
-        lines.push(heading);
+    let units = if shows_temperature(mode) {
+        ", °C and °F"
+    } else {
+        ""
+    };
+    let title = format!(
+        "# Mode {mode} scenarios: {}{units}, rotation 0",
+        TITLES[usize::from(mode) - 1]
+    );
+    let mut lines = vec![title, String::new()];
+    for scenario in scenarios(mode) {
+        lines.push(scenario.heading.clone());
         lines.push(String::new());
-        for tick in ticks {
+        for tick in run(&scenario) {
             let changes = if tick.steps.is_empty() {
                 "-".to_owned()
             } else {
@@ -843,6 +1090,19 @@ pub fn file() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Every scenario of the twelve files.
+    fn all() -> Vec<Scenario> {
+        (1..=12).flat_map(scenarios).collect()
+    }
+
+    /// Every scenario's heading, mode and run, file by file, in file order.
+    fn runs() -> Vec<(String, u16, Vec<Tick>)> {
+        all()
+            .iter()
+            .map(|s| (s.heading.clone(), s.mode, run(s)))
+            .collect()
+    }
 
     /// The first columns, from 1 to 14, of the copies of a strip drawn at `x` with cycle `cycle`.
     fn on_screen(x: i64, cycle: i64) -> impl Iterator<Item = i64> {
@@ -890,16 +1150,132 @@ mod tests {
         }
     }
 
+    // Phase 8 plan, Task 1: tick 0 names all seven metrics, so a switch into another kind draws
+    // named readings.
     #[test]
-    fn every_scenario_names_a_load_mode_and_starts_with_a_reset() {
+    fn every_scenario_names_a_mode_with_values_starts_with_a_reset_and_names_every_metric() {
         for (heading, mode, ticks) in runs() {
-            assert!((1..=6).contains(&mode), "{heading}");
+            assert!((1..=12).contains(&mode), "{heading}");
             assert!(ticks[0].reset, "{heading}");
             assert_eq!(ticks[0].n, 0, "{heading}");
             assert!(
                 ticks.windows(2).all(|w| w[1].n == w[0].n + 1),
                 "{heading}: ticks in order"
             );
+            for metric in METRICS {
+                assert!(
+                    ticks[0]
+                        .steps
+                        .iter()
+                        .any(|s| matches!(s, Step::Set(m, _) if *m == metric)),
+                    "{heading}: tick 0 doesn't name {metric}"
+                );
+            }
         }
+    }
+
+    // AC4: all 132 ordered pairs among modes 1–12, a pair with a mode that shows a temperature in
+    // both units.
+    #[test]
+    fn every_ordered_pair_of_modes_has_a_switch_in_each_unit_it_needs() {
+        let mut switches: Vec<(u16, u16, Option<bool>)> = Vec::new();
+        for scenario in all().iter().filter(|s| s.heading.starts_with("## S14 ")) {
+            for step in scenario.script.values().flatten() {
+                if let Step::Reset(Cause::Mode(target)) = step {
+                    switches.push((scenario.mode, *target, scenario.unit));
+                }
+            }
+        }
+        for from in 1..=12 {
+            for into in (1..=12).filter(|&t| t != from) {
+                let units: &[Option<bool>] = if shows_temperature(from) || shows_temperature(into) {
+                    &[Some(false), Some(true)]
+                } else {
+                    &[None]
+                };
+                for unit in units {
+                    assert!(
+                        switches.contains(&(from, into, *unit)),
+                        "no switch from mode {from} into {into} in {unit:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    // display.md, Mode switches: a unit change resets only a mode that shows a temperature, and
+    // is only saved in any other.
+    #[test]
+    fn a_unit_change_resets_only_where_a_temperature_is_shown() {
+        for scenario in all() {
+            let mut mode = scenario.mode;
+            for (tick, steps) in &scenario.script {
+                for step in steps {
+                    match step {
+                        Step::Reset(Cause::Mode(m)) => mode = *m,
+                        Step::Reset(Cause::Unit(_)) => assert!(
+                            shows_temperature(mode),
+                            "{}, tick {tick}: a reset in mode {mode}",
+                            scenario.heading
+                        ),
+                        Step::UnitSaved(_) => assert!(
+                            !shows_temperature(mode),
+                            "{}, tick {tick}: only saved in mode {mode}",
+                            scenario.heading
+                        ),
+                        Step::Unit(_) => assert_eq!(*tick, 0, "{}", scenario.heading),
+                        _ => {}
+                    }
+                }
+            }
+        }
+    }
+
+    // Phase 8 plan, Task 1: a unit change in a Load or Power mode leaves every frame as it was.
+    #[test]
+    fn a_unit_change_only_saved_changes_no_frame() {
+        let mut checked = 0;
+        for scenario in all() {
+            let saved = |s: &Step| matches!(s, Step::UnitSaved(_));
+            if !scenario.script.values().flatten().any(saved) {
+                continue;
+            }
+            let mut without = scenario.clone();
+            for steps in without.script.values_mut() {
+                steps.retain(|s| !saved(s));
+            }
+            let frames = |s: &Scenario| run(s).into_iter().map(|t| t.frame).collect::<Vec<_>>();
+            assert!(
+                frames(&scenario) == frames(&without),
+                "{}: a frame differs",
+                scenario.heading
+            );
+            checked += 1;
+        }
+        assert!(checked > 0);
+    }
+
+    // S7 and S20 in °F: the °C readings chosen draw the °F numbers they're chosen for.
+    #[test]
+    fn the_fahrenheit_readings_draw_the_numbers_they_stand_for() {
+        let drawn = |c: &str| {
+            crate::rules::number(Ratio::decimal(c), Kind::Temperature, true).expect("a number")
+        };
+        assert_eq!(
+            boundaries("CPU Temperature", true)
+                .iter()
+                .map(|c| drawn(c))
+                .collect::<Vec<_>>(),
+            [32, 99, 100, 999, 1000, 9997, 9999, 9999, 9999]
+        );
+        for metric in ["CPU Temperature", "Gpu temperature"] {
+            assert_eq!(drawn(near_limit(metric, true, false)), 99);
+            assert_eq!(drawn(near_limit(metric, true, true)), 100);
+            assert_eq!(drawn(&drawing(metric, true, 999)), 999);
+            assert_eq!(drawn(&drawing(metric, true, 99)), 99);
+        }
+        assert_eq!(drawn(&level("CPU Temperature", true, Level::Max)), 9999);
+        assert_eq!(drawn(&level("Gpu temperature", true, Level::Max)), 9997);
+        assert_eq!(drawn("5537.5"), 9999, "10 000, capped");
     }
 }

@@ -512,6 +512,9 @@ pub struct Scenario {
     pub id: String,
     /// The mode it starts in.
     pub mode: u16,
+    /// The unit it starts in: the one tick 0 names, °C when it names none (README, Dash cases
+    /// and scenarios). Tick 0's changes don't repeat it.
+    pub unit: Unit,
     /// Ticks 0, 1, 2 … in order.
     pub ticks: Vec<Tick>,
 }
@@ -561,11 +564,13 @@ pub enum Reset {
     Mode(u16),
     /// Quarter turns added to the rotation.
     Rotation(u8),
+    /// A unit change in a mode that shows a temperature.
+    Unit(Unit),
     AnotherGpu,
     Refresh,
 }
 
-/// Loads `docs/spec/frames/scenarios/<name>`, for example `load.txt`.
+/// Loads `docs/spec/frames/scenarios/<name>`, for example `mode-001.txt`.
 ///
 /// # Panics
 ///
@@ -576,6 +581,16 @@ pub fn load_scenarios(name: &str) -> Vec<Scenario> {
     let path = Path::new(FRAMES_DIR).join(&file);
     let text = fs::read_to_string(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
     parse_scenarios(&file, &text)
+}
+
+/// Loads mode `mode`'s scenarios, `docs/spec/frames/scenarios/mode-NNN.txt`: every scenario
+/// that starts in it (Phase 8 plan, Task 1: one file per mode).
+///
+/// # Panics
+///
+/// As [`load_scenarios`].
+pub fn mode_scenarios(mode: u16) -> Vec<Scenario> {
+    load_scenarios(&format!("mode-{mode:03}.txt"))
 }
 
 const ARROW: &str = " → ";
@@ -672,6 +687,7 @@ fn parse_scenario(lines: &mut Lines<'_>, n: usize, heading: &str) -> (Scenario, 
     lines.skip_blank();
     let mut ticks = Vec::new();
     let mut refs = Vec::new();
+    let mut unit = None;
     while let Some(line) = lines.peek() {
         if line.is_empty() || line.starts_with('#') {
             break;
@@ -695,16 +711,29 @@ fn parse_scenario(lines: &mut Lines<'_>, n: usize, heading: &str) -> (Scenario, 
                 format!("tick {tick} comes after tick {}", ticks.len() as i64 - 1),
             );
         }
-        let changes: Vec<Change> = if changes == "-" {
-            Vec::new()
-        } else {
-            changes
-                .split("; ")
-                .map(|c| {
-                    change(c).unwrap_or_else(|| lines.fail(m, format!("{c:?} isn't a change")))
-                })
-                .collect()
-        };
+        let mut named = Vec::new();
+        if changes != "-" {
+            for c in changes.split("; ") {
+                // The unit the scenario starts in: tick 0 only, once.
+                let start = match c {
+                    "unit celsius" => Some(Unit::Celsius),
+                    "unit fahrenheit" => Some(Unit::Fahrenheit),
+                    _ => None,
+                };
+                match start {
+                    Some(_) if tick != 0 => lines.fail(
+                        m,
+                        format!("{c:?} without `reset` or `only saved` comes at tick 0 only"),
+                    ),
+                    Some(_) if unit.is_some() => lines.fail(m, "tick 0 names the unit twice"),
+                    Some(_) => unit = start,
+                    None => named.push(
+                        change(c).unwrap_or_else(|| lines.fail(m, format!("{c:?} isn't a change"))),
+                    ),
+                }
+            }
+        }
+        let changes = named;
         let missed = changes.contains(&Change::Missed);
         let frame = match frame {
             "no frame" if missed => None,
@@ -735,6 +764,7 @@ fn parse_scenario(lines: &mut Lines<'_>, n: usize, heading: &str) -> (Scenario, 
         heading: heading.to_owned(),
         id: id.to_owned(),
         mode,
+        unit: unit.unwrap_or(Unit::Celsius),
         ticks,
     };
     (scenario, refs)
@@ -747,6 +777,8 @@ fn change(text: &str) -> Option<Change> {
         "reset start-up" => return reset(Reset::StartUp),
         "reset another GPU" => return reset(Reset::AnotherGpu),
         "reset Refresh" => return reset(Reset::Refresh),
+        "reset unit celsius" => return reset(Reset::Unit(Unit::Celsius)),
+        "reset unit fahrenheit" => return reset(Reset::Unit(Unit::Fahrenheit)),
         "unit celsius, only saved" => return Some(Change::UnitSaved(Unit::Celsius)),
         "unit fahrenheit, only saved" => return Some(Change::UnitSaved(Unit::Fahrenheit)),
         "cooler away" => return Some(Change::CoolerAway),
@@ -831,28 +863,105 @@ mod tests {
 
     /// The dash cases and the scenarios load too: every heading becomes a case or a scenario.
     #[test]
-    fn the_dash_cases_and_the_load_scenarios_load() {
+    fn the_dash_cases_and_the_scenarios_load() {
         let dashes = load_unavailable();
-        assert_eq!(dashes.len(), 20);
-        assert!(dashes.iter().all(|(mode, _)| [1, 4, 6].contains(mode)));
-        let text = fs::read_to_string(Path::new(FRAMES_DIR).join("scenarios/load.txt"))
-            .expect("the Load scenarios");
-        let scenarios = load_scenarios("load.txt");
-        let headings = text.lines().filter(|l| l.starts_with("## ")).count();
-        assert_eq!(scenarios.len(), headings);
-        for scenario in &scenarios {
-            assert!((1..=6).contains(&scenario.mode), "{}", scenario.heading);
-            for tick in &scenario.ticks {
-                let missed = tick.changes.contains(&Change::Missed);
-                assert_eq!(
-                    tick.frame.is_none(),
-                    missed,
-                    "{}, tick {}",
-                    scenario.heading,
-                    tick.n
-                );
+        assert_eq!(dashes.len(), 44);
+        assert!(
+            dashes
+                .iter()
+                .all(|(mode, _)| [1, 4, 6, 7, 9, 10, 11, 12].contains(mode))
+        );
+        // A dash case of a mode with a temperature names its unit.
+        for (mode, case) in &dashes {
+            assert_eq!(
+                case.unit.is_some(),
+                [7, 9].contains(mode),
+                "{}",
+                case.heading
+            );
+        }
+        for mode in 1..=12 {
+            let name = format!("mode-{mode:03}.txt");
+            let text = fs::read_to_string(Path::new(FRAMES_DIR).join("scenarios").join(&name))
+                .expect("a scenario file");
+            let scenarios = mode_scenarios(mode);
+            let headings = text.lines().filter(|l| l.starts_with("## ")).count();
+            assert_eq!(scenarios.len(), headings, "{name}");
+            for scenario in &scenarios {
+                assert_eq!(scenario.mode, mode, "{name}: {}", scenario.heading);
+                check_ticks(scenario);
+            }
+            // A temperature mode's scenarios run in each unit, and their headings say which.
+            if (7..=9).contains(&mode) {
+                for (unit, label) in [(Unit::Celsius, " · °C"), (Unit::Fahrenheit, " · °F")] {
+                    let mine = scenarios.iter().filter(|s| s.unit == unit);
+                    assert!(mine.clone().count() > 0, "{name}: none in {unit:?}");
+                    assert!(mine.into_iter().all(|s| s.heading.contains(label)));
+                }
             }
         }
+    }
+
+    /// A missed tick, and only a missed tick, has no frame.
+    fn check_ticks(scenario: &Scenario) {
+        for tick in &scenario.ticks {
+            let missed = tick.changes.contains(&Change::Missed);
+            assert_eq!(
+                tick.frame.is_none(),
+                missed,
+                "{}, tick {}",
+                scenario.heading,
+                tick.n
+            );
+        }
+    }
+
+    // Phase 8 plan, Task 1: tick 0's unit is the scenario's, and a unit change in a mode with a
+    // temperature is a reset.
+    #[test]
+    fn a_scenario_reads_its_unit_and_its_unit_resets() {
+        let text = scenario_file(
+            "0: reset start-up; unit fahrenheit; CPU Usage = 100 → f1\n\
+             1: reset unit celsius → f1\n\
+             2: unit fahrenheit, only saved → f1\n",
+        );
+        let scenario = &parse_scenarios("test.txt", &text)[0];
+        assert_eq!(scenario.unit, Unit::Fahrenheit);
+        assert_eq!(
+            scenario.ticks[0].changes.len(),
+            2,
+            "the unit isn't a change"
+        );
+        assert_eq!(
+            scenario.ticks[1].changes,
+            [Change::Reset(Reset::Unit(Unit::Celsius))]
+        );
+        assert_eq!(
+            scenario.ticks[2].changes,
+            [Change::UnitSaved(Unit::Fahrenheit)]
+        );
+        let none = &parse_scenarios("test.txt", &scenario_file(START))[0];
+        assert_eq!(none.unit, Unit::Celsius, "no unit named runs in °C");
+    }
+
+    #[test]
+    #[should_panic(
+        expected = "test.txt:6: \"unit celsius\" without `reset` or `only saved` comes at tick 0 only"
+    )]
+    fn a_bare_unit_after_tick_0_is_refused() {
+        parse_scenarios(
+            "test.txt",
+            &scenario_file(&format!("{START}1: unit celsius → f1\n")),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "test.txt:5: tick 0 names the unit twice")]
+    fn a_unit_named_twice_is_refused() {
+        parse_scenarios(
+            "test.txt",
+            &scenario_file("0: reset start-up; unit celsius; unit fahrenheit → f1\n"),
+        );
     }
 
     #[test]
@@ -890,7 +999,7 @@ mod tests {
     // display.md S9 (owner, 2026-10-29): `9%` centred, `10%` re-centred, and back.
     #[test]
     fn the_s9_scenario_of_mode_1_reads_as_written() {
-        let scenarios = load_scenarios("load.txt");
+        let scenarios = mode_scenarios(1);
         let s9 = scenarios
             .iter()
             .find(|s| s.heading == "## S9 · mode 1")

@@ -224,7 +224,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
   - tick 0 may name it, `unit celsius` or `unit fahrenheit`; a scenario that names none runs in °C, so no Load scenario has to;
   - a unit change in a mode that shows a temperature is a reset, `reset unit celsius` or `reset unit fahrenheit`; in any other mode it stays `unit …, only saved`;
   - tick 0 gives every metric modes 1–12 show, all seven, so a switch into another kind draws named readings, never a test's filler (the oracle shares no code with `odc_testkit::expected`, so it can't know the fillers).
-- **One scenario file per mode** (owner, 2026-11-05): `docs/spec/frames/scenarios/mode-001.txt` to `mode-012.txt`, named like the frame files; every scenario of a file starts in its mode. In one file per kind, as first planned, `load.txt` came to 2.87 MB and `temperature.txt` to 2.72 MB, over the commit guard's 2 MiB limit (Phase 2), which stays as it is. Per mode, the largest is mode 9's, 1.41 MB.
+- **One scenario file per mode** (owner, 2026-11-05): `docs/spec/frames/scenarios/mode-001.txt` to `mode-012.txt`, named like the frame files; every scenario of a file starts in its mode. In one file per kind, as first planned, `load.txt` came to 2.87 MB and `temperature.txt` to 2.72 MB, over the commit guard's 2 MiB limit (Phase 2), which stays as it is. Per mode, the largest is mode 9's, 1.47 MB.
 - `docs/spec/frames/scenarios/load.txt`: DELETE. Its scenarios move to `mode-001.txt`–`mode-006.txt`, regenerated:
   - tick 0 names all seven metrics;
   - S14 switches from each Load mode into every other mode 1–12, into modes 7–9 in both units;
@@ -257,7 +257,7 @@ Each task ends with its own commit (rule 4) after its tests pass. Tasks 4–8 ar
 **Validation**
 - `git diff --stat docs/spec/frames/` shows only `unavailable.txt`, the README, `scenarios/load.txt` deleted and the twelve `scenarios/mode-0NN.txt` created; every `mode-*.txt` frame file is unchanged, and every scenario file is under 2 MiB.
 - `cargo test --workspace`: passes. The replays skip each switch into modes 7–12 until its mode is drawn.
-- The Phase 8 report gives the scenario files' sizes: 7.2 MB in all, measured 2026-11-05, from 1.8 MB for `load.txt` before.
+- The Phase 8 report gives the scenario files' sizes: 7.5 MB in all, measured 2026-11-05, from 1.8 MB for `load.txt` before.
 
 ### 2. `odc-render`: the `°C`, `°F` and `W` glyphs, and the temperature and power value rules
 
@@ -526,7 +526,7 @@ After this phase, 60 of the 112 matrix combinations are covered: modes 1–12 in
 |---|---|---|---|
 | Every value capped at 9999, everywhere (owner, 2026-10-25) | Done: in every metric, °F capped after conversion, the same number on the cooler, over D-Bus and in the journal. The spec, PRD, Phase 7 plan, UI brief and oracle follow it | `display.md` Values; commit `e1988cb` | — |
 | Phase 7's final names could differ from its plan (`picture`, `Marquee`, `mode_info`, `odc_testkit::sweep`, the refusal step) | Done 2026-11-05: the plan was checked against the Phase 5–7 code and corrected with the owner's OK (Evidence, "The comparison with Phases 5–7") | AGENTS.md: a plan that contradicts what you see is stopped and fixed first | — |
-| The scenario files grow with modes 7–12 in both units and every switch pair | Keep every scenario the plan lists, one file per mode under the commit guard's 2 MiB limit (owner, 2026-11-05); the Phase 8 report gives the files' sizes | `load.txt` was 1.8 MB for 2,499 scenarios; 7.2 MB in all for 10,403, the largest file 1.41 MB (mode 9), measured 2026-11-05 | Fewer cycle positions would leave movement cases untested; one file per kind would break the guard's limit |
+| The scenario files grow with modes 7–12 in both units and every switch pair | Keep every scenario the plan lists, one file per mode under the commit guard's 2 MiB limit (owner, 2026-11-05); the Phase 8 report gives the files' sizes | `load.txt` was 1.8 MB for 2,499 scenarios; 7.5 MB in all for 10,403, the largest file 1.47 MB (mode 9), measured 2026-11-05 | Fewer cycle positions would leave movement cases untested; one file per kind would break the guard's limit |
 | The real-cooler run before each mode's commit | One example of each mode and test type on the cooler (owner, 2026-10-26), limited by `--modes`; the whole cross runs in-process; the run prints its duration | Rule 4 needs the run before each mode's commit; rule 3 needs no person | At the real 100 ms tick, the whole cross would take many hours per commit |
 | DeepCreative's capture of mode 9 °C can't be compared (column shift) | Rely on layer 1's 12 °C cases of `mode-009.txt` and the scenarios; list the skip reason | Owner, 2026-10-24: two values end at column 14 | — |
 | Comparing scrolling captures in order could fail on a dropped captured frame | It didn't on any of the 50 scrolling steps (recounted 2026-10-26; 68 under the old rule); a failure stops the commit and is investigated, never loosened to a set comparison | `display.md` Scrolling layout point 3: every frame-to-frame change is a one-column shift | A weaker check would accept frames out of order |

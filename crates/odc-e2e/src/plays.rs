@@ -1,7 +1,7 @@
 //! What the service checks show, as plans (Phase 7 plan, Task 9): a mode, a rotation, the
 //! readings at the start, and for each tick its changes and the frame expected. A Load case of
-//! `docs/spec/frames/` is a plan without changes; a scenario of `scenarios/load.txt` is a plan as
-//! written. Two players run them: the real dev service over D-Bus, its frames read back by tick
+//! `docs/spec/frames/` is a plan without changes; a scenario of `scenarios/mode-NNN.txt` is a plan
+//! as written. Two players run them: the real dev service over D-Bus, its frames read back by tick
 //! from its recording, and the engine in process, for a PC without the dev service.
 
 use std::collections::HashMap;
@@ -276,7 +276,8 @@ pub fn play_real(
                     gpu_now = Some(other);
                     switched = true;
                 }
-                Change::UnitSaved(unit) => {
+                // The same call either way; the service decides whether the picture resets.
+                Change::UnitSaved(unit) | Change::Reset(Reset::Unit(unit)) => {
                     let unit = match unit {
                         Unit::Celsius => "celsius",
                         Unit::Fahrenheit => "fahrenheit",
@@ -518,7 +519,7 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                     set = true;
                 }
                 Change::Reset(Reset::Refresh) => refresh = true,
-                Change::UnitSaved(unit) => {
+                Change::UnitSaved(unit) | Change::Reset(Reset::Unit(unit)) => {
                     settings.temperature_unit = match unit {
                         Unit::Celsius => TemperatureUnit::Celsius,
                         Unit::Fahrenheit => TemperatureUnit::Fahrenheit,

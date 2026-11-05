@@ -3,9 +3,9 @@
 #![allow(dead_code)]
 
 use odc_protocol::{Frame, Rotation};
-use odc_render::{Kind, Mode, Values, draws, mode_info};
+use odc_render::{Kind, Mode, Unit, Values, draws, mode_info};
 use odc_sensors::Exact;
-use odc_testkit::expected::{Picture, every_metric};
+use odc_testkit::expected::{self, Picture, every_metric};
 
 /// The Load modes this build draws (Phase 7 plan, Task 3: one per commit).
 pub fn drawn_load_modes() -> Vec<Mode> {
@@ -30,4 +30,12 @@ pub fn turned(picture: &Picture, rotation: Rotation) -> Frame {
         .to_frame()
         .expect("Load pictures have no spectrum pixel")
         .rotated(rotation)
+}
+
+/// The renderer's unit for a unit of the expected files.
+pub fn unit(unit: expected::Unit) -> Unit {
+    match unit {
+        expected::Unit::Celsius => Unit::Celsius,
+        expected::Unit::Fahrenheit => Unit::Fahrenheit,
+    }
 }

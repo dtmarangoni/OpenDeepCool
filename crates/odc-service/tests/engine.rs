@@ -1,14 +1,16 @@
 //! Layer 3, the engine's tick logic (Phase 7 plan, Task 6): every scenario of
-//! `docs/spec/frames/scenarios/load.txt` through `Engine`, which turns each frame itself, in all
-//! four rotations; the newest settings; Refresh and another GPU waiting for their snapshot;
-//! availability with late sources; dashes. The threads and the clock are tested in `runtime.rs`.
+//! `docs/spec/frames/scenarios/` whose modes this build draws, through `Engine`, which turns each
+//! frame itself, in all four rotations; the newest settings; Refresh and another GPU waiting for
+//! their snapshot; availability with late sources; dashes. The threads and the clock are tested in
+//! `runtime.rs`.
 
 use odc_protocol::Rotation;
+use odc_render::{Mode, draws};
 use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Engine, LATE_SOURCE_TICKS, Override, Published, availability};
 use odc_service::settings::{Settings, TemperatureUnit};
 use odc_testkit::diff;
-use odc_testkit::expected::{Change, Reset, Scenario, Unit, every_metric, load_scenarios};
+use odc_testkit::expected::{Change, Reset, Scenario, Unit, every_metric, mode_scenarios};
 
 /// A snapshot with the readings named and every other metric's filler; an unavailable reading is
 /// `NotYet`, which shows dashes.
@@ -37,6 +39,30 @@ fn fresh(readings: &[(String, Option<Exact>)]) -> Published {
     }
 }
 
+/// The settings' unit for a unit of the expected files.
+fn unit(unit: Unit) -> TemperatureUnit {
+    match unit {
+        Unit::Celsius => TemperatureUnit::Celsius,
+        Unit::Fahrenheit => TemperatureUnit::Fahrenheit,
+    }
+}
+
+/// Whether this build draws every mode `scenario` shows: the one it starts in and each it switches
+/// into. A scenario that shows another waits for that mode's commit (Phase 8 plan, Task 1).
+fn drawn(scenario: &Scenario) -> bool {
+    let switches = scenario
+        .ticks
+        .iter()
+        .flat_map(|t| &t.changes)
+        .filter_map(|c| match c {
+            Change::Reset(Reset::Mode(m)) => Some(*m),
+            _ => None,
+        });
+    std::iter::once(scenario.mode)
+        .chain(switches)
+        .all(|m| Mode::new(m).is_some_and(draws))
+}
+
 /// Replays `scenario` through the engine from rotation `base`, comparing every frame.
 fn replay(scenario: &Scenario, base: u8) {
     let mut readings: Vec<(String, Option<Exact>)> = Vec::new();
@@ -48,6 +74,7 @@ fn replay(scenario: &Scenario, base: u8) {
     let start = Settings {
         mode: scenario.mode,
         rotation: base,
+        temperature_unit: unit(scenario.unit),
         ..Settings::default()
     };
     let mut engine = Engine::new(start, snapshot(&readings));
@@ -81,11 +108,9 @@ fn replay(scenario: &Scenario, base: u8) {
                     Change::Reset(Reset::StartUp) => {
                         panic!("{}: a second start-up", scenario.heading)
                     }
-                    Change::UnitSaved(unit) => {
-                        settings.temperature_unit = match unit {
-                            Unit::Celsius => TemperatureUnit::Celsius,
-                            Unit::Fahrenheit => TemperatureUnit::Fahrenheit,
-                        };
+                    // The same call either way; the engine decides whether the picture resets.
+                    Change::UnitSaved(new) | Change::Reset(Reset::Unit(new)) => {
+                        settings.temperature_unit = unit(*new);
                         set = true;
                     }
                     // Choosing what's already set sends the same settings.
@@ -139,16 +164,31 @@ fn replay(scenario: &Scenario, base: u8) {
     }
 }
 
-// The scenarios S1–S26 that apply to Load, modes 1–6, the change in the top value, the bottom
-// one and both, every k: S14–S18 and S21–S26 above all, which only the engine can play out.
+// The scenarios S1–S26 of each mode with values, the change in the top value, the bottom one
+// and both, every k, in each unit where a temperature is shown: S14–S18 and S21–S26 above all,
+// which only the engine can play out.
 #[test]
-fn every_load_scenario_plays_out_through_the_engine_in_all_four_rotations() {
-    let scenarios = load_scenarios("load.txt");
-    assert_eq!(scenarios.len(), 2499);
-    for scenario in &scenarios {
-        for base in 0..4 {
-            replay(scenario, base);
+fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_rotations() {
+    let (mut replayed, mut skipped) = (0, 0);
+    for mode in 1..=12 {
+        let scenarios = mode_scenarios(mode);
+        assert!(!scenarios.is_empty(), "mode {mode}: no scenario");
+        for scenario in &scenarios {
+            if !drawn(scenario) {
+                skipped += 1;
+                continue;
+            }
+            for base in 0..4 {
+                replay(scenario, base);
+            }
+            replayed += 1;
         }
+    }
+    println!("{replayed} scenarios replayed, {skipped} showing a mode not drawn yet skipped");
+    assert_eq!(replayed + skipped, 10_403, "the scenarios of modes 1–12");
+    assert!(replayed >= 2499, "Phase 7's Load scenarios at least");
+    if (1..=12).all(|m| Mode::new(m).is_some_and(draws)) {
+        assert_eq!(skipped, 0);
     }
 }
 
