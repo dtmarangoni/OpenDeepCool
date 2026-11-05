@@ -524,3 +524,180 @@ silence 10
 moved 0
 noise 10: 0 dBFS
 silence 10
+
+## beat train, bass 0.37 for a tick, then 2 silent: just above a beat
+
+moved 0
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -42.1 dBFS
+silence 2
+silence 4
+
+## beat train, bass 0.33 for a tick, then 2 silent: just below a beat
+
+moved 0
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+tones 1: 60.000000 Hz -44.1 dBFS
+silence 2
+silence 4
+
+## beat train, bass 0.62 for a tick, then 1 silent: just above a big move
+
+moved 0
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -29.6 dBFS
+silence 1
+silence 4
+
+## beat train, bass 0.58 for a tick, then 1 silent: just below a big move
+
+moved 0
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+tones 1: 60.000000 Hz -31.6 dBFS
+silence 1
+silence 4
+
+## beat train, bass 0.40 for 2 ticks, then 0.53: rises just above 0.12
+
+moved 0
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -34.1 dBFS
+silence 4
+
+## beat train, bass 0.40 for 2 ticks, then 0.51: rises just below 0.12
+
+moved 0
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 2: 60.000000 Hz -40.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+silence 4
+
+## beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent
+
+moved 0
+tones 1: 60.000000 Hz -41.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 1: 60.000000 Hz -28.6 dBFS
+tones 1: 60.000000 Hz -22.1 dBFS
+tones 1: 60.000000 Hz -15.6 dBFS
+silence 2
+tones 1: 60.000000 Hz -41.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 1: 60.000000 Hz -28.6 dBFS
+tones 1: 60.000000 Hz -22.1 dBFS
+tones 1: 60.000000 Hz -15.6 dBFS
+silence 2
+tones 1: 60.000000 Hz -41.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 1: 60.000000 Hz -28.6 dBFS
+tones 1: 60.000000 Hz -22.1 dBFS
+tones 1: 60.000000 Hz -15.6 dBFS
+silence 2
+tones 1: 60.000000 Hz -41.6 dBFS
+tones 1: 60.000000 Hz -35.1 dBFS
+tones 1: 60.000000 Hz -28.6 dBFS
+tones 1: 60.000000 Hz -22.1 dBFS
+tones 1: 60.000000 Hz -15.6 dBFS
+silence 2
+silence 4
+
+## beat train, bass 0.50 steady for 22 ticks, then silent
+
+moved 0
+tones 22: 60.000000 Hz -35.6 dBFS
+silence 6

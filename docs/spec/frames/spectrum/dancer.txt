@@ -1,0 +1,391 @@
+# Dancer: expected poses
+
+For each signal of `signals.txt`, the Dancer's pose at every tick, 0 to 10, from a reset at tick 0, as music.md's Dancer rules give it from the column levels, before any bar fall. Each beat train comes twice: the second time, the Dancer also resets before the ticks its heading names.
+
+## silence
+
+0 0 0 0 0 0 0 0 0 0
+
+## column 1 centre, -20 dBFS
+
+3 3 3 3 3 0
+
+## column 2 centre, -20 dBFS
+
+3 3 3 3 3 0
+
+## column 3 centre, -20 dBFS
+
+3 3 3 3 3 0
+
+## column 4 centre, -20 dBFS
+
+3 3 3 3 3 0
+
+## column 5 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 6 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 7 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 8 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 9 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 10 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 11 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 12 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 13 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 14 centre, -20 dBFS
+
+0 0 0 0 0 0
+
+## column 1 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 2 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 3 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 4 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 5 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 6 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 7 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 8 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 9 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 10 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 11 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 12 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 13 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 14 centre, -45 dBFS
+
+0 0 0 0 0 0
+
+## column 1 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 2 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 3 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 4 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 5 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 6 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 7 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 8 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 9 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 10 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 11 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 12 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 13 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## column 14 centre, -70 dBFS
+
+0 0 0 0 0 0
+
+## edge 0 below, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 0 above, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 1 below, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 1 above, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 2 below, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 2 above, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 3 below, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 3 above, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 4 below, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 4 above, -20 dBFS
+
+3 3 3 3 3 0
+
+## edge 5 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 5 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 6 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 6 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 7 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 7 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 8 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 8 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 9 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 9 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 10 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 10 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 11 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 11 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 12 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 12 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 13 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 13 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 14 below, -20 dBFS
+
+0 0 0 0 0 0
+
+## edge 14 above, -20 dBFS
+
+0 0 0 0 0 0
+
+## columns 1 and 8, -26 dBFS each
+
+3 3 3 3 3 0
+
+## columns 3 and 12, -26 dBFS each
+
+3 3 3 3 3 0
+
+## columns 5 and 6, -26 dBFS each
+
+0 0 0 0 0 0
+
+## columns 2 and 14, -26 dBFS each
+
+3 3 3 3 3 0
+
+## columns 7 and 10, -26 dBFS each
+
+0 0 0 0 0 0
+
+## burst train, column 7, -20 dBFS, 100 ms on, 400 ms off
+
+0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+## sweep, 40 Hz to 16 kHz, -20 dBFS
+
+3 3 3 3 3 3 3 3 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 0 0 0 0 0 0 0 0
+
+## white noise, 0 dBFS
+
+3 3 3 3 3 3 3 3 2 2 2 2 0 0 0 0 0 0 0 0
+
+## beat train, bass 0.37 for a tick, then 2 silent: just above a beat
+
+2 2 2 1 1 1 2 2 2 1 1 1 2 2 2 1 1 1 2 2 2 1 1 1 0 0 0 0
+
+## beat train, bass 0.37 for a tick, then 2 silent: just above a beat · resets at ticks 7 and 19
+
+2 2 2 1 1 1 2 0 0 2 2 2 1 1 1 2 2 2 1 0 0 2 2 2 0 0 0 0
+
+## beat train, bass 0.33 for a tick, then 2 silent: just below a beat
+
+0 0 0 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 1 1 0 0 0 0
+
+## beat train, bass 0.33 for a tick, then 2 silent: just below a beat · resets at ticks 7 and 19
+
+0 0 0 2 2 2 2 0 0 0 0 0 0 0 0 2 2 2 2 0 0 0 0 0 0 0 0 0
+
+## beat train, bass 0.62 for a tick, then 1 silent: just above a big move
+
+3 3 4 4 5 5 6 6 7 7 8 8 9 9 10 10 4 4 3 3 3 3 4 4 4 0 0 0
+
+## beat train, bass 0.62 for a tick, then 1 silent: just above a big move · resets at ticks 7 and 19
+
+3 3 4 4 5 5 6 0 3 3 4 4 5 5 6 6 7 7 8 0 3 3 4 4 4 0 0 0
+
+## beat train, bass 0.58 for a tick, then 1 silent: just below a big move
+
+2 2 1 1 2 2 1 1 2 2 1 1 2 2 1 1 2 2 1 1 2 2 1 1 1 0 0 0
+
+## beat train, bass 0.58 for a tick, then 1 silent: just below a big move · resets at ticks 7 and 19
+
+2 2 1 1 2 2 1 0 2 2 1 1 2 2 1 1 2 2 1 0 2 2 1 1 1 0 0 0
+
+## beat train, bass 0.40 for 2 ticks, then 0.53: rises just above 0.12
+
+2 2 1 1 1 2 2 2 1 1 1 2 2 2 1 1 1 2 2 2 1 1 1 2 2 2 0 0
+
+## beat train, bass 0.40 for 2 ticks, then 0.53: rises just above 0.12 · resets at ticks 7 and 19
+
+2 2 1 1 1 2 2 2 2 2 2 1 1 1 2 2 2 1 1 2 2 2 2 1 1 1 0 0
+
+## beat train, bass 0.40 for 2 ticks, then 0.51: rises just below 0.12
+
+2 2 2 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 2 2 2 0 0
+
+## beat train, bass 0.40 for 2 ticks, then 0.51: rises just below 0.12 · resets at ticks 7 and 19
+
+2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 2 2 2 2 2 2 2 0 0
+
+## beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent
+
+2 2 3 3 4 4 4 1 1 5 5 6 6 6 2 2 7 7 8 8 8 1 1 9 9 10 10 10 0 0 0 0
+
+## beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent · resets at ticks 7 and 19
+
+2 2 3 3 4 4 4 2 2 3 3 4 4 4 1 1 5 5 6 0 0 2 2 3 3 4 4 4 0 0 0 0
+
+## beat train, bass 0.50 steady for 22 ticks, then silent
+
+2 2 2 2 2 2 2 2 1 1 1 1 1 2 2 2 2 2 1 1 1 1 1 1 0 0 0 0
+
+## beat train, bass 0.50 steady for 22 ticks, then silent · resets at ticks 7 and 19
+
+2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 1 1 1 1 2 2 2 2 2 0 0 0 0

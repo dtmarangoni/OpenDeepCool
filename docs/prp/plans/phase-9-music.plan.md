@@ -315,13 +315,15 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - S14–S18 for modes 13–17. S14 here is a switch at every loop position, and the next frame is the loop's first picture.
   - Switches between Music modes while a burst train plays, at every *k*: the spectrum's levels continue and the top area resets.
   - Switches into Music from Load: the levels start at 0.
-- `docs/spec/frames/mode-023.txt`: CREATE, generated. The Dancer in silence (pose 0, standing still) in rotations 0–3.
+- `docs/spec/frames/mode-023.txt`: CREATE, generated. Each of the Dancer's eleven poses in rotations 0–3, 44 cases headed `## rotation <r>, pose <k>`; pose 0, standing still, is what silence shows (owner, 2026-11-05: so each pose the program types meets an expected frame, where `dancer.txt` gives only pose numbers). `odc_testkit::expected` reads `pose <k>`.
 - `docs/spec/frames/spectrum/dancer.txt`: CREATE, generated. The pose at every tick for each signal of `signals.txt`, plus beat trains of a 60 Hz tone at levels around each threshold (0.35 and 0.6 of the scale, and rises just above and below 0.12), and resets at chosen ticks.
-- The oracle gets the Dancer's poses (drawn from the skeleton, then checked against the pictures in `music.md`) and its rules, step for step.
+  - The beat trains are signals of `signals.txt`, named `beat train, …`, so one parser makes their samples; `expected.txt` leaves them out.
+  - Each beat train comes twice in `dancer.txt`, the second time with resets before ticks 7 and 19.
+- The oracle reads the Dancer's poses from `music.md`'s pictures, which the spec says are what counts, and checks them against its stated proportions: a solid 3 × 3 head, standing on column 8, rows 1–2 free (owner, 2026-11-05: not drawn from a skeleton, whose line rule the spec doesn't give). It follows the rules step for step.
 - `docs/spec/frames/README.md`: UPDATE, describing the three files.
 
 **Implementation**
-- The generator flags a signal and tick whose level lies within 10⁻⁶ of a rounding boundary of `round(level × H)`, or of the −75/−25 dB clamps, and moves that signal's amplitude by 0.5 dB.
+- The generator flags a signal and tick whose level lies within 10⁻⁶ of a rounding boundary of `round(level × H)`, of the −75/−25 dB clamps, or of one of the Dancer's thresholds, and moves that signal's amplitude by 0.5 dB.
   - This keeps last-bit differences between the oracle's and the service's FFT, two separate implementations, from deciding a pixel.
   - The files say which signals were moved.
 
@@ -380,7 +382,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - every column is at least 1 row high.
 - **Emoji:** each picture equals a copy typed independently from `music.md`, and each loop's durations add up to 900 ms (1100 ms for emoji 4).
 - **Dancer:**
-  - each pose equals a copy typed independently from `music.md`;
+  - each pose equals its frame in `mode-023.txt`, in all four rotations;
   - every sequence of `spectrum/dancer.txt` gives the expected pose at every tick;
   - properties: 3 quiet ticks always give pose 0; two beats are never less than 2 ticks apart; a reset gives pose 0 and the next sway goes right.
 
@@ -612,7 +614,7 @@ Five sub-steps, **each its own commit** (rule 4):
 
 **Tests**
 - **Layer 1:**
-  - all cases of `mode-023.txt`: standing still in silence, in all four rotations;
+  - mode 23 in silence draws `mode-023.txt`'s pose 0, standing still, in all four rotations;
   - every sequence of `spectrum/dancer.txt` through `analyse` and `Dancer`, from the samples.
 - **Scenarios:** S14–S18 for mode 23 at every point of a beat train: a switch into it, a rotation change, another GPU and Refresh each give pose 0 on the next frame; a unit change and a Music setting change change nothing.
 - **Layer 3:**

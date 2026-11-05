@@ -1,6 +1,6 @@
 # Spectrum: expected rows
 
-Each tick line gives the 14 bar heights, columns 1 to 14, in rows from the floor, then, with peaks on, the 14 dot heights, `.` where no dot is drawn. Heights are 1 to 9, then a, b, c for 10 to 12. The spectrum enters at level 0 at tick 0.
+For each signal of `signals.txt` but the Dancer's beat trains: each tick line gives the 14 bar heights, columns 1 to 14, in rows from the floor, then, with peaks on, the 14 dot heights, `.` where no dot is drawn. Heights are 1 to 9, then a, b, c for 10 to 12. The spectrum enters at level 0 at tick 0.
 
 ## silence · H 12 · peaks off · bars slower
 

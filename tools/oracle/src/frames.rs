@@ -1,4 +1,4 @@
-//! The expected-frame files `docs/spec/frames/mode-001.txt` to `mode-022.txt`, in the format of
+//! The expected-frame files `docs/spec/frames/mode-001.txt` to `mode-023.txt`, in the format of
 //! `docs/spec/frames/README.md`: every mode × the four rotations × °C and °F where a temperature
 //! is shown, with three value sets for the modes with values.
 
@@ -40,7 +40,7 @@ const PROFILES: [Profile; 3] = [
 
 /// Each file's title: the mode's name in the settings app, `<group> · <option>`
 /// (docs/design/settings-app.md, the tile gallery; owner, 2026-10-28).
-pub(crate) const TITLES: [&str; 22] = [
+pub(crate) const TITLES: [&str; 23] = [
     "Load · CPU",
     "Load · GPU",
     "Load · RAM",
@@ -63,6 +63,7 @@ pub(crate) const TITLES: [&str; 22] = [
     "Music · CPU usage",
     "Music · GPU usage",
     "Music · RAM usage",
+    "Music · Dancer",
 ];
 
 /// Each emoji loop: picture and duration in ms, in order (music.md).
@@ -85,7 +86,7 @@ fn reading(profile: &Profile, name: &str) -> i64 {
 
 /// Every file: its path under `docs/spec/frames/` and its contents.
 pub fn files() -> Vec<(String, String)> {
-    let mut files: Vec<(String, String)> = (1..=22)
+    let mut files: Vec<(String, String)> = (1..=23)
         .map(|mode| (format!("mode-{mode:03}.txt"), file(mode)))
         .collect();
     files.push(("unavailable.txt".to_owned(), unavailable_file()));
@@ -98,6 +99,10 @@ pub fn files() -> Vec<(String, String)> {
     files.push((
         "spectrum/expected.txt".to_owned(),
         crate::spectrum::expected_file(&signals),
+    ));
+    files.push((
+        "spectrum/dancer.txt".to_owned(),
+        crate::dancer::dancer_file(&signals),
     ));
     files
 }
@@ -188,6 +193,21 @@ fn file(mode: u16) -> String {
         format!("# Mode {mode}: {}", TITLES[usize::from(mode) - 1]),
         String::new(),
     ];
+    if mode == 23 {
+        // Every pose of the Dancer in each rotation; in silence he stands still, pose 0
+        // (music.md, Dancer; owner, 2026-11-05).
+        let poses = crate::dancer::poses();
+        for rotation in 0..4 {
+            for (k, pose) in poses.iter().enumerate() {
+                lines.push(format!("## rotation {rotation}, pose {k}"));
+                lines.push(String::new());
+                block(&[drawing::rotate_cw(pose, rotation)], &mut lines);
+            }
+        }
+        let mut text = lines.join("\n").trim_end().to_owned();
+        text.push('\n');
+        return text;
+    }
     let units: &[bool] = if matches!(mode, 7 | 8 | 9 | 18 | 19) {
         &[false, true]
     } else {
@@ -372,6 +392,6 @@ mod tests {
             .filter(|(name, _)| name.starts_with("mode-"))
             .map(|(_, text)| text.lines().filter(|l| l.starts_with("## ")).count())
             .sum();
-        assert_eq!(cases, 284);
+        assert_eq!(cases, 328);
     }
 }

@@ -20,7 +20,8 @@ pub struct ModeFrames {
     pub cases: Vec<Case>,
 }
 
-/// One `##` section: a rotation, a unit and readings, and what the cooler must show for them.
+/// One `##` section: a rotation, a unit and readings, or the Dancer's pose, and what the cooler
+/// must show for them.
 #[derive(Debug)]
 pub struct Case {
     /// The heading as written, for messages.
@@ -28,6 +29,8 @@ pub struct Case {
     pub rotation: Rotation,
     /// °C or °F, when the heading names one.
     pub unit: Option<Unit>,
+    /// The Dancer's pose, 0 to 10, in mode 23's cases.
+    pub pose: Option<u8>,
     /// The readings, with the metric names exactly as written (`CPU Usage`, `Gpu temperature`):
     /// an exact value, or `None` for `unavailable`.
     pub readings: Vec<(String, Option<Exact>)>,
@@ -372,11 +375,20 @@ fn parse_case(
         .and_then(Rotation::from_setting)
         .unwrap_or_else(|| lines.fail(n, "the heading doesn't start with `rotation 0` to `3`"));
     let mut unit = None;
+    let mut pose = None;
     let mut readings = Vec::new();
     for part in parts {
+        let alone = unit.is_none() && pose.is_none() && readings.is_empty();
         match part {
-            "°C" if unit.is_none() && readings.is_empty() => unit = Some(Unit::Celsius),
-            "°F" if unit.is_none() && readings.is_empty() => unit = Some(Unit::Fahrenheit),
+            "°C" if alone => unit = Some(Unit::Celsius),
+            "°F" if alone => unit = Some(Unit::Fahrenheit),
+            _ if alone && part.starts_with("pose ") => {
+                pose = part["pose ".len()..]
+                    .parse::<u8>()
+                    .ok()
+                    .filter(|k| *k <= 10)
+                    .or_else(|| lines.fail(n, format!("{part:?} isn't `pose 0` to `10`")));
+            }
             _ => match part.split_once(" = ").map(|(k, v)| (k, reading(v))) {
                 Some((name, Some(value))) if !name.is_empty() => {
                     readings.push((name.to_owned(), value))
@@ -442,6 +454,7 @@ fn parse_case(
         heading: heading.to_owned(),
         rotation,
         unit,
+        pose,
         readings,
         kind,
     };
@@ -818,7 +831,9 @@ mod tests {
     use super::*;
 
     /// Every file loads into typed cases, as many as it has `##` headings (284 when Phase 5
-    /// runs); cycles have at least 21 pictures, and `?` appears only in Music (modes 13–22).
+    /// ran, 328 with Phase 9's Dancer); cycles have at least 21 pictures, `?` appears only in the
+    /// spectrum's modes 13–22, and mode 23 has each of the Dancer's eleven poses in each
+    /// rotation.
     #[test]
     fn every_expected_frame_file_loads() {
         let mut modes: Vec<u16> = fs::read_dir(FRAMES_DIR)
@@ -835,6 +850,7 @@ mod tests {
         modes.sort_unstable();
         assert!(!modes.is_empty());
         let (mut cases, mut headings) = (0, 0);
+        let mut dancer = Vec::new();
         for mode in modes {
             let text =
                 fs::read_to_string(Path::new(FRAMES_DIR).join(format!("mode-{mode:03}.txt")))
@@ -855,10 +871,24 @@ mod tests {
                     );
                 }
             }
+            for case in &frames.cases {
+                assert_eq!(
+                    case.pose.is_some(),
+                    mode == 23,
+                    "mode {mode}, {}",
+                    case.heading
+                );
+                if let Some(pose) = case.pose {
+                    dancer.push((case.rotation.setting(), pose));
+                }
+            }
             cases += frames.cases.len();
         }
         assert_eq!(cases, headings);
-        assert_eq!(cases, 284);
+        assert_eq!(cases, 328);
+        dancer.sort_unstable();
+        dancer.dedup();
+        assert_eq!(dancer.len(), 4 * 11, "each pose in each rotation");
     }
 
     /// The dash cases and the scenarios load too: every heading becomes a case or a scenario.

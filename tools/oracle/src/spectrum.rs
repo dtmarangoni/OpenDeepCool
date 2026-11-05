@@ -257,8 +257,14 @@ impl Signal {
             .collect()
     }
 
+    /// Whether a beat train, which only `dancer.txt` uses: `expected.txt` leaves them out.
+    pub fn is_beat_train(&self) -> bool {
+        self.name.starts_with("beat train")
+    }
+
     /// Whether any value the pictures round, at any tick and setting, lies within 10⁻⁶ of a
-    /// rounding boundary, or a level of the −75/−25 dB clamps (Phase 9 plan, Task 1).
+    /// rounding boundary, a level of the −75/−25 dB clamps, or one of the Dancer's thresholds
+    /// (Phase 9 plan, Task 1).
     fn near_a_boundary(&self) -> bool {
         let near = |x: f64| (x - x.floor() - 0.5).abs() < 1e-6;
         let per_tick = self.tick_levels();
@@ -273,6 +279,13 @@ impl Signal {
             .iter()
             .map(|l| l.map(|x| x.clamp(0.0, 1.0)))
             .collect();
+        let mut previous = [0.0; COLUMNS];
+        for levels in &clamped {
+            if crate::dancer::near_a_threshold(&previous, levels) {
+                return true;
+            }
+            previous = *levels;
+        }
         for &(_, b, _) in &STOPS {
             for &(_, _, g) in &STOPS {
                 let mut s = Spectrum::enter();
@@ -350,6 +363,7 @@ pub fn signals() -> Vec<Signal> {
         "white noise, 0 dBFS".into(),
         vec![Segment::Noise(10, 0.0), Segment::Silence(10)],
     ));
+    list.extend(crate::dancer::beat_trains());
     list.into_iter()
         .map(|(name, segments)| {
             let mut signal = Signal {
@@ -409,16 +423,18 @@ fn hex(h: u8) -> char {
     char::from_digit(u32::from(h), 16).expect("a height up to 12")
 }
 
-/// `spectrum/expected.txt`: for each signal, *H* 12 and 6, peaks off with each bar stop and on
-/// with each bar and peak stop, every tick's bar heights and dot heights (`.` for none).
+/// `spectrum/expected.txt`: for each signal but the beat trains, *H* 12 and 6, peaks off with
+/// each bar stop and on with each bar and peak stop, every tick's bar heights and dot heights
+/// (`.` for none).
 pub fn expected_file(signals: &[Signal]) -> String {
     let mut out = String::from(
         "# Spectrum: expected rows\n\n\
-         Each tick line gives the 14 bar heights, columns 1 to 14, in rows from the floor, then, \
-         with peaks on, the 14 dot heights, `.` where no dot is drawn. Heights are 1 to 9, then a, \
-         b, c for 10 to 12. The spectrum enters at level 0 at tick 0.\n\n",
+         For each signal of `signals.txt` but the Dancer's beat trains: each tick line gives the 14 \
+         bar heights, columns 1 to 14, in rows from the floor, then, with peaks on, the 14 dot \
+         heights, `.` where no dot is drawn. Heights are 1 to 9, then a, b, c for 10 to 12. The \
+         spectrum enters at level 0 at tick 0.\n\n",
     );
-    for s in signals {
+    for s in signals.iter().filter(|s| !s.is_beat_train()) {
         let levels: Vec<[f64; COLUMNS]> = s
             .tick_levels()
             .iter()
