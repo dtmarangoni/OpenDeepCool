@@ -311,10 +311,11 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **The scenario format gains audio and the Music settings** (`frames/README.md`, Dash cases and scenarios): `audio <signal>` plays a signal of `spectrum/signals.txt` from that tick, and a scenario without one is silent; `music peaks on|off`, `music bar fall <stop>` and `music peak fall <stop>` change a setting without a reset. `odc_testkit::expected` parses them, and the replays (`odc-render`'s, the engine's, `odc-e2e`'s plays) follow them.
 - **S23's refused mode outside the table** (owner, 2026-11-05): S23's "not yet available" example, mode 13, would break once mode 13 is drawn, and after this phase no mode is "not yet available". From this task S23 asks for mode 24, refused as not in the mode table (`InvalidArgument`), in the scenarios of modes 1–23; `display.md`'s S23 reads "an unavailable mode, a mode outside the table". The scenario files of modes 1–12 are regenerated, their S23 lines only; `odc-e2e`'s plays expect `InvalidArgument` for it. The D-Bus test of `NotYetAvailable` moves from mode to mode as below.
 - `docs/spec/frames/scenarios/mode-013.txt` to `mode-023.txt`: CREATE, generated, one file per mode, as Phase 8 writes modes 1–12 (owner, 2026-11-05: every file under the commit guard's 2 MiB limit).
-  - Every scenario S1–S26 that applies, for the value modes 18–22, both units for 18–19, in silence: the spectrum is then the floor line, so every pixel is exact.
-  - S14–S18 for modes 13–17. S14 here is a switch at every loop position, and the next frame is the loop's first picture.
-  - Switches between Music modes while a burst train plays, at every *k*: the spectrum's levels continue and the top area resets.
-  - Switches into Music from Load: the levels start at 0.
+  - Every scenario S1–S26 that applies, for the value modes 18–22, both units for 18–19, in silence: the spectrum is then the floor line, so every pixel is exact. Their S14 switches into every mode 1–23.
+  - S14–S18, S25 and S26 for modes 13–17 and 23, at every position: each tick of a burst's period in 13, each loop position in 14–17 (the next frame of a switch into an emoji mode is the loop's first picture), ticks 1–10 of the beat train in 23. `display.md`'s "Which modes" names S25 and S26 for them, which Tasks 7 and 9 test.
+  - Switches between Music modes while a burst train plays (the beat train into 23), at every *k* or position: the spectrum's levels continue and the top area resets.
+  - Switches into each Music mode from every mode 1–12, at every *k*, while its sound plays: the levels start at 0. They're kept in the Music mode's file, so the files of modes 1–12 change only in S23, as the Validation below says; with them every one of the 506 ordered pairs among modes 1–23 has a switch.
+  - **S15b**, a new row in `display.md`: each Music setting changed while the sound plays, every stop once, in modes 13–22; a setting changed in mode 1 or mode 23 is only saved, then drawn in mode 13.
 - `docs/spec/frames/mode-023.txt`: CREATE, generated. Each of the Dancer's eleven poses in rotations 0–3, 44 cases headed `## rotation <r>, pose <k>`; pose 0, standing still, is what silence shows (owner, 2026-11-05: so each pose the program types meets an expected frame, where `dancer.txt` gives only pose numbers). `odc_testkit::expected` reads `pose <k>`.
 - `docs/spec/frames/spectrum/dancer.txt`: CREATE, generated. The pose at every tick for each signal of `signals.txt`, plus beat trains of a 60 Hz tone at levels around each threshold (0.35 and 0.6 of the scale, and rises just above and below 0.12), and resets at chosen ticks.
   - The beat trains are signals of `signals.txt`, named `beat train, …`, so one parser makes their samples; `expected.txt` leaves them out.
@@ -616,7 +617,7 @@ Five sub-steps, **each its own commit** (rule 4):
 - **Layer 1:**
   - mode 23 in silence draws `mode-023.txt`'s pose 0, standing still, in all four rotations;
   - every sequence of `spectrum/dancer.txt` through `analyse` and `Dancer`, from the samples.
-- **Scenarios:** S14–S18 for mode 23 at every point of a beat train: a switch into it, a rotation change, another GPU and Refresh each give pose 0 on the next frame; a unit change and a Music setting change change nothing.
+- **Scenarios:** S14–S18 for mode 23 at every point of a beat train: a switch into it, a rotation change, another GPU and Refresh each restart the Dancer, and the next frame shows pose 0 unless that tick is a beat (owner, 2026-11-05: the rules run on the reset tick, as `music.md` reads); a unit change and a Music setting change change nothing.
 - **Layer 3:**
   - "audio file → frames" for the dancer signals, through the engine;
   - every ordered switch with modes 1–22, so all 506 ordered pairs among modes 1–23 have run;

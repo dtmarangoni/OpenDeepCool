@@ -3,6 +3,7 @@
 //! one at every tick from the spectrum's column levels.
 
 use std::fmt::Write as _;
+use std::sync::OnceLock;
 
 use crate::drawing::{BLANK, Frame, Pixel, SIZE};
 use crate::spectrum::{COLUMNS, Segment, Signal};
@@ -14,8 +15,14 @@ const MUSIC_MD: &str = include_str!("../../../docs/spec/music.md");
 /// out, jump, squat, arms up.
 const ROUTINE: [u8; 10] = [3, 4, 5, 6, 7, 8, 9, 10, 4, 3];
 
-/// The eleven poses, 0 to 10, read from the three picture blocks of music.md's Dancer section.
-pub fn poses() -> Vec<Frame> {
+/// The eleven poses, 0 to 10, read once from the three picture blocks of music.md's Dancer
+/// section.
+pub fn poses() -> &'static [Frame] {
+    static POSES: OnceLock<Vec<Frame>> = OnceLock::new();
+    POSES.get_or_init(read_poses)
+}
+
+fn read_poses() -> Vec<Frame> {
     let section = MUSIC_MD
         .split("## Dancer")
         .nth(1)

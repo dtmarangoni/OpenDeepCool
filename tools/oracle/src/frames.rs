@@ -67,7 +67,7 @@ pub(crate) const TITLES: [&str; 23] = [
 ];
 
 /// Each emoji loop: picture and duration in ms, in order (music.md).
-fn emoji_loop(mode: u16) -> &'static [(usize, u32)] {
+pub(crate) fn emoji_loop(mode: u16) -> &'static [(usize, u32)] {
     match mode {
         14 => &[(1, 400), (0, 100), (1, 100), (0, 100), (1, 100), (0, 100)],
         15 | 16 => &[(0, 400), (1, 100), (0, 100), (1, 100), (0, 100), (1, 100)],

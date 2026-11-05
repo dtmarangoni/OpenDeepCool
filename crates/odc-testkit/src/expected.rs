@@ -568,7 +568,17 @@ pub enum Change {
     Wake,
     /// The deadline is missed: no frame, and the strip doesn't move.
     Missed,
+    /// A signal of `spectrum/signals.txt`, by its name, plays from this tick; before it, silence.
+    Audio(String),
+    /// The Music settings (music.md point 7), never a reset: the peak dots on or off, and the
+    /// bars' and the peaks' fall, each one of [`STOPS`].
+    MusicPeaks(bool),
+    MusicBarFall(String),
+    MusicPeakFall(String),
 }
+
+/// The five falloff stops' names, slowest first (music.md point 4).
+pub const STOPS: [&str; 5] = ["slower", "slow", "moderate", "fast", "faster"];
 
 /// Why the picture restarts at home.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -819,6 +829,21 @@ fn change(text: &str) -> Option<Change> {
             reason: reason.to_owned(),
         });
     }
+    if let Some(signal) = text.strip_prefix("audio ") {
+        return (!signal.is_empty()).then(|| Change::Audio(signal.to_owned()));
+    }
+    match text {
+        "music peaks on" => return Some(Change::MusicPeaks(true)),
+        "music peaks off" => return Some(Change::MusicPeaks(false)),
+        _ => {}
+    }
+    let stop = |name: &str| STOPS.contains(&name).then(|| name.to_owned());
+    if let Some(name) = text.strip_prefix("music bar fall ") {
+        return stop(name).map(Change::MusicBarFall);
+    }
+    if let Some(name) = text.strip_prefix("music peak fall ") {
+        return stop(name).map(Change::MusicPeakFall);
+    }
     let (metric, value) = text.split_once(" = ")?;
     Some(Change::Reading {
         metric: (!metric.is_empty()).then(|| metric.to_owned())?,
@@ -910,7 +935,10 @@ mod tests {
                 case.heading
             );
         }
-        for mode in 1..=12 {
+        let signals = fs::read_to_string(Path::new(FRAMES_DIR).join("spectrum/signals.txt"))
+            .expect("the signals");
+        let signal = |name: &str| signals.lines().any(|l| l.strip_prefix("## ") == Some(name));
+        for mode in 1..=23 {
             let name = format!("mode-{mode:03}.txt");
             let text = fs::read_to_string(Path::new(FRAMES_DIR).join("scenarios").join(&name))
                 .expect("a scenario file");
@@ -918,13 +946,29 @@ mod tests {
             let headings = text.lines().filter(|l| l.starts_with("## ")).count();
             assert_eq!(scenarios.len(), headings, "{name}");
             for scenario in &scenarios {
-                assert_eq!(scenario.mode, mode, "{name}: {}", scenario.heading);
+                // A Music mode's file also holds the switches into it from modes 1–12.
+                let into = scenario
+                    .ticks
+                    .iter()
+                    .any(|t| t.changes.contains(&Change::Reset(Reset::Mode(mode))));
+                assert!(
+                    scenario.mode == mode || (mode >= 13 && into),
+                    "{name}: {}",
+                    scenario.heading
+                );
                 check_ticks(scenario);
+                for change in scenario.ticks.iter().flat_map(|t| &t.changes) {
+                    if let Change::Audio(played) = change {
+                        assert!(signal(played), "{name}: no signal {played:?}");
+                    }
+                }
             }
             // A temperature mode's scenarios run in each unit, and their headings say which.
-            if (7..=9).contains(&mode) {
+            if [7, 8, 9, 18, 19].contains(&mode) {
                 for (unit, label) in [(Unit::Celsius, " · °C"), (Unit::Fahrenheit, " · °F")] {
-                    let mine = scenarios.iter().filter(|s| s.unit == unit);
+                    let mine = scenarios
+                        .iter()
+                        .filter(|s| s.unit == unit && s.mode == mode);
                     assert!(mine.clone().count() > 0, "{name}: none in {unit:?}");
                     assert!(mine.into_iter().all(|s| s.heading.contains(label)));
                 }
@@ -1048,6 +1092,39 @@ mod tests {
         assert_eq!((nine.get(6, 4), nine.get(10, 2)), (Pixel::On, Pixel::Off));
         assert_eq!(ten.get(10, 2), Pixel::On);
         assert_eq!(s9.ticks[4].frame, s9.ticks[0].frame);
+    }
+
+    // Phase 9 plan, Task 1: the scenarios play sound and change the Music settings.
+    #[test]
+    fn a_scenario_reads_its_sound_and_the_music_settings() {
+        let scenarios = parse_scenarios(
+            "test.txt",
+            &scenario_file(
+                "0: reset start-up; audio burst train, column 7 → f1\n\
+                 1: music peaks off; music bar fall faster; music peak fall slower → f1\n",
+            ),
+        );
+        assert_eq!(
+            scenarios[0].ticks[0].changes[1],
+            Change::Audio("burst train, column 7".to_owned())
+        );
+        assert_eq!(
+            scenarios[0].ticks[1].changes,
+            [
+                Change::MusicPeaks(false),
+                Change::MusicBarFall("faster".to_owned()),
+                Change::MusicPeakFall("slower".to_owned()),
+            ]
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "isn't a change")]
+    fn a_stop_that_isnt_one_of_the_five_is_refused() {
+        parse_scenarios(
+            "test.txt",
+            &scenario_file("0: reset start-up; music bar fall fastest → f1\n"),
+        );
     }
 
     fn scenario_file(ticks: &str) -> String {

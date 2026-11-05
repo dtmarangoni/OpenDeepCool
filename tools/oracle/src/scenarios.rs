@@ -1,16 +1,20 @@
-//! `docs/spec/frames/scenarios/`: the test scenarios of `docs/spec/display.md` (S1–S26) for each
-//! mode with values, 1–12, in rotation 0, with the frame expected at every tick (Phase 7 plan,
-//! Task 1; Phase 8 plan, Task 1): one file per mode, `mode-001.txt` to `mode-012.txt`, each under
-//! the commit guard's 2 MiB limit (owner, 2026-11-05), modes 7–9 in °C and in °F. The rotations
-//! 1–3 aren't written: their frames are these, turned. Each scenario is a script of changes at
-//! chosen ticks, run through the movement procedure.
+//! `docs/spec/frames/scenarios/`: the test scenarios of `docs/spec/display.md` (S1–S26) for every
+//! mode, in rotation 0, with the frame expected at every tick (Phase 7 plan, Task 1; Phase 8
+//! plan, Task 1; Phase 9 plan, Task 1): one file per mode, `mode-001.txt` to `mode-023.txt`, each
+//! under the commit guard's 2 MiB limit (owner, 2026-11-05), the modes with a temperature in °C
+//! and in °F. The rotations 1–3 aren't written: their frames are these, turned. Each scenario is
+//! a script of changes at chosen ticks, run through the movement procedure, and in Music modes
+//! through the spectrum, the emoji loop or the Dancer, from the sound the script plays.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::OnceLock;
 
-use crate::drawing::{Frame, Kind, value_mode};
-use crate::frames::{TITLES, text};
+use crate::dancer::{Dancer, poses};
+use crate::drawing::{BLANK, Frame, Kind, Pixel, SIZE, emoji, is_emoji, row, value_mode};
+use crate::frames::{TITLES, emoji_loop, text};
 use crate::movement::Movement;
 use crate::rules::{Ratio, strip_of};
+use crate::spectrum::{COLUMNS, STOPS, Spectrum};
 
 /// Every metric modes 1–12 show, in the order of the mode table. Tick 0 names them all, so a
 /// switch into another kind of mode draws named readings.
@@ -142,6 +146,12 @@ enum Step {
     CoolerBack,
     Wake,
     Missed,
+    /// A signal of `spectrum/signals.txt` plays from this tick.
+    Audio(&'static str),
+    /// The Music settings (music.md point 7): never a reset.
+    MusicPeaks(bool),
+    MusicBarFall(&'static str),
+    MusicPeakFall(&'static str),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -178,6 +188,10 @@ impl Step {
             Step::CoolerBack => "cooler back".into(),
             Step::Wake => "wake".into(),
             Step::Missed => "missed".into(),
+            Step::Audio(signal) => format!("audio {signal}"),
+            Step::MusicPeaks(on) => format!("music peaks {}", if *on { "on" } else { "off" }),
+            Step::MusicBarFall(stop) => format!("music bar fall {stop}"),
+            Step::MusicPeakFall(stop) => format!("music peak fall {stop}"),
         }
     }
 }
@@ -214,13 +228,26 @@ pub struct Tick {
     pub n: u32,
     pub frame: Option<Frame>,
     pub reset: bool,
-    /// Where the frame was drawn: the column of the strip's first column.
-    pub x: i64,
-    /// Whether the strip was moving when the frame was drawn.
+    /// Where a value's strip was drawn, in a mode with values.
+    pub placed: Option<Placed>,
+    /// Whether the strip was moving when the frame was drawn; never without values.
     pub moving: bool,
+    steps: Vec<Step>,
+}
+
+/// Where a value's strip was drawn: the column of its first column, its home and its cycle.
+#[cfg_attr(
+    not(test),
+    expect(
+        dead_code,
+        reason = "the movement checks read where each frame was drawn"
+    )
+)]
+#[derive(Clone, Copy)]
+pub struct Placed {
+    pub x: i64,
     pub home: i64,
     pub cycle: i64,
-    steps: Vec<Step>,
 }
 
 /// The value levels of one scenario: which metrics a change applies to.
@@ -270,7 +297,7 @@ fn kind(mode: u16) -> Kind {
 }
 
 fn shows_temperature(mode: u16) -> bool {
-    shown(mode).iter().any(|m| is_temperature(m))
+    value_mode(mode).is_some_and(|(_, shown)| shown.iter().any(|m| is_temperature(m)))
 }
 
 fn fahrenheit(unit: Option<bool>) -> bool {
@@ -283,6 +310,7 @@ fn next_in_kind(mode: u16) -> u16 {
         1..=6 => (1, 6),
         7..=9 => (7, 3),
         10..=12 => (10, 3),
+        18..=22 => (18, 5),
         _ => panic!("mode {mode} has no values"),
     };
     first + (mode - first + 1) % count
@@ -434,12 +462,21 @@ fn units(mode: u16) -> &'static [Option<bool>] {
     }
 }
 
-/// Every scenario of one mode's file, °C before °F.
+/// Every scenario of one mode's file, °C before °F; a Music mode's file adds the Music settings
+/// and the switches into it from modes 1–12.
 fn scenarios(mode: u16) -> Vec<Scenario> {
     let mut all = Vec::new();
-    for &unit in units(mode) {
-        all.extend(movement_scenarios(mode, unit));
-        all.extend(settings_scenarios(mode, unit));
+    if value_mode(mode).is_some() {
+        for &unit in units(mode) {
+            all.extend(movement_scenarios(mode, unit));
+            all.extend(settings_scenarios(mode, unit));
+        }
+    } else {
+        all.extend(still_scenarios(mode));
+    }
+    if mode >= 13 {
+        all.extend(music_settings(mode));
+        all.extend(switches_into(mode));
     }
     all
 }
@@ -905,47 +942,339 @@ const SWITCH_SETS: [SwitchSet; 3] = [
     ("CPU above 100", |metric| metric.starts_with("CPU ")),
 ];
 
-/// S14: a switch from `mode` into every other mode 1–12, at every k of a scrolling strip, with
-/// values below 100, above it, and mixed. A switch into a mode that shows a temperature runs in
-/// both units, from a mode without one too.
+/// S14: a switch from `mode` into every other mode, at every k of a scrolling strip, with values
+/// below 100, above it, and mixed. A switch into a mode that shows a temperature runs in both
+/// units, from a mode without one too. Modes 1–12 switch into modes 1–12, whose files stay as
+/// Phase 8 wrote them; a Music mode switches into every mode 1–23, and into a Music mode while
+/// the sound plays, so the spectrum's levels carry on.
 fn mode_switches(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
+    let last = if mode <= 12 { 12 } else { 23 };
     let mut out = Vec::new();
-    for target in (1..=12).filter(|&t| t != mode) {
+    for target in (1..=last).filter(|&t| t != mode) {
         let into_units: Vec<Option<bool>> = match unit {
             Some(_) => vec![unit],
             None => units(target).to_vec(),
         };
+        let audio = if mode >= 13 {
+            music_audio(target)
+        } else {
+            None
+        };
         for u in into_units {
-            for (label, high) in SWITCH_SETS {
+            out.extend(switches(mode, target, u, sets_for(target), audio));
+        }
+    }
+    out
+}
+
+/// S14 into a Music mode from each mode 1–12, kept in the Music mode's file: its sound plays from
+/// tick 0, and its levels start at 0 when it's entered (music.md point 8).
+fn switches_into(target: u16) -> Vec<Scenario> {
+    let mut out = Vec::new();
+    for source in 1..=12 {
+        for &unit in units(source) {
+            let into_units: Vec<Option<bool>> = match unit {
+                Some(_) => vec![unit],
+                None => units(target).to_vec(),
+            };
+            for u in into_units {
+                out.extend(switches(
+                    source,
+                    target,
+                    u,
+                    sets_for(target),
+                    music_audio(target),
+                ));
+            }
+        }
+    }
+    out
+}
+
+/// The readings a switch into `target` needs: all three sets where it shows values; where it
+/// shows none, only what keeps the mode left static or scrolling.
+fn sets_for(target: u16) -> &'static [SwitchSet] {
+    if value_mode(target).is_some() {
+        &SWITCH_SETS
+    } else {
+        &SWITCH_SETS[..2]
+    }
+}
+
+/// The switches from `mode`, which has values, into `target` in unit `u`, one set after another:
+/// at every k when the strip scrolls, at tick 3 when it's static, with `audio` from tick 0.
+fn switches(
+    mode: u16,
+    target: u16,
+    u: Option<bool>,
+    sets: &[SwitchSet],
+    audio: Option<&'static str>,
+) -> Vec<Scenario> {
+    let mut out = Vec::new();
+    for &(label, high) in sets {
+        let readings: Vec<(&'static str, String)> = METRICS
+            .iter()
+            .map(|&m| {
+                let at = if high(m) { Level::High } else { Level::Base };
+                (m, level(m, fahrenheit(u), at))
+            })
+            .collect();
+        let into = format!("into mode {target}");
+        let switch = |detail: &[String], t: u32, end: u32| {
+            Script::with("S14", mode, u, detail, &readings)
+                .at(0, audio.map(Step::Audio))
+                .at(t, [Step::Reset(Cause::Mode(target))])
+                .end(End::Total(end))
+        };
+        if shown(mode).iter().any(|m| high(m)) {
+            for k in 0..21 {
+                let t = tick_at(k, 21);
+                let detail = [into.clone(), label.to_owned(), format!("k {k}")];
+                out.push(switch(&detail, t, t + 5));
+            }
+        } else {
+            out.push(switch(&[into, label.to_owned()], 3, 8));
+        }
+    }
+    out
+}
+
+/// The signals the Music scenarios play: the burst train under the spectrum, and for the Dancer
+/// a beat train that brings sways and big moves (`spectrum/signals.txt`).
+const BURST: &str = "burst train, column 7, -20 dBFS, 100 ms on, 400 ms off";
+const BEATS: &str = "beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent";
+
+/// The sound a scenario plays in a Music mode: none elsewhere.
+fn music_audio(mode: u16) -> Option<&'static str> {
+    match mode {
+        13..=22 => Some(BURST),
+        23 => Some(BEATS),
+        _ => None,
+    }
+}
+
+/// Each tick's column levels, 0–1, of a signal the scenarios play.
+fn signal_levels(name: &str) -> &'static [[f64; COLUMNS]] {
+    static LEVELS: OnceLock<Vec<(String, Vec<[f64; COLUMNS]>)>> = OnceLock::new();
+    let all = LEVELS.get_or_init(|| {
+        crate::spectrum::signals()
+            .into_iter()
+            .filter(|s| [BURST, BEATS].contains(&s.name.as_str()))
+            .map(|s| {
+                let levels = s.tick_levels();
+                let clamped = levels.iter().map(|l| l.map(|x| x.clamp(0.0, 1.0)));
+                (s.name, clamped.collect())
+            })
+            .collect()
+    });
+    &all.iter()
+        .find(|(n, _)| n == name)
+        .unwrap_or_else(|| panic!("{name} isn't a signal the scenarios play"))
+        .1
+}
+
+/// The Music settings, by their stops' names (music.md point 7).
+#[derive(Clone, Copy)]
+struct MusicSettings {
+    peaks: bool,
+    bar: &'static str,
+    peak: &'static str,
+}
+
+impl Default for MusicSettings {
+    /// Peak dots on, bars moderate, peaks slow.
+    fn default() -> Self {
+        MusicSettings {
+            peaks: true,
+            bar: "moderate",
+            peak: "slow",
+        }
+    }
+}
+
+/// A stop's bar and peak values (music.md point 4).
+fn stop(name: &str) -> (f64, f64) {
+    STOPS
+        .iter()
+        .find(|(n, _, _)| *n == name)
+        .map(|&(_, b, g)| (b, g))
+        .unwrap_or_else(|| panic!("{name} isn't a stop"))
+}
+
+/// Whether a mode draws the spectrum: 13–22.
+fn has_spectrum(mode: u16) -> bool {
+    (13..=22).contains(&mode)
+}
+
+/// The spectrum *H* rows high above the floor: each column's bar, and its dot (music.md).
+fn draw_spectrum(frame: &mut Frame, spectrum: &Spectrum, h: u8, peaks: bool) {
+    for (c, (bar, dot)) in spectrum.draw(h, peaks).into_iter().enumerate() {
+        for row in &mut frame[SIZE - usize::from(bar)..] {
+            row[c] = Pixel::On;
+        }
+        if let Some(dot) = dot {
+            frame[SIZE - usize::from(dot)][c] = Pixel::On;
+        }
+    }
+}
+
+/// An emoji loop as the picture of each 100 ms tick (music.md, Emoji animations).
+fn emoji_ticks(mode: u16) -> Vec<usize> {
+    emoji_loop(mode)
+        .iter()
+        .flat_map(|&(picture, ms)| std::iter::repeat_n(picture, (ms / 100) as usize))
+        .collect()
+}
+
+/// The ticks at which a change comes in a Music mode without values: every tick of a burst's
+/// period in 13, every loop position in 14–17, the first ten ticks of the beat train in 23.
+fn positions(mode: u16) -> Vec<u32> {
+    let cycle = match mode {
+        13 => 5,
+        14..=17 => u32::try_from(emoji_ticks(mode).len()).expect("a short loop"),
+        _ => return (1..=10).collect(),
+    };
+    (0..cycle).map(|p| tick_at(p, cycle)).collect()
+}
+
+/// S14–S18, S25 and S26 for a Music mode without values (display.md, Which modes): switches into
+/// every other mode, rotation changes, another GPU and Refresh at every position, a unit change
+/// (only saved), start-up and the device, while its sound plays.
+fn still_scenarios(mode: u16) -> Vec<Scenario> {
+    let own = music_audio(mode).expect("a Music mode");
+    let s = |id: &str, detail: &[String]| {
+        Script::with(id, mode, None, detail, &[]).at(0, [Step::Audio(own)])
+    };
+    let at = |t: u32| format!("at tick {t}");
+    let mut out = Vec::new();
+    for target in (1..=23).filter(|&t| t != mode) {
+        let audio = if target == 23 { BEATS } else { own };
+        let sets: &[SwitchSet] = if value_mode(target).is_some() {
+            &SWITCH_SETS
+        } else {
+            &SWITCH_SETS[..1]
+        };
+        for &u in units(target) {
+            for &(label, high) in sets {
                 let readings: Vec<(&'static str, String)> = METRICS
                     .iter()
                     .map(|&m| {
-                        let at = if high(m) { Level::High } else { Level::Base };
-                        (m, level(m, fahrenheit(u), at))
+                        let level_ = if high(m) { Level::High } else { Level::Base };
+                        (m, level(m, fahrenheit(u), level_))
                     })
                     .collect();
-                let scrolls = shown(mode).iter().any(|m| high(m));
-                let into = format!("into mode {target}");
-                if scrolls {
-                    for k in 0..21 {
-                        let t = tick_at(k, 21);
-                        let detail = [into.clone(), label.to_owned(), format!("k {k}")];
-                        out.push(
-                            Script::with("S14", mode, u, &detail, &readings)
-                                .at(t, [Step::Reset(Cause::Mode(target))])
-                                .end(End::Total(t + 5)),
-                        );
-                    }
-                } else {
-                    let detail = [into.clone(), label.to_owned()];
+                for t in positions(mode) {
+                    let detail = [format!("into mode {target}"), label.to_owned(), at(t)];
                     out.push(
                         Script::with("S14", mode, u, &detail, &readings)
-                            .at(3, [Step::Reset(Cause::Mode(target))])
-                            .end(End::Total(8)),
+                            .at(0, [Step::Audio(audio)])
+                            .at(t, [Step::Reset(Cause::Mode(target))])
+                            .end(End::Total(t + 5)),
                     );
                 }
             }
         }
+    }
+    out.push(
+        s("S15", &[])
+            .at(3, [Step::UnitSaved(true)])
+            .at(8, [Step::UnitSaved(false)])
+            .end(End::Total(12)),
+    );
+    for (i, t) in positions(mode).into_iter().enumerate() {
+        let turns = u8::try_from(i % 3 + 1).expect("1 to 3");
+        out.push(
+            s("S16", &[at(t)])
+                .at(t, [Step::Reset(Cause::Rotation(turns))])
+                .end(End::Total(t + 5)),
+        );
+    }
+    let quiet = Script::with("S17", mode, None, &["in silence".to_owned()], &[]);
+    out.push(quiet.end(End::Total(12)));
+    out.push(s("S17", &["with sound".to_owned()]).end(End::Total(12)));
+    let rates = |value: &str| -> Vec<Step> {
+        RATES
+            .iter()
+            .map(|&m| Step::Set(m, value.to_owned()))
+            .collect()
+    };
+    let base = |m: &'static str| level(m, false, Level::Base);
+    let rates_back: Vec<Step> = RATES.iter().map(|&m| Step::Set(m, base(m))).collect();
+    out.push(
+        s("S18", &["the cooler away".to_owned()])
+            .at(5, [Step::CoolerAway])
+            .at(10, [Step::CoolerBack])
+            .end(End::Total(25)),
+    );
+    out.push(
+        s("S18", &["wake-up, node still there".to_owned()])
+            .at(7, [Step::Wake])
+            .at(7, rates("unavailable"))
+            .at(17, rates_back.clone())
+            .end(End::Total(30)),
+    );
+    out.push(
+        s("S18", &["wake-up, node gone".to_owned()])
+            .at(7, [Step::Wake, Step::CoolerAway])
+            .at(7, rates("unavailable"))
+            .at(12, [Step::CoolerBack])
+            .at(17, rates_back)
+            .end(End::Total(30)),
+    );
+    for t in positions(mode) {
+        let mut another_gpu = vec![Step::Reset(Cause::AnotherGpu)];
+        for (metric, value, _) in ANOTHER_GPU {
+            another_gpu.push(Step::Set(metric, value.to_owned()));
+        }
+        out.push(s("S25", &[at(t)]).at(t, another_gpu).end(End::Total(t + 5)));
+    }
+    for t in positions(mode) {
+        out.push(
+            s("S26", &[at(t)])
+                .at(t, [Step::Reset(Cause::Refresh)])
+                .end(End::Total(t + 5)),
+        );
+    }
+    out
+}
+
+/// S15b: the Music settings, each stop and the peak dots, changed while the sound plays: nothing
+/// resets, and the spectrum shows the change on the next frame (music.md point 7). Where nothing
+/// draws a spectrum they're only saved, and the next spectrum draws them.
+fn music_settings(mode: u16) -> Vec<Scenario> {
+    use Step::{MusicBarFall as Bar, MusicPeakFall as Peak, MusicPeaks as Peaks};
+    let mut out = Vec::new();
+    if has_spectrum(mode) {
+        let mut changes = Script::with("S15b", mode, units(mode)[0], &[], &[])
+            .at(0, music_audio(mode).map(Step::Audio))
+            .at(3, [Peaks(false)])
+            .at(8, [Peaks(true)]);
+        for (tick, bar, peak) in [
+            (11, "slower", "slower"),
+            (16, "faster", "faster"),
+            (21, "slow", "moderate"),
+            (26, "fast", "fast"),
+            (31, "moderate", "slow"),
+        ] {
+            changes = changes.at(tick, [Bar(bar), Peak(peak)]);
+        }
+        out.push(changes.end(End::Total(40)));
+    }
+    if mode == 13 || mode == 23 {
+        let from = if mode == 13 { 1 } else { 23 };
+        out.push(
+            Script::with(
+                "S15b",
+                from,
+                None,
+                &["only saved, then into mode 13".to_owned()],
+                &[],
+            )
+            .at(0, music_audio(from).or(Some(BURST)).map(Step::Audio))
+            .at(2, [Peaks(false), Bar("faster"), Peak("faster")])
+            .at(4, [Step::Reset(Cause::Mode(13))])
+            .end(End::Total(15)),
+        );
     }
     out
 }
@@ -959,13 +1288,19 @@ fn reading(value: &str) -> Option<Ratio> {
     }
 }
 
-/// Runs a scenario through the movement procedure.
+/// Runs a scenario: the movement procedure for a value, and in Music modes the spectrum, the
+/// emoji loop or the Dancer, from the sound the script plays.
 fn run(scenario: &Scenario) -> Vec<Tick> {
     let last = *scenario.script.keys().last().expect("tick 0");
     let mut values: HashMap<&'static str, Option<Ratio>> = HashMap::new();
     let mut mode = scenario.mode;
     let mut in_fahrenheit = fahrenheit(scenario.unit);
     let mut movement: Option<Movement> = None;
+    let mut music = MusicSettings::default();
+    let mut audio: Option<(&'static [[f64; COLUMNS]], u32)> = None;
+    let mut spectrum: Option<Spectrum> = None;
+    let mut emoji_at = 0;
+    let mut dancer: Option<Dancer> = None;
     let mut ticks = Vec::new();
     let mut stopped = 0;
     for n in 0.. {
@@ -991,38 +1326,108 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
                 // Saved for the next mode that shows a temperature; this one draws none.
                 Step::UnitSaved(f) => in_fahrenheit = *f,
                 Step::Missed => missed = true,
+                Step::Audio(signal) => audio = Some((signal_levels(signal), n)),
+                Step::MusicPeaks(on) => music.peaks = *on,
+                Step::MusicBarFall(name) => music.bar = name,
+                Step::MusicPeakFall(name) => music.peak = name,
                 _ => {}
             }
         }
-        let readings: Vec<Option<Ratio>> = shown(mode)
-            .iter()
-            .map(|m| {
-                *values
-                    .get(m)
-                    .expect("every metric has a reading from tick 0")
-            })
-            .collect();
-        let strip = strip_of(mode, &readings, in_fahrenheit);
-        let m = match &mut movement {
-            Some(m) if !reset => {
-                if changed {
-                    m.change(strip);
+        assert!(
+            !(missed && audio.is_some()),
+            "{}: a missed tick comes only in silence",
+            scenario.heading
+        );
+        // The tick's window: the signal's tick since it started, or silence.
+        let levels = audio
+            .and_then(|(levels, from)| levels.get((n - from) as usize))
+            .copied()
+            .unwrap_or([0.0; COLUMNS]);
+        let mut placed = None;
+        let mut moving = false;
+        let mut strip_frame = None;
+        if value_mode(mode).is_some() {
+            let readings: Vec<Option<Ratio>> = shown(mode)
+                .iter()
+                .map(|m| {
+                    *values
+                        .get(m)
+                        .expect("every metric has a reading from tick 0")
+                })
+                .collect();
+            let strip = strip_of(mode, &readings, in_fahrenheit);
+            let m = match &mut movement {
+                Some(m) if !reset => {
+                    if changed {
+                        m.change(strip);
+                    }
+                    m
                 }
-                m
+                _ => movement.insert(Movement::reset(strip)),
+            };
+            placed = Some(Placed {
+                x: m.x(),
+                home: m.strip().home(),
+                cycle: m.strip().cycle(),
+            });
+            strip_frame = (!missed).then(|| m.tick());
+            moving = m.moving();
+        } else {
+            movement = None;
+        }
+        // The spectrum, in 13–22: entering it from any other mode, 23 included, starts its levels
+        // at 0, and a switch between them keeps them (music.md point 8). A missed tick, which only
+        // comes in silence, leaves it as it is.
+        if has_spectrum(mode) {
+            let s = spectrum.get_or_insert_with(Spectrum::enter);
+            if !missed {
+                s.update(&levels, stop(music.bar).0, stop(music.peak).1);
             }
-            _ => movement.insert(Movement::reset(strip)),
+        } else {
+            spectrum = None;
+        }
+        // A reset restarts the emoji loop and the Dancer (music.md).
+        if reset {
+            emoji_at = 0;
+        }
+        let pose = if mode == 23 {
+            if reset || dancer.is_none() {
+                dancer = Some(Dancer::reset());
+            }
+            let d = dancer.as_mut().expect("the Dancer");
+            (!missed).then(|| d.tick(&levels))
+        } else {
+            dancer = None;
+            None
         };
-        let (x, home, cycle) = (m.x(), m.strip().home(), m.strip().cycle());
-        let frame = (!missed).then(|| m.tick());
-        let moving = m.moving();
+        let frame = (!missed).then(|| {
+            let mut g = BLANK;
+            match mode {
+                13 => {}
+                14..=17 => {
+                    let picture = emoji_ticks(mode)[emoji_at];
+                    for (r, line) in emoji(mode)[picture].iter().enumerate() {
+                        g[r] = row(line);
+                    }
+                }
+                18..=22 => g[..8].copy_from_slice(&strip_frame.expect("a value's frame")[..8]),
+                23 => return poses()[usize::from(pose.expect("a pose"))],
+                _ => return strip_frame.expect("a value's frame"),
+            }
+            let h = if mode == 13 { 12 } else { 6 };
+            let s = spectrum.as_ref().expect("the spectrum");
+            draw_spectrum(&mut g, s, h, music.peaks);
+            g
+        });
+        if is_emoji(mode) && !missed {
+            emoji_at = (emoji_at + 1) % emoji_ticks(mode).len();
+        }
         ticks.push(Tick {
             n,
             frame,
             reset,
-            x,
+            placed,
             moving,
-            home,
-            cycle,
             steps,
         });
         match scenario.end {
@@ -1042,10 +1447,9 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
     ticks
 }
 
-/// The scenario files, one per mode with values: each one's path under `docs/spec/frames/` and
-/// its text.
+/// The scenario files, one per mode: each one's path under `docs/spec/frames/` and its text.
 pub fn files() -> Vec<(String, String)> {
-    (1..=12)
+    (1..=23)
         .map(|mode| (format!("scenarios/mode-{mode:03}.txt"), file(mode)))
         .collect()
 }
@@ -1110,9 +1514,9 @@ fn file(mode: u16) -> String {
 mod tests {
     use super::*;
 
-    /// Every scenario of the twelve files.
+    /// Every scenario of the 23 files.
     fn all() -> Vec<Scenario> {
-        (1..=12).flat_map(scenarios).collect()
+        (1..=23).flat_map(scenarios).collect()
     }
 
     /// Every scenario's heading, mode and run, file by file, in file order.
@@ -1135,15 +1539,19 @@ mod tests {
     #[test]
     fn nothing_moves_more_than_one_column_per_frame_except_at_a_reset() {
         for (heading, _, ticks) in runs() {
-            let mut previous: Option<(i64, i64)> = None;
+            let mut previous: Option<Placed> = None;
             for tick in ticks.iter().filter(|t| t.frame.is_some()) {
-                let re_centred = !tick.moving && tick.x == tick.home;
-                if let Some((x, cycle)) = previous
+                let Some(placed) = tick.placed else {
+                    previous = None;
+                    continue;
+                };
+                let re_centred = !tick.moving && placed.x == placed.home;
+                if let Some(before) = previous
                     && !tick.reset
                     && !re_centred
                 {
-                    let was = |c: i64| (c - x).rem_euclid(cycle) == 0;
-                    for c in on_screen(tick.x, tick.cycle) {
+                    let was = |c: i64| (c - before.x).rem_euclid(before.cycle) == 0;
+                    for c in on_screen(placed.x, placed.cycle) {
                         assert!(
                             was(c) || was(c + 1),
                             "{heading}, tick {}: a copy at column {c}",
@@ -1151,7 +1559,7 @@ mod tests {
                         );
                     }
                 }
-                previous = Some((tick.x, tick.cycle));
+                previous = Some(placed);
             }
         }
     }
@@ -1162,8 +1570,10 @@ mod tests {
     fn a_stopped_strip_is_always_at_home() {
         for (heading, _, ticks) in runs() {
             for tick in &ticks {
-                if !tick.moving {
-                    assert_eq!(tick.x, tick.home, "{heading}, tick {}", tick.n);
+                if let Some(placed) = tick.placed
+                    && !tick.moving
+                {
+                    assert_eq!(placed.x, placed.home, "{heading}, tick {}", tick.n);
                 }
             }
         }
@@ -1172,9 +1582,9 @@ mod tests {
     // Phase 8 plan, Task 1: tick 0 names all seven metrics, so a switch into another kind draws
     // named readings.
     #[test]
-    fn every_scenario_names_a_mode_with_values_starts_with_a_reset_and_names_every_metric() {
+    fn every_scenario_names_a_mode_starts_with_a_reset_and_names_every_metric() {
         for (heading, mode, ticks) in runs() {
-            assert!((1..=12).contains(&mode), "{heading}");
+            assert!((1..=23).contains(&mode), "{heading}");
             assert!(ticks[0].reset, "{heading}");
             assert_eq!(ticks[0].n, 0, "{heading}");
             assert!(
@@ -1193,8 +1603,8 @@ mod tests {
         }
     }
 
-    // AC4: all 132 ordered pairs among modes 1–12, a pair with a mode that shows a temperature in
-    // both units.
+    // AC4: all 132 ordered pairs among modes 1–12, and from Phase 9 all 506 among modes 1–23, a
+    // pair with a mode that shows a temperature in both units.
     #[test]
     fn every_ordered_pair_of_modes_has_a_switch_in_each_unit_it_needs() {
         let mut switches: Vec<(u16, u16, Option<bool>)> = Vec::new();
@@ -1205,8 +1615,8 @@ mod tests {
                 }
             }
         }
-        for from in 1..=12 {
-            for into in (1..=12).filter(|&t| t != from) {
+        for from in 1..=23 {
+            for into in (1..=23).filter(|&t| t != from) {
                 let units: &[Option<bool>] = if shows_temperature(from) || shows_temperature(into) {
                     &[Some(false), Some(true)]
                 } else {
@@ -1313,5 +1723,142 @@ mod tests {
         assert_eq!(drawn(&level("CPU Temperature", true, Level::Max)), 9999);
         assert_eq!(drawn(&level("Gpu temperature", true, Level::Max)), 9997);
         assert_eq!(drawn("5537.5"), 9999, "10 000, capped");
+    }
+
+    /// The mode each tick draws, from the scenario's switches.
+    fn modes(scenario: &Scenario, ticks: &[Tick]) -> Vec<u16> {
+        let mut mode = scenario.mode;
+        ticks
+            .iter()
+            .map(|tick| {
+                for step in &tick.steps {
+                    if let Step::Reset(Cause::Mode(m)) = step {
+                        mode = *m;
+                    }
+                }
+                mode
+            })
+            .collect()
+    }
+
+    // music.md, Emoji animations: a reset shows the loop's first picture on the next frame, and
+    // otherwise the loop goes on, a unit change or a Music setting change included.
+    #[test]
+    fn an_emoji_loop_restarts_at_every_reset_and_only_then() {
+        let mut checked = 0;
+        for scenario in all() {
+            let ticks = run(&scenario);
+            let mut at = 0;
+            for (tick, mode) in ticks.iter().zip(modes(&scenario, &ticks)) {
+                if !is_emoji(mode) {
+                    continue;
+                }
+                if tick.reset {
+                    at = 0;
+                    checked += 1;
+                }
+                let loop_ = emoji_ticks(mode);
+                let want = emoji(mode)[loop_[at]].map(row);
+                let frame = tick.frame.expect("no missed tick in an emoji mode");
+                assert!(frame[..7] == want, "{}, tick {}", scenario.heading, tick.n);
+                assert!(frame[7].iter().all(|&p| p == Pixel::Off));
+                at = (at + 1) % loop_.len();
+            }
+        }
+        assert!(checked > 0);
+    }
+
+    // music.md point 7: a Music setting change resets nothing. Without it, every frame of a mode
+    // without a spectrum and every top area stays the same; the spectrum changes somewhere.
+    #[test]
+    fn a_music_setting_changes_only_the_spectrum() {
+        let setting = |s: &Step| {
+            matches!(
+                s,
+                Step::MusicPeaks(_) | Step::MusicBarFall(_) | Step::MusicPeakFall(_)
+            )
+        };
+        let mut checked = 0;
+        for scenario in all() {
+            if !scenario.script.values().flatten().any(setting) {
+                continue;
+            }
+            let mut without = scenario.clone();
+            for steps in without.script.values_mut() {
+                steps.retain(|s| !setting(s));
+            }
+            let (with_, plain) = (run(&scenario), run(&without));
+            let mut differs = false;
+            for ((a, b), mode) in with_.iter().zip(&plain).zip(modes(&scenario, &with_)) {
+                let (a, b) = (a.frame.expect("a frame"), b.frame.expect("a frame"));
+                let top = match mode {
+                    13 => 2,
+                    14..=22 => 8,
+                    _ => SIZE,
+                };
+                assert!(a[..top] == b[..top], "{}", scenario.heading);
+                differs |= a != b;
+            }
+            assert!(
+                differs,
+                "{}: the settings changed nothing",
+                scenario.heading
+            );
+            checked += 1;
+        }
+        assert!(checked >= 12);
+    }
+
+    // music.md, Spectrum: layout: each column a solid bar from the lit floor, and at most one dot
+    // above it with a gap, within the area; nothing between the area and what's above it.
+    #[test]
+    fn every_music_frame_meets_the_spectrum_layout() {
+        for scenario in all() {
+            let ticks = run(&scenario);
+            for (tick, mode) in ticks.iter().zip(modes(&scenario, &ticks)) {
+                // A missed tick draws nothing (S22).
+                let Some(frame) = tick.frame.filter(|_| has_spectrum(mode)) else {
+                    continue;
+                };
+                let first = if mode == 13 { 2 } else { 8 };
+                assert!(frame[first - 1].iter().all(|&p| p == Pixel::Off));
+                for c in 0..SIZE {
+                    let column: Vec<Pixel> = frame.iter().map(|row| row[c]).collect();
+                    let lit: Vec<usize> =
+                        (first..SIZE).filter(|&r| column[r] == Pixel::On).collect();
+                    // The bar: lit rows from the floor up, without a gap; the dot, above a gap.
+                    let bar = lit
+                        .iter()
+                        .rev()
+                        .zip((0..SIZE).rev())
+                        .take_while(|(r, want)| **r == *want)
+                        .count();
+                    assert!(bar >= 1, "{}, tick {}: no floor", scenario.heading, tick.n);
+                    assert!(
+                        lit.len() <= bar + 1,
+                        "{}, tick {}, column {c}",
+                        scenario.heading,
+                        tick.n
+                    );
+                }
+            }
+        }
+    }
+
+    // music.md point 8: entering a spectrum mode from a mode without one starts the levels at 0,
+    // and a switch between Music modes keeps them. Two ticks after column 7's first burst, its bar
+    // still stands above the floor after 14 → 13, and is the floor after 1 → 13.
+    #[test]
+    fn the_spectrum_starts_at_0_when_entered_and_carries_on_between_music_modes() {
+        let column_7 = |from: u16| {
+            let scenario = Script::with("S14", from, None, &[], &[])
+                .at(0, [Step::Audio(BURST)])
+                .at(2, [Step::Reset(Cause::Mode(13))])
+                .end(End::Total(3));
+            let frame = run(&scenario)[2].frame.expect("a frame");
+            (2..SIZE).filter(|&r| frame[r][6] == Pixel::On).count()
+        };
+        assert!(column_7(14) > 2);
+        assert_eq!(column_7(1), 1);
     }
 }

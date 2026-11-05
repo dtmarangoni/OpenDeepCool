@@ -85,6 +85,14 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
                 // Saved for the next mode that shows a temperature.
                 Change::UnitSaved(new) => shown_unit = unit(*new),
                 Change::Missed => missed = true,
+                // Only Music scenarios hold them, and no Music mode is drawn yet.
+                Change::Audio(_)
+                | Change::MusicPeaks(_)
+                | Change::MusicBarFall(_)
+                | Change::MusicPeakFall(_) => panic!(
+                    "{}: the renderer draws sound from Phase 9, Task 2",
+                    scenario.heading
+                ),
                 // Already set, refused, the cooler away and back, a wake-up: the
                 // picture and its movement don't change.
                 _ => {}

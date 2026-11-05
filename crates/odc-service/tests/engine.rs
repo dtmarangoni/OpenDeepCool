@@ -120,6 +120,14 @@ fn replay(scenario: &Scenario, base: u8) {
                     // A refused change never reaches the engine; the cooler's comings and
                     // goings are the device thread's.
                     Change::Refused { .. } | Change::CoolerAway | Change::CoolerBack => {}
+                    // Only Music scenarios hold them, and no Music mode is drawn yet.
+                    Change::Audio(_)
+                    | Change::MusicPeaks(_)
+                    | Change::MusicBarFall(_)
+                    | Change::MusicPeakFall(_) => panic!(
+                        "{}: the engine takes sound and the Music settings from Phase 9, Task 3",
+                        scenario.heading
+                    ),
                 }
             }
         }

@@ -336,6 +336,17 @@ pub fn play_real(
                 Change::Reset(Reset::StartUp) | Change::Wake | Change::Missed => {
                     return Err(format!("{}: {change:?} can't be driven here", plan.name));
                 }
+                // No drawn mode's scenario holds them yet.
+                Change::Audio(_)
+                | Change::MusicPeaks(_)
+                | Change::MusicBarFall(_)
+                | Change::MusicPeakFall(_) => {
+                    return Err(format!(
+                        "{}: {change:?}: the dev service takes sound and the Music settings from \
+                         Phase 9, Task 3",
+                        plan.name
+                    ));
+                }
             }
         }
         if read {
@@ -555,6 +566,17 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                 | Change::Refused { .. }
                 | Change::CoolerAway
                 | Change::CoolerBack => {}
+                // No drawn mode's scenario holds them yet.
+                Change::Audio(_)
+                | Change::MusicPeaks(_)
+                | Change::MusicBarFall(_)
+                | Change::MusicPeakFall(_) => {
+                    return Err(format!(
+                        "{}: {change:?}: the engine takes sound and the Music settings from \
+                         Phase 9, Task 3",
+                        plan.name
+                    ));
+                }
             }
         }
         let apply = (set || refresh || wake).then(|| Apply {
