@@ -16932,7 +16932,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 13, not yet available → f22
+3: refused: mode 24, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -16945,7 +16945,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 120; Gpu power = 48 → f1
 1: - → f2
 2: - → f3
-3: refused: mode 13, not yet available → f4
+3: refused: mode 24, not in the mode table → f4
 4: - → f5
 5: - → f6
 6: refused: mode 1, unavailable → f7
@@ -18758,7 +18758,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 13, not yet available → f22
+3: refused: mode 24, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -18771,7 +18771,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 250 → f380
 1: - → f381
 2: - → f382
-3: refused: mode 13, not yet available → f383
+3: refused: mode 24, not in the mode table → f383
 4: - → f384
 5: - → f385
 6: refused: mode 1, unavailable → f386
@@ -20584,7 +20584,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 13, not yet available → f22
+3: refused: mode 24, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -20597,7 +20597,7 @@
 0: reset start-up; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 120; Gpu power = 250 → f733
 1: - → f734
 2: - → f735
-3: refused: mode 13, not yet available → f736
+3: refused: mode 24, not in the mode table → f736
 4: - → f737
 5: - → f738
 6: refused: mode 1, unavailable → f739

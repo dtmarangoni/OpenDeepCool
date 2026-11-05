@@ -311,6 +311,7 @@ pub fn play_real(
                     let right = match &refused {
                         Err(Error::NotYetAvailable(_)) => reason.contains("not yet"),
                         Err(Error::ModeUnavailable(_)) => reason.contains("unavailable"),
+                        Err(Error::InvalidArgument(_)) => reason.contains("not in the mode table"),
                         _ => false,
                     };
                     if !right {

@@ -268,7 +268,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S20 | Value rules at every length boundary, for every metric, on both sides of each rounding point: 0, 0.49 ↔ 0.5, 9.49 ↔ 9.5, 99.49 ↔ 99.5, 999.49 ↔ 999.5, 9999.49 ↔ 9999.5; in °F, 5536 ↔ 5537 °C (`9997°F` ↔ `9999°F`) and 5537.49 ↔ 5537.5 °C (`9999°F`, then 10 000 capped) | Each number as OpenDeepCool's rules give it, in full up to 9999; 10000 and more are drawn `9999` |
 | S21 | A reading change and a settings change on the same tick | The settings change wins: the new picture at home, with the new reading |
 | S22 | A tick whose deadline is missed (the frame is skipped) while scrolling | The strip moves one column per frame sent; nothing bunches up |
-| S23 | A change the service refuses (an unavailable mode, a later phase's mode) | Nothing changes on the cooler |
+| S23 | A change the service refuses (an unavailable mode, a mode outside the table; owner, 2026-11-05) | Nothing changes on the cooler |
 | S24 | Choosing the mode, unit, rotation or GPU that is already set, static and scrolling, at every *k* | Nothing changes: the strip keeps its position and movement |
 | S25 | Choosing another GPU, static and scrolling, at every *k* | Like a mode switch: the next frame is the picture at home with the new GPU's readings |
 | S26 | The app's Refresh, static and scrolling, at every *k*, with values below and above 100 | Fresh readings at once; the next frame is the picture at home, and it scrolls from there if a value is 100 or more |

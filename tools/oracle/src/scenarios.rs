@@ -734,10 +734,11 @@ fn settings_scenarios(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
                 .end(End::Total(10)),
         );
         for (start, label) in [(Base, "static"), (High, "scrolling")] {
-            // Mode 13 comes in a later version (Phase 9).
+            // A mode outside the table (owner, 2026-11-05): from Phase 9 every mode is drawn, so
+            // none stays "not yet available".
             out.push(
                 s("S23", &[label], start)
-                    .at(3, [Step::Refused(13, "not yet available")])
+                    .at(3, [Step::Refused(24, "not in the mode table")])
                     .at(6, [Step::Refused(refused_unavailable(mode), "unavailable")])
                     .end(End::Total(10)),
             );
