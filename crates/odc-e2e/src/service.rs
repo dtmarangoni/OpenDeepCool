@@ -249,17 +249,20 @@ fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
     examples
 }
 
-/// The modes a scenario shows: the one it starts in and each it switches into.
+/// The modes a scenario needs drawn: the one it starts in, each it switches into, and each it
+/// asks the service to refuse as unavailable, which a mode not drawn yet is refused as not yet
+/// available instead (S23).
 fn shown_modes(scenario: &Scenario) -> impl Iterator<Item = u16> + '_ {
-    let switches = scenario
+    let others = scenario
         .ticks
         .iter()
         .flat_map(|t| &t.changes)
         .filter_map(|c| match c {
             Change::Reset(Reset::Mode(m)) => Some(*m),
+            Change::Refused { mode, reason } if reason.contains("unavailable") => Some(*mode),
             _ => None,
         });
-    std::iter::once(scenario.mode).chain(switches)
+    std::iter::once(scenario.mode).chain(others)
 }
 
 /// The first variant of each scenario type, for each kind of mode among `modes` (a unit change

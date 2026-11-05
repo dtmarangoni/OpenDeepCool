@@ -11,7 +11,7 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_load_modes, values};
+use common::{drawn_modes, values};
 use odc_render::{Marquee, Mode, Unit, mode_info, picture};
 use odc_sensors::Exact;
 use odc_testkit::expected::reading;
@@ -49,7 +49,7 @@ fn every_captured_step_where_both_rules_agree_matches_pixel_for_pixel() {
     let steps = sweep::steps().unwrap_or_else(|e| panic!("{e}; this test needs the local sweeps"));
     let sent = sweep::sent().unwrap_or_else(|e| panic!("{e}; this test needs the local captures"));
     let mut failures: Vec<String> = Vec::new();
-    for mode in drawn_load_modes() {
+    for mode in drawn_modes(odc_render::Kind::Load) {
         let metrics = mode_info(mode).metrics;
         let (mut compared, mut frames) = (0, 0);
         let mut skipped: BTreeMap<&str, Vec<String>> = BTreeMap::new();

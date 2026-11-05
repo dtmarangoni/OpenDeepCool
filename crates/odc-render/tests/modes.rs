@@ -59,8 +59,8 @@ fn distinct() -> Values {
         })
 }
 
-// owner, 2026-10-27 (solution review P8-03): `draws` is true exactly where `picture` draws, and
-// no Temperature, Power or Music mode is drawn before Phases 8 and 9.
+// owner, 2026-10-27 (solution review P8-03): `draws` is true exactly where `picture` draws; Load
+// and Temperature · CPU are drawn (Phase 8 plan, Task 4), and no Music mode before Phase 9.
 #[test]
 fn draws_says_exactly_which_modes_picture_draws() {
     let values = distinct();
@@ -73,7 +73,10 @@ fn draws_says_exactly_which_modes_picture_draws() {
                 mode.number()
             );
         }
-        if mode.number() > 6 {
+        if mode.number() <= 7 {
+            assert!(draws(mode), "mode {} is drawn", mode.number());
+        }
+        if mode.number() > 12 {
             assert!(
                 !draws(mode),
                 "mode {} comes in a later phase",

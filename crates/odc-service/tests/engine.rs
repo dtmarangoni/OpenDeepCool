@@ -407,6 +407,16 @@ fn value(n: i64) -> Reading {
     Reading::Value(Exact::whole(n))
 }
 
+/// The modes among `allowed`, which the readings let the service show, that this build draws:
+/// Phase 8 draws modes 7–12 one commit at a time.
+fn drawn_among(allowed: &[u32]) -> Vec<u32> {
+    allowed
+        .iter()
+        .copied()
+        .filter(|&m| u16::try_from(m).ok().and_then(Mode::new).is_some_and(draws))
+        .collect()
+}
+
 // P6-04: a metric with no device stays available for the first two minutes after start-up, while
 // the registry still looks for late drivers; after that its modes leave AvailableModes, and come
 // back once it's found.
@@ -492,8 +502,10 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     .tick(None, None, false)
     .frame;
     assert_eq!(out.frame, want, "42% over dashes");
+    // Every mode without a GPU metric: `with` gives the GPU's temperature and power the same
+    // reading as its usage.
     let modes = engine.availability().modes;
-    assert_eq!(modes, [1, 3, 5]);
+    assert_eq!(modes, drawn_among(&[1, 3, 5, 7, 10]));
     // A reading the PC may not give at all counts at once, settled or not.
     let denied = with(
         Reading::Unavailable(Unavailable::PermissionDenied {
@@ -502,7 +514,7 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
         value(67),
     );
     let early = availability(&denied, false);
-    assert_eq!(early.modes, [2, 3, 6]);
+    assert_eq!(early.modes, drawn_among(&[2, 3, 6, 7, 8, 9, 10, 11, 12]));
 }
 
 // P8-03: only modes this build draws are ever available, whatever the readings.
@@ -511,9 +523,34 @@ fn only_modes_this_build_draws_are_available() {
     let all = with(value(42), value(67));
     for settled in [false, true] {
         let a = availability(&all, settled);
-        assert_eq!(a.modes, [1, 2, 3, 4, 5, 6]);
+        let every: Vec<u32> = (1..=12).collect();
+        assert_eq!(a.modes, drawn_among(&every));
+        assert!(a.modes.starts_with(&[1, 2, 3, 4, 5, 6, 7]));
         assert!(!a.modes.contains(&13));
         assert_eq!(a.reasons[&13], "comes in a later version");
+    }
+}
+
+// Phase 8 plan, Task 4: a CPU whose driver has no temperature rule (k10temp before family 17h,
+// for example) takes mode 7 out of AvailableModes with its reason, settled or not; the other
+// modes stay.
+#[test]
+fn mode_7_leaves_available_modes_without_a_cpu_temperature_rule() {
+    let no_rule = Snapshot::new(
+        |metric| match metric {
+            Metric::CpuTemperature => Reading::Unavailable(Unavailable::NoRule {
+                driver: "made-up-temp".to_owned(),
+            }),
+            _ => value(50),
+        },
+        Fan::NotChosen,
+        Fan::NotChosen,
+    );
+    for settled in [false, true] {
+        let a = availability(&no_rule, settled);
+        assert!(!a.modes.contains(&7), "{:?}", a.modes);
+        assert_eq!(a.reasons[&7], "CPU Temperature: no reading for this driver");
+        assert!(a.modes.starts_with(&[1, 2, 3, 4, 5, 6]));
     }
 }
 
@@ -524,9 +561,10 @@ fn not_yet_draws_dashes_then_digits() {
     let mut engine = Engine::new(Settings::default(), first);
     let dashes = engine.tick(None, None, false).frame;
     assert_eq!(dashes, Some(home(1, &readings(&[("CPU Usage", None)]))));
+    let every: Vec<u32> = (1..=12).collect();
     assert_eq!(
         engine.availability().modes,
-        [1, 2, 3, 4, 5, 6],
+        drawn_among(&every),
         "NotYet passes"
     );
     let digits = engine

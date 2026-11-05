@@ -8,6 +8,7 @@ mod load;
 mod marquee;
 mod mode;
 mod picture;
+mod temperature;
 mod value;
 
 pub use glyph::{CELSIUS, DASH, DIGITS, FAHRENHEIT, Glyph, PERCENT, WATT};
@@ -71,23 +72,25 @@ fn index(metric: Metric) -> usize {
         .expect("Metric::ALL holds every metric")
 }
 
-/// A mode this build doesn't draw yet: Temperature and Power come in Phase 8, Music in Phase 9.
+/// A mode this build doesn't draw yet: each Temperature and Power mode comes in its own commit of
+/// Phase 8, Music in Phase 9.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct NotYetImplemented(pub Mode);
 
 /// Whether [`picture`] draws `mode`. It's the one source for both the service's refusal and its
 /// `AvailableModes` (owner, 2026-10-27; solution review P8-03).
 pub fn draws(mode: Mode) -> bool {
-    load::draws(mode)
+    load::draws(mode) || temperature::draws(mode)
 }
 
 /// The picture of `mode` for `values`: its strip, its home and whether it must scroll. The
 /// movement ([`Marquee`]) and the rotation (`Frame::rotated`) come after. Only the temperature
-/// modes, from Phase 8, read `unit`.
-pub fn picture(mode: Mode, values: &Values, _unit: Unit) -> Result<Picture, NotYetImplemented> {
+/// modes read `unit`.
+pub fn picture(mode: Mode, values: &Values, unit: Unit) -> Result<Picture, NotYetImplemented> {
     match mode_info(mode).kind {
         Kind::Load => load::picture(mode, values),
-        Kind::Temperature | Kind::Power | Kind::Music => None,
+        Kind::Temperature => temperature::picture(mode, values, unit),
+        Kind::Power | Kind::Music => None,
     }
     .ok_or(NotYetImplemented(mode))
 }

@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{drawn_load_modes, values};
+use common::{drawn_modes, values};
 use odc_render::{Marquee, Mode, Unit, Values, mode_info, picture};
 use odc_sensors::Exact;
 use odc_testkit::diff;
@@ -38,7 +38,7 @@ fn check(mode: Mode, case: &Case, file: &str) {
 
 #[test]
 fn every_case_of_each_drawn_load_mode_matches_its_expected_frames() {
-    let modes = drawn_load_modes();
+    let modes = drawn_modes(odc_render::Kind::Load);
     assert!(!modes.is_empty(), "no Load mode drawn yet");
     for mode in modes {
         let file = format!("mode-{:03}.txt", mode.number());
@@ -53,7 +53,7 @@ fn every_case_of_each_drawn_load_mode_matches_its_expected_frames() {
 #[test]
 fn the_dash_cases_of_each_drawn_load_mode_match() {
     let dashes = load_unavailable();
-    for mode in drawn_load_modes() {
+    for mode in drawn_modes(odc_render::Kind::Load) {
         let cases: Vec<&Case> = dashes
             .iter()
             .filter(|(m, _)| *m == mode.number())
@@ -94,7 +94,7 @@ proptest! {
     // the cycle.
     #[test]
     fn only_the_band_rows_are_ever_lit(top in reading(), bottom in reading()) {
-        for mode in drawn_load_modes() {
+        for mode in drawn_modes(odc_render::Kind::Load) {
             let metrics = mode_info(mode).metrics;
             let mut v = Values::new();
             for (&metric, value) in metrics.iter().zip([top, bottom]) {

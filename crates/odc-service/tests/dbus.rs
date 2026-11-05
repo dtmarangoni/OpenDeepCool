@@ -452,8 +452,9 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
     zbus::block_on(async {
         let caller = h.client().await;
         let before = h.saved();
+        // Music comes in Phase 9.
         assert!(matches!(
-            caller.main.set_mode(9).await,
+            caller.main.set_mode(13).await,
             Err(Error::NotYetAvailable(_))
         ));
         for mode in [0, 24, 70_000, u32::MAX] {
@@ -472,6 +473,11 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
             other => panic!("{other:?}"),
         }
         h.nothing_stored_or_applied(&before);
+        // Phase 8 plan, Task 4: Temperature · CPU is drawn, and its reading is there.
+        caller.main.set_mode(7).await.expect("mode 7");
+        assert_eq!(h.saved_settings().mode, 7, "stored");
+        let applied = h.apply.take().expect("handed to the engine");
+        assert_eq!(applied.settings.map(|s| s.mode), Some(7));
     });
 }
 
