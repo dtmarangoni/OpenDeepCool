@@ -34,7 +34,8 @@ pub const CHANGE_SETTINGS_ACTION: &str = "io.github.dtmarangoni.OpenDeepCool1.ch
 pub const ERROR_PREFIX: &str = "io.github.dtmarangoni.OpenDeepCool1.Error";
 
 /// The errors the service replies with, named `<ERROR_PREFIX>.<variant>`; each carries a
-/// one-line text a person can read.
+/// one-line text a person can read. `ZBus` is never sent by the service: it holds what zbus
+/// reports to a client, such as a lost connection.
 #[derive(zbus::DBusError, Debug)]
 #[zbus(prefix = "io.github.dtmarangoni.OpenDeepCool1.Error")]
 pub enum Error {
@@ -52,6 +53,9 @@ pub enum Error {
     TooManyWatchers(String),
     /// The dev copy only: a test session holds the service.
     Busy(String),
+    /// A failure inside the service, such as a settings file it can't write; the text says what
+    /// failed (owner, 2026-11-04).
+    Failed(String),
 }
 
 /// The main interface, for clients: the settings app (Phase 10), the tests, and `busctl`.

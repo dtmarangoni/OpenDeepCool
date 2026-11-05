@@ -1,7 +1,7 @@
 //! The D-Bus contract (Phase 7 plan, Task 4): the names are valid D-Bus names, the errors carry
 //! the prefix, the state round-trips through `a{sv}` and the D-Bus encoding, and
-//! `docs/spec/dbus.md` lists exactly the crate's state keys, each with its type. The service's
-//! introspection is checked against the document's XML in Task 7.
+//! `docs/spec/dbus.md` lists exactly the crate's state keys, each with its type, and its errors.
+//! The service's introspection is checked against the document's XML in Task 7.
 
 use std::collections::HashMap;
 use std::fs;
@@ -16,13 +16,14 @@ use zbus::names::{ErrorName, InterfaceName, WellKnownName};
 use zbus::wire::serialized::Context;
 use zbus::wire::{LE, ObjectPath, OwnedVariant, Variant, to_bytes};
 
-const ERRORS: [&str; 6] = [
+const ERRORS: [&str; 7] = [
     "NotAuthorized",
     "ModeUnavailable",
     "NotYetAvailable",
     "InvalidArgument",
     "TooManyWatchers",
     "Busy",
+    "Failed",
 ];
 
 #[test]
@@ -56,7 +57,9 @@ fn each_error_is_named_with_the_prefix() {
         Error::InvalidArgument("x".into()),
         Error::TooManyWatchers("x".into()),
         Error::Busy("x".into()),
+        Error::Failed("x".into()),
     ];
+    assert_eq!(errors.len(), ERRORS.len());
     for (error, name) in errors.iter().zip(ERRORS) {
         assert_eq!(error.name().as_str(), format!("{ERROR_PREFIX}.{name}"));
         assert_eq!(error.description(), Some("x"));
@@ -257,4 +260,22 @@ fn dbus_md_lists_exactly_the_state_keys_and_their_types() {
         .map(|(key, signature)| ((*key).to_owned(), (*signature).to_owned()))
         .collect();
     assert_eq!(rows, want);
+}
+
+// docs/spec/dbus.md, Errors: the table lists exactly the errors the service sends, in this order.
+#[test]
+fn dbus_md_lists_exactly_the_errors() {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/../../docs/spec/dbus.md");
+    let text = fs::read_to_string(path).expect("docs/spec/dbus.md");
+    let section = text
+        .split("\n## Errors\n")
+        .nth(1)
+        .and_then(|s| s.split("\n## ").next())
+        .expect("an Errors section");
+    let rows: Vec<&str> = section
+        .lines()
+        .filter_map(|line| line.strip_prefix("| `…Error."))
+        .filter_map(|rest| rest.split('`').next())
+        .collect();
+    assert_eq!(rows, ERRORS);
 }

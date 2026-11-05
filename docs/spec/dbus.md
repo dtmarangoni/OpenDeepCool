@@ -71,12 +71,12 @@ The names start with the project's public address, its GitHub repository, as the
 
 | Member | polkit action | What it does | Errors |
 |---|---|---|---|
-| `SetMode(u)` | `change-settings` | Shows mode *u* from its home, on the next frame | `NotAuthorized`, `InvalidArgument`, `NotYetAvailable`, `ModeUnavailable` |
-| `RotateScreen()` | `change-settings` | One press of Rotate Screen: a quarter turn clockwise, 3 wrapping to 0 ([settings.md](settings.md)) | `NotAuthorized` |
-| `SetRotation(y)` | `change-settings` | Rotation 0–3 | `NotAuthorized`, `InvalidArgument` |
-| `SetTemperatureUnit(s)` | `change-settings` | `celsius` or `fahrenheit`; in a mode without a temperature it's only saved | `NotAuthorized`, `InvalidArgument` |
-| `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus` | `NotAuthorized`, `InvalidArgument` |
-| `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)` | `change-settings` | The fan input listed in `FanInputs` with that chip, device path and number, or all empty for none | `NotAuthorized`, `InvalidArgument` |
+| `SetMode(u)` | `change-settings` | Shows mode *u* from its home, on the next frame | `NotAuthorized`, `InvalidArgument`, `NotYetAvailable`, `ModeUnavailable`, `Failed` |
+| `RotateScreen()` | `change-settings` | One press of Rotate Screen: a quarter turn clockwise, 3 wrapping to 0 ([settings.md](settings.md)) | `NotAuthorized`, `Failed` |
+| `SetRotation(y)` | `change-settings` | Rotation 0–3 | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `SetTemperatureUnit(s)` | `change-settings` | `celsius` or `fahrenheit`; in a mode without a temperature it's only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus` | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)` | `change-settings` | The fan input listed in `FanInputs` with that chip, device path and number, or all empty for none | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `Refresh()` | `change-settings` | Fresh readings at once, and the picture from home; nothing is saved | `NotAuthorized` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller | `NotAuthorized`, `TooManyWatchers` |
@@ -116,8 +116,9 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `…Error.InvalidArgument` | An argument outside what the service found or allows, or over its length limit |
 | `…Error.TooManyWatchers` | The caller's user already has 8 watchers, or there are 32 in all |
 | `…Error.Busy` | The dev copy only: a test session holds the service ("a test is running on this dev copy") |
+| `…Error.Failed` | A failure inside the service, such as a settings file it can't write; the text gives the reason (owner, 2026-11-04) |
 
-A failure inside the service, such as a settings file it can't write, gets zbus's own `org.freedesktop.zbus.Error` with the reason, and a line in the journal; nothing is changed.
+A call that fails inside the service also leaves a line in the journal, and changes nothing. The service never answers with zbus's own `org.freedesktop.zbus.Error`: a client tells such a failure from a lost connection by its name, and the name doesn't depend on the library (D-Bus Specification, Error names: a service names its errors in its own namespace, read 2026-11-04).
 
 ## Dev interface
 

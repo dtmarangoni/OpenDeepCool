@@ -56,7 +56,7 @@ Why each stays: the service reads `/sys` and `/proc` of the host, so no root ima
 Each was agreed with the owner, and the plan, its companion and the PRD say so where marked.
 
 - **D-Bus test bus** (Task 7; owner, 2026-10-29): a private `dbus-daemon` per test instead of peer-to-peer pairs, because zbus sets a sender only from a bus; the fake polkit stays peer-to-peer. The real sleep watcher runs on the private bus, so there's no `SleepWatcher` fake. `Authorizer` and `Credentials` are async and boxed; `Credentials` also gives the user; `Status` keeps no settings; zbus's `p2p` feature, no new crate.
-- **Internal failures** (Task 7): a failure inside the service, such as a settings file it can't write, gets zbus's generic `org.freedesktop.zbus.Error` with the reason (`dbus.md`, Errors).
+- **Internal failures** (Task 7; owner, 2026-11-04): a failure inside the service, such as a settings file it can't write, answers OpenDeepCool's own `…Error.Failed` with the reason (`dbus.md`, Errors). Task 7 first sent zbus's generic `org.freedesktop.zbus.Error`; before sign-off the owner chose the named error, so the app tells it apart from a lost connection, and `dbus.md`'s error list is now checked against the crate's.
 - **polkit action owner and SIGTERM** (Task 8; owner, 2026-10-29): both actions are owned by `unix-user:opendeepcool`; `signal-hook` stops the service cleanly.
 - **D-Bus catch-all deny** (Task 8; owner, 2026-11-04): method calls only, so logind's broadcast `PrepareForSleep` reaches the service whatever dbus-broker does with broadcasts.
 - **Sandbox trial** (Task 8; owner, 2026-11-04): the eight optional settings tried together, to bisect only on a failure. None failed.
@@ -79,7 +79,7 @@ Each was agreed with the owner, and the plan, its companion and the PRD say so w
 
 | Check | Result |
 |---|---|
-| `cargo build --workspace`, `cargo test --workspace`, clippy, fmt | Pass: 368 tests, 2 ignored (the local layer 2 runs) |
+| `cargo build --workspace`, `cargo test --workspace`, clippy, fmt | Pass: 370 tests, 2 ignored (the local layer 2 runs) |
 | Layer 2, local | 77 steps, 2,090 frames, 0 differing pixels (modes 1–6) |
 | `odc-dev check` | Pass, 23 manifest entries |
 | `busctl call … GetState` | `Mode` 1; the GPU's kind from the ranking |

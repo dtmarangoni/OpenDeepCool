@@ -634,8 +634,9 @@ fn choosing_what_is_already_set_changes_nothing() {
     });
 }
 
-// `docs/spec/dbus.md`, Errors: a settings file the service can't write. A plain file where the
-// state directory was fails every write, even root's, as in CI's container.
+// `docs/spec/dbus.md`, Errors: a settings file the service can't write answers `…Error.Failed`,
+// which the proxy turns into `Error::Failed` by its name alone. A plain file where the state
+// directory was fails every write, even root's, as in CI's container.
 #[test]
 fn a_settings_file_that_cant_be_written_changes_nothing() {
     let h = Harness::start(
@@ -649,8 +650,8 @@ fn a_settings_file_that_cant_be_written_changes_nothing() {
     zbus::block_on(async {
         let caller = h.client().await;
         match caller.main.set_mode(3).await {
-            Err(Error::ZBus(e)) => {
-                assert!(e.to_string().contains("the settings can't be saved"), "{e}");
+            Err(Error::Failed(text)) => {
+                assert!(text.starts_with("the settings can't be saved: "), "{text}");
             }
             other => panic!("{other:?}"),
         }

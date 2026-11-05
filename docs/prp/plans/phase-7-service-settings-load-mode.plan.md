@@ -414,7 +414,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading, polkit `use`:** `GetState() -> a{sv}`; `Watch()` and `Unwatch()`; `Diagnostics() -> a(sss)`: metric, bound source, state.
 - **Signal:** `StateChanged(a{sv})`: the changed keys, or the whole state after a watcher passes its check again. It's addressed to each authorized watcher alone, never broadcast.
-- **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`, `…Error.TooManyWatchers`, `…Error.Busy` (dev copy only, while a test session is held; P7-16).
+- **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`, `…Error.TooManyWatchers`, `…Error.Busy` (dev copy only, while a test session is held; P7-16), `…Error.Failed` (a failure inside the service, such as a settings file it can't write, with the reason; never zbus's own `org.freedesktop.zbus.Error`; owner, 2026-11-04).
 - A `#[proxy]` client for the tests and Phase 10.
 
 **Tests**

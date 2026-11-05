@@ -234,9 +234,7 @@ impl Shared {
                 Priority::Error,
                 &format!("the settings can't be saved: {e}"),
             );
-            return Err(Error::ZBus(zbus::Error::Failure(format!(
-                "the settings can't be saved: {e}"
-            ))));
+            return Err(Error::Failed(format!("the settings can't be saved: {e}")));
         }
         *saved = new.clone();
         drop(saved);
