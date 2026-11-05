@@ -3,7 +3,7 @@
 **Plan:** [phase-8-temperature-power.plan.md](../plans/phase-8-temperature-power.plan.md)
 **PRD phase:** 8 — Temperature & Power
 **Branch:** `phase-8-temperature-power`
-**Status:** built, 2026-11-05: every task is committed and validated on the owner's PC; the phase waits for the owner's sign-off, then CI on the branch and the fast-forward of `main`.
+**Status:** complete, 2026-11-05: every task is committed and validated on the owner's PC, the owner signed the phase off, CI passed on the branch on its first run, and `main` was fast-forwarded to the branch (no pull request).
 
 ## Outcome
 
@@ -30,6 +30,7 @@ The service shows Temperature and Power on the LP360, from boot and in every rot
 | `18cea74` | Task 7: mode 10 |
 | `23da16a`, `1b62309` | Task 8: modes 11 and 12 |
 | `d93be31` | Task 9: README and AGENTS.md |
+| `2c38897` | This report, then the commit that marks the phase complete |
 
 ## Acceptance
 
@@ -87,6 +88,7 @@ Each was agreed with the owner where marked; the plan, its companion and the PRD
 - **The e2e service checks test the installed copy:** every mode's commit changed `odc-render`, which the service links, so each needed `odc-dev setup` (one password prompt) before `--only service`.
 - **S25's real path** (switching GPUs on a PC with two) is still **unverified**: this PC has one GPU, so S25 runs in process.
 - **`--attended`** covers modes 1–12 and each kind's scenario types, but has never run; it's the owner's optional tour.
+- **`syn` 2 stays allowed in `deny.toml`:** at sign-off, the newest nvml-wrapper (0.13.0, through thiserror 1 and wrapcenum-derive 0.4.1's darling 0.20) and the newest tracing-attributes (0.1.31, through zbus's tracing) still build with syn 2, and so does bindgen 0.72.1 in the dev tool. CI's pinned actions, `actions/checkout` v7.0.1 and `jdx/mise-action` v5.2.6, were the newest releases.
 
 ## Validation
 
@@ -99,4 +101,4 @@ Each was agreed with the owner where marked; the plan, its companion and the PRD
 | `--only service --require dev-service` | 102 of 102: 15 mode examples (12 modes, °F for 7–9), rotated, scrolling and dash examples, 81 scenario types (27 per kind; S17, S22 and S25 in process with their reasons), the start check, durations and the timing run (3,000 frames, mean 99.998 ms, p50 96.26 ms, p99 104.16 ms); 700 s |
 | Each mode's `--only service --modes <n>` | 7: 32, 8: 31, 9: 35, 10: 31, 11: 31, 12: 34, all passed |
 | `--only baseline --require dev-service` | Mode 4, 600 s: mean CPU 0.21 % of one core, peak RSS 5.5 MiB; writes p50 4.31 ms, p99 8.22 ms, max 8.67 ms; snapshots p50 0.87 ms, p99 2.17 ms, max 2.80 ms. Phase 7's was 0.21 % and 5.4 MiB |
-| CI on the branch | After the owner's sign-off |
+| CI on the branch | Passed on its first run: the dependency audit (`cargo deny check`: advisories, bans, licences and sources ok), format, lint, the workspace's tests as root (420, 4 ignored, as on the owner's PC), the expected-frame regeneration check, the udev rules and the privacy job |
