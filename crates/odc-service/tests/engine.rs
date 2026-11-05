@@ -554,6 +554,39 @@ fn mode_7_leaves_available_modes_without_a_cpu_temperature_rule() {
     }
 }
 
+// Phase 8 plan, Task 5: mode 8 leaves AvailableModes when no GPU is found once the first two
+// minutes are over, and at once when its driver has no temperature rule, each with its reason.
+#[test]
+fn mode_8_leaves_available_modes_without_a_gpu_or_a_gpu_temperature_rule() {
+    let gpu = |reading: Reading| {
+        Snapshot::new(
+            |metric| match metric {
+                Metric::GpuTemperature => reading.clone(),
+                _ => value(50),
+            },
+            Fan::NotChosen,
+            Fan::NotChosen,
+        )
+    };
+    let no_gpu = gpu(Reading::Unavailable(Unavailable::NoDevice));
+    assert!(
+        availability(&no_gpu, false).modes.contains(&8),
+        "still looked for"
+    );
+    let settled = availability(&no_gpu, true);
+    assert!(!settled.modes.contains(&8), "{:?}", settled.modes);
+    assert_eq!(settled.reasons[&8], "Gpu temperature: no device found");
+    let no_rule = gpu(Reading::Unavailable(Unavailable::NoRule {
+        driver: "made-up-gpu".to_owned(),
+    }));
+    for settled in [false, true] {
+        let a = availability(&no_rule, settled);
+        assert!(!a.modes.contains(&8), "{:?}", a.modes);
+        assert_eq!(a.reasons[&8], "Gpu temperature: no reading for this driver");
+        assert!(a.modes.contains(&7), "the CPU's mode stays");
+    }
+}
+
 // The first second of a reading averaged over the interval draws dashes, then digits.
 #[test]
 fn not_yet_draws_dashes_then_digits() {
