@@ -288,6 +288,24 @@ fn next_in_kind(mode: u16) -> u16 {
     first + (mode - first + 1) % count
 }
 
+/// The mode S23 asks for and the service refuses as unavailable: one that shows a metric `mode`
+/// doesn't, so that metric can be unavailable while `mode` still draws its own. The next of the
+/// same kind first, as for Load, then the others from mode 1 (mode 9 shows mode 7's and mode
+/// 8's metrics, mode 12 those of 10 and 11).
+fn refused_unavailable(mode: u16) -> u16 {
+    let mut same_kind = Vec::new();
+    let mut next = next_in_kind(mode);
+    while next != mode {
+        same_kind.push(next);
+        next = next_in_kind(next);
+    }
+    same_kind
+        .into_iter()
+        .chain((1..=12).filter(|&m| kind(m) != kind(mode)))
+        .find(|&m| shown(m).iter().any(|metric| !shown(mode).contains(metric)))
+        .expect("a mode with a metric of its own")
+}
+
 /// Builds one scenario's script.
 struct Script {
     mode: u16,
@@ -720,7 +738,7 @@ fn settings_scenarios(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
             out.push(
                 s("S23", &[label], start)
                     .at(3, [Step::Refused(13, "not yet available")])
-                    .at(6, [Step::Refused(next, "unavailable")])
+                    .at(6, [Step::Refused(refused_unavailable(mode), "unavailable")])
                     .end(End::Total(10)),
             );
         }
@@ -1229,6 +1247,23 @@ mod tests {
                 }
             }
         }
+    }
+
+    // S23: the mode refused as unavailable shows a metric the scenario's mode doesn't, so the
+    // service can make it unavailable while the scenario's mode still draws its own.
+    #[test]
+    fn s23_refuses_a_mode_whose_metric_the_scenario_s_mode_doesn_t_show() {
+        for mode in 1..=12 {
+            let refused = refused_unavailable(mode);
+            assert_ne!(refused, mode);
+            assert!(
+                shown(refused).iter().any(|m| !shown(mode).contains(m)),
+                "mode {mode} refuses mode {refused}"
+            );
+        }
+        // Load keeps Phase 7's choices; modes 9 and 12 reach outside their kind.
+        let chosen: Vec<u16> = (1..=12).map(refused_unavailable).collect();
+        assert_eq!(chosen, [2, 3, 4, 5, 6, 1, 8, 9, 1, 11, 12, 1]);
     }
 
     // Phase 8 plan, Task 1: a unit change in a Load or Power mode leaves every frame as it was.

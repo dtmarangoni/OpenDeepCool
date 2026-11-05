@@ -14644,7 +14644,7 @@
 3: refused: mode 13, not yet available → f22
 4: - → f22
 5: - → f22
-6: refused: mode 7, unavailable → f22
+6: refused: mode 1, unavailable → f22
 7: - → f22
 8: - → f22
 9: - → f22
@@ -14657,7 +14657,7 @@
 3: refused: mode 13, not yet available → f4
 4: - → f5
 5: - → f6
-6: refused: mode 7, unavailable → f7
+6: refused: mode 1, unavailable → f7
 7: - → f8
 8: - → f9
 9: - → f10
@@ -16503,7 +16503,7 @@
 3: refused: mode 13, not yet available → f22
 4: - → f22
 5: - → f22
-6: refused: mode 7, unavailable → f22
+6: refused: mode 1, unavailable → f22
 7: - → f22
 8: - → f22
 9: - → f22
@@ -16516,7 +16516,7 @@
 3: refused: mode 13, not yet available → f389
 4: - → f390
 5: - → f391
-6: refused: mode 7, unavailable → f392
+6: refused: mode 1, unavailable → f392
 7: - → f393
 8: - → f394
 9: - → f395
@@ -18362,7 +18362,7 @@
 3: refused: mode 13, not yet available → f22
 4: - → f22
 5: - → f22
-6: refused: mode 7, unavailable → f22
+6: refused: mode 1, unavailable → f22
 7: - → f22
 8: - → f22
 9: - → f22
@@ -18375,7 +18375,7 @@
 3: refused: mode 13, not yet available → f745
 4: - → f746
 5: - → f747
-6: refused: mode 7, unavailable → f748
+6: refused: mode 1, unavailable → f748
 7: - → f749
 8: - → f750
 9: - → f751
@@ -33965,7 +33965,7 @@
 3: refused: mode 13, not yet available → f1204
 4: - → f1204
 5: - → f1204
-6: refused: mode 7, unavailable → f1204
+6: refused: mode 1, unavailable → f1204
 7: - → f1204
 8: - → f1204
 9: - → f1204
@@ -33978,7 +33978,7 @@
 3: refused: mode 13, not yet available → f1208
 4: - → f1209
 5: - → f1261
-6: refused: mode 7, unavailable → f1262
+6: refused: mode 1, unavailable → f1262
 7: - → f1263
 8: - → f1264
 9: - → f1265
@@ -35824,7 +35824,7 @@
 3: refused: mode 13, not yet available → f1204
 4: - → f1204
 5: - → f1204
-6: refused: mode 7, unavailable → f1204
+6: refused: mode 1, unavailable → f1204
 7: - → f1204
 8: - → f1204
 9: - → f1204
@@ -35837,7 +35837,7 @@
 3: refused: mode 13, not yet available → f1229
 4: - → f1230
 5: - → f1603
-6: refused: mode 7, unavailable → f1604
+6: refused: mode 1, unavailable → f1604
 7: - → f1605
 8: - → f1606
 9: - → f1607
@@ -37683,7 +37683,7 @@
 3: refused: mode 13, not yet available → f1204
 4: - → f1204
 5: - → f1204
-6: refused: mode 7, unavailable → f1204
+6: refused: mode 1, unavailable → f1204
 7: - → f1204
 8: - → f1204
 9: - → f1204
@@ -37696,7 +37696,7 @@
 3: refused: mode 13, not yet available → f1244
 4: - → f1245
 5: - → f1930
-6: refused: mode 7, unavailable → f1931
+6: refused: mode 1, unavailable → f1931
 7: - → f1932
 8: - → f1606
 9: - → f1933
