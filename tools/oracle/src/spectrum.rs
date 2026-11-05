@@ -119,6 +119,8 @@ pub struct Spectrum {
     p0: [f64; COLUMNS],
     t: [u32; COLUMNS],
     peaks: [f64; COLUMNS],
+    /// The peak value *g* of the last tick, once there was one.
+    g: Option<f64>,
 }
 
 impl Spectrum {
@@ -129,12 +131,20 @@ impl Spectrum {
             p0: [0.0; COLUMNS],
             t: [0; COLUMNS],
             peaks: [0.0; COLUMNS],
+            g: None,
         }
     }
 
     /// One tick: each bar rises at once or falls by *b* ÷ 72, never below the level; then each
-    /// peak is reset to its bar, or falls by Winamp's recurrence over the tick's 10/3 frames.
+    /// peak is reset to its bar, or falls by Winamp's recurrence over the tick's 10/3 frames. On
+    /// the first tick with a new *g*, each peak first falls on from where it is: *p₀* its level
+    /// and *t* 0 (point 6; owner, 2026-11-05).
     pub fn update(&mut self, levels: &[f64; COLUMNS], b: f64, g: f64) {
+        if self.g.is_some_and(|last| last != g) {
+            self.p0 = self.peaks;
+            self.t = [0; COLUMNS];
+        }
+        self.g = Some(g);
         for (c, &level) in levels.iter().enumerate() {
             self.bars[c] = level.max(self.bars[c] - b / 72.0).max(0.0);
             if self.bars[c] >= self.peaks[c] {
@@ -558,6 +568,26 @@ mod tests {
             }
             assert_eq!(s.bars[0], 0.0);
         }
+    }
+
+    // Point 6 (owner, 2026-11-05): a peak fall change keeps a falling peak where it is, and it
+    // falls on from there, from rest, at the new speed.
+    #[test]
+    fn a_peak_fall_change_keeps_a_falling_peak_in_place() {
+        let mut full = [0.0; COLUMNS];
+        full[0] = 1.0;
+        let silent = [0.0; COLUMNS];
+        let (b, fast, slow) = (12.0, 1.6, 1.05);
+        let mut s = Spectrum::enter();
+        s.update(&full, b, fast);
+        for _ in 0..3 {
+            s.update(&silent, b, fast);
+        }
+        let before = s.peaks[0];
+        s.update(&silent, b, slow);
+        let fallen = (3.0 / 3840.0) * (slow.powf(10.0 / 3.0) - 1.0) / (slow - 1.0);
+        assert!((s.peaks[0] - (before - fallen)).abs() < 1e-12);
+        assert!(s.peaks[0] < before && s.peaks[0] > s.bars[0]);
     }
 
     // Phase 9 plan, Task 1: peaks off, every column is a solid run from the floor; peaks on, at

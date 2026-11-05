@@ -346,15 +346,20 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - `Spectrum` with three methods:
     - `enter()`: levels 0;
     - `update(levels, &MusicSettings)`;
-    - `draw(h: u8, peaks: bool) -> Columns`.
+    - `draw(h: u8, peaks: bool) -> Columns`, each `Column` a bar height and an optional dot height.
+  - As built (2026-11-05): `bars()` and `peaks()` read the levels; `Stop` has `ALL`, `name()` and `from_name()`, which Task 3's setters and settings file use; `MusicSettings::default()` is peaks on, bars moderate, peaks slow.
 - `crates/odc-render/src/emoji.rs`: CREATE. The four loops typed from `music.md` as `#`/`.` rows and durations. `EmojiLoop` has `reset()` and `tick() -> picture`.
+  - As built: `EmojiLoop::of(mode)` for modes 14–17; `tick()` gives a `Frame` with the picture in rows 1–7; `ticks()` is the loop's length.
 - `crates/odc-render/src/dancer.rs`: CREATE. The eleven poses typed from `music.md`'s pictures as `#`/`.` rows. `Dancer` has `reset()` and `tick(levels: &[f64; 14]) -> pose`: the rules of `music.md` Dancer, in order, with no clock.
+  - As built: `Pose` (0–10, `frame()` on the whole grid); `Dancer::pose()` and `ticks_since_beat()` read the state.
 - `crates/odc-render/src/music.rs`: CREATE. It composes one frame:
   - mode 13: the spectrum in rows 3–14;
   - 14–17: the emoji picture in rows 1–7 and the spectrum in rows 9–14;
   - 18–22: the value area through `picture` and `Marquee`, with the band at rows 2–6, and the spectrum in rows 9–14;
   - 23: the Dancer's pose on the whole grid.
-- `crates/odc-render/Cargo.toml`: UPDATE, `realfft = "3.5"`.
+  - As built: `spectrum_height(mode)` (12, 6 or none); `value_picture(mode, values, unit)`, the value area of 18–22 in rows 2–6 (through `picture.rs`'s `layout_at`), which `picture` returns for a drawn mode; `with_spectrum(top, columns, h)` keeps the top's rows above the area and draws the columns in it. The engine passes a blank top in 13, `EmojiLoop::tick()` in 14–17 and the `Marquee`'s frame in 18–22; mode 23 is `Pose::frame()`.
+- `crates/odc-render/Cargo.toml`: UPDATE, `realfft = "3.5"` (3.5.1, with rustfft 6.4.1; every new crate MIT or Apache-2.0, none a second version).
+- `crates/odc-testkit/src/spectrum.rs`: CREATE (as built). It reads `signals.txt` and makes each signal's samples and tick windows as the file states them, and reads `expected.txt` and `dancer.txt`; Tasks 3, 5 and 6–9 use it too.
 
 **Implementation**
 - `analyse` follows `music.md` point 1 exactly:
@@ -366,7 +371,8 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - −75 to −25 dB mapped to 0–1.
 - `MusicSettings { peaks, bar_fall: Stop, peak_fall: Stop }`, with `Stop` the five Winamp stops and their values (`music.md` point 4):
   - the bar falls *b* ÷ 72 of the height per tick (point 5);
-  - the peak is *p₀* − (3 ÷ 3840) × (*g*^(*t* × 10/3) − 1) ÷ (*g* − 1) after *t* ticks (point 6), computed in `f64`.
+  - the peak is *p₀* − (3 ÷ 3840) × (*g*^(*t* × 10/3) − 1) ÷ (*g* − 1) after *t* ticks (point 6), computed in `f64`;
+  - on the first tick with a new peak fall, each peak falls on from where it is, from rest: *p₀* its level and *t* 0 (owner, 2026-11-05: a falling dot never jumps on a change; the oracle and S15b's expected frames follow).
 - Levels are kept as 0–1, so a switch between *H* = 12 and *H* = 6 keeps them (point 8).
 - `draws` stays false for 13–23 in this task.
 
@@ -377,10 +383,12 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - a tone moving from 40 Hz to 16 kHz moves its highest column monotonically from 1 to 14.
 - **`Spectrum` properties:**
   - a bar never falls faster than its setting;
-  - a peak is never below its bar's level;
+  - a peak is set to its bar whenever the bar reaches it, and otherwise only falls; a dot is only ever drawn above its bar (owner, 2026-11-05: a fast-falling peak may drop below a slow-falling bar for a tick, undrawn, as the spec's rules give);
   - with peaks off, every drawn column is a solid run from the floor;
   - with them on, at most one pixel above it;
-  - every column is at least 1 row high.
+  - every column is at least 1 row high;
+  - a fall change keeps every level, and a falling peak falls on from where it is.
+- **Composition:** `with_spectrum` keeps the rows above the area and draws each column from the floor; `value_picture` draws every case of `mode-018.txt` to `mode-022.txt` over a silent spectrum.
 - **Emoji:** each picture equals a copy typed independently from `music.md`, and each loop's durations add up to 900 ms (1100 ms for emoji 4).
 - **Dancer:**
   - each pose equals its frame in `mode-023.txt`, in all four rotations;

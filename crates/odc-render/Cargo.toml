@@ -9,6 +9,8 @@ publish.workspace = true
 [dependencies]
 odc-protocol = { path = "../odc-protocol" }
 odc-sensors = { path = "../odc-sensors" }
+# The spectrum's FFT (music.md point 1; Phase 9 plan, Task 2).
+realfft = "3.5"
 
 [dev-dependencies]
 odc-testkit = { path = "../odc-testkit" }

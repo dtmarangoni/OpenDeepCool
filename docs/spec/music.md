@@ -61,12 +61,13 @@ Every Music mode (13–22) draws its spectrum this way, the emoji modes included
    | faster | 32 | 0.225 s | 1.6 | 0.45 s |
 5. **Bars:** a bar rises to a higher level at once. Otherwise it falls by *b* ÷ 72 of the full height per tick (*b* = the bar value above), never below the current level. It's drawn max(1, round(level × *H*)) rows high, from the floor up.
 6. **Peak dots** (when on): each column keeps the level *p₀* its peak was last set to and the ticks *t* since then. After the bar is updated: if the bar is at the peak or above, *p₀* = the bar and *t* = 0; otherwise *t* = *t* + 1 and the peak is max(0, *p₀* − (3 ÷ 3840) × (*g*^(*t* × 10/3) − 1) ÷ (*g* − 1)), with *g* the peak value above. That is Winamp's recurrence (a speed of 3/256 pixel on a 15-pixel display, growing by *g* every frame), summed over the frames of each tick. The dot is one pixel at height round(peak × *H*) rows, drawn only when that is above the bar and within the area.
+   - **A peak fall change while a peak falls** (owner, 2026-11-05): on the first tick with the new stop, before the step above, each peak's *p₀* becomes its level now and *t* becomes 0. A falling dot keeps its place and falls on from there at the new speed, from rest. Otherwise the formula would apply the new *g* to the whole fall so far, and a dot falling fast would jump back up when a slower stop is chosen.
 7. **Settings** (owner, 2026-10-25), on the settings app's configuration screen ([settings.md](settings.md#what-the-settings-app-must-offer)):
    - peak dots on or off, on by default;
    - *bar fall*: a slider with the five stops, moderate by default;
    - *peak fall*: a slider with the five stops, slow by default.
 
-   A change shows on the next frame and resets nothing: the bars and peaks keep their levels. In a mode without a spectrum it is only saved. With the dots off, the peaks still follow point 6, so when they're turned back on they show where they would have been anyway: the setting only decides whether they're drawn (owner, 2026-11-05).
+   A change shows on the next frame and resets nothing: the bars and peaks keep their levels, and a falling peak falls on from where it is (point 6). In a mode without a spectrum it is only saved. With the dots off, the peaks still follow point 6, so when they're turned back on they show where they would have been anyway: the setting only decides whether they're drawn (owner, 2026-11-05).
 8. **Continuity:** the bars and peaks keep their levels across a switch between Music modes, a rotation change and Refresh, and are drawn at the new mode's *H*. Entering a Music mode from any other mode starts them at level 0.
 9. **Delay** (owner, 2026-10-25): at most 150 ms for 95 % of frames, from the sound reaching the output's monitor to the frame written to the cooler. The 100 ms tick alone adds 0–100 ms.
 

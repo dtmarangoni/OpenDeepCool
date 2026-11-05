@@ -1,21 +1,30 @@
 //! What the LP360's display shows, as pure code (Phase 7 plan, Task 2): the glyphs, the value
 //! rules, one or two values as a strip, the movement, and the mode table, all from
-//! `docs/spec/display.md` and `docs/spec/music.md`. No clock and no I/O: the service's engine
-//! turns each frame last, and the settings app (Phase 10) draws its tiles with the same code.
+//! `docs/spec/display.md` and `docs/spec/music.md`; and Music's spectrum, emoji loops and Dancer
+//! (Phase 9 plan, Task 2). No clock and no I/O: the service's engine turns each frame last, and
+//! the settings app (Phase 10) draws its tiles with the same code.
 
+mod dancer;
+mod emoji;
 mod glyph;
 mod load;
 mod marquee;
 mod mode;
+mod music;
 mod picture;
 mod power;
+mod spectrum;
 mod temperature;
 mod value;
 
+pub use dancer::{Dancer, Pose};
+pub use emoji::EmojiLoop;
 pub use glyph::{CELSIUS, DASH, DIGITS, FAHRENHEIT, Glyph, PERCENT, WATT};
 pub use marquee::Marquee;
 pub use mode::{Kind, Mode, ModeInfo, mode_info};
+pub use music::{spectrum_height, value_picture, with_spectrum};
 pub use picture::{Band, Picture, layout};
+pub use spectrum::{COLUMNS, Column, Columns, MusicSettings, Spectrum, Stop, WINDOW, analyse};
 pub use value::{CAP, Shown, fahrenheit, number};
 
 use odc_sensors::{Exact, Metric, Reading, Snapshot};
@@ -81,18 +90,18 @@ pub struct NotYetImplemented(pub Mode);
 /// Whether [`picture`] draws `mode`. It's the one source for both the service's refusal and its
 /// `AvailableModes` (owner, 2026-10-27; solution review P8-03).
 pub fn draws(mode: Mode) -> bool {
-    load::draws(mode) || temperature::draws(mode) || power::draws(mode)
+    load::draws(mode) || temperature::draws(mode) || power::draws(mode) || music::draws(mode)
 }
 
 /// The picture of `mode` for `values`: its strip, its home and whether it must scroll. The
-/// movement ([`Marquee`]) and the rotation (`Frame::rotated`) come after. Only the temperature
-/// modes read `unit`.
+/// movement ([`Marquee`]) and the rotation (`Frame::rotated`) come after. Only the modes that show
+/// a temperature read `unit`.
 pub fn picture(mode: Mode, values: &Values, unit: Unit) -> Result<Picture, NotYetImplemented> {
     match mode_info(mode).kind {
         Kind::Load => load::picture(mode, values),
         Kind::Temperature => temperature::picture(mode, values, unit),
         Kind::Power => power::picture(mode, values),
-        Kind::Music => None,
+        Kind::Music => music::picture(mode, values, unit),
     }
     .ok_or(NotYetImplemented(mode))
 }

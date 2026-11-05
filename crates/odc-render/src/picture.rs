@@ -83,7 +83,13 @@ fn band_tops(values: usize) -> &'static [usize] {
 /// One or two values as one picture: each value's digits in places of 4 columns (3 for the digit,
 /// 1 blank), then its symbol; dashes take two places. Two values end at the same column.
 pub fn layout(bands: &[Band]) -> Picture {
-    let tops = band_tops(bands.len());
+    layout_at(bands, band_tops(bands.len()))
+}
+
+/// [`layout`], with each band's top row given: a Music mode's value is in rows 2–6
+/// (`docs/spec/music.md`, Value area).
+pub(crate) fn layout_at(bands: &[Band], tops: &[usize]) -> Picture {
+    assert_eq!(bands.len(), tops.len(), "one top row per band");
     let strips: Vec<Vec<[bool; 5]>> = bands.iter().map(band_columns).collect();
     let width = strips.iter().map(Vec::len).max().expect("a value");
     let mut columns = vec![[false; SIZE]; width];
