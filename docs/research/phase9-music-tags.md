@@ -41,9 +41,22 @@ So the helper could capture only tagged streams with PipeWire's own tools: it wo
 - **When nothing tagged plays**, the spectrum would be silent, or it could fall back to the default output's monitor. That's a product choice.
 - **The helper grows:** it would follow streams appearing, disappearing and changing tags, link and unlink their ports, and handle mono and multichannel streams, where the planned helper only starts `pw-record` on the monitor.
 
+## How DeepCreative does it on Windows
+
+Read from DeepCreative 1.2.14's .NET helper by static analysis, without running it (2026-11-05):
+- it creates NAudio's `WasapiLoopbackCapture` with no arguments, which takes Windows' default playback device for multimedia (`GetDefaultAudioEndpoint`, render and multimedia role) and opens it in loopback mode: everything played on that device, with no filter by application;
+- it reads the default device again on a timer and restarts the capture when the default output changes;
+- it reads 16-bit samples and runs its own FFT, which OpenDeepCool doesn't copy (`music.md`).
+
+So the planned source, the default output's monitor, is what DeepCreative does. On Linux, WirePlumber moves the monitor's capture to a new default output without code.
+
 ## Recommendation
 
 Keep the default output's monitor, as planned. Music-only would leave the spectrum flat for most of the music people play on a PC, in a browser, and for VLC and mpv as they come. If the owner wants the music-only behaviour anyway, the fallback form is the safer one: tagged streams while any plays, the default output otherwise.
+
+## Decision
+
+The owner keeps the default output's monitor, as DeepCreative does (2026-11-05). `music.md` (Source) and the PRD (Open Questions; Decisions Log: Audio source) record it.
 
 ## Sources
 

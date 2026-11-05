@@ -208,6 +208,7 @@ The music harness loads a null sink with `pactl`, stops the owner's helper and r
 ### New from the overview cross-check (2026-10-26)
 
 - **Music-only capture:** the owner wants to try taking only the sound tagged as music (PipeWire `media.role` Music) instead of everything the PC plays. The plan's new Task 0 researches it first; nothing changes until the owner decides.
+  - **Outcome (2026-11-05):** decided after Task 0 (`docs/research/phase9-music-tags.md`): everything on the default output's monitor, as planned and as DeepCreative does on Windows. Only Spotify of six players tags its sound as music.
 
 ## Questions for the owner
 

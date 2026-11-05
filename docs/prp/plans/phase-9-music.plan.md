@@ -246,7 +246,7 @@ flowchart LR
 ### Not building
 
 - **The settings app and its configuration screen:** Phase 10. Its contract (the new state keys and setters) ships here.
-- **Choosing an audio source other than the default output's monitor:** not asked for by the user. The owner does want to try capturing only the sound tagged as music; Task 0 researches it first. The helper's `--target` flag exists only for the end-to-end test.
+- **Choosing an audio source other than the default output's monitor:** the owner keeps the monitor after Task 0's research (2026-11-05), as DeepCreative does on Windows. The helper's `--target` flag exists only for the end-to-end test.
 - **Tuning the bands or the loudness range:** they're spec values (`music.md` points 2–3). Changing them is a spec change with the owner.
 - **Audio before login:** silence, as the spec says.
 
@@ -282,6 +282,8 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - A report in `docs/research/` with the evidence and a recommendation.
 - The owner's decision recorded in `music.md` (Source), the PRD (Open Questions, Decisions Log: Audio source), and this plan.
 - Until the decision, the source stays the default output's monitor.
+
+**Outcome (2026-11-05):** `docs/research/phase9-music-tags.md`. Of six players only Spotify tags its sound as music (mpv, Chrome and, from source, Chromium and Firefox tag none; VLC tags Video by default). A capture limited to tagged streams works with `pw-record` and `pw-link`, no native binding. DeepCreative captures its default output's loopback on Windows, everything played. The owner keeps the default output's monitor, so Tasks 1–10 are unchanged; `music.md` (Source) and the PRD (Open Questions; Decisions Log: Audio source) record it.
 
 ### 1. The oracle gets the spectrum, the emoji resets and the Music scenarios
 
