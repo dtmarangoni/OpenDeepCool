@@ -653,6 +653,56 @@ fn mode_10_leaves_available_modes_when_the_cpu_power_counter_is_denied() {
     }
 }
 
+// Phase 8 plan, Task 8 (owner, 2026-10-27; solution review P8-06): mode 11 leaves AvailableModes
+// on integrated AMD graphics, on an AMD GPU of unknown kind (an unranked APU, as Phase 6's sensor
+// fixtures read it), on a driver without a power rule, and once no GPU is found after the first
+// two minutes, each with its reason; the CPU's power mode stays.
+#[test]
+fn mode_11_leaves_available_modes_when_the_gpu_power_cant_be_shown() {
+    let gpu_power = |reading: Reading| {
+        Snapshot::new(
+            |metric| match metric {
+                Metric::GpuPower => reading.clone(),
+                _ => value(50),
+            },
+            Fan::NotChosen,
+            Fan::NotChosen,
+        )
+    };
+    let lasting = [
+        (
+            Unavailable::IntegratedGpuPower,
+            "an integrated GPU's power includes the CPU's",
+        ),
+        (
+            Unavailable::UnknownGpuKind,
+            "the GPU's kind is unknown, so its power might include the CPU's",
+        ),
+        (
+            Unavailable::NoRule {
+                driver: "made-up-gpu".to_owned(),
+            },
+            "no reading for this driver",
+        ),
+    ];
+    for (reason, text) in lasting {
+        for settled in [false, true] {
+            let a = availability(&gpu_power(Reading::Unavailable(reason.clone())), settled);
+            assert!(!a.modes.contains(&11), "{reason:?}: {:?}", a.modes);
+            assert_eq!(a.reasons[&11], format!("Gpu power: {text}"));
+            assert!(a.modes.contains(&10), "the CPU's power stays");
+        }
+    }
+    let no_gpu = gpu_power(Reading::Unavailable(Unavailable::NoDevice));
+    assert!(
+        availability(&no_gpu, false).modes.contains(&11),
+        "still looked for"
+    );
+    let settled = availability(&no_gpu, true);
+    assert!(!settled.modes.contains(&11));
+    assert_eq!(settled.reasons[&11], "Gpu power: no device found");
+}
+
 // The first second of a reading averaged over the interval draws dashes, then digits.
 #[test]
 fn not_yet_draws_dashes_then_digits() {
