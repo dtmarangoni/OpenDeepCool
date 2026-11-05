@@ -10,6 +10,7 @@
 
 use std::process::Command;
 use std::sync::atomic::AtomicBool;
+use std::thread;
 use std::time::{Duration, Instant};
 
 use odc_ipc::State;
@@ -527,7 +528,7 @@ fn start_real(found: &State) -> Result<String, String> {
             .temperature_unit
             .is_some_and(|u| u.as_str() == "fahrenheit"),
     );
-    let lines = recording_lines(None)?;
+    let lines = first_reports(|| recording_lines(None), FLUSHED_WITHIN)?;
     check_start(&journal, &lines, saved).map(|note| {
         format!(
             "enabled, wanted by multi-user.target, waits for no login; {note} (drawn as the \
@@ -538,6 +539,23 @@ fn start_real(found: &State) -> Result<String, String> {
 
 /// The instance's recording starts with `03 08`, then the saved mode's picture at home, drawn
 /// from the readings its `first readings` journal line gives.
+/// The recording once it holds the instance's first reports, `03 08` and a frame, or as it is
+/// after `within`. The service writes a new recording at each start and flushes it once a
+/// second, so a run started right after the service waits for its first flush.
+fn first_reports(
+    read: impl Fn() -> Result<Vec<odc_testkit::capture::Recorded>, String>,
+    within: Duration,
+) -> Result<Vec<odc_testkit::capture::Recorded>, String> {
+    let deadline = Instant::now() + within;
+    loop {
+        let lines = read()?;
+        if lines.len() >= 2 || Instant::now() >= deadline {
+            return Ok(lines);
+        }
+        thread::sleep(Duration::from_millis(100));
+    }
+}
+
 fn check_start(
     journal: &str,
     lines: &[odc_testkit::capture::Recorded],
@@ -641,6 +659,31 @@ fn start_fake() -> Result<String, String> {
 mod tests {
     use super::*;
     use crate::plays::other_gpu;
+    use std::cell::Cell;
+
+    // A run started within a second of the service waits for the recording's first flush, and
+    // gives up after the flush interval with what's there.
+    #[test]
+    fn the_start_check_waits_for_the_first_flush() {
+        let report: String = startup_report()
+            .as_bytes()
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect();
+        let two = format!("1000 0 out 64 {report}\n7000000 0 out 64 {report}\n");
+        let reads = Cell::new(0);
+        let read = || {
+            reads.set(reads.get() + 1);
+            recording_lines(Some(if reads.get() < 3 { "" } else { &two }))
+        };
+        let lines = first_reports(read, Duration::from_secs(5)).expect("readable");
+        assert_eq!((lines.len(), reads.get()), (2, 3));
+        let began = Instant::now();
+        let empty = first_reports(|| recording_lines(Some("")), Duration::from_millis(250))
+            .expect("readable");
+        assert!(empty.is_empty());
+        assert!(began.elapsed() >= Duration::from_millis(250));
+    }
 
     // Owner, 2026-11-04: S25 runs on the real service with two GPUs or more, whether or not one
     // is chosen, and in process, where it passes, with one.
