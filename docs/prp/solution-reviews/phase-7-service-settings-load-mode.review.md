@@ -203,6 +203,7 @@ SystemCallErrorNumber=EPERM
 
 - **Recommendation:** validate against `Gpus` and `FanInputs`, with length limits, and add the refusal tests listed above. Phase 10's app only offers listed values, so nothing legitimate is refused.
 - **Outcome (2026-10-26):** accepted through OV-14. The settings file is checked for form only, because a saved GPU or input may be missing and is kept.
+  - **Note (2026-11-04, owner):** a saved GPU is no longer kept while it's missing: a GPU added or removed, or a chosen GPU that's gone, clears the choice at start, and `ChooseGpu("")` goes back to Automatic (`sensors.md`, GPU choice; PRD Decisions Log). Fan inputs are still kept for when they're back, so the file stays checked for form only.
 
 ### P7-06: Blocking calls on the tick thread
 

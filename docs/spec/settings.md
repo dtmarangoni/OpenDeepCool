@@ -62,8 +62,8 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 - **Full values** (owner, 2026-10-24): the cooler and the preview show every value in full, with no cap below 9999. Every value is capped at 9999 everywhere: a reading of 10 000 or more shows `9999` on the cooler, in the preview and anywhere else the app shows it (owner, 2026-10-25). A value that doesn't fit the static layout scrolls on its own until it fits again; in Music Mode only the value scrolls, never the spectrum ([display.md](display.md#values)).
 - **GPU choice** (owner, 2026-10-23; rules in [sensors.md](sensors.md#gpu-choice)):
   - shown only when the PC has more than one GPU. With one GPU, dedicated or integrated, there's no GPU control at all;
-  - a dropdown of the PC's GPUs, dedicated before integrated, set to the dedicated GPU on the first run. Each GPU is named by its kind and its product name from the system's PCI ID list (`/usr/share/hwdata/pci.ids`, package `hwdata`), or by its kind, driver and PCI address when the list has no entry (2026-10-25);
-  - the user's choice is kept across reboots;
+  - a dropdown with **Automatic** first, the default, then the PC's GPUs, dedicated before integrated. Automatic reads the first GPU in that order, and choosing it again clears the user's choice (owner, 2026-11-04). Each GPU is named by its kind and its product name from the system's PCI ID list (`/usr/share/hwdata/pci.ids`, package `hwdata`), or by its kind, driver and PCI address when the list has no entry (2026-10-25);
+  - the user's choice is kept across reboots, until a GPU is added or removed: the service then clears it at start, back to Automatic, and the user picks again if they want (owner, 2026-11-04);
   - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
 - **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
   - one picker for the cooler's fans (DeepCreative's CPU Fan I/O) and one for its pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;

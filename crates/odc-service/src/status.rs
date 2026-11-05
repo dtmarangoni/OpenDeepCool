@@ -8,12 +8,14 @@ use std::path::Path;
 
 use odc_device::Link;
 use odc_sensors::{
-    Binding, Exact, FanInput, Gpu, Metric, RANK_FILE, Reading, Snapshot, gpus, review_ranking,
+    Binding, Exact, FanInput, Gpu, Metric, RANK_FILE, Reading, Snapshot, delete_stale, gpus,
+    review_ranking,
 };
 
 use crate::dbus::{kind_of, reason_of};
 use crate::engine::{Availability, Engine};
-use crate::settings::Settings;
+use crate::log::Priority;
+use crate::settings::{Settings, SettingsStore};
 
 /// How the journal line with the first snapshot's readings begins.
 pub const FIRST_READINGS: &str = "first readings: ";
@@ -94,25 +96,62 @@ impl Status {
     }
 }
 
-/// The GPUs at start-up, with the GPU-rank helper's kinds (Phase 6 Task 7): the ranking is read,
-/// and a broken one, or a stale one while no GPU is chosen, deleted so the helper ranks again at
-/// the next start.
+/// The GPUs at start-up, with the GPU-rank helper's kinds (Phase 6 Task 7), and what the start
+/// did to the ranking and the GPU choice.
 pub struct GpusAtStart {
     pub gpus: Vec<Gpu>,
-    /// When the ranking file was deleted, why, for the journal.
-    pub deleted: Option<String>,
+    /// The journal's lines, each with its priority.
+    pub lines: Vec<(Priority, String)>,
 }
 
-pub fn gpus_at_start(sys: &Path, state_dir: &Path, settings: &Settings) -> GpusAtStart {
-    let review = review_ranking(
-        sys,
-        &state_dir.join(RANK_FILE),
-        settings.gpu_choice.is_some(),
-    );
-    GpusAtStart {
-        gpus: gpus(sys, review.ranking.as_ref()),
-        deleted: review.deleted,
+/// Reads the ranking in `state_dir`, deleting a broken one. When GPUs were added or removed since
+/// it was written, or the chosen GPU is gone, the user's choice is cleared, so the GPU is chosen
+/// automatically, and saved; only then is a stale ranking deleted, so the helper ranks again at
+/// the next start (owner, 2026-11-04). A cleared choice that can't be saved still holds for this
+/// run, and the ranking stays, so the next start tries again.
+pub fn gpus_at_start(
+    sys: &Path,
+    state_dir: &Path,
+    store: &SettingsStore,
+    settings: &mut Settings,
+) -> GpusAtStart {
+    let path = state_dir.join(RANK_FILE);
+    let review = review_ranking(sys, &path);
+    let gpus = gpus(sys, review.ranking.as_ref());
+    let mut lines: Vec<(Priority, String)> = review
+        .deleted
+        .into_iter()
+        .map(|why| (Priority::Notice, why))
+        .collect();
+    let gone = settings
+        .gpu_choice
+        .as_ref()
+        .is_some_and(|pci| !gpus.iter().any(|gpu| gpu.pci.to_string() == *pci));
+    let mut saved = true;
+    if (review.stale || gone)
+        && let Some(pci) = settings.gpu_choice.take()
+    {
+        let cleared = format!(
+            "the GPUs changed: the choice of {pci} is cleared, and the GPU chosen automatically"
+        );
+        match store.store(settings) {
+            Ok(()) => lines.push((Priority::Notice, cleared)),
+            Err(e) => {
+                saved = false;
+                lines.push((
+                    Priority::Error,
+                    format!(
+                        "{cleared} for this run, but the settings can't be saved: {e}; the next \
+                         start tries again"
+                    ),
+                ));
+            }
+        }
     }
+    if review.stale && saved {
+        lines.push((Priority::Notice, delete_stale(&path)));
+    }
+    GpusAtStart { gpus, lines }
 }
 
 #[cfg(test)]

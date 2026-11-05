@@ -63,7 +63,7 @@ fn run(dev: bool, journal: &Arc<dyn Journal>) -> Result<(), String> {
         Signals::new([SIGTERM, SIGINT]).map_err(|e| format!("the signal handlers: {e}"))?;
     let state = Path::new(STATE_DIR);
     let store = SettingsStore::new(state);
-    let (settings, found) = store
+    let (mut settings, found) = store
         .load()
         .map_err(|e| format!("{}: {e}", store.path().display()))?;
     match found {
@@ -78,9 +78,9 @@ fn run(dev: bool, journal: &Arc<dyn Journal>) -> Result<(), String> {
         ),
     }
     let roots = Roots::system();
-    let found = gpus_at_start(&roots.sys, state, &settings);
-    if let Some(why) = &found.deleted {
-        journal.write(Priority::Notice, why);
+    let found = gpus_at_start(&roots.sys, state, &store, &mut settings);
+    for (priority, line) in &found.lines {
+        journal.write(*priority, line);
     }
     let inputs = fan_inputs(&roots.sys);
     let mut sensors = RegistrySensors {

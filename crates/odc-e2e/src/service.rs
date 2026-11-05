@@ -105,6 +105,12 @@ impl Drop for Restore<'_> {
         {
             said.push(format!("SetMode: {e}"));
         }
+        // Empty for Automatic.
+        if let Some(gpu) = &self.state.chosen_gpu
+            && let Err(e) = zbus::block_on(main.choose_gpu(gpu))
+        {
+            said.push(format!("ChooseGpu: {e}"));
+        }
         for line in said {
             eprintln!("odc-e2e: the owner's settings weren't all set back: {line}");
         }

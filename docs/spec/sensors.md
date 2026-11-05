@@ -97,16 +97,19 @@ OpenDeepCool reads a GPU only for the display's GPU metrics: temperature, usage 
 - **Rules** (owner, 2026-10-23):
   1. With one GPU, of either kind, OpenDeepCool reads it, and the settings app shows no GPU choice.
   2. With more than one, a dedicated GPU comes before an integrated one.
-  3. With more than one, the settings app shows a dropdown to switch between them. On the first run it's set to the dedicated GPU.
-  4. The user's choice is saved with the other settings and kept across reboots.
+  3. With more than one, the settings app shows a dropdown to switch between them. It starts on **Automatic**, which reads the first GPU in the ranking below, so a dedicated GPU first; choosing Automatic again clears the user's choice (owner, 2026-11-04; until then the dropdown started on the dedicated GPU itself, with no way back).
+  4. The user's choice is saved with the other settings and kept across reboots, until the user chooses Automatic again or a GPU is added or removed (below; owner, 2026-11-04).
 - **Details** (owner, 2026-10-23):
-  - The choice is saved by the GPU's PCI address, because DRM card numbers can change between boots. That the PCI address stays the same while the hardware stays the same is **unverified**: checking it would take reboots, which aren't tested (owner, 2026-10-25). A GPU whose address changed counts as missing.
-  - If the saved GPU is missing at start-up, rules 1–2 pick one, and the saved choice is kept for when it's back.
+  - The choice is saved by the GPU's PCI address, because DRM card numbers can change between boots. That the PCI address stays the same while the hardware stays the same is **unverified**: checking it would take reboots, which aren't tested (owner, 2026-10-25). A GPU whose address changed counts as removed.
+  - If the saved GPU is missing at start-up, it was removed, and the choice is cleared as below (owner, 2026-11-04; until then rules 1–2 picked one, and the saved choice was kept for when its GPU came back).
   - Two GPUs of the same kind are ordered by PCI address.
-- **Ranking:** dedicated, then integrated, then unknown, and GPUs of the same kind by PCI address. Without a saved choice, or when the saved GPU is missing, the first in this order is read.
-- **When the GPUs change** (owner, 2026-10-24):
-  - If the set of GPUs differs from the one the ranking recorded and the user hasn't chosen a GPU, the service deletes the ranking, and the helper ranks again at the next start.
-  - Once the user has chosen, the helper never runs again. A new GPU then appears in the list as unknown, ranked last.
+- **Ranking:** dedicated, then integrated, then unknown, and GPUs of the same kind by PCI address. Without a saved choice, which is Automatic, the first in this order is read.
+- **When the GPUs change** (owner, 2026-10-24; changed by the owner on 2026-11-04):
+  - A GPU counts while its driver is bound, as the GPU list shows it. A driver that doesn't load at a start, such as NVIDIA's after a kernel update, makes its GPU count as removed (owner, 2026-11-04).
+  - If the set of GPUs differs from the one the ranking recorded, a GPU was added or removed. The service clears the user's choice, so the GPU is chosen automatically, saves it, and only then deletes the ranking; the helper ranks again at the next start. The user picks a GPU again if they want (owner, 2026-11-04; until then a choice was kept, and once the user had chosen the helper never ran again).
+  - A chosen GPU that's gone clears the choice the same way, even with no ranking to compare with.
+  - A cleared choice that can't be saved still holds for that run, and the ranking stays, so the next start tries again.
+  - Until the helper ranks again, a new GPU is unknown, ranked last.
   - A ranking file that can't be read, or that doesn't have the expected form, is deleted whether or not the user has chosen; until the next ranking, every GPU is unknown (overview review's cross-check, 2026-10-27).
 - **DeepCreative** picks one "current GPU" and reads its group. With integrated graphics it can also take GPU readings from the CPU group (the integrated-graphics labels above). It also has its own GPU list and default-GPU setting (main-process strings `app/get-gpu-list`, `app/set-default-gpu`). How it picks by default wasn't traced, and OpenDeepCool follows the rules above instead. Code: the helper's GPU selection and label list.
 

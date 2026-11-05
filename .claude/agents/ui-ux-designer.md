@@ -25,7 +25,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 
 ## Design brief (owner, 2026-10-23)
 
-- **GPU choice only when needed.** With one GPU, dedicated or integrated, show no GPU control. With more than one, show a dropdown, set to the dedicated GPU on the first run; the user's choice is kept across reboots.
+- **GPU choice only when needed.** With one GPU, dedicated or integrated, show no GPU control. With more than one, show a dropdown whose first entry, the default, is Automatic: it reads the first GPU in the ranking, a dedicated one first (owner, 2026-11-04). The user's choice is kept across reboots until a GPU is added or removed; the service then clears it, back to Automatic.
 - **Only the cooler.** The app covers the display's settings and the cooler's fan and pump speeds, nothing else.
   - No dashboards and no controls for the CPU, GPU, other fans or power; users use dedicated tools for those, as OpenRGB handles lighting.
   - CPU, GPU and RAM values appear only where the display shows them, for example in the preview.

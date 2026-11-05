@@ -177,8 +177,8 @@ fn the_display_service_reads_the_file_back_and_keeps_it() {
     let ranking = rank(&t.roots().sysfs, &mut kinds);
     let state = state("round-trip");
     let path = write_ranking(&state, &ranking).expect("written");
-    let review = review_ranking(&t.roots().sysfs, &path, false);
-    assert_eq!(review.deleted, None);
+    let review = review_ranking(&t.roots().sysfs, &path);
+    assert_eq!((review.deleted, review.stale), (None, false));
     assert_eq!(review.ranking, Some(ranking));
 }
 

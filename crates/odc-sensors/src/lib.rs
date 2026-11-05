@@ -19,7 +19,7 @@ mod sysfs;
 pub use fans::{FanInput, fan_inputs, fan_rpm};
 pub use gpu::{
     Gpu, GpuKind, PciAddr, RANK_FILE, Ranked, RankedKind, Ranking, Review, Unknown, choose,
-    display_devices, gpus, rank_is_stale, review_ranking,
+    delete_stale, display_devices, gpus, rank_is_stale, review_ranking,
 };
 pub use model::{Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, SystemClock, Unavailable};
 pub use nvml::{NvmlReading, NvmlSource, RealNvml};

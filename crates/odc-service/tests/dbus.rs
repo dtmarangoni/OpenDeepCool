@@ -493,7 +493,7 @@ fn arguments_outside_what_the_service_found_are_refused() {
             caller.main.set_temperature_unit("kelvin").await,
             caller.main.set_temperature_unit(&long).await,
             caller.main.choose_gpu("0000:0c:00.0").await,
-            caller.main.choose_gpu("").await,
+            caller.main.choose_gpu(" ").await,
             caller.main.choose_gpu(&long).await,
             caller.main.set_cooler_fan_input(CHIP, CHIP_DEVICE, 3).await,
             caller
@@ -574,6 +574,38 @@ fn the_choices_listed_are_stored() {
         assert_eq!(state.chosen_gpu.as_deref(), Some("0000:00:02.0"));
         assert_eq!(state.pump_input, Some(None));
         assert_eq!(state.cooler_fan_input.flatten().map(|i| i.input), Some(1));
+        // Empty: back to Automatic (owner, 2026-11-04).
+        caller.main.choose_gpu("").await.expect("automatic");
+        assert_eq!(h.saved_settings().gpu_choice, None);
+        let state =
+            State::from_dict(&caller.main.get_state().await.expect("the state")).expect("a state");
+        assert_eq!(state.chosen_gpu.as_deref(), Some(""));
+    });
+}
+
+#[test]
+fn choosing_automatic_while_no_gpu_is_chosen_changes_nothing() {
+    let h = Harness::start(
+        "automatic",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (watcher, caller) = (h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let before = h.saved();
+        caller.main.choose_gpu("").await.expect("success");
+        h.nothing_stored_or_applied(&before);
+        assert!(
+            within(QUIET, next(&mut changes)).await.is_none(),
+            "no signal"
+        );
     });
 }
 

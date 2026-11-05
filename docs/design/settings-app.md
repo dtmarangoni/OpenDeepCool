@@ -141,14 +141,13 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 
 - **Rotation:** "Turns the picture clockwise". Four grouped `GtkToggleButton`s, `0°`, `90°`, `180°`, `270°`, which call `SetRotation`. The preview turns with the next frame.
 - **GPU:** "Where the display's GPU values come from".
-  - A `GtkDropDown` with a custom list-item factory, shown only when the PC has more than one GPU. One exception: it also stays when the saved GPU is missing (see below).
+  - A `GtkDropDown` with a custom list-item factory, shown only when the PC has more than one GPU.
+  - The first entry is **Automatic** (owner, 2026-11-04): the default, which reads the first GPU in the order below; choosing it calls `ChooseGpu("")`. Its wording, and how it names the GPU it reads, are the designer's to settle before Phase 10's code.
   - Each entry is `<kind> · <product name>`, for example "Dedicated · Contoso Graphics R870". The product name comes from the system's PCI ID list (`hwdata`). Without an entry, the label is `<kind> · <driver> · <PCI address>`.
   - Order: dedicated, integrated, then kind unknown; a GPU with no reading rule comes last. That last kind of entry is marked "no readings" in the list.
-  - Choosing it calls `ChooseGpu`. When the chosen GPU has no reading rule, a hint says "No reading for this GPU's driver: the GPU options are unavailable", and the GPU tiles are disabled with that reason.
-  - **Saved GPU missing:**
-    - the dropdown shows the saved GPU with "— not found", and a hint names the GPU in use: "Using Integrated · Fabrikam Integrated Graphics 7 until it's back";
-    - the saved choice isn't changed (sensors.md, GPU choice);
-    - the row stays even if only one GPU is left, so the user can see why the GPU values changed.
+  - Choosing a GPU calls `ChooseGpu` with its address. When the chosen GPU has no reading rule, a hint says "No reading for this GPU's driver: the GPU options are unavailable", and the GPU tiles are disabled with that reason.
+  - **A GPU added or removed** (owner, 2026-11-04): the service clears the user's choice at its next start, so the list shows Automatic again, and a saved GPU is never missing (sensors.md, GPU choice). Whether the app says why the choice changed is the designer's to settle before Phase 10's code; the service writes it to the journal.
+  - **Mockups behind this section:** `missing-input-gpu.html` still shows the earlier "— not found" GPU and its "until it's back" hint, and no mockup shows Automatic yet. The designer updates them before Phase 10's code (owner's decision of 2026-11-04).
 
 ### Cooler
 
@@ -401,7 +400,7 @@ The design depends on these. The first two were agreed on 2026-10-25. The servic
    - either the service sends each GPU's PCI vendor and device ID, so the app can look up `/usr/share/hwdata/pci.ids`, or the service sends the name;
    - the current `Gpus` (`a(sss)`: address, driver, kind) has neither;
    - it also needs a "no reading rule" flag per GPU.
-4. **The GPU in use as well as the saved one:** needed for the "saved GPU missing" hint. `ChosenGpu` is only the saved choice.
+4. **The GPU in use as well as the saved one:** needed to show which GPU Automatic reads. `ChosenGpu` is only the saved choice, empty for Automatic (owner, 2026-11-04).
 5. **Whether the saved fan and pump inputs are present:** for "not found". The app could infer it by matching `FanInputs`, but an explicit flag avoids two rules.
 6. **How the app learns it's in a remote or inactive session:** `GetState()` refused with `NotAuthorized` ([Not available in this session](#not-available-in-this-session)). There's no `CanChangeSettings()` and no separate check: the refusal that protects the state is what tells the app.
 7. **Watches that can be renewed:** calling `Watch()` or `WatchFrames()` again does no harm, because the app renews its watches each time it connects again, including on every window activation ([Talking to the service](#talking-to-the-service)).

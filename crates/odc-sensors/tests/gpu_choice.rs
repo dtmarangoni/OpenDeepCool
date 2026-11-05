@@ -5,8 +5,8 @@ use std::fs;
 use std::path::PathBuf;
 
 use odc_sensors::{
-    Gpu, GpuKind, PciAddr, RANK_FILE, Ranked, RankedKind, Ranking, Unknown, choose, gpus,
-    rank_is_stale, review_ranking,
+    Gpu, GpuKind, PciAddr, RANK_FILE, Ranked, RankedKind, Ranking, Unknown, choose, delete_stale,
+    gpus, rank_is_stale, review_ranking,
 };
 use odc_testkit::fake_tree::FakeTree;
 use odc_testkit::fixtures::{amdgpu_apu, amdgpu_dgpu, i915, nouveau, nvidia_proprietary, xe};
@@ -175,14 +175,14 @@ fn the_saved_gpu_wins_when_present_and_the_best_ranked_stands_in_when_it_isnt() 
         order_and_choice(&list, Some(pci(IGPU))).1.as_deref(),
         Some(IGPU)
     );
-    // A saved GPU that's gone: the best ranked stands in, and the saved choice itself is the
-    // caller's to keep, untouched.
+    // A saved GPU that's gone: the best ranked stands in. The service clears such a choice at
+    // start (owner, 2026-11-04); `choose` only never reads a GPU that isn't there.
     let gone = pci("0000:0d:00.0");
     assert_eq!(order_and_choice(&list, Some(gone)).1.as_deref(), Some(CARD));
 }
 
 #[test]
-fn a_ranking_is_stale_when_the_gpus_changed_and_the_user_hasnt_chosen() {
+fn a_ranking_is_stale_when_the_gpus_changed() {
     let t = tree("stale");
     amdgpu_dgpu(&t, CARD, 41_000, 37, 182_000_000).expect("card");
     i915(&t, IGPU, 44_000, 9_100_000).expect("igpu");
@@ -193,10 +193,18 @@ fn a_ranking_is_stale_when_the_gpus_changed_and_the_user_hasnt_chosen() {
         gpus: vec![integrated(IGPU, "i915")],
     };
     let list = gpus(&sys(&t), Some(&older));
-    assert!(rank_is_stale(&list, &older, false));
-    assert!(!rank_is_stale(&list, &older, true));
-    assert!(!rank_is_stale(&gpus(&sys(&t), Some(&same)), &same, false));
-    // Once the user has chosen, the new card stays unknown, ranked last.
+    assert!(rank_is_stale(&list, &older));
+    assert!(!rank_is_stale(&gpus(&sys(&t), Some(&same)), &same));
+    // A GPU removed is a change too.
+    let more = Ranking {
+        gpus: vec![
+            dedicated(CARD, "amdgpu"),
+            dedicated("0000:0d:00.0", "amdgpu"),
+            integrated(IGPU, "i915"),
+        ],
+    };
+    assert!(rank_is_stale(&gpus(&sys(&t), Some(&more)), &more));
+    // Until the helper ranks again, the new card is unknown, ranked last.
     let card = list
         .iter()
         .find(|g| g.driver == "amdgpu")
@@ -206,7 +214,7 @@ fn a_ranking_is_stale_when_the_gpus_changed_and_the_user_hasnt_chosen() {
 }
 
 #[test]
-fn the_service_deletes_a_stale_ranking_only_while_the_user_hasnt_chosen() {
+fn a_stale_ranking_is_reported_and_left_for_the_service_to_delete() {
     let t = tree("review-stale");
     amdgpu_dgpu(&t, CARD, 41_000, 37, 182_000_000).expect("card");
     i915(&t, IGPU, 44_000, 9_100_000).expect("igpu");
@@ -217,21 +225,25 @@ fn the_service_deletes_a_stale_ranking_only_while_the_user_hasnt_chosen() {
         .file(format!("state/{RANK_FILE}"), older.render())
         .expect("a ranking");
 
-    let kept = review_ranking(&sys(&t), &file, true);
-    assert_eq!((kept.ranking.as_ref(), kept.deleted), (Some(&older), None));
-    assert!(file.exists());
-
-    let review = review_ranking(&sys(&t), &file, false);
-    assert_eq!(review.ranking.as_ref(), Some(&older));
-    let why = review.deleted.expect("deleted");
+    let review = review_ranking(&sys(&t), &file);
+    assert_eq!(
+        (review.ranking.as_ref(), review.deleted, review.stale),
+        (Some(&older), None, true)
+    );
+    assert!(
+        file.exists(),
+        "left for the service, which clears the choice first"
+    );
+    let why = delete_stale(&file);
     assert!(why.contains("the GPUs changed"), "{why}");
     assert!(!file.exists());
-    // No file at all: nothing to delete, and every GPU is unknown.
-    assert_eq!(review_ranking(&sys(&t), &file, false).ranking, None);
+    // No file at all: nothing to delete, nothing stale, and every GPU is unknown.
+    let none = review_ranking(&sys(&t), &file);
+    assert_eq!((none.ranking, none.stale), (None, false));
 }
 
 #[test]
-fn a_broken_ranking_file_is_deleted_whether_or_not_the_user_has_chosen() {
+fn a_broken_ranking_file_is_deleted() {
     let good = Ranking {
         gpus: vec![dedicated(CARD, "amdgpu"), integrated(IGPU, "i915")],
     }
@@ -256,25 +268,23 @@ fn a_broken_ranking_file_is_deleted_whether_or_not_the_user_has_chosen() {
         ("too big", format!("{good}{}", " ".repeat(70_000))),
     ];
     for (name, text) in cases {
-        for user_has_chosen in [false, true] {
-            let t = tree("broken");
-            amdgpu_dgpu(&t, CARD, 41_000, 37, 182_000_000).expect("card");
-            i915(&t, IGPU, 44_000, 9_100_000).expect("igpu");
-            let file = t.file(format!("state/{RANK_FILE}"), &text).expect("a file");
-            let review = review_ranking(&sys(&t), &file, user_has_chosen);
-            assert_eq!(review.ranking, None, "{name}");
-            let why = review
-                .deleted
-                .unwrap_or_else(|| panic!("{name}: not deleted"));
-            assert!(why.contains("broken"), "{name}: {why}");
-            assert!(!file.exists(), "{name}");
-            let list = gpus(&sys(&t), review.ranking.as_ref());
-            assert!(
-                list.iter()
-                    .all(|g| g.kind == GpuKind::Unknown(Unknown::NotRanked)),
-                "{name}"
-            );
-        }
+        let t = tree("broken");
+        amdgpu_dgpu(&t, CARD, 41_000, 37, 182_000_000).expect("card");
+        i915(&t, IGPU, 44_000, 9_100_000).expect("igpu");
+        let file = t.file(format!("state/{RANK_FILE}"), &text).expect("a file");
+        let review = review_ranking(&sys(&t), &file);
+        assert_eq!((&review.ranking, review.stale), (&None, false), "{name}");
+        let why = review
+            .deleted
+            .unwrap_or_else(|| panic!("{name}: not deleted"));
+        assert!(why.contains("broken"), "{name}: {why}");
+        assert!(!file.exists(), "{name}");
+        let list = gpus(&sys(&t), review.ranking.as_ref());
+        assert!(
+            list.iter()
+                .all(|g| g.kind == GpuKind::Unknown(Unknown::NotRanked)),
+            "{name}"
+        );
     }
 }
 
@@ -294,7 +304,7 @@ fn a_ranking_file_that_is_a_link_is_removed_never_followed() {
     let link = t
         .symlink(format!("state/{RANK_FILE}"), "../elsewhere/real.json")
         .expect("a link");
-    let review = review_ranking(&sys(&t), &link, false);
+    let review = review_ranking(&sys(&t), &link);
     assert_eq!(review.ranking, None);
     assert!(review.deleted.is_some());
     assert!(fs::symlink_metadata(&link).is_err(), "the link is gone");

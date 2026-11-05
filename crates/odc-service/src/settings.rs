@@ -63,7 +63,8 @@ pub struct Settings {
     pub mode: u16,
     pub rotation: u8,
     pub temperature_unit: TemperatureUnit,
-    /// A PCI address, present only once the user chose a GPU.
+    /// The PCI address of the GPU the user chose; absent for Automatic, the first in the ranking.
+    /// Cleared at start when the GPUs changed (owner, 2026-11-04).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_choice: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]

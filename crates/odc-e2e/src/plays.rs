@@ -180,8 +180,7 @@ pub(crate) fn override_args(
 #[derive(Clone, Debug)]
 pub struct Current {
     pub unit: String,
-    /// The GPU the user chose; `None` when nobody did, and then a play never chooses one, since
-    /// a choice can't be taken back over D-Bus.
+    /// The GPU the user chose; `None` for Automatic.
     pub chosen_gpu: Option<String>,
 }
 
@@ -221,7 +220,6 @@ pub fn play_real(
     let first = synced + 1;
     let mut rotation_now = plan.rotation;
     let mut away = None;
-    let mut notes: Vec<&str> = Vec::new();
     for (n, (changes, _)) in plan.ticks.iter().enumerate().skip(1) {
         if changes.is_empty() {
             continue;
@@ -270,16 +268,11 @@ pub fn play_real(
                         .map_err(|e| said("SetTemperatureUnit", e))?,
                     "rotation" => zbus::block_on(main.set_rotation(rotation_now))
                         .map_err(|e| said("SetRotation", e))?,
-                    "GPU" => match &current.chosen_gpu {
-                        Some(pci) => {
-                            zbus::block_on(main.choose_gpu(pci))
-                                .map_err(|e| said("ChooseGpu", e))?;
-                        }
-                        None => notes.push(
-                            "its GPU part left out: nobody chose a GPU, and a choice can't be \
-                             taken back",
-                        ),
-                    },
+                    // Automatic is chosen by an empty address (owner, 2026-11-04).
+                    "GPU" => {
+                        zbus::block_on(main.choose_gpu(current.chosen_gpu.as_deref().unwrap_or("")))
+                            .map_err(|e| said("ChooseGpu", e))?
+                    }
                     other => return Err(format!("{}: already set: {other}?", plan.name)),
                 },
                 Change::Refused { mode, reason } => {
@@ -335,17 +328,12 @@ pub fn play_real(
     if let Some(wait) = end.checked_duration_since(Instant::now()) {
         thread::sleep(wait);
     }
-    let note = compare(
+    compare(
         plan,
         first,
         &recorded_by_tick(first, plan.ticks.len())?,
         away,
-    )?;
-    notes.dedup();
-    Ok(std::iter::once(note.as_str())
-        .chain(notes)
-        .collect::<Vec<_>>()
-        .join("; "))
+    )
 }
 
 /// The mode shown at tick `n`: the plan's, or the last mode switch's before it.

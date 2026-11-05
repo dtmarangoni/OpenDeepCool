@@ -312,20 +312,22 @@ pub fn gpus(sys: &Path, ranking: Option<&Ranking>) -> Vec<Gpu> {
     gpus
 }
 
-/// The GPU the display reads: the saved one when it's there; otherwise the best ranked, while the
-/// saved choice is kept for when its GPU is back (`docs/spec/sensors.md`, GPU choice).
+/// The GPU the display reads: the saved one when it's there; otherwise the best ranked
+/// (`docs/spec/sensors.md`, GPU choice). The service clears a saved choice whose GPU is gone at
+/// start (owner, 2026-11-04), so the fallback only guards against a GPU that never was.
 pub fn choose(gpus: &[Gpu], saved: Option<PciAddr>) -> Option<&Gpu> {
     saved
         .and_then(|pci| gpus.iter().find(|gpu| gpu.pci == pci))
         .or_else(|| gpus.iter().min_by_key(|gpu| (gpu.kind.rank(), gpu.pci)))
 }
 
-/// Whether the ranking must be done again: the GPUs differ from those it lists, and the user
-/// hasn't chosen one (owner, 2026-10-24). Once the user has chosen, a new GPU stays unknown.
-pub fn rank_is_stale(gpus: &[Gpu], ranking: &Ranking, user_has_chosen: bool) -> bool {
+/// Whether the ranking must be done again: the GPUs differ from those it lists (owner,
+/// 2026-10-24), whether or not the user has chosen one; the service then clears the choice too
+/// (owner, 2026-11-04).
+pub fn rank_is_stale(gpus: &[Gpu], ranking: &Ranking) -> bool {
     let present: BTreeSet<PciAddr> = gpus.iter().map(|gpu| gpu.pci).collect();
     let ranked: BTreeSet<PciAddr> = ranking.gpus.iter().map(|gpu| gpu.pci).collect();
-    present != ranked && !user_has_chosen
+    present != ranked
 }
 
 /// What the service made of the ranking file.
@@ -333,20 +335,25 @@ pub fn rank_is_stale(gpus: &[Gpu], ranking: &Ranking, user_has_chosen: bool) -> 
 pub struct Review {
     /// The ranking to take kinds from; `None` when there was none or it was broken.
     pub ranking: Option<Ranking>,
-    /// When the file was deleted, why, for the journal.
+    /// When the file was deleted as broken, why, for the journal.
     pub deleted: Option<String>,
+    /// The GPUs changed since the ranking was written. The file is still there: the service
+    /// clears the user's choice first, then deletes it with [`delete_stale`].
+    pub stale: bool,
 }
 
 /// What the service does with the ranking file at start-up: it reads it, deletes a broken one
-/// whether or not the user has chosen (overview review's cross-check, 2026-10-27), and deletes a
-/// stale one while the user hasn't (owner, 2026-10-24), so the helper ranks again at the next
-/// start. A stale ranking still gives the kinds of the GPUs it lists until then.
-pub fn review_ranking(sys: &Path, path: &Path, user_has_chosen: bool) -> Review {
+/// whether or not the user has chosen (overview review's cross-check, 2026-10-27), and says
+/// whether it's stale, which the service deletes once the user's choice is cleared (owner,
+/// 2026-11-04), so the helper ranks again at the next start. A stale ranking still gives the
+/// kinds of the GPUs it lists until then.
+pub fn review_ranking(sys: &Path, path: &Path) -> Review {
     let ranking = match read_ranking(path) {
         Ok(None) => {
             return Review {
                 ranking: None,
                 deleted: None,
+                stale: false,
             };
         }
         Ok(Some(ranking)) => ranking,
@@ -354,15 +361,21 @@ pub fn review_ranking(sys: &Path, path: &Path, user_has_chosen: bool) -> Review 
             return Review {
                 ranking: None,
                 deleted: Some(delete(path, &format!("broken, {why}"))),
+                stale: false,
             };
         }
     };
-    let deleted = rank_is_stale(&gpus(sys, Some(&ranking)), &ranking, user_has_chosen)
-        .then(|| delete(path, "the GPUs changed since it was written"));
+    let stale = rank_is_stale(&gpus(sys, Some(&ranking)), &ranking);
     Review {
         ranking: Some(ranking),
-        deleted,
+        deleted: None,
+        stale,
     }
+}
+
+/// Deletes a stale ranking file and says so, for the journal.
+pub fn delete_stale(path: &Path) -> String {
+    delete(path, "the GPUs changed since it was written")
 }
 
 /// The ranking file, `None` when there's none. A link, anything but a plain file, or one too big

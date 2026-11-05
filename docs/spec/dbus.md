@@ -75,7 +75,7 @@ The names start with the project's public address, its GitHub repository, as the
 | `RotateScreen()` | `change-settings` | One press of Rotate Screen: a quarter turn clockwise, 3 wrapping to 0 ([settings.md](settings.md)) | `NotAuthorized`, `Failed` |
 | `SetRotation(y)` | `change-settings` | Rotation 0–3 | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `SetTemperatureUnit(s)` | `change-settings` | `celsius` or `fahrenheit`; in a mode without a temperature it's only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
-| `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus` | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus`, or empty for Automatic, which reads the first in `Gpus` (owner, 2026-11-04) | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)` | `change-settings` | The fan input listed in `FanInputs` with that chip, device path and number, or all empty for none | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `Refresh()` | `change-settings` | Fresh readings at once, and the picture from home; nothing is saved | `NotAuthorized` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
@@ -99,7 +99,7 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `AvailableModes` | `au` | The modes the service draws whose every metric can be read on this PC |
 | `UnavailableReasons` | `a{us}` | Each mode left out of `AvailableModes`, with a one-line reason |
 | `Gpus` | `a(sss)` | Each GPU, best first: PCI address, driver, and kind, `dedicated`, `integrated`, `unknown` or `query-failed`, the last ranked as unknown (owner, 2026-10-27; solution review P6-07) |
-| `ChosenGpu` | `s` | The PCI address the user chose, empty when none was chosen |
+| `ChosenGpu` | `s` | The PCI address the user chose, empty for Automatic; the service clears it at start when a GPU was added or removed ([sensors.md](sensors.md#gpu-choice)) |
 | `FanInputs` | `a(ssus)` | Each fan input: chip, device path relative to the sysfs root (`devices/…`), input number, and the driver's label, empty when it gives none |
 | `CoolerFanInput` | `(ssu)` | The input chosen for the cooler's fans: chip, device path and number, all empty when none is chosen |
 | `PumpInput` | `(ssu)` | The same, for the pump |

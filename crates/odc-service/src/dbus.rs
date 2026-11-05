@@ -265,8 +265,12 @@ impl Shared {
         self.save(|s| s.mode = shown.number())
     }
 
+    /// The GPU listed in `Gpus` at this PCI address, or empty for Automatic (owner, 2026-11-04).
     fn choose_gpu(&self, pci: &str) -> Result<(), Error> {
         within("a PCI address", pci, STRING_LIMIT)?;
+        if pci.is_empty() {
+            return self.save(|s| s.gpu_choice = None);
+        }
         let listed = read(&self.status)
             .gpus
             .iter()

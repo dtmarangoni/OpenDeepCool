@@ -62,7 +62,8 @@ Each was agreed with the owner, and the plan, its companion and the PRD say so w
 - **Sandbox trial** (Task 8; owner, 2026-11-04): the eight optional settings tried together, to bisect only on a failure. None failed.
 - **polkit reload** (Task 8, found 2026-11-04): polkitd didn't read the actions file in `/etc/polkit-1/actions`, a folder made after it started, until it reloaded; the dev install and removal now reload polkit.
 - **Task 9's gaps** (owner, 2026-11-04): `Durations()` on the dev interface; the recording keeps the cooler's return after a released session; S17 through the start check, S18's standby and S22 in process, S25 real only with two GPUs; a first-readings journal line in product and dev; a made-up start fixture without a dev service, built in code.
-- **S24's GPU part** (Task 9): left out while nobody chose a GPU, because a choice can't be taken back over D-Bus; the summary says so.
+- **GPU choice** (owner, 2026-11-04, before sign-off): `ChooseGpu("")` goes back to Automatic. At start, a GPU added or removed, or a chosen GPU that's gone, clears the choice, which is saved before the stale ranking is deleted; a choice that can't be saved holds for the run and keeps the ranking (`sensors.md`, GPU choice). Phase 6's `rank_is_stale` and `review_ranking` no longer take `user_has_chosen`, and `review_ranking` leaves a stale file for the service to delete.
+- **S24's GPU part** (Task 9; owner, 2026-11-04): runs on the real service by choosing what's already set, the saved GPU or Automatic. Until Automatic existed it was left out, because a choice couldn't be taken back; the run now also puts the GPU choice back at its end.
 - **Baseline as an area** (Task 10): `odc-e2e --only baseline`, only when named, so later phases can repeat it.
 - **The panic test** (owner, 2026-11-04): its child turns its own core dump off first, so a run no longer raises Omarchy's crash notification; every other crash still dumps.
 - **Checked, no change** (owner's request): two rustc SIGSEGVs during builds on 2026-10-29 and 10-30 weren't tied to `panic = "abort"` and didn't come back in three clean release builds.
@@ -72,14 +73,14 @@ Each was agreed with the owner, and the plan, its companion and the PRD say so w
 - **polkit and new folders:** a policy file in a folder polkitd didn't have at start needs a reload. Phase 11's package installs into `/usr/share/polkit-1/actions`, which exists, but its hook can reload polkit the same way.
 - **systemd re-applies `StateDirectoryMode=`** to a folder that exists: the GPU-rank helper creates `/var/lib/opendeepcool` with the default 0755, and the service's start makes it 0750 (dev) or 0700 (product).
 - **Frame intervals:** the engine sends on exact deadlines, but a write takes 4–9 ms, so the intervals between write-end times spread about ±4 ms around 100 ms (p50 96.9 ms, p99 104.2 ms); the mean stays 100.000 ms.
-- **No way back to an automatic GPU choice:** once a user chooses a GPU, `ChooseGpu` can only choose another. Phase 10's app and `dbus.md` may want an "automatic" choice; it's the owner's call.
+- **No way back to an automatic GPU choice:** settled before sign-off (owner, 2026-11-04): Automatic and the GPU-change rule, under Changes from the plan. The settings app's mockups still show the earlier missing-GPU hint and no Automatic entry; the designer updates them before Phase 10's code.
 - **The e2e service checks test the installed copy:** after a change to the service, `odc-dev setup` again (one password prompt) before `--only service`.
 
 ## Validation
 
 | Check | Result |
 |---|---|
-| `cargo build --workspace`, `cargo test --workspace`, clippy, fmt | Pass: 370 tests, 2 ignored (the local layer 2 runs) |
+| `cargo build --workspace`, `cargo test --workspace`, clippy, fmt | Pass: 375 tests, 2 ignored (the local layer 2 runs) |
 | Layer 2, local | 77 steps, 2,090 frames, 0 differing pixels (modes 1–6) |
 | `odc-dev check` | Pass, 23 manifest entries |
 | `busctl call … GetState` | `Mode` 1; the GPU's kind from the ranking |

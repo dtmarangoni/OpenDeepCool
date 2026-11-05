@@ -411,7 +411,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `CoolerFanInput` and `PumpInput` (ssu each, the same chip, device path and input; empty when unset);
   - `CoolerFanRpm` and `PumpRpm` (d, NaN when unavailable, capped at 9999 like every value; owner, 2026-10-25).
 - **Methods:**
-  - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)`, `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
+  - **changes, polkit-checked:** `SetMode(u)`, `RotateScreen()` (one press, `settings.md` T3), `SetRotation(y)`, `SetTemperatureUnit(s)`, `ChooseGpu(s)` (a listed address, or empty for Automatic; owner, 2026-11-04), `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)`, `Refresh()` (fresh readings, picture restarted from home; owner, 2026-10-24);
   - **reading, polkit `use`:** `GetState() -> a{sv}`; `Watch()` and `Unwatch()`; `Diagnostics() -> a(sss)`: metric, bound source, state.
 - **Signal:** `StateChanged(a{sv})`: the changed keys, or the whole state after a watcher passes its check again. It's addressed to each authorized watcher alone, never broadcast.
 - **Errors:** `…Error.NotAuthorized`, `…Error.ModeUnavailable` (with the reason), `…Error.NotYetAvailable` (modes of later phases), `…Error.InvalidArgument`, `…Error.TooManyWatchers`, `…Error.Busy` (dev copy only, while a test session is held; P7-16), `…Error.Failed` (a failure inside the service, such as a settings file it can't write, with the reason; never zbus's own `org.freedesktop.zbus.Error`; owner, 2026-11-04).
@@ -435,7 +435,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - `gpu_choice` (optional PCI address; present means "the user chose");
   - `cooler_fan_input`, `pump_input` (optional `{chip, device_path, input}`).
 - **Defaults:** `settings.md` OpenDeepCool's defaults.
-- **Validation** (owner, 2026-10-26; solution review OV-14). The file is checked for form only, because a saved GPU or input may be missing from the PC and is kept for when it's back (`sensors.md` GPU choice, Fan and pump speed):
+- **Validation** (owner, 2026-10-26; solution review OV-14). The file is checked for form only, because a saved input may be missing from the PC and is kept for when it's back, and a saved GPU is checked at start instead (owner, 2026-11-04: one that's gone clears the choice) (`sensors.md` GPU choice, Fan and pump speed):
   - mode in the table;
   - rotation 0–3;
   - a known unit;
@@ -491,7 +491,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - A missing device makes all of its metrics unavailable, and so all of its modes (`settings.md` Availability).
 - **Unavailable values** in the current mode → dashes; the mode stays.
 - **GPU:**
-  - at start, Phase 6's `review_ranking(sys, <state dir>/gpu-rank.json, user_has_chosen)` reads the ranking. It deletes a broken one, or a stale one while no GPU is chosen, and says why; the service logs that line, and the helper ranks again at the next start (Phase 6 Task 7). `user_has_chosen` is whether the settings hold a GPU choice;
+  - at start, Phase 6's `review_ranking(sys, <state dir>/gpu-rank.json)` reads the ranking, deletes a broken one and says whether it's stale. When it's stale, or the chosen GPU is gone, `gpus_at_start` clears the user's choice and saves it, then deletes the stale ranking with `delete_stale`, so the helper ranks again at the next start (owner, 2026-11-04; until then a stale ranking was deleted only while no GPU was chosen). A cleared choice that can't be saved holds for the run and keeps the ranking, so the next start tries again. The service logs each line;
   - `gpus(sys, ranking)` gives the GPU list, and the chosen GPU comes from settings through Phase 6's `choose`.
 
 **Tests** (layer 3, CI; `FakeConnector`, `FakeReadings`, `FakeClock`)
@@ -518,7 +518,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   - **Drawable only** (P8-03): mode 13 is never in `AvailableModes`, even with every reading available, because `draws(13)` is false.
 - **Reconnect (S18):** `FakeConnector` vanishes for 5 ticks while `100%` scrolls, then returns. No frames are lost from the schedule, the strip's position follows the ticks, and the returning connection starts with `03 08` (Phase 5).
 - **Wake-up (S18; owner, 2026-10-26):** with the device present all along, a `Wake` while `100%` scrolls. The next report is `03 08`, then that tick's frame; the strip's position continues; `FakeReadings` counts one `restart_intervals()`, and the rate metrics it then reports as `NotYet` show dashes for their first second, then values. A `Wake` while the device is absent changes nothing but the readings.
-- **GPU ranking at start:** the service passes whether a GPU choice is saved to `review_ranking` and logs the deletion line it returns; the deletion rules themselves are Phase 6's tests.
+- **GPU ranking at start** (owner, 2026-11-04): a GPU added or removed, or a chosen GPU that's gone, clears the choice, saved before the stale ranking is deleted; a choice is kept while the GPUs are the same; a change with no choice only deletes the ranking; a choice that can't be saved holds for the run and keeps the ranking. Reading and deleting the ranking are Phase 6's tests.
 
 **Validation**
 - `cargo test -p odc-service --test engine`: passes.
@@ -545,7 +545,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
   1. `Authorizer::allowed(header.sender(), ChangeSettings)`, else `NotAuthorized`.
   2. Validate the argument against the service's own state, else `InvalidArgument` (owner, 2026-10-26; solution review OV-14):
      - a mode from the table; a rotation from 0 to 3; `celsius` or `fahrenheit`;
-     - for `ChooseGpu`, an address listed in `Gpus` now;
+     - for `ChooseGpu`, an address listed in `Gpus` now, or empty for Automatic (owner, 2026-11-04);
      - for `SetCoolerFanInput` and `SetPumpInput`, the empty triple (none) or a triple listed in `FanInputs` now;
      - a string over its limit (64 bytes; 1024 for a device path) is refused before any lookup.
 
@@ -805,6 +805,7 @@ Six sub-steps, **each its own commit** (rule 4): Separate CPU (1), Separate GPU 
 | Durations for the run (owner, 2026-11-04) | The dev interface's `Durations()` returns each write's and each snapshot's duration since the session began; the run computes p50, p99 and the maximum | Testable on the private bus; needs no journal access | A journal summary would need journal access and more code in the service |
 | Seeing the service take the cooler back (owner, 2026-11-04) | After a session that released the cooler, the recording keeps the new `03 08` and the first frame, then stops | Task 7 stopped the recording before the service wrote again | Checking only `CoolerState` wouldn't prove `03 08` came first |
 | Scenario types a run can't drive (owner, 2026-11-04) | Real where D-Bus or the USB switch drives them; S17 through the start check; S18's standby and S22 in-process; S25 real only with two GPUs | A restart needs root, a standby a real suspend, a missed tick a stall; the owner's PC has one GPU | — |
+| The GPU choice when GPUs change, and Automatic (owner, 2026-11-04) | `ChooseGpu("")` goes back to Automatic; at start a GPU added or removed, or a chosen GPU that's gone, clears the choice, saved before the stale ranking is deleted | The plan first left no way back once a GPU was chosen; WirePlumber's `wpctl clear-default` does the same for audio | A choice kept after the hardware changed, and a new GPU left unknown |
 | The first readings in the journal (owner, 2026-11-04) | One Info line per start, product and dev alike, exact | The start check compares the first frame with it; it also says what the display showed at boot | A made-up fixture stands in on PCs without the dev service (rule 10) |
 
 ## Agent Notes

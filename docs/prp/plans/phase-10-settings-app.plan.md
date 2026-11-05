@@ -76,7 +76,7 @@
 **The other contract additions, each the smallest shape that serves the design:**
 - `FanInputs` becomes `a(ssusd)`: chip, device path, input, label, RPM (capped at 9999, like every value; owner, 2026-10-25). `StateChanged` with it goes once a second only to frame watchers, so an app that isn't open costs nothing.
 - `Gpus` becomes `a(sssqqb)`: PCI address, driver, kind, PCI vendor ID, PCI device ID, has a reading rule. The app looks up the product name in `/usr/share/hwdata/pci.ids` (package `hwdata`, present on this PC, 2026-10-25). The service, which is sandboxed, reads nothing new.
-- `GpuInUse` (s): the GPU the readings come from, next to `ChosenGpu`, the saved choice.
+- `GpuInUse` (s): the GPU the readings come from, next to `ChosenGpu`, the saved choice. With Automatic, `ChosenGpu` is empty and `GpuInUse` names the GPU it reads (owner, 2026-11-04).
 - `CoolerFanInputPresent` and `PumpInputPresent` (b).
 - **Not available in this session** (owner, 2026-10-26): when `GetState()` is refused with `NotAuthorized`, the app is in a remote or inactive session and shows only the design's not-available state.
   - It tries again when its window becomes active and when the service's name gets a new owner, with no polling.
@@ -296,7 +296,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 - **State keys:**
   - `FanInputs` RPM follows `FakeReadings`;
   - the `Gpus` IDs and rule flag come from a fake sysfs tree (Phase 6 fixtures);
-  - `GpuInUse` differs from `ChosenGpu` when the saved GPU is missing;
+  - `GpuInUse` names the first GPU in `Gpus` while `ChosenGpu` is empty (Automatic), and the chosen GPU otherwise; a saved GPU that's missing is cleared at start (owner, 2026-11-04);
   - the present flags follow a fan input vanishing.
 
 **Validation**
@@ -322,7 +322,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
   - banners in their order;
   - the caption and status items, with "Music sound" only in Music modes;
   - fan and pump rows: RPM, "Choose input", "Input not found", "No fan sensors found", "—";
-  - the GPU row only with more than one GPU, or when the saved GPU is missing; labels `<kind> · <product>` or `<kind> · <driver> · <address>`; the order dedicated, integrated, unknown, no-rule last;
+  - the GPU row only with more than one GPU, with Automatic first (owner, 2026-11-04; a designer pass before this task adds it to the mockups and drops their missing-GPU hint); labels `<kind> · <product>` or `<kind> · <driver> · <address>`; the order dedicated, integrated, unknown, no-rule last;
   - not available in this session (a refused `GetState()`): only the design's message, with no values, no preview and no controls.
 - **The theme:**
   - the token table of the design;
@@ -437,7 +437,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 **Tests**
 - **Layer 3:**
   - every control → its call with the right argument;
-  - the GPU row's presence for one GPU, several GPUs, and a missing saved GPU;
+  - the GPU row's presence for one GPU and several GPUs, and Automatic's entry with the GPU it reads;
   - the dropdown entries and their accessible names (without RPM) and descriptions (RPM).
 - **Layer 1:** the scale stops map to the five names, both ways.
 
