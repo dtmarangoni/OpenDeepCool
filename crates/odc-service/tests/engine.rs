@@ -587,6 +587,50 @@ fn mode_8_leaves_available_modes_without_a_gpu_or_a_gpu_temperature_rule() {
     }
 }
 
+// Phase 8 plan, Task 6: mode 9 leaves AvailableModes when either temperature has no rule, with
+// the first one's reason, top first.
+#[test]
+fn mode_9_leaves_available_modes_when_either_temperature_has_no_rule() {
+    let no_rule = |driver: &str| {
+        Reading::Unavailable(Unavailable::NoRule {
+            driver: driver.to_owned(),
+        })
+    };
+    let temperatures = |cpu: Reading, gpu: Reading| {
+        Snapshot::new(
+            |metric| match metric {
+                Metric::CpuTemperature => cpu.clone(),
+                Metric::GpuTemperature => gpu.clone(),
+                _ => value(50),
+            },
+            Fan::NotChosen,
+            Fan::NotChosen,
+        )
+    };
+    let cases = [
+        (no_rule("made-up-temp"), value(38), "CPU Temperature"),
+        (value(57), no_rule("made-up-gpu"), "Gpu temperature"),
+        (
+            no_rule("made-up-temp"),
+            no_rule("made-up-gpu"),
+            "CPU Temperature",
+        ),
+    ];
+    for (cpu, gpu, first) in cases {
+        let a = availability(&temperatures(cpu, gpu), true);
+        assert!(!a.modes.contains(&9), "{:?}", a.modes);
+        assert_eq!(
+            a.reasons[&9],
+            format!("{first}: no reading for this driver")
+        );
+    }
+    assert!(
+        availability(&temperatures(value(57), value(38)), true)
+            .modes
+            .contains(&9)
+    );
+}
+
 // The first second of a reading averaged over the interval draws dashes, then digits.
 #[test]
 fn not_yet_draws_dashes_then_digits() {

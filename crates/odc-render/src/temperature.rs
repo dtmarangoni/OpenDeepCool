@@ -11,7 +11,7 @@ use crate::value::{Shown, fahrenheit, number};
 use crate::{Unit, Values};
 
 /// The Temperature modes this build draws.
-const DRAWN: [u16; 2] = [7, 8];
+const DRAWN: [u16; 3] = [7, 8, 9];
 
 pub(crate) fn draws(mode: Mode) -> bool {
     DRAWN.contains(&mode.number())
