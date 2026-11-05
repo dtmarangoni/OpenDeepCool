@@ -19,7 +19,7 @@ use odc_testkit::hardware::{Capability, Probe, Roots, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
 use crate::plays::{Current, Plan, message, play_real, recording_lines};
-use crate::service::{Restore, real_or_why, scenario_plans, state};
+use crate::service::{Restore, gpu_addresses, real_or_why, scenario_plans, state};
 use crate::session::Session;
 
 /// One answer of the owner's.
@@ -111,8 +111,8 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
             .map_or("celsius", |u| u.as_str())
             .to_owned(),
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
+        gpus: gpu_addresses(&found),
     };
-    let gpus = found.gpus.as_ref().map_or(0, Vec::len);
     let _restore = Restore {
         session: &session,
         state: found,
@@ -170,7 +170,7 @@ pub fn run(roots: &Roots, out_dir: &Path) -> Result<bool, String> {
     }
 
     for (id, plan) in scenario_plans() {
-        if let Err(why) = real_or_why(&id, gpus, current.chosen_gpu.is_some(), switch.is_some()) {
+        if let Err(why) = real_or_why(&id, current.gpus.len(), switch.is_some()) {
             println!("== {id} isn't shown: {why}");
             continue;
         }

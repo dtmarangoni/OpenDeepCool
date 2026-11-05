@@ -182,6 +182,15 @@ pub struct Current {
     pub unit: String,
     /// The GPU the user chose; `None` for Automatic.
     pub chosen_gpu: Option<String>,
+    /// The service's GPUs by PCI address, best first: Automatic reads the first.
+    pub gpus: Vec<String>,
+}
+
+/// The GPU to switch to from `now` (S25): the first other one in `gpus`, so two alternate.
+pub fn other_gpu<'a>(gpus: &'a [String], now: Option<&str>) -> Option<&'a str> {
+    gpus.iter()
+        .map(String::as_str)
+        .find(|pci| Some(*pci) != now)
 }
 
 /// Where a real play reaches the cooler's USB switch, for S18's disconnect.
@@ -220,6 +229,12 @@ pub fn play_real(
     let first = synced + 1;
     let mut rotation_now = plan.rotation;
     let mut away = None;
+    // The GPU read now: the chosen one, or Automatic's, the first.
+    let mut gpu_now = current
+        .chosen_gpu
+        .as_deref()
+        .or(current.gpus.first().map(String::as_str));
+    let mut switched = false;
     for (n, (changes, _)) in plan.ticks.iter().enumerate().skip(1) {
         if changes.is_empty() {
             continue;
@@ -252,6 +267,14 @@ pub fn play_real(
                 }
                 Change::Reset(Reset::Refresh) => {
                     zbus::block_on(main.refresh()).map_err(|e| said("Refresh", e))?;
+                }
+                // Like Refresh: its reset waits for the new GPU's first snapshot.
+                Change::Reset(Reset::AnotherGpu) => {
+                    let other = other_gpu(&current.gpus, gpu_now)
+                        .ok_or_else(|| format!("{}: no other GPU to switch to", plan.name))?;
+                    zbus::block_on(main.choose_gpu(other)).map_err(|e| said("ChooseGpu", e))?;
+                    gpu_now = Some(other);
+                    switched = true;
                 }
                 Change::UnitSaved(unit) => {
                     let unit = match unit {
@@ -301,9 +324,7 @@ pub fn play_real(
                         away = Some(n);
                     }
                 }
-                Change::Reset(Reset::AnotherGpu | Reset::StartUp)
-                | Change::Wake
-                | Change::Missed => {
+                Change::Reset(Reset::StartUp) | Change::Wake | Change::Missed => {
                     return Err(format!("{}: {change:?} can't be driven here", plan.name));
                 }
             }
@@ -328,12 +349,15 @@ pub fn play_real(
     if let Some(wait) = end.checked_duration_since(Instant::now()) {
         thread::sleep(wait);
     }
-    compare(
-        plan,
-        first,
-        &recorded_by_tick(first, plan.ticks.len())?,
-        away,
-    )
+    let result = recorded_by_tick(first, plan.ticks.len())
+        .and_then(|recorded| compare(plan, first, &recorded, away));
+    // The next play starts from the run's GPU choice; a play that fails earlier leaves it to the
+    // run's `Restore`.
+    if switched {
+        zbus::block_on(main.choose_gpu(current.chosen_gpu.as_deref().unwrap_or("")))
+            .map_err(|e| said("ChooseGpu", e))?;
+    }
+    result
 }
 
 /// The mode shown at tick `n`: the plan's, or the last mode switch's before it.

@@ -59,18 +59,13 @@ pub fn run(roots: &Roots, tick: Duration, summary: &mut Summary) {
     }
 }
 
-/// Where a scenario type runs on the real service, or why it runs only in process.
-pub(crate) fn real_or_why(
-    id: &str,
-    gpus: usize,
-    chosen: bool,
-    switch: bool,
-) -> Result<(), &'static str> {
+/// Where a scenario type runs on the real service, or why it runs only in process, where it
+/// passes too: S25 needs a second GPU to switch to (owner, 2026-11-04).
+pub(crate) fn real_or_why(id: &str, gpus: usize, switch: bool) -> Result<(), &'static str> {
     match id {
         "S17" => Err("a start-up needs a restart, which needs root: the start check covers it"),
         "S22" => Err("a missed tick needs a stalled engine"),
         "S25" if gpus < 2 => Err("this PC has one GPU"),
-        "S25" if !chosen => Err("nobody chose a GPU, and a choice can't be taken back"),
         "S18" if !switch => Err("the cooler's USB switch isn't usable"),
         _ => Ok(()),
     }
@@ -117,6 +112,16 @@ impl Drop for Restore<'_> {
     }
 }
 
+/// The service's GPUs by PCI address, best first.
+pub(crate) fn gpu_addresses(state: &State) -> Vec<String> {
+    state
+        .gpus
+        .iter()
+        .flatten()
+        .map(|gpu| gpu.pci.clone())
+        .collect()
+}
+
 pub(crate) fn state(session: &Session) -> Result<State, String> {
     let dict = zbus::block_on(session.main().get_state()).map_err(|e| format!("GetState: {e}"))?;
     State::from_dict(&dict).map_err(|e| format!("GetState: {e}"))
@@ -139,8 +144,8 @@ fn real(roots: &Roots, summary: &mut Summary) {
             .map_or("celsius", |u| u.as_str())
             .to_owned(),
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
+        gpus: gpu_addresses(&found),
     };
-    let gpus = found.gpus.as_ref().map_or(0, Vec::len);
     let _restore = Restore {
         session: &session,
         state: found,
@@ -158,7 +163,7 @@ fn real(roots: &Roots, summary: &mut Summary) {
     }
     for (id, plan) in scenario_plans() {
         let name = format!("service_{id}");
-        let result = match real_or_why(&id, gpus, current.chosen_gpu.is_some(), switch.is_some()) {
+        let result = match real_or_why(&id, current.gpus.len(), switch.is_some()) {
             Ok(()) => play_real(&session, &plan, &current, switch.as_deref()),
             Err(why) => play_engine(&plan).map(|note| format!("in process: {why}; {note}")),
         };
@@ -574,4 +579,33 @@ fn start_fake() -> Result<String, String> {
     );
     check_start(&journal, &recording_lines(Some(&recording))?, (1, 0, false))
         .map(|note| format!("on a made-up journal and recording: {note}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plays::other_gpu;
+
+    // Owner, 2026-11-04: S25 runs on the real service with two GPUs or more, whether or not one
+    // is chosen, and in process, where it passes, with one.
+    #[test]
+    fn s25_runs_real_only_with_a_second_gpu() {
+        for gpus in [0, 1] {
+            assert_eq!(real_or_why("S25", gpus, true), Err("this PC has one GPU"));
+        }
+        for gpus in [2, 3] {
+            assert_eq!(real_or_why("S25", gpus, true), Ok(()));
+        }
+        assert_eq!(real_or_why("S24", 1, true), Ok(()));
+    }
+
+    #[test]
+    fn the_other_gpu_is_the_first_one_not_read_now() {
+        let gpus = ["0000:0a:00.0".to_owned(), "0000:00:02.0".to_owned()];
+        // Automatic reads the first; two switches come back to it.
+        let other = other_gpu(&gpus, Some("0000:0a:00.0"));
+        assert_eq!(other, Some("0000:00:02.0"));
+        assert_eq!(other_gpu(&gpus, other), Some("0000:0a:00.0"));
+        assert_eq!(other_gpu(&gpus[..1], Some("0000:0a:00.0")), None);
+    }
 }
