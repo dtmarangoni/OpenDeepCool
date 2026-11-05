@@ -328,7 +328,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 **Tests**
 - The generator's own checks:
   - the existing `mode-*.txt` cases are reproduced unchanged (as regenerated on 2026-10-26 with the nearest rule);
-  - a −20 dBFS tone at a column's centre lights that column and no column two or more away;
+  - a −20 dBFS tone at a column's centre lights that column and no column two or more away, except column 1's, which reaches column 3: 2048-sample bins are wider than the lowest bands (owner, 2026-11-05: kept, `music.md` point 2);
   - with peaks off, every frame meets the DeepCreative layout (solid bars, floor lit);
   - with peaks on, at most one lit pixel above each bar.
 

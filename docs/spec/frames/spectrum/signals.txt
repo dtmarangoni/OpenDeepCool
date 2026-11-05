@@ -1,0 +1,526 @@
+# Spectrum test signals
+
+48 000 samples per second, one channel (both alike); a tick is 4800 samples, and the window of tick n (from 0) is the last 2048 samples of its 100 ms: samples 4800(n + 1) − 2048 to 4800(n + 1) − 1. A tone's sample n, counted from the signal's first sample, is A · sin(2π f n / 48 000) with A = 10^((dBFS + moved) / 20), computed in f64 and stored as f32; tones on one line add. Noise: x ← (1103515245 x + 12345) mod 2³¹ from x = 1 at the signal's start, the sample (x ÷ 2³⁰ − 1) · A. `moved` is the dB a signal was moved by so that no value it draws lies within 10⁻⁶ of a rounding boundary.
+
+## silence
+
+moved 0
+silence 10
+
+## column 1 centre, -20 dBFS
+
+moved 0
+tones 3: 49.543959 Hz -20 dBFS
+silence 3
+
+## column 2 centre, -20 dBFS
+
+moved 0
+tones 3: 76.006745 Hz -20 dBFS
+silence 3
+
+## column 3 centre, -20 dBFS
+
+moved 0
+tones 3: 116.604030 Hz -20 dBFS
+silence 3
+
+## column 4 centre, -20 dBFS
+
+moved 0
+tones 3: 178.885438 Hz -20 dBFS
+silence 3
+
+## column 5 centre, -20 dBFS
+
+moved 0
+tones 3: 274.433053 Hz -20 dBFS
+silence 3
+
+## column 6 centre, -20 dBFS
+
+moved 0
+tones 3: 421.015267 Hz -20 dBFS
+silence 3
+
+## column 7 centre, -20 dBFS
+
+moved 0
+tones 3: 645.891059 Hz -20 dBFS
+silence 3
+
+## column 8 centre, -20 dBFS
+
+moved 0
+tones 3: 990.879175 Hz -20 dBFS
+silence 3
+
+## column 9 centre, -20 dBFS
+
+moved 0
+tones 3: 1520.134897 Hz -20 dBFS
+silence 3
+
+## column 10 centre, -20 dBFS
+
+moved 0
+tones 3: 2332.080604 Hz -20 dBFS
+silence 3
+
+## column 11 centre, -20 dBFS
+
+moved 0
+tones 3: 3577.708764 Hz -20 dBFS
+silence 3
+
+## column 12 centre, -20 dBFS
+
+moved 0
+tones 3: 5488.661061 Hz -20 dBFS
+silence 3
+
+## column 13 centre, -20 dBFS
+
+moved 0
+tones 3: 8420.305348 Hz -20 dBFS
+silence 3
+
+## column 14 centre, -20 dBFS
+
+moved 0
+tones 3: 12917.821190 Hz -20 dBFS
+silence 3
+
+## column 1 centre, -45 dBFS
+
+moved 0
+tones 3: 49.543959 Hz -45 dBFS
+silence 3
+
+## column 2 centre, -45 dBFS
+
+moved 0
+tones 3: 76.006745 Hz -45 dBFS
+silence 3
+
+## column 3 centre, -45 dBFS
+
+moved 0
+tones 3: 116.604030 Hz -45 dBFS
+silence 3
+
+## column 4 centre, -45 dBFS
+
+moved 0
+tones 3: 178.885438 Hz -45 dBFS
+silence 3
+
+## column 5 centre, -45 dBFS
+
+moved 0
+tones 3: 274.433053 Hz -45 dBFS
+silence 3
+
+## column 6 centre, -45 dBFS
+
+moved 0
+tones 3: 421.015267 Hz -45 dBFS
+silence 3
+
+## column 7 centre, -45 dBFS
+
+moved 0
+tones 3: 645.891059 Hz -45 dBFS
+silence 3
+
+## column 8 centre, -45 dBFS
+
+moved 0
+tones 3: 990.879175 Hz -45 dBFS
+silence 3
+
+## column 9 centre, -45 dBFS
+
+moved 0
+tones 3: 1520.134897 Hz -45 dBFS
+silence 3
+
+## column 10 centre, -45 dBFS
+
+moved 0
+tones 3: 2332.080604 Hz -45 dBFS
+silence 3
+
+## column 11 centre, -45 dBFS
+
+moved 0
+tones 3: 3577.708764 Hz -45 dBFS
+silence 3
+
+## column 12 centre, -45 dBFS
+
+moved 0
+tones 3: 5488.661061 Hz -45 dBFS
+silence 3
+
+## column 13 centre, -45 dBFS
+
+moved 0
+tones 3: 8420.305348 Hz -45 dBFS
+silence 3
+
+## column 14 centre, -45 dBFS
+
+moved 0
+tones 3: 12917.821190 Hz -45 dBFS
+silence 3
+
+## column 1 centre, -70 dBFS
+
+moved 0
+tones 3: 49.543959 Hz -70 dBFS
+silence 3
+
+## column 2 centre, -70 dBFS
+
+moved 0
+tones 3: 76.006745 Hz -70 dBFS
+silence 3
+
+## column 3 centre, -70 dBFS
+
+moved 0
+tones 3: 116.604030 Hz -70 dBFS
+silence 3
+
+## column 4 centre, -70 dBFS
+
+moved 0
+tones 3: 178.885438 Hz -70 dBFS
+silence 3
+
+## column 5 centre, -70 dBFS
+
+moved 0
+tones 3: 274.433053 Hz -70 dBFS
+silence 3
+
+## column 6 centre, -70 dBFS
+
+moved 0
+tones 3: 421.015267 Hz -70 dBFS
+silence 3
+
+## column 7 centre, -70 dBFS
+
+moved 0
+tones 3: 645.891059 Hz -70 dBFS
+silence 3
+
+## column 8 centre, -70 dBFS
+
+moved 0
+tones 3: 990.879175 Hz -70 dBFS
+silence 3
+
+## column 9 centre, -70 dBFS
+
+moved 0
+tones 3: 1520.134897 Hz -70 dBFS
+silence 3
+
+## column 10 centre, -70 dBFS
+
+moved 0
+tones 3: 2332.080604 Hz -70 dBFS
+silence 3
+
+## column 11 centre, -70 dBFS
+
+moved 0
+tones 3: 3577.708764 Hz -70 dBFS
+silence 3
+
+## column 12 centre, -70 dBFS
+
+moved 0
+tones 3: 5488.661061 Hz -70 dBFS
+silence 3
+
+## column 13 centre, -70 dBFS
+
+moved 0
+tones 3: 8420.305348 Hz -70 dBFS
+silence 3
+
+## column 14 centre, -70 dBFS
+
+moved 0
+tones 3: 12917.821190 Hz -70 dBFS
+silence 3
+
+## edge 0 below, -20 dBFS
+
+moved 0
+tones 3: 39.200000 Hz -20 dBFS
+silence 3
+
+## edge 0 above, -20 dBFS
+
+moved 0
+tones 3: 40.800000 Hz -20 dBFS
+silence 3
+
+## edge 1 below, -20 dBFS
+
+moved 0
+tones 3: 60.137794 Hz -20 dBFS
+silence 3
+
+## edge 1 above, -20 dBFS
+
+moved 0
+tones 3: 62.592398 Hz -20 dBFS
+silence 3
+
+## edge 2 below, -20 dBFS
+
+moved 0
+tones 3: 92.259038 Hz -20 dBFS
+silence 3
+
+## edge 2 above, -20 dBFS
+
+moved 0
+tones 3: 96.024713 Hz -20 dBFS
+silence 3
+
+## edge 3 below, -20 dBFS
+
+moved 0
+tones 3: 141.537119 Hz -20 dBFS
+silence 3
+
+## edge 3 above, -20 dBFS
+
+moved 0
+tones 3: 147.314144 Hz -20 dBFS
+silence 3
+
+## edge 4 below, -20 dBFS
+
+moved 0
+tones 3: 217.135973 Hz -20 dBFS
+silence 3
+
+## edge 4 above, -20 dBFS
+
+moved 0
+tones 3: 225.998666 Hz -20 dBFS
+silence 3
+
+## edge 5 below, -20 dBFS
+
+moved 0
+tones 3: 333.114246 Hz -20 dBFS
+silence 3
+
+## edge 5 above, -20 dBFS
+
+moved 0
+tones 3: 346.710746 Hz -20 dBFS
+silence 3
+
+## edge 6 below, -20 dBFS
+
+moved 0
+tones 3: 511.039694 Hz -20 dBFS
+silence 3
+
+## edge 6 above, -20 dBFS
+
+moved 0
+tones 3: 531.898457 Hz -20 dBFS
+silence 3
+
+## edge 7 below, -20 dBFS
+
+moved 0
+tones 3: 784.000000 Hz -20 dBFS
+silence 3
+
+## edge 7 above, -20 dBFS
+
+moved 0
+tones 3: 816.000000 Hz -20 dBFS
+silence 3
+
+## edge 8 below, -20 dBFS
+
+moved 0
+tones 3: 1202.755885 Hz -20 dBFS
+silence 3
+
+## edge 8 above, -20 dBFS
+
+moved 0
+tones 3: 1251.847962 Hz -20 dBFS
+silence 3
+
+## edge 9 below, -20 dBFS
+
+moved 0
+tones 3: 1845.180765 Hz -20 dBFS
+silence 3
+
+## edge 9 above, -20 dBFS
+
+moved 0
+tones 3: 1920.494265 Hz -20 dBFS
+silence 3
+
+## edge 10 below, -20 dBFS
+
+moved 0
+tones 3: 2830.742378 Hz -20 dBFS
+silence 3
+
+## edge 10 above, -20 dBFS
+
+moved 0
+tones 3: 2946.282883 Hz -20 dBFS
+silence 3
+
+## edge 11 below, -20 dBFS
+
+moved 0
+tones 3: 4342.719457 Hz -20 dBFS
+silence 3
+
+## edge 11 above, -20 dBFS
+
+moved 0
+tones 3: 4519.973312 Hz -20 dBFS
+silence 3
+
+## edge 12 below, -20 dBFS
+
+moved 0
+tones 3: 6662.284929 Hz -20 dBFS
+silence 3
+
+## edge 12 above, -20 dBFS
+
+moved 0
+tones 3: 6934.214926 Hz -20 dBFS
+silence 3
+
+## edge 13 below, -20 dBFS
+
+moved 0
+tones 3: 10220.793888 Hz -20 dBFS
+silence 3
+
+## edge 13 above, -20 dBFS
+
+moved 0
+tones 3: 10637.969148 Hz -20 dBFS
+silence 3
+
+## edge 14 below, -20 dBFS
+
+moved 0
+tones 3: 15680.000000 Hz -20 dBFS
+silence 3
+
+## edge 14 above, -20 dBFS
+
+moved 0
+tones 3: 16320.000000 Hz -20 dBFS
+silence 3
+
+## columns 1 and 8, -26 dBFS each
+
+moved 0
+tones 3: 49.543959 Hz -26 dBFS, 990.879175 Hz -26 dBFS
+silence 3
+
+## columns 3 and 12, -26 dBFS each
+
+moved 0
+tones 3: 116.604030 Hz -26 dBFS, 5488.661061 Hz -26 dBFS
+silence 3
+
+## columns 5 and 6, -26 dBFS each
+
+moved 0
+tones 3: 274.433053 Hz -26 dBFS, 421.015267 Hz -26 dBFS
+silence 3
+
+## columns 2 and 14, -26 dBFS each
+
+moved 0
+tones 3: 76.006745 Hz -26 dBFS, 12917.821190 Hz -26 dBFS
+silence 3
+
+## columns 7 and 10, -26 dBFS each
+
+moved 0
+tones 3: 645.891059 Hz -26 dBFS, 2332.080604 Hz -26 dBFS
+silence 3
+
+## burst train, column 7, -20 dBFS, 100 ms on, 400 ms off
+
+moved 0
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+tones 1: 645.891059 Hz -20 dBFS
+silence 4
+silence 30
+
+## sweep, 40 Hz to 16 kHz, -20 dBFS
+
+moved 0
+tones 2: 44.516945 Hz -20 dBFS
+tones 2: 55.138642 Hz -20 dBFS
+tones 2: 68.294665 Hz -20 dBFS
+tones 2: 84.589701 Hz -20 dBFS
+tones 2: 104.772716 Hz -20 dBFS
+tones 2: 129.771379 Hz -20 dBFS
+tones 2: 160.734696 Hz -20 dBFS
+tones 2: 199.085828 Hz -20 dBFS
+tones 2: 246.587501 Hz -20 dBFS
+tones 2: 305.423025 Hz -20 dBFS
+tones 2: 378.296644 Hz -20 dBFS
+tones 2: 468.557833 Hz -20 dBFS
+tones 2: 580.355248 Hz -20 dBFS
+tones 2: 718.827412 Hz -20 dBFS
+tones 2: 890.338890 Hz -20 dBFS
+tones 2: 1102.772831 Hz -20 dBFS
+tones 2: 1365.893291 Hz -20 dBFS
+tones 2: 1691.794022 Hz -20 dBFS
+tones 2: 2095.454330 Hz -20 dBFS
+tones 2: 2595.427571 Hz -20 dBFS
+tones 2: 3214.693913 Hz -20 dBFS
+tones 2: 3981.716564 Hz -20 dBFS
+tones 2: 4931.750029 Hz -20 dBFS
+tones 2: 6108.460498 Hz -20 dBFS
+tones 2: 7565.932872 Hz -20 dBFS
+tones 2: 9371.156651 Hz -20 dBFS
+tones 2: 11607.104961 Hz -20 dBFS
+tones 2: 14376.548231 Hz -20 dBFS
+silence 10
+
+## white noise, 0 dBFS
+
+moved 0
+noise 10: 0 dBFS
+silence 10

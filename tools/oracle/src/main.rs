@@ -1,6 +1,7 @@
 //! `odc-oracle` writes the expected frame of every test case, `docs/spec/frames/mode-001.txt` to
 //! `mode-022.txt`, the dash cases `unavailable.txt` and the scenarios of modes 1–12,
-//! `scenarios/mode-001.txt` to `mode-012.txt`, from the spec's rules alone. It's a dev-only tool,
+//! `scenarios/mode-001.txt` to `mode-012.txt`, and the spectrum's test signals and expected rows,
+//! `spectrum/signals.txt` and `expected.txt`, from the spec's rules alone. It's a dev-only tool,
 //! never shipped, and it shares no code with OpenDeepCool, so the program is never compared with
 //! its own code (PRD, Testing Strategy).
 
@@ -9,6 +10,7 @@ mod frames;
 mod movement;
 mod rules;
 mod scenarios;
+mod spectrum;
 
 use std::path::Path;
 use std::process::ExitCode;
@@ -17,7 +19,8 @@ use std::{env, fs, io};
 const USAGE: &str = "usage: odc-oracle <out-dir>
 
 Writes the expected frames, mode-001.txt to mode-022.txt, unavailable.txt and
-the scenarios, scenarios/mode-001.txt to mode-012.txt, into <out-dir>.
+the scenarios, scenarios/mode-001.txt to mode-012.txt, and the spectrum's
+spectrum/signals.txt and spectrum/expected.txt, into <out-dir>.
 The committed copies live in docs/spec/frames/.";
 
 fn main() -> ExitCode {

@@ -90,6 +90,15 @@ pub fn files() -> Vec<(String, String)> {
         .collect();
     files.push(("unavailable.txt".to_owned(), unavailable_file()));
     files.extend(crate::scenarios::files());
+    let signals = crate::spectrum::signals();
+    files.push((
+        "spectrum/signals.txt".to_owned(),
+        crate::spectrum::signals_file(&signals),
+    ));
+    files.push((
+        "spectrum/expected.txt".to_owned(),
+        crate::spectrum::expected_file(&signals),
+    ));
     files
 }
 
