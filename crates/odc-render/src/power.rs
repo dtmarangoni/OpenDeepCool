@@ -9,7 +9,7 @@ use crate::picture::{Band, Picture, layout};
 use crate::value::number;
 
 /// The Power modes this build draws.
-const DRAWN: [u16; 2] = [10, 11];
+const DRAWN: [u16; 3] = [10, 11, 12];
 
 pub(crate) fn draws(mode: Mode) -> bool {
     DRAWN.contains(&mode.number())

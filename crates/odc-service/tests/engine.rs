@@ -703,6 +703,53 @@ fn mode_11_leaves_available_modes_when_the_gpu_power_cant_be_shown() {
     assert_eq!(settled.reasons[&11], "Gpu power: no device found");
 }
 
+// Phase 8 plan, Task 8: mode 12 leaves AvailableModes when either power can't be read for good,
+// with the first one's reason, top first; the unknown-kind APU takes it out with mode 11.
+#[test]
+fn mode_12_leaves_available_modes_when_either_power_cant_be_shown() {
+    let powers = |cpu: Reading, gpu: Reading| {
+        Snapshot::new(
+            |metric| match metric {
+                Metric::CpuPower => cpu.clone(),
+                Metric::GpuPower => gpu.clone(),
+                _ => value(50),
+            },
+            Fan::NotChosen,
+            Fan::NotChosen,
+        )
+    };
+    let denied = || {
+        Reading::Unavailable(Unavailable::PermissionDenied {
+            path: "/sys/fake/energy_uj".into(),
+        })
+    };
+    let unknown = || Reading::Unavailable(Unavailable::UnknownGpuKind);
+    let cases = [
+        (denied(), value(250), "CPU Power: no permission to read it"),
+        (
+            value(65),
+            unknown(),
+            "Gpu power: the GPU's kind is unknown, so its power might include the CPU's",
+        ),
+        (denied(), unknown(), "CPU Power: no permission to read it"),
+    ];
+    for (cpu, gpu, reason) in cases {
+        for settled in [false, true] {
+            let a = availability(&powers(cpu.clone(), gpu.clone()), settled);
+            assert!(!a.modes.contains(&12), "{:?}", a.modes);
+            assert_eq!(a.reasons[&12], reason);
+        }
+    }
+    let apu = availability(&powers(value(65), unknown()), true);
+    assert!(!apu.modes.contains(&11) && !apu.modes.contains(&12));
+    assert!(apu.modes.contains(&10), "the CPU's power stays");
+    assert!(
+        availability(&powers(value(65), value(250)), true)
+            .modes
+            .contains(&12)
+    );
+}
+
 // The first second of a reading averaged over the interval draws dashes, then digits.
 #[test]
 fn not_yet_draws_dashes_then_digits() {
