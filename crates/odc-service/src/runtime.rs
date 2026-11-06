@@ -459,12 +459,6 @@ impl SensorRequest {
         if requests.restart {
             out.push(SensorRequest::Restart);
         }
-        if let Some(choices) = requests.choices {
-            out.push(SensorRequest::Choices(choices));
-        }
-        if let Some(id) = requests.snapshot {
-            out.push(SensorRequest::Snapshot(id));
-        }
         out
     }
 }

@@ -31,11 +31,11 @@ use zbus::wire::{OwnedFd, OwnedVariant};
 use zbus::{Connection, DBusError, MatchRule, MessageStream, connection};
 
 use crate::audio::{Ended, PipeAudio};
-use crate::engine::{Apply, Drawn, Override, shown_mode, takes_sound};
+use crate::engine::{Apply, Choices, Drawn, Override, shown_mode, takes_sound};
 use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
-use crate::runtime::{DeviceControl, Durations, Slot};
+use crate::runtime::{DeviceControl, Durations, SensorRequest, Slot};
 use crate::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
@@ -98,6 +98,9 @@ struct Shared {
     status: Arc<RwLock<Status>>,
     apply: Arc<Slot<Apply>>,
     device: Sender<DeviceControl>,
+    sensors: Sender<SensorRequest>,
+    /// The last snapshot request's number: Refresh's, or another GPU's.
+    asked: AtomicU64,
     authorizer: Box<dyn Authorizer>,
     credentials: Box<dyn Credentials>,
     dbus: DBusProxy<'static>,
@@ -243,6 +246,16 @@ impl Shared {
             );
             return Err(Error::Failed(format!("the settings can't be saved: {e}")));
         }
+        // The sensor thread reads the new GPU or fan inputs from now on, and another GPU's reset
+        // waits for a snapshot of it, asked for now: the choices go first, so the answer reads
+        // the new GPU.
+        let mut asked = None;
+        if Choices::of(&saved) != Choices::of(&new) {
+            self.to_sensors(SensorRequest::Choices(Choices::of(&new)));
+            if saved.gpu_choice != new.gpu_choice {
+                asked = Some(self.ask_snapshot());
+            }
+        }
         *saved = new.clone();
         // Sound only in the Music modes (owner, 2026-10-26): leaving them closes the pipe at once,
         // under the settings' lock, so no attach slips in between.
@@ -253,6 +266,7 @@ impl Shared {
         self.apply.merge(
             Apply {
                 settings: Some(new),
+                asked,
                 ..Apply::default()
             },
             Apply::then,
@@ -480,6 +494,22 @@ impl Shared {
         } else {
             dev.recording.end_session();
         }
+    }
+
+    fn to_sensors(&self, request: SensorRequest) {
+        // The sensor thread only ends with the service.
+        let _ = self.sensors.send(request);
+    }
+
+    /// Asks the sensor thread for a snapshot at once, for Refresh or another GPU, so it's
+    /// normally there by the next tick and their reset lands on the next frame (`display.md`
+    /// S25, S26; owner, 2026-11-06); returns the request's number. The numbers are taken in
+    /// order with what was sent before, so an answer to the newest request also follows the
+    /// choices sent before any other.
+    fn ask_snapshot(&self) -> u64 {
+        let id = self.asked.fetch_add(1, Ordering::AcqRel) + 1;
+        self.to_sensors(SensorRequest::Snapshot(id));
+        id
     }
 
     /// Posts a readings override, or its end; returns its number.
@@ -840,9 +870,11 @@ impl Main {
     /// Fresh readings at once, and the picture from home; nothing is saved.
     async fn refresh(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
         self.shared.changer(&header, "Refresh").await?;
+        let asked = self.shared.ask_snapshot();
         self.shared.apply.merge(
             Apply {
                 refresh: true,
+                asked: Some(asked),
                 ..Apply::default()
             },
             Apply::then,
@@ -1120,6 +1152,9 @@ pub struct Parts {
     pub status: Arc<RwLock<Status>>,
     pub apply: Arc<Slot<Apply>>,
     pub device: Sender<DeviceControl>,
+    /// The sensor thread's requests: the GPU and fan inputs chosen, and the snapshots Refresh and
+    /// another GPU ask for.
+    pub sensors: Sender<SensorRequest>,
     pub pulse: Arc<Pulse>,
     pub journal: Arc<dyn Journal>,
     /// With `--dev`: the service's group, the recording, and the threads' durations.
@@ -1244,6 +1279,8 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
         status: parts.status,
         apply: parts.apply,
         device: parts.device,
+        sensors: parts.sensors,
+        asked: AtomicU64::new(0),
         authorizer,
         credentials,
         dbus: DBusProxy::new(&conn).await?,

@@ -37,6 +37,10 @@ pub const LATE_SOURCE_TICKS: u64 = 1200;
 pub struct Apply {
     pub settings: Option<Settings>,
     pub refresh: bool,
+    /// The newest snapshot request the D-Bus side sent the sensor thread with these posts, when
+    /// Refresh or another GPU came: their reset waits for its answer. The D-Bus side asks at once,
+    /// so the answer is normally there by the next tick (owner, 2026-11-06).
+    pub asked: Option<u64>,
     pub wake: bool,
     pub readings: Option<Override>,
 }
@@ -47,6 +51,7 @@ impl Apply {
         Apply {
             settings: newer.settings.or(self.settings),
             refresh: self.refresh || newer.refresh,
+            asked: newer.asked.max(self.asked),
             wake: self.wake || newer.wake,
             readings: newer.readings.or(self.readings),
         }
@@ -71,13 +76,10 @@ pub struct Published {
     pub answers: u64,
 }
 
-/// What the engine asks of the sensor thread after a tick.
+/// What the engine asks of the sensor thread after a tick. The D-Bus side sends the rest itself,
+/// as each call arrives: the new GPU and fan inputs, and a snapshot for Refresh or another GPU.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Requests {
-    /// A snapshot at once, numbered so the answer can be told apart: Refresh, or another GPU.
-    pub snapshot: Option<u64>,
-    /// The GPU and fan inputs to read, when they changed.
-    pub choices: Option<Choices>,
     /// Start the readings averaged over the interval again: a wake-up.
     pub restart: bool,
 }
@@ -168,7 +170,9 @@ pub struct Engine {
     since: u64,
     /// A snapshot request whose answer a reset waits for: Refresh, or another GPU.
     waiting: Option<u64>,
-    requests: u64,
+    /// The newest request a published snapshot answered, even one taken before the request's
+    /// Refresh reached the engine.
+    answered: u64,
 }
 
 /// The mode the engine draws for the saved one: the saved mode when this build draws it, mode 1
@@ -238,7 +242,7 @@ impl Engine {
             tick: 0,
             since: 0,
             waiting: None,
-            requests: 0,
+            answered: 0,
         }
     }
 
@@ -283,6 +287,7 @@ impl Engine {
                 self.since = self.tick;
                 requests.restart = true;
             }
+            let mut fresh = apply.refresh;
             if let Some(new) = apply.settings {
                 let old = std::mem::replace(&mut self.settings, new);
                 let new = &self.settings;
@@ -291,30 +296,25 @@ impl Engine {
                 reset |= before != after
                     || old.rotation != new.rotation
                     || (old.temperature_unit != new.temperature_unit && shows_temperature(after));
-                if Choices::of(&old) != Choices::of(new) {
-                    requests.choices = Some(Choices::of(new));
-                    if old.gpu_choice != new.gpu_choice {
-                        // Another GPU: its reset waits for a snapshot of the new GPU (Refresh's
-                        // rule; Phase 7 plan, Task 6).
-                        self.requests += 1;
-                        self.waiting = Some(self.requests);
-                        requests.snapshot = Some(self.requests);
-                    }
-                }
+                // Another GPU: its reset waits for a snapshot of the new GPU (Refresh's rule;
+                // Phase 7 plan, Task 6).
+                fresh |= old.gpu_choice != new.gpu_choice;
             }
-            if apply.refresh {
-                self.requests += 1;
-                self.waiting = Some(self.requests);
-                requests.snapshot = Some(self.requests);
+            if fresh {
+                let asked = apply
+                    .asked
+                    .expect("Refresh and another GPU come with their snapshot request");
+                self.waiting = self.waiting.max(Some(asked));
             }
         }
         if let Some(published) = published {
-            if self.waiting.is_some_and(|id| published.answers >= id) {
-                self.waiting = None;
-                reset = true;
-            }
+            self.answered = self.answered.max(published.answers);
             self.real = published.snapshot;
             drawn = Some(self.drawn());
+        }
+        if self.waiting.is_some_and(|id| self.answered >= id) {
+            self.waiting = None;
+            reset = true;
         }
         let mut changed = false;
         if let Some(drawn) = drawn {

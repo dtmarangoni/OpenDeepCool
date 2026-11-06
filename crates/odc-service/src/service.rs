@@ -270,7 +270,7 @@ impl Running {
                 );
                 let mut outputs = EngineOutputs {
                     frames: Arc::clone(&frames),
-                    sensors: requests_tx,
+                    sensors: requests_tx.clone(),
                     status: Arc::clone(&status),
                     pulse: Arc::clone(&pulse),
                     journal: Arc::clone(&journal),
@@ -299,6 +299,7 @@ impl Running {
                 status,
                 apply,
                 device: control_tx,
+                sensors: requests_tx,
                 pulse,
                 journal,
                 dev: config

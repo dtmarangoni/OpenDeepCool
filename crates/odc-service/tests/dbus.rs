@@ -40,7 +40,7 @@ use odc_service::polkit::{
     Action, Answer, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer,
 };
 use odc_service::pulse::Pulse;
-use odc_service::runtime::{DeviceControl, Durations, Sensors, Slot};
+use odc_service::runtime::{DeviceControl, Durations, SensorLoop, SensorRequest, Sensors, Slot};
 use odc_service::service::{Config, Running};
 use odc_service::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
 use odc_service::status::{FIRST_READINGS, Status, parse_first_readings};
@@ -287,6 +287,8 @@ struct Harness {
     state: PathBuf,
     apply: Arc<Slot<Apply>>,
     device: Receiver<DeviceControl>,
+    /// What the sensor thread would be sent.
+    sensors: Receiver<SensorRequest>,
     journal: Arc<Recorded>,
     /// The threads' durations, which the test writes itself.
     durations: Arc<Durations>,
@@ -321,6 +323,7 @@ impl Harness {
         let status = Arc::new(RwLock::new(status));
         let journal = Arc::new(Recorded::default());
         let (device_tx, device) = mpsc::channel();
+        let (sensors_tx, sensors) = mpsc::channel();
         let durations = Arc::new(Durations::default());
         let audio = Arc::new(PipeAudio::new());
         let side = Side::start(Parts {
@@ -334,6 +337,7 @@ impl Harness {
             status: Arc::clone(&status),
             apply: Arc::clone(&apply),
             device: device_tx,
+            sensors: sensors_tx,
             pulse: Arc::new(Pulse::default()),
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
@@ -349,6 +353,7 @@ impl Harness {
             state,
             apply,
             device,
+            sensors,
             journal,
             durations,
             audio,
@@ -375,6 +380,12 @@ impl Harness {
     fn nothing_stored_or_applied(&self, before: &(u64, String)) {
         assert_eq!(self.saved(), *before, "nothing stored");
         assert_eq!(self.apply.take(), None, "nothing applied");
+        assert_eq!(self.sent(), [], "nothing sent to the sensor thread");
+    }
+
+    /// What the sensor thread was sent since the last look, in order.
+    fn sent(&self) -> Vec<SensorRequest> {
+        self.sensors.try_iter().collect()
     }
 
     fn journal_has(&self, part: &str) -> bool {
@@ -797,6 +808,89 @@ fn refresh_is_handed_to_the_engine_and_saves_nothing() {
         assert!(applied.refresh);
         assert_eq!(applied.settings, None);
         assert_eq!(h.saved(), before);
+    });
+}
+
+// S26 (owner, 2026-11-06): Refresh asks the sensor thread for its snapshot as the call arrives,
+// so the answer is there before the engine's next tick, which takes the Refresh and resets on it:
+// the picture at home on the next frame, with the fresh readings. Each Refresh asks anew.
+#[test]
+fn refresh_asks_the_sensor_thread_at_once_and_resets_on_the_next_frame() {
+    let h = Harness::start(
+        "refresh-asks",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let caller = h.client().await;
+        caller.main.refresh().await.expect("refreshed");
+        let applied = h.apply.take().expect("handed to the engine");
+        let asked = applied.asked.expect("a snapshot request");
+        assert_eq!(h.sent(), [SensorRequest::Snapshot(asked)]);
+        // The sensor thread's answer, then the engine's next tick, mid-scroll at 100%.
+        let mut sensors = SensorLoop::new(FixedSensors(readings(value(101))));
+        assert!(sensors.handle(SensorRequest::Snapshot(asked)), "at once");
+        let answer = sensors.snapshot();
+        let mut engine = Engine::new(Settings::default(), readings(value(100)));
+        for _ in 0..5 {
+            engine.tick(None, None, false);
+        }
+        let next = engine.tick(Some(applied), Some(answer), false);
+        assert_eq!(next.frame, Some(home(readings(value(101)))));
+        caller.main.refresh().await.expect("refreshed");
+        let again = h.apply.take().expect("handed to the engine");
+        assert!(again.asked > Some(asked), "a new request");
+        assert_eq!(
+            h.sent(),
+            [SensorRequest::Snapshot(again.asked.expect("one"))]
+        );
+    });
+}
+
+// S25 (owner, 2026-11-06): another GPU reaches the sensor thread as the call arrives, then a
+// request for a snapshot of it, whose number the engine waits for; a fan input reaches it with no
+// snapshot, since it resets nothing.
+#[test]
+fn another_gpu_reaches_the_sensor_thread_at_once_with_a_snapshot_request() {
+    let h = Harness::start(
+        "gpu-asks",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let caller = h.client().await;
+        caller
+            .main
+            .choose_gpu("0000:00:02.0")
+            .await
+            .expect("chosen");
+        let applied = h.apply.take().expect("handed to the engine");
+        let settings = applied.settings.expect("the new settings");
+        assert_eq!(settings.gpu_choice.as_deref(), Some("0000:00:02.0"));
+        let asked = applied.asked.expect("a snapshot request");
+        assert_eq!(
+            h.sent(),
+            [
+                SensorRequest::Choices(Choices::of(&settings)),
+                SensorRequest::Snapshot(asked)
+            ],
+            "the GPU first, so the answer reads it"
+        );
+        caller
+            .main
+            .set_pump_input(CHIP, CHIP_DEVICE, 2)
+            .await
+            .expect("chosen");
+        let applied = h.apply.take().expect("handed to the engine");
+        assert_eq!(applied.asked, None);
+        let settings = applied.settings.expect("the new settings");
+        assert_eq!(h.sent(), [SensorRequest::Choices(Choices::of(&settings))]);
+        // Another setting: nothing for the sensor thread.
+        caller.main.set_rotation(1).await.expect("turned");
+        assert_eq!(h.apply.take().and_then(|a| a.asked), None);
+        assert_eq!(h.sent(), []);
     });
 }
 

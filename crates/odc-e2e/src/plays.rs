@@ -739,14 +739,16 @@ pub fn play_engine_drawing(
             }
         }
         audio.set(sound.window(n));
+        // Refresh and another GPU come with the D-Bus side's snapshot request, whose answer their
+        // reset waits for; it comes at once here, with the readings unchanged when the tick gives
+        // none.
         let apply = (set || refresh || wake).then(|| Apply {
             settings: set.then(|| settings.clone()),
             refresh,
+            asked: (refresh || asked).then_some(n as u64 + 1),
             wake,
             readings: None,
         });
-        // Refresh's and another GPU's reset waits for a snapshot answering it, which comes at
-        // once here, with the readings unchanged when the tick gives none.
         let published = (read || refresh || asked).then(|| Published {
             snapshot: snapshot(&readings),
             answers: u64::MAX,
