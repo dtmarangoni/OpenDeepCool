@@ -312,3 +312,52 @@ fn the_start_up_step_leaves_a_cooler_that_is_on_alone() {
         "nothing written"
     );
 }
+
+/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included.
+fn every_mode(_: odc_render::Mode) -> bool {
+    true
+}
+
+// Phase 9 plan, Task 5: each Music mode without values draws its examples, in silence, as the
+// files expect, before its own commit makes it drawn; the value ones draw through `picture`, so
+// they come with Task 8.
+#[test]
+fn music_examples_draw_their_expected_frames_in_silence() {
+    for n in [13, 14, 15, 16, 17, 23] {
+        let mode = odc_render::Mode::new(n).expect("a mode");
+        let frames = odc_e2e::display::examples_match(mode).unwrap_or_else(|e| panic!("{e}"));
+        assert!(frames >= 6, "mode {n}: {frames} frames");
+    }
+}
+
+// The plans the service checks play for a Music mode, through the engine with the test-only
+// switch: a case in silence upright and turned, mode 13's test signal through the override, and
+// the first variant of each scenario type, with their sound and Music settings.
+#[test]
+fn music_plans_play_out_through_the_engine() {
+    use odc_e2e::plays::{Plan, play_engine_drawing};
+    use odc_testkit::expected::{load_mode, mode_scenarios};
+    let play =
+        |plan: &Plan| play_engine_drawing(plan, every_mode).unwrap_or_else(|e| panic!("{e}"));
+    play(&Plan::of_signal("column 7 centre, -20 dBFS").expect("a plan"));
+    for n in 13..=23 {
+        let file = load_mode(n);
+        for rotation in [0, 1] {
+            let case = file
+                .cases
+                .iter()
+                .find(|c| c.rotation.setting() == rotation && c.pose.is_none_or(|p| p == 0))
+                .expect("a case");
+            play(&Plan::of_case(n, case).expect("a plan"));
+        }
+        let mut seen = Vec::new();
+        for scenario in mode_scenarios(n) {
+            let id = scenario.heading.split(' ').next().unwrap_or("").to_owned();
+            if seen.contains(&id) {
+                continue;
+            }
+            seen.push(id);
+            play(&Plan::of_scenario(&scenario));
+        }
+    }
+}

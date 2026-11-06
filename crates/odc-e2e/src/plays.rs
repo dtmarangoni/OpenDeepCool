@@ -5,21 +5,25 @@
 //! from its recording, and the engine in process, for a PC without the dev service.
 
 use std::collections::HashMap;
-use std::fs;
+use std::fs::{self, File};
+use std::io::Write;
 use std::path::Path;
+use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
 
 use odc_ipc::Error;
 use odc_protocol::{Frame, Message, Rotation, decode};
-use odc_render::{Mode, draws, mode_info};
+use odc_render::{Column, Kind as ModeKind, Mode, WINDOW, draws, mode_info, with_spectrum};
 use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
+use odc_service::audio::{AudioSource, FakeAudio};
 use odc_service::engine::{Apply, Engine, Published};
-use odc_service::settings::{Settings, TemperatureUnit};
+use odc_service::settings::{Fall, Settings, TemperatureUnit};
 use odc_testkit::capture::{Recorded, parse_recorded};
 use odc_testkit::diff;
 use odc_testkit::expected::{Case, Change, Kind, Picture, Reset, Scenario, Unit, every_metric};
 use odc_testkit::hardware::DEV_RECORDING;
+use odc_testkit::spectrum::{expected, signal};
 
 use crate::session::Session;
 
@@ -79,13 +83,30 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// A case of a mode with values: its picture, already turned, for a few ticks, or its whole
-    /// scrolling cycle and its first frame again, in the case's unit.
+    /// A case: its picture, already turned, for a few ticks, its whole scrolling cycle, or an
+    /// emoji's whole loop, a picture a tick for its duration, then the first frame again; in the
+    /// case's unit, and in silence: a Music case's spectrum pixels are off, its floor line on
+    /// (Phase 9 plan, Task 5).
     pub fn of_case(mode: u16, case: &Case) -> Result<Plan, String> {
         let pictures: Vec<Picture> = match &case.kind {
-            Kind::Static(picture) => vec![picture.clone(); 5],
-            Kind::Scrolling(cycle) => cycle.iter().chain(cycle.first()).cloned().collect(),
-            Kind::Loop(_) => return Err(format!("{}: a loop, not a value", case.heading)),
+            Kind::Static(picture) => vec![picture.in_silence(); 5],
+            Kind::Scrolling(cycle) => cycle
+                .iter()
+                .chain(cycle.first())
+                .map(Picture::in_silence)
+                .collect(),
+            Kind::Loop(steps) => {
+                let mut ticks: Vec<Picture> = steps
+                    .iter()
+                    .flat_map(|(duration, picture)| {
+                        let n = usize::try_from(duration.as_millis() / TICK.as_millis())
+                            .expect("a short duration");
+                        std::iter::repeat_n(picture.in_silence(), n)
+                    })
+                    .collect();
+                ticks.extend(ticks.first().cloned());
+                ticks
+            }
         };
         Ok(Plan {
             name: case.heading.trim_start_matches("## ").to_owned(),
@@ -136,6 +157,56 @@ impl Plan {
         }
     }
 
+    /// A test signal of `spectrum/signals.txt` in mode 13 from its start, upright, with the default
+    /// Music settings: each tick's frame is `expected.txt`'s rows at *H* 12 (Phase 9 plan,
+    /// Task 5: a signal through `OverrideAudio` on the service).
+    pub fn of_signal(name: &str) -> Result<Plan, String> {
+        let heading = format!("{name} · H 12 · peaks on · bars moderate · peaks slow");
+        let section = expected()
+            .into_iter()
+            .find(|s| s.heading == heading)
+            .ok_or_else(|| format!("expected.txt has no section {heading:?}"))?;
+        let ticks = section
+            .ticks
+            .iter()
+            .enumerate()
+            .map(|(n, rows)| {
+                let dots = rows.dots.unwrap_or([None; 14]);
+                let columns: [Column; 14] = std::array::from_fn(|c| Column {
+                    bar: rows.bars[c],
+                    dot: dots[c],
+                });
+                let frame = with_spectrum(&Frame::blank(), &columns, 12);
+                let changes = if n == 0 {
+                    vec![Change::Audio(name.to_owned())]
+                } else {
+                    Vec::new()
+                };
+                let picture = Picture::of_frame(&frame);
+                (changes, Some(Expected { picture, turns: 0 }))
+            })
+            .collect();
+        Ok(Plan {
+            name: format!("{name}, in mode 13 through OverrideAudio"),
+            mode: 13,
+            rotation: 0,
+            unit: Unit::Celsius,
+            start: Vec::new(),
+            ticks,
+        })
+    }
+
+    /// Whether it shows a Music mode: it then plays its sound, silence included, tick by tick.
+    fn shows_music(&self) -> bool {
+        let music = |m: u16| Mode::new(m).is_some_and(|m| mode_info(m).kind == ModeKind::Music);
+        music(self.mode)
+            || self
+                .ticks
+                .iter()
+                .flat_map(|(changes, _)| changes)
+                .any(|c| matches!(c, Change::Reset(Reset::Mode(m)) if music(*m)))
+    }
+
     /// The modes it asks for and the service must refuse as unavailable.
     fn refused_unavailable(&self) -> Vec<u16> {
         self.ticks
@@ -147,6 +218,46 @@ impl Plan {
             })
             .collect()
     }
+}
+
+/// A plan's sound, tick by tick: from the tick a signal of `spectrum/signals.txt` starts, its
+/// samples, 4800 a tick, then silence. The window of tick *n* is the last 2048 samples of its
+/// 4800, as the files take it.
+#[derive(Default)]
+struct Sound {
+    /// The signal's samples and the tick it started.
+    playing: Option<(Vec<f32>, usize)>,
+}
+
+/// Samples per 100 ms tick.
+const TICK_SAMPLES: usize = 4800;
+
+impl Sound {
+    fn start(&mut self, name: &str, n: usize) {
+        self.playing = Some((signal(name).samples(), n));
+    }
+
+    /// Tick `n`'s samples; silence before and after the signal.
+    fn tick(&self, n: usize) -> Vec<f32> {
+        self.playing
+            .as_ref()
+            .and_then(|(samples, from)| {
+                let k = n.checked_sub(*from)?;
+                samples.get(k * TICK_SAMPLES..(k + 1) * TICK_SAMPLES)
+            })
+            .map_or_else(|| vec![0.0; TICK_SAMPLES], <[f32]>::to_vec)
+    }
+
+    fn window(&self, n: usize) -> [f32; WINDOW] {
+        self.tick(n)[TICK_SAMPLES - WINDOW..]
+            .try_into()
+            .expect("2048 samples")
+    }
+}
+
+/// The settings' stop for a scenario's stop name.
+fn fall(name: &str) -> Result<Fall, String> {
+    Fall::from_name(name).ok_or_else(|| format!("{name:?} isn't a stop"))
 }
 
 /// The readings `OverrideReadings` takes: a value or `not-yet` for each metric, and `no-rule` for
@@ -231,6 +342,24 @@ pub fn play_real(
     zbus::block_on(main.set_temperature_unit(unit_name(unit_now)))
         .map_err(|e| said("SetTemperatureUnit", e))?;
     zbus::block_on(main.set_mode(u32::from(other))).map_err(|e| said("SetMode", e))?;
+    // A plan that shows a Music mode plays its sound through the dev interface, silence included,
+    // from the Music settings' defaults, as the scenarios start (Phase 9 plan, Task 5).
+    let music = plan.shows_music();
+    let mut pipe: Option<File> = None;
+    if music {
+        zbus::block_on(main.set_music_peaks(true)).map_err(|e| said("SetMusicPeaks", e))?;
+        zbus::block_on(main.set_music_bar_fall("moderate"))
+            .map_err(|e| said("SetMusicBarFall", e))?;
+        zbus::block_on(main.set_music_peak_fall("slow"))
+            .map_err(|e| said("SetMusicPeakFall", e))?;
+        let (read_end, write_end) =
+            std::io::pipe().map_err(|e| format!("{}: a pipe: {e}", plan.name))?;
+        let read_end = std::os::fd::OwnedFd::from(read_end);
+        zbus::block_on(dev.override_audio(zbus::wire::Fd::from(&read_end)))
+            .map_err(|e| said("OverrideAudio", e))?;
+        pipe = Some(File::from(std::os::fd::OwnedFd::from(write_end)));
+    }
+    let mut sound = Sound::default();
     let synced = zbus::block_on(dev.override_readings(values, unavailable))
         .map_err(|e| said("OverrideReadings", e))?;
     let deadline = Instant::now();
@@ -245,8 +374,10 @@ pub fn play_real(
         .as_deref()
         .or(current.gpus.first().map(String::as_str));
     let mut switched = false;
-    for (n, (changes, _)) in plan.ticks.iter().enumerate().skip(1) {
-        if changes.is_empty() {
+    for (n, (changes, _)) in plan.ticks.iter().enumerate() {
+        // Tick 0's changes are its start, but for its sound; a Music plan's sound goes every
+        // tick: each tick's samples, in the window before it, make the window it analyses.
+        if !music && (n == 0 || changes.is_empty()) {
             continue;
         }
         let at = deadline + TICK * u32::try_from(n).expect("a short plan") + INTO_WINDOW;
@@ -336,18 +467,23 @@ pub fn play_real(
                 Change::Reset(Reset::StartUp) | Change::Wake | Change::Missed => {
                     return Err(format!("{}: {change:?} can't be driven here", plan.name));
                 }
-                // No drawn mode's scenario holds them yet.
-                Change::Audio(_)
-                | Change::MusicPeaks(_)
-                | Change::MusicBarFall(_)
-                | Change::MusicPeakFall(_) => {
-                    return Err(format!(
-                        "{}: {change:?}: the dev service's plays take sound and the Music \
-                         settings from Phase 9, Task 5",
-                        plan.name
-                    ));
-                }
+                Change::Audio(name) => sound.start(name, n),
+                Change::MusicPeaks(on) => zbus::block_on(main.set_music_peaks(*on))
+                    .map_err(|e| said("SetMusicPeaks", e))?,
+                Change::MusicBarFall(stop) => zbus::block_on(main.set_music_bar_fall(stop))
+                    .map_err(|e| said("SetMusicBarFall", e))?,
+                Change::MusicPeakFall(stop) => zbus::block_on(main.set_music_peak_fall(stop))
+                    .map_err(|e| said("SetMusicPeakFall", e))?,
             }
+        }
+        if let Some(pipe) = pipe.as_mut() {
+            let bytes: Vec<u8> = sound
+                .tick(n)
+                .iter()
+                .flat_map(|s| [s.to_ne_bytes(), s.to_ne_bytes()].concat())
+                .collect();
+            pipe.write_all(&bytes)
+                .map_err(|e| format!("{}: the sound's pipe: {e}", plan.name))?;
         }
         if read {
             let (values, unavailable) = override_args(&readings, plan.mode, &refused);
@@ -364,6 +500,8 @@ pub fn play_real(
             }
         }
     }
+    // Its end of file is silence.
+    drop(pipe);
     let end =
         deadline + TICK * u32::try_from(plan.ticks.len() + 1).expect("short") + FLUSHED_WITHIN;
     if let Some(wait) = end.checked_duration_since(Instant::now()) {
@@ -521,6 +659,15 @@ fn compare(
 
 /// Plays `plan` through the engine in process, tick by tick, as layer 3 does.
 pub fn play_engine(plan: &Plan) -> Result<String, String> {
+    play_engine_drawing(plan, draws)
+}
+
+/// [`play_engine`], the engine drawing the modes `drawn` lets it: the test-only switch, for the
+/// tests of a Music mode before its own commit (Phase 9 plan, Task 3).
+pub fn play_engine_drawing(
+    plan: &Plan,
+    drawn: odc_service::engine::Drawn,
+) -> Result<String, String> {
     let mut readings = plan.start.clone();
     let start = Settings {
         mode: plan.mode,
@@ -528,12 +675,20 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
         temperature_unit: settings_unit(plan.unit),
         ..Settings::default()
     };
-    let mut engine = Engine::new(start, snapshot(&readings));
+    let audio = Arc::new(FakeAudio::new());
+    let mut engine = Engine::with_audio(
+        start,
+        snapshot(&readings),
+        Arc::clone(&audio) as Arc<dyn AudioSource>,
+        drawn,
+    );
+    let mut sound = Sound::default();
     let mut gpus = 0;
     for (n, (changes, expected)) in plan.ticks.iter().enumerate() {
         let mut settings = engine.settings().clone();
         let (mut set, mut refresh, mut wake, mut missed, mut read) =
             (false, false, false, false, false);
+        let mut asked = false;
         for change in changes {
             match change {
                 Change::Reading { metric, value } => {
@@ -553,6 +708,7 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                     gpus += 1;
                     settings.gpu_choice = Some(format!("0000:{:02x}:00.0", 0x0a + gpus));
                     set = true;
+                    asked = true;
                 }
                 Change::Reset(Reset::Refresh) => refresh = true,
                 Change::UnitSaved(unit) | Change::Reset(Reset::Unit(unit)) => {
@@ -566,26 +722,32 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                 | Change::Refused { .. }
                 | Change::CoolerAway
                 | Change::CoolerBack => {}
-                // No drawn mode's scenario holds them yet.
-                Change::Audio(_)
-                | Change::MusicPeaks(_)
-                | Change::MusicBarFall(_)
-                | Change::MusicPeakFall(_) => {
-                    return Err(format!(
-                        "{}: {change:?}: these plays take sound and the Music settings from \
-                         Phase 9, Task 5",
-                        plan.name
-                    ));
+                Change::Audio(name) => sound.start(name, n),
+                // A Music setting is a settings change, never a reset (music.md point 7).
+                Change::MusicPeaks(on) => {
+                    settings.music_peaks = *on;
+                    set = true;
+                }
+                Change::MusicBarFall(stop) => {
+                    settings.music_bar_fall = fall(stop)?;
+                    set = true;
+                }
+                Change::MusicPeakFall(stop) => {
+                    settings.music_peak_fall = fall(stop)?;
+                    set = true;
                 }
             }
         }
+        audio.set(sound.window(n));
         let apply = (set || refresh || wake).then(|| Apply {
             settings: set.then(|| settings.clone()),
             refresh,
             wake,
             readings: None,
         });
-        let published = read.then(|| Published {
+        // Refresh's and another GPU's reset waits for a snapshot answering it, which comes at
+        // once here, with the readings unchanged when the tick gives none.
+        let published = (read || refresh || asked).then(|| Published {
             snapshot: snapshot(&readings),
             answers: u64::MAX,
         });

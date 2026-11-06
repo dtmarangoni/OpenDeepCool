@@ -2,17 +2,21 @@
 //! 2026-10-29: AGENTS.md rule 4 asks for the run on the cooler in each mode's commit; owner,
 //! 2026-11-05: every drawn mode). Each listed mode's examples, drawn by the code just built, go
 //! straight to the cooler at the tick, without the service: value set 2 upright and turned once,
-//! value set 3, in each unit a temperature mode has, and the mode's dash cases. Where no example
-//! scrolls, scenario S1 of the mode's `scenarios/mode-NNN.txt` brings one. Every report written is
-//! recorded and compared with the expected frames; nobody looks at the cooler. Without a cooler,
-//! the same runs through a fake one.
+//! value set 3, in each unit a temperature mode has, and the mode's dash cases; a Music mode
+//! without values each case upright and its first turned once; a Music spectrum in silence.
+//! Where no example scrolls, scenario S1 of the mode's `scenarios/mode-NNN.txt` brings one. Every
+//! report written is recorded and compared with the expected frames; nobody looks at the cooler.
+//! Without a cooler, the same runs through a fake one.
 
 use std::path::Path;
 use std::time::Duration;
 
 use odc_device::{Connector, DisplayPort, Link, Lp360, Recording};
 use odc_protocol::{Frame, Message};
-use odc_render::{Marquee, Mode, Unit, Values, picture};
+use odc_render::{
+    COLUMNS, Column, EmojiLoop, Marquee, Mode, Pose, Unit, Values, mode_info, picture,
+    spectrum_height, with_spectrum,
+};
 use odc_testkit::diff;
 use odc_testkit::expected::{
     self, Case, Change, Kind, Picture, every_metric, load_mode, load_unavailable, mode_scenarios,
@@ -70,6 +74,25 @@ fn check(
     }
 }
 
+/// Every example of `mode` against its expected frames in process, without a cooler; how many
+/// frames matched. The tests check a Music mode's examples so before its commit makes it drawn.
+///
+/// # Errors
+///
+/// The first example frame that differs.
+pub fn examples_match(mode: Mode) -> Result<usize, String> {
+    let mut frames = 0;
+    for example in examples(mode)? {
+        for (i, (frame, picture)) in example.frames.iter().zip(&example.expected).enumerate() {
+            if let Some(why) = diff::describe(picture, frame) {
+                return Err(format!("{}, frame {}: {why}", example.name, i + 1));
+            }
+            frames += 1;
+        }
+    }
+    Ok(frames)
+}
+
 /// One example: the frames the renderer draws for it, already turned, and those expected.
 struct Example {
     name: String,
@@ -77,10 +100,25 @@ struct Example {
     expected: Vec<Picture>,
 }
 
+/// Silence: every bar 1 row high, the floor line.
+const FLOOR: [Column; COLUMNS] = [Column { bar: 1, dot: None }; COLUMNS];
+
+/// `frame` with the spectrum area of `mode` in silence: the floor line, when the mode has one.
+fn in_silence(mode: Mode, frame: Frame) -> Frame {
+    match spectrum_height(mode) {
+        Some(h) => with_spectrum(&frame, &FLOOR, h),
+        None => frame,
+    }
+}
+
 /// The mode's examples, one of each test type, in each unit a temperature mode has (owner,
-/// 2026-10-26: the full cross runs in process).
+/// 2026-10-26: the full cross runs in process). A Music mode's spectrum is in silence (Phase 9
+/// plan, Task 5).
 fn examples(mode: Mode) -> Result<Vec<Example>, String> {
     let n = mode.number();
+    if mode_info(mode).metrics.is_empty() {
+        return music_examples(mode);
+    }
     let file = load_mode(n);
     // The value sets in file order: 1, 2 and 3 (docs/spec/frames/README.md, Readings used).
     let set = |rotation: u8, unit: Option<expected::Unit>, index: usize| {
@@ -177,14 +215,65 @@ fn draw(mode: Mode, case: &Case) -> Result<Example, String> {
         .map_err(|_| format!("mode {} isn't drawn", mode.number()))?;
     let mut marquee = Marquee::new(p);
     let expected: Vec<Picture> = match &case.kind {
-        Kind::Static(picture) => vec![picture.clone(); 3],
-        Kind::Scrolling(cycle) => cycle.clone(),
+        Kind::Static(picture) => vec![picture.in_silence(); 3],
+        Kind::Scrolling(cycle) => cycle.iter().map(Picture::in_silence).collect(),
         Kind::Loop(_) => return Err(format!("{}: a loop, not a value", case.heading)),
     };
     let frames = expected
         .iter()
-        .map(|_| marquee.tick().rotated(case.rotation))
+        .map(|_| in_silence(mode, marquee.tick()).rotated(case.rotation))
         .collect();
+    Ok(Example {
+        name: case.heading.trim_start_matches("## ").to_owned(),
+        frames,
+        expected,
+    })
+}
+
+/// A Music mode without values (Phase 9 plan, Task 5): each case upright and its first case turned
+/// once, in silence. Mode 13 is the floor line, an emoji its whole loop from its first picture
+/// and that again, and mode 23 each of the Dancer's poses as the renderer draws it.
+fn music_examples(mode: Mode) -> Result<Vec<Example>, String> {
+    let file = load_mode(mode.number());
+    let cases = file.cases.iter().filter(|c| {
+        c.rotation.setting() == 0 || (c.rotation.setting() == 1 && c.pose.is_none_or(|p| p == 0))
+    });
+    cases.map(|case| draw_music(mode, case)).collect()
+}
+
+fn draw_music(mode: Mode, case: &Case) -> Result<Example, String> {
+    let turned = |frame: Frame| frame.rotated(case.rotation);
+    let (frames, expected) = match &case.kind {
+        Kind::Static(picture) => {
+            let frame = match case.pose {
+                Some(k) => Pose::new(k)
+                    .ok_or_else(|| format!("{}: no pose {k}", case.heading))?
+                    .frame(),
+                None => in_silence(mode, Frame::blank()),
+            };
+            (vec![turned(frame); 3], vec![picture.in_silence(); 3])
+        }
+        Kind::Loop(steps) => {
+            let mut expected: Vec<Picture> = steps
+                .iter()
+                .flat_map(|(duration, picture)| {
+                    let n = usize::try_from(duration.as_millis() / 100).expect("a short duration");
+                    std::iter::repeat_n(picture.in_silence(), n)
+                })
+                .collect();
+            expected.extend(expected.first().cloned());
+            let mut emoji = EmojiLoop::of(mode)
+                .ok_or_else(|| format!("{}: mode {} has no loop", case.heading, mode.number()))?;
+            let frames = expected
+                .iter()
+                .map(|_| turned(in_silence(mode, emoji.tick())))
+                .collect();
+            (frames, expected)
+        }
+        Kind::Scrolling(_) => {
+            return Err(format!("{}: a value, in a mode without one", case.heading));
+        }
+    };
     Ok(Example {
         name: case.heading.trim_start_matches("## ").to_owned(),
         frames,

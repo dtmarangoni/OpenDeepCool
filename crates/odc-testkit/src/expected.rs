@@ -124,6 +124,34 @@ impl Picture {
     pub fn has_any(&self) -> bool {
         self.rows.iter().flatten().any(|&p| p == Pixel::Any)
     }
+
+    /// The picture in silence: every spectrum pixel off. The files draw the floor line itself
+    /// with `#`, so silence leaves exactly that (Phase 9 plan, Task 5).
+    pub fn in_silence(&self) -> Picture {
+        Picture {
+            rows: self.rows.map(|row| {
+                row.map(|p| match p {
+                    Pixel::Any => Pixel::Off,
+                    other => other,
+                })
+            }),
+        }
+    }
+
+    /// A frame as a picture, every pixel known.
+    pub fn of_frame(frame: &Frame) -> Picture {
+        let mut picture = Picture {
+            rows: [[Pixel::Off; SIZE]; SIZE],
+        };
+        for r in 1..=SIZE {
+            for c in 1..=SIZE {
+                if frame.get(r, c) {
+                    picture.rows[r - 1][c - 1] = Pixel::On;
+                }
+            }
+        }
+        picture
+    }
 }
 
 pub(crate) fn pixel_matches(expected: Pixel, on: bool) -> bool {

@@ -113,6 +113,21 @@ impl Drop for Restore<'_> {
         {
             said.push(format!("ChooseGpu: {e}"));
         }
+        if let Some(peaks) = self.state.music_peaks
+            && let Err(e) = zbus::block_on(main.set_music_peaks(peaks))
+        {
+            said.push(format!("SetMusicPeaks: {e}"));
+        }
+        if let Some(stop) = self.state.music_bar_fall
+            && let Err(e) = zbus::block_on(main.set_music_bar_fall(stop.as_str()))
+        {
+            said.push(format!("SetMusicBarFall: {e}"));
+        }
+        if let Some(stop) = self.state.music_peak_fall
+            && let Err(e) = zbus::block_on(main.set_music_peak_fall(stop.as_str()))
+        {
+            said.push(format!("SetMusicPeakFall: {e}"));
+        }
         for line in said {
             eprintln!("odc-e2e: the owner's settings weren't all set back: {line}");
         }
@@ -199,9 +214,14 @@ fn drawn(mode: u16) -> bool {
 
 /// One example of each of `modes`, value set 2 upright, in each unit the mode shows, and of each
 /// further test type among them: a rotated case, a scrolling case's whole cycle, and a dash case
-/// (Phase 7 plan, Task 9). A listed mode with no scrolling or dash case leaves that type out.
+/// (Phase 7 plan, Task 9). A listed mode with no scrolling or dash case leaves that type out. A
+/// Music mode without values has one case per rotation, in silence: the spectrum's floor line,
+/// an emoji's whole loop, the Dancer standing still; mode 13 also plays a test signal through
+/// `OverrideAudio` (Phase 9 plan, Task 5).
 fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
     let case = |mode: u16, rotation: u8, unit: Option<Unit>, index: usize| {
+        let no_values = RenderMode::new(mode).is_some_and(|m| mode_info(m).metrics.is_empty());
+        let index = if no_values { 0 } else { index };
         let file = load_mode(mode);
         let case: &Case = file
             .cases
@@ -226,6 +246,12 @@ fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
             };
             examples.push((name, case(mode, 0, unit, 1)));
         }
+    }
+    if modes.contains(&13) {
+        examples.push((
+            "service_mode_13_signal".into(),
+            Plan::of_signal("column 7 centre, -20 dBFS"),
+        ));
     }
     if let Some(&first) = modes.first() {
         let unit = load_mode(first).cases.first().and_then(|c| c.unit);
@@ -270,7 +296,7 @@ fn shown_modes(scenario: &Scenario) -> impl Iterator<Item = u16> + '_ {
 /// resets a Temperature mode and is only saved in Load or Power), mode by mode in file order: its
 /// type, the check's name, and the plan. A scenario that shows a mode `accepted` refuses is left
 /// out. Load's checks keep Phase 7's names, `service_S1`; the others name their kind,
-/// `service_S15_temperature`.
+/// `service_S15_temperature`, `service_S14_music`.
 pub(crate) fn scenario_plans(
     modes: &[u16],
     accepted: &dyn Fn(u16) -> bool,
@@ -287,6 +313,7 @@ pub(crate) fn scenario_plans(
         let name = match kind {
             Some(ModeKind::Temperature) => format!("service_{id}_temperature"),
             Some(ModeKind::Power) => format!("service_{id}_power"),
+            Some(ModeKind::Music) => format!("service_{id}_music"),
             _ => format!("service_{id}"),
         };
         if seen.contains(&name) {

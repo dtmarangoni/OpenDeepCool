@@ -87,7 +87,11 @@ fn describe(case: &Case) -> String {
             "it scrolls left one column per frame, a {}-frame cycle, again and again",
             cycle.len()
         ),
-        Kind::Loop(_) => "a loop".to_owned(),
+        Kind::Loop(steps) => format!(
+            "a loop of {} pictures, {} ms in all, again and again",
+            steps.len(),
+            steps.iter().map(|(d, _)| d.as_millis()).sum::<u128>()
+        ),
     };
     let unit = match case.unit {
         Some(Unit::Celsius) => "in °C, ",
@@ -135,10 +139,12 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
     for &mode in modes {
         let file = load_mode(mode);
         let dashes = load_unavailable();
+        // In silence the Dancer stands still: of mode 23's poses, only pose 0 shows on the
+        // service (Phase 9 plan, Task 5).
         let cases = file
             .cases
             .iter()
-            .filter(|c| c.rotation.setting() == 0)
+            .filter(|c| c.rotation.setting() == 0 && c.pose.is_none_or(|p| p == 0))
             .chain(
                 dashes
                     .iter()
@@ -151,7 +157,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
             let first = match &case.kind {
                 Kind::Static(p) => p,
                 Kind::Scrolling(cycle) => &cycle[0],
-                Kind::Loop(_) => return Err(format!("mode {mode}: a loop, not a value")),
+                Kind::Loop(steps) => &steps[0].1,
             };
             loop {
                 println!("== {name}");
