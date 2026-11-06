@@ -43,14 +43,20 @@ const TONE_AMPLITUDE: f64 = 0.1;
 
 /// The delay target (owner, 2026-10-25; `music.md` point 9): at most 150 ms for 95 % of frames.
 const DELAY_TARGET_MS: f64 = 150.0;
-/// 200 bursts of 100 ms, 400 ms apart (Phase 9 plan, Task 5).
+/// 200 bursts of 100 ms, 405 ms apart (Phase 9 plan, Task 5): each starts 5 ms later in the
+/// service's 100 ms tick than the one before, at 20 points of it 10 times each, so the delays show
+/// their whole spread, not one point of the tick (owner, 2026-11-06). A burst starts on a 5 ms
+/// chunk, whose write time is its stamp.
 const BURSTS: usize = 200;
 const BURST: usize = 4800;
-const BURST_EVERY: usize = 19_200;
+const BURST_EVERY: usize = 19_440;
 
 /// Samples per second, and per 5 ms chunk written to `pw-play`.
 const RATE: usize = 48_000;
 const CHUNK: usize = 240;
+
+// A burst starts on a chunk, so it has a stamp, and never at the same point of every 100 ms tick.
+const _: () = assert!(BURST_EVERY.is_multiple_of(CHUNK) && !BURST_EVERY.is_multiple_of(RATE / 10));
 
 /// How long a change on the bus or in PipeWire may take.
 const WITHIN: Duration = Duration::from_secs(1);
