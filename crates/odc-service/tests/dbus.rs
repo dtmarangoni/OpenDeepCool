@@ -483,14 +483,8 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
     zbus::block_on(async {
         let caller = h.client().await;
         let before = h.saved();
-        // The first mode a later commit draws, while there is one (Phase 9: Music, mode by mode).
-        if let Some(later) = Mode::all().find(|&m| !draws(m)) {
-            assert!(matches!(
-                caller.main.set_mode(u32::from(later.number())).await,
-                Err(Error::NotYetAvailable(_))
-            ));
-        }
-        for mode in [0, 24, 70_000, u32::MAX] {
+        // A mode outside the table (Phase 9 plan, Task 9).
+        for mode in [0, 24, 100, 70_000, u32::MAX] {
             assert!(
                 matches!(
                     caller.main.set_mode(mode).await,
@@ -511,6 +505,17 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
         assert_eq!(h.saved_settings().mode, 7, "stored");
         let applied = h.apply.take().expect("handed to the engine");
         assert_eq!(applied.settings.map(|s| s.mode), Some(7));
+        // Phase 9 plan, Task 9: the Dancer is drawn last, so every mode in the table is drawn and
+        // none is refused as not yet available; only a reading can still refuse one.
+        caller.main.set_mode(23).await.expect("mode 23");
+        for mode in Mode::all() {
+            let answer = caller.main.set_mode(u32::from(mode.number())).await;
+            assert!(
+                !matches!(answer, Err(Error::NotYetAvailable(_))),
+                "mode {}: {answer:?}",
+                mode.number()
+            );
+        }
     });
 }
 

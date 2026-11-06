@@ -21,9 +21,11 @@ use odc_service::engine::{Apply, Engine, Published};
 use odc_service::settings::{Fall, Settings, TemperatureUnit};
 use odc_testkit::capture::{Recorded, parse_recorded};
 use odc_testkit::diff;
-use odc_testkit::expected::{Case, Change, Kind, Picture, Reset, Scenario, Unit, every_metric};
+use odc_testkit::expected::{
+    Case, Change, Kind, Picture, Reset, Scenario, Unit, every_metric, load_mode,
+};
 use odc_testkit::hardware::DEV_RECORDING;
-use odc_testkit::spectrum::{expected, signal};
+use odc_testkit::spectrum::{dances, expected, signal};
 
 use crate::session::Session;
 
@@ -189,6 +191,53 @@ impl Plan {
         Ok(Plan {
             name: format!("{name}, in mode 13 through OverrideAudio"),
             mode: 13,
+            rotation: 0,
+            unit: Unit::Celsius,
+            start: Vec::new(),
+            ticks,
+        })
+    }
+
+    /// The Dancer in mode 23 to a sequence of `spectrum/dancer.txt` without resets, upright, its
+    /// sound from tick 0: each tick's pose as `mode-023.txt` draws it.
+    pub fn of_dance(name: &str) -> Result<Plan, String> {
+        let dance = dances()
+            .into_iter()
+            .find(|d| d.heading == name && d.resets.is_empty())
+            .ok_or_else(|| format!("dancer.txt has no sequence {name:?} without resets"))?;
+        let file = load_mode(23);
+        let pose = |k: u8| {
+            file.cases
+                .iter()
+                .find(|c| c.rotation.setting() == 0 && c.pose == Some(k))
+                .and_then(|c| match &c.kind {
+                    Kind::Static(picture) => Some(picture.clone()),
+                    _ => None,
+                })
+                .ok_or_else(|| format!("mode-023.txt: no upright pose {k}"))
+        };
+        let ticks = dance
+            .poses
+            .iter()
+            .enumerate()
+            .map(|(n, &k)| {
+                let changes = if n == 0 {
+                    vec![Change::Audio(dance.signal.clone())]
+                } else {
+                    Vec::new()
+                };
+                Ok((
+                    changes,
+                    Some(Expected {
+                        picture: pose(k)?,
+                        turns: 0,
+                    }),
+                ))
+            })
+            .collect::<Result<_, String>>()?;
+        Ok(Plan {
+            name: format!("{name}, in mode 23 through OverrideAudio"),
+            mode: 23,
             rotation: 0,
             unit: Unit::Celsius,
             start: Vec::new(),

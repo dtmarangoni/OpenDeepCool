@@ -212,12 +212,17 @@ fn drawn(mode: u16) -> bool {
     RenderMode::new(mode).is_some_and(draws)
 }
 
+/// The beat train of `service_mode_23_signal`: its big moves take the Dancer through poses 3 to
+/// 10.
+pub(crate) const DANCE: &str =
+    "beat train, bass 0.62 for a tick, then 1 silent: just above a big move";
+
 /// One example of each of `modes`, value set 2 upright, in each unit the mode shows, and of each
 /// further test type among them: a rotated case, a scrolling case's whole cycle, and a dash case
 /// (Phase 7 plan, Task 9). A listed mode with no scrolling or dash case leaves that type out. A
 /// Music mode without values has one case per rotation, in silence: the spectrum's floor line,
 /// an emoji's whole loop, the Dancer standing still; mode 13 also plays a test signal through
-/// `OverrideAudio` (Phase 9 plan, Task 5).
+/// `OverrideAudio` (Phase 9 plan, Task 5), and mode 23 a beat train its Dancer moves to (Task 9).
 fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
     let case = |mode: u16, rotation: u8, unit: Option<Unit>, index: usize| {
         let no_values = RenderMode::new(mode).is_some_and(|m| mode_info(m).metrics.is_empty());
@@ -252,6 +257,9 @@ fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
             "service_mode_13_signal".into(),
             Plan::of_signal("column 7 centre, -20 dBFS"),
         ));
+    }
+    if modes.contains(&23) {
+        examples.push(("service_mode_23_signal".into(), Plan::of_dance(DANCE)));
     }
     if let Some(&first) = modes.first() {
         let unit = load_mode(first).cases.first().and_then(|c| c.unit);

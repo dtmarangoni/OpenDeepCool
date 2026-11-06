@@ -683,7 +683,13 @@ Five sub-steps, **each its own commit** (rule 4):
 - **Layer 4:**
   - `--only display --modes 23`, and `--only service --modes 23`: one case of mode 23 through `OverrideAudio`, in silence and with one dancer signal;
   - then one `--only display` and one `--only service` run with no `--modes`, one example of each mode 1–23 and of each test type, and one `--only music` run;
-  - the tour gains the Dancer with the demo burst train, soft then loud, then silence.
+  - the tour gains the Dancer to `dancer.txt`'s "beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent": soft, then loud, then silence (owner, 2026-11-06; no "demo burst train" is defined in the spec).
+
+**As built** (2026-11-06)
+- `DRAWN` holds every Music mode, 13–23, so the engine replays all 25,457 scenarios with none skipped: every ordered switch among modes 1–23. The D-Bus test drops `NotYetAvailable`: `SetMode(23)` succeeds, no mode from 1 to 23 is refused as not yet available, and 0, 24, 100, 70,000 and `u32::MAX` are `InvalidArgument`.
+- `Plan::of_dance` plays a `dancer.txt` sequence without resets through `OverrideAudio`, each tick's pose as `mode-023.txt` draws it. `service_mode_23_signal` uses the "bass 0.62 … just above a big move" train, poses 3 to 10, and the fake run lists it with mode 13's signal.
+- Real runs on this PC: `--only display --modes 23` showed all 11 poses. `--only service --modes 23` passed all 17 checks, the Dancer matching frame for frame over 28 ticks. Then `--only display` passed with all 23 modes, `--only service` with all 23 (551 s of examples and scenarios; timing p99 104.19 ms), and `--only music` passed: capture 17 + 23 frames; delay median 6.5 ms, 95th percentile 7.2 ms, maximum 109.8 ms.
+- The delay check's bursts come every 400 ms from the run's own start, not from the service's ticks. Within one run every burst lands at the same point of the 100 ms tick, so the median shows where that point fell: 68.3 ms in Task 6, 6.5 ms here. Both stay under the 150 ms target, but one run samples one point only (raised with the owner, 2026-11-06).
 
 ### 10. Records
 

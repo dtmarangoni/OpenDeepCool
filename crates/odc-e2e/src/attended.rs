@@ -4,8 +4,9 @@
 //! its dashes, then one variant of each scenario type the dev service can be driven through for
 //! each kind of mode, each shown on the real cooler, with the expected picture as text and one
 //! line on what should happen (`--modes` lists the modes; Phase 8 plan, Task 3); an emoji mode
-//! also gets one Refresh mid-loop (Phase 9 plan, Task 7), and a value over the spectrum its value
-//! scrolling over the burst train (Task 8). The owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
+//! also gets one Refresh mid-loop (Phase 9 plan, Task 7), a value over the spectrum its value
+//! scrolling over the burst train (Task 8), and the Dancer a beat train soft, then loud, then
+//! silence (Task 9). The owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
 //! standby. The answers go to `target/e2e/attended-<unix time>.txt`, and any `n` makes the exit
 //! status non-zero. Afterwards the owner's settings are as the tour found them. Later phases add
 //! one case of each of their modes and edge cases.
@@ -171,6 +172,30 @@ fn values_over_sound(
     Ok(plans)
 }
 
+/// The Dancer's tour signal: a beat train soft, then loud, then silence (owner, 2026-11-06).
+const TOUR_DANCE: &str = "beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent";
+
+/// What the Dancer's tour item should show.
+const DANCE_EXPECTED: &str =
+    "a pose a tick, as spectrum/dancer.txt lists them for this beat train (music.md, Dancer)";
+
+/// The Dancer to [`TOUR_DANCE`], when `modes` lists mode 23 and `accepted` takes it.
+fn dance(modes: &[u16], accepted: &dyn Fn(u16) -> bool) -> Result<Vec<(String, Plan)>, String> {
+    if !(modes.contains(&23) && accepted(23)) {
+        return Ok(Vec::new());
+    }
+    Ok(vec![("the Dancer".to_owned(), Plan::of_dance(TOUR_DANCE)?)])
+}
+
+/// What should happen in the tour item `id`: a scenario's Expected column, or the Dancer's.
+fn what(id: &str) -> String {
+    if id == "the Dancer" {
+        DANCE_EXPECTED.to_owned()
+    } else {
+        expected_text(id)
+    }
+}
+
 /// Runs the tour; `Ok(true)` when every answer was `y`.
 pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String> {
     match probe(Capability::DevService, roots) {
@@ -252,6 +277,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         .collect();
     plans.extend(refreshes_mid_loop(modes, &accepted)?);
     plans.extend(values_over_sound(modes, &accepted)?);
+    plans.extend(dance(modes, &accepted)?);
     for (id, plan) in plans {
         if let Err(why) = real_or_why(&id, current.gpus.len(), switch.is_some()) {
             println!("== {id} isn't shown: {why}");
@@ -259,7 +285,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         }
         let name = format!("{id} · {}", plan.name);
         loop {
-            println!("== {name}\n   what should happen: {}", expected_text(&id));
+            println!("== {name}\n   what should happen: {}", what(&id));
             if let Some((_, Some(first))) = plan.ticks.first() {
                 print_picture(&first.picture);
             }
@@ -397,5 +423,20 @@ mod tests {
                 .expect("none")
                 .is_empty()
         );
+    }
+
+    // The Dancer's tour item plays its beat train from dancer.txt, only when mode 23 is listed and
+    // taken.
+    #[test]
+    fn the_dancer_gets_its_beat_train() {
+        let plans = dance(&[13, 23], &|_| true).expect("found");
+        assert_eq!(plans.len(), 1);
+        assert!(
+            plans[0].1.name.starts_with(TOUR_DANCE),
+            "{}",
+            plans[0].1.name
+        );
+        assert!(dance(&[13], &|_| true).expect("none").is_empty());
+        assert!(dance(&[23], &|_| false).expect("none").is_empty());
     }
 }

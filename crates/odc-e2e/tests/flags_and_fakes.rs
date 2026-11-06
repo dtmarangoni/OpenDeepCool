@@ -177,6 +177,9 @@ fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
         "service_S1",
         "service_S18",
         "service_S26",
+        // Phase 9: the sound through OverrideAudio, as the spectrum and as the Dancer's moves.
+        "service_mode_13_signal",
+        "service_mode_23_signal",
     ] {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
