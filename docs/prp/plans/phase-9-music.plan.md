@@ -655,6 +655,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - The layout check leaves out mode 18's °F steps, the DeepCreative path OpenDeepCool doesn't reproduce. In its loud step, 7 of 80 frames also break the layout (`music.md`, recorded 2026-11-06).
   - The tour gains each value mode's values of 100 or more scrolling over the burst train for a whole cycle, in °F for 18–19: S14 into mode 13 at *k* 20. The value modes' other scenarios play in silence.
   - `--only display --modes 18` and `--only service --modes 18` passed, every scenario type the run can drive included.
+- Mode 19 (2026-11-06): no change beyond `DRAWN` and the tests' lists. Layer 2 compares 19 steps, 10 still and 9 scrolling in °F, 552 frames, all matching; the other 8 are listed with their reasons. Both real runs passed, all 35 service checks.
 
 ### 9. Music, the Dancer (mode 23)
 
