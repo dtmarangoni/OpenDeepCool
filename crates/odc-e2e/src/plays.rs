@@ -500,13 +500,14 @@ pub fn play_real(
             }
         }
     }
-    // Its end of file is silence.
-    drop(pipe);
     let end =
         deadline + TICK * u32::try_from(plan.ticks.len() + 1).expect("short") + FLUSHED_WITHIN;
     if let Some(wait) = end.checked_duration_since(Instant::now()) {
         thread::sleep(wait);
     }
+    // Its end of file is silence at once, so it closes only after the last tick has analysed its
+    // sound: a burst on the last tick, as in mode 17's 16-tick scenarios, needs its window.
+    drop(pipe);
     let result = recorded_by_tick(first, plan.ticks.len())
         .and_then(|recorded| compare(plan, first, &recorded, away));
     // The next play starts from the run's GPU choice; a play that fails earlier leaves it to the
