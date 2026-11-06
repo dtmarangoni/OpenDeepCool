@@ -4,7 +4,8 @@
 //! its dashes, then one variant of each scenario type the dev service can be driven through for
 //! each kind of mode, each shown on the real cooler, with the expected picture as text and one
 //! line on what should happen (`--modes` lists the modes; Phase 8 plan, Task 3); an emoji mode
-//! also gets one Refresh mid-loop (Phase 9 plan, Task 7). The owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
+//! also gets one Refresh mid-loop (Phase 9 plan, Task 7), and a value over the spectrum its value
+//! scrolling over the burst train (Task 8). The owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
 //! standby. The answers go to `target/e2e/attended-<unix time>.txt`, and any `n` makes the exit
 //! status non-zero. Afterwards the owner's settings are as the tour found them. Later phases add
 //! one case of each of their modes and edge cases.
@@ -15,7 +16,8 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use odc_protocol::Message;
-use odc_render::{EmojiLoop, Mode, draws};
+use odc_render::{EmojiLoop, Mode, draws, mode_info, spectrum_height};
+use odc_service::engine::shows_temperature;
 use odc_testkit::expected::{
     Case, Kind, Picture, Unit, load_mode, load_unavailable, mode_scenarios,
 };
@@ -134,6 +136,41 @@ fn refreshes_mid_loop(
     Ok(plans)
 }
 
+/// For each mode with a value over the spectrum among `modes` that `accepted` takes, its values of
+/// 100 or more scrolling over the burst train for a whole cycle, in °F where it shows a
+/// temperature, before it switches into mode 13 (Phase 9 plan, Task 8): S14 at its largest *k*.
+/// The value modes' other scenarios play in silence.
+fn values_over_sound(
+    modes: &[u16],
+    accepted: &dyn Fn(u16) -> bool,
+) -> Result<Vec<(String, Plan)>, String> {
+    let mut plans = Vec::new();
+    for &number in modes.iter().filter(|&&n| accepted(n) && accepted(13)) {
+        let Some(mode) = Mode::new(number)
+            .filter(|&m| spectrum_height(m).is_some() && !mode_info(m).metrics.is_empty())
+        else {
+            continue;
+        };
+        let unit = if shows_temperature(mode) {
+            "°F · "
+        } else {
+            ""
+        };
+        let prefix = format!("## S14 · mode {number} · {unit}into mode 13 · values above 100 · k ");
+        let scenario = mode_scenarios(number)
+            .into_iter()
+            .filter_map(|s| {
+                let k: u32 = s.heading.strip_prefix(&prefix)?.parse().ok()?;
+                Some((k, s))
+            })
+            .max_by_key(|(k, _)| *k)
+            .map(|(_, s)| s)
+            .ok_or_else(|| format!("scenarios/mode-{number:03}.txt: no `{prefix}…`"))?;
+        plans.push(("S14".to_owned(), Plan::of_scenario(&scenario)));
+    }
+    Ok(plans)
+}
+
 /// Runs the tour; `Ok(true)` when every answer was `y`.
 pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String> {
     match probe(Capability::DevService, roots) {
@@ -214,6 +251,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         .map(|(id, _, plan)| (id, plan))
         .collect();
     plans.extend(refreshes_mid_loop(modes, &accepted)?);
+    plans.extend(values_over_sound(modes, &accepted)?);
     for (id, plan) in plans {
         if let Err(why) = real_or_why(&id, current.gpus.len(), switch.is_some()) {
             println!("== {id} isn't shown: {why}");
@@ -331,6 +369,31 @@ mod tests {
         assert!(plans.iter().all(|(id, _)| id == "S26"));
         assert!(
             refreshes_mid_loop(&[14], &|_| false)
+                .expect("none")
+                .is_empty()
+        );
+    }
+
+    // Each value mode over the spectrum the service takes gets its values scrolling over the
+    // burst train for a whole cycle, from its own scenario file; no other mode does, nor one
+    // whose switch into mode 13 the service would refuse.
+    #[test]
+    fn each_value_mode_over_the_spectrum_gets_its_value_scrolling_over_sound() {
+        let plans =
+            values_over_sound(&[1, 13, 14, 18, 19, 20, 21, 22, 23], &|_| true).expect("found");
+        let names: Vec<&str> = plans.iter().map(|(_, plan)| plan.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "S14 · mode 18 · °F · into mode 13 · values above 100 · k 20",
+                "S14 · mode 19 · °F · into mode 13 · values above 100 · k 20",
+                "S14 · mode 20 · into mode 13 · values above 100 · k 20",
+                "S14 · mode 21 · into mode 13 · values above 100 · k 20",
+                "S14 · mode 22 · into mode 13 · values above 100 · k 20",
+            ]
+        );
+        assert!(
+            values_over_sound(&[18], &|mode| mode != 13)
                 .expect("none")
                 .is_empty()
         );

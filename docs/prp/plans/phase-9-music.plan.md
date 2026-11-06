@@ -647,6 +647,15 @@ Five sub-steps, **each its own commit** (rule 4):
   - every ordered switch with the modes drawable before it.
 - **Layer 4:** `--only display` and `--only service`, `--modes 18` … `--modes 22`. The tour gains each mode with a `100%` or `135°F` value scrolling over the burst train.
 
+**As built**
+- Before mode 18 (2026-11-06): mode 18 alone brings about 2,800 Music scenarios, so the replays now analyse each test signal once (odc-render), and the engine replays each mode's file on a thread of its own: 6.7 s and 21 s on this PC. `matrix_music`'s *H* 6 signal test takes every upright case of each drawn mode with a top, an emoji's loop or a value.
+- Mode 18 (2026-11-06):
+  - `music.rs` gains the property that rows 9–14 are always the spectrum's, and that the value never reaches them, for any reading, unit and point of the cycle.
+  - `differential_music.rs` compares the value modes' rows 1–8 where both sets of rules agree. Mode 18 has 6 still °C steps, 190 frames, all matching; the other 21 steps are listed with their reasons.
+  - The layout check leaves out mode 18's °F steps, the DeepCreative path OpenDeepCool doesn't reproduce. In its loud step, 7 of 80 frames also break the layout (`music.md`, recorded 2026-11-06).
+  - The tour gains each value mode's values of 100 or more scrolling over the burst train for a whole cycle, in °F for 18–19: S14 into mode 13 at *k* 20. The value modes' other scenarios play in silence.
+  - `--only display --modes 18` and `--only service --modes 18` passed, every scenario type the run can drive included.
+
 ### 9. Music, the Dancer (mode 23)
 
 **Files and integration points**

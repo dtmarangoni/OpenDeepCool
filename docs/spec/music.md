@@ -88,6 +88,8 @@ Examples: `57°C`, `38°C`, `42%`, `7%`, `63%`; in °F, modes 18 and 19 scroll. 
 
 **DeepCreative quirk, not reproduced:** in mode 18 with °F, DeepCreative draws the **Gpu temperature**, not the CPU Temperature the option names. With CPU 57 °C and GPU 38 °C it scrolled `100°F` (the GPU) instead of `134°F`; with the GPU at 0 it scrolled `32°F`. Mode 18 in °C and mode 19 in both units draw the right metric. Capture: music sweep step `MusicLoud 18`, unit 1, and the matrix sweep, in all four rotations; owner: 2026-10-22, `32°F` and then `100°F` on the cooler.
 
+In that same step, over the loud chord, 7 of its 80 frames also break the [spectrum layout](#spectrum-layout-as-deepcreative): some columns of rows 9–13 have a lit pixel above an off one. Its 12 matrix sweep steps in °F keep the layout, as does every other Music step. Why is unverified. Capture: music sweep of 2026-10-22, found by Phase 9 Task 8's differential test (2026-11-06).
+
 **OpenDeepCool:** mode 18 shows the CPU Temperature in both units. Every mode shows the metric it names (owner decision, 2026-10-22; AGENTS.md rule 11).
 
 ## Dancer (mode 23, OpenDeepCool's own)
