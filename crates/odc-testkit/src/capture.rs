@@ -1,7 +1,7 @@
 //! The capture-log readers. The research logger's captures hold one message per line,
 //! `<unix ns> <pid> <tid> <dir> <len> <hex>` (Phase 5 plan, Task 5). The recording wrapper writes
-//! `<ns> <tick> out 64 <hex>`: its time is monotonic and its tick the engine's (Phase 7 plan,
-//! Task 7). A malformed line panics, naming its file and line.
+//! `<ns> <tick> out 64 <hex>`: its time is `CLOCK_MONOTONIC`'s and its tick the engine's (Phase 7
+//! plan, Task 7; Phase 9 plan, Task 5). A malformed line panics, naming its file and line.
 
 use std::fs::File;
 use std::io::{BufRead, BufReader};
@@ -119,7 +119,7 @@ mod tests {
 pub struct Recorded {
     /// The line it was on, from 1.
     pub line: usize,
-    /// Its write time, in ns since the recording began, on the monotonic clock.
+    /// Its write time, `CLOCK_MONOTONIC` in ns, which every process reads alike.
     pub ns: u64,
     /// The engine's tick whose frame was being written.
     pub tick: u64,

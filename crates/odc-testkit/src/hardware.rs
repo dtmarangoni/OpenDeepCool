@@ -49,13 +49,16 @@ pub enum Capability {
     /// The dev copy of the display service (Phase 7 plan, Task 9): active, started with `--dev`,
     /// owning its bus name, its recording readable by this account, and the LP360 usable.
     DevService,
+    /// The user's PipeWire, answering `pactl info`, with `pw-record`, `pw-play`, `pw-dump` and
+    /// `pactl` (Phase 9 plan, Task 5): the Music checks' virtual output.
+    PipeWire,
 }
 
 /// The drivers with a kind signal (`docs/spec/sensors.md`, GPU choice).
 const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
 
 impl Capability {
-    pub const ALL: [Capability; 15] = [
+    pub const ALL: [Capability; 16] = [
         Capability::Lp360,
         Capability::Lp360Reconnect,
         Capability::CpuTemp,
@@ -71,6 +74,7 @@ impl Capability {
         Capability::SensorsTool,
         Capability::GpuLoadTool,
         Capability::DevService,
+        Capability::PipeWire,
     ];
 
     /// The name `--require` takes.
@@ -91,6 +95,7 @@ impl Capability {
             Capability::SensorsTool => "sensors-tool",
             Capability::GpuLoadTool => "gpu-load-tool",
             Capability::DevService => "dev-service",
+            Capability::PipeWire => "pipewire",
         }
     }
 
@@ -272,6 +277,35 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
         ),
         Capability::GpuLoadTool => tool(roots, "ffmpeg", "install ffmpeg: `sudo pacman -S ffmpeg`"),
         Capability::DevService => dev_service(roots),
+        Capability::PipeWire => pipewire(roots),
+    }
+}
+
+/// The PipeWire tools the Music checks start.
+pub const PIPEWIRE_TOOLS: [&str; 4] = ["pw-record", "pw-play", "pw-dump", "pactl"];
+
+/// The user's PipeWire: its tools in `<bin>`, and its PulseAudio server answering `pactl info` as
+/// PipeWire's (`Server Name: PulseAudio (on PipeWire …)`, read on the development PC,
+/// 2026-11-05). Without them, the Music checks run through fakes.
+fn pipewire(roots: &Roots) -> Probe {
+    for name in PIPEWIRE_TOOLS {
+        if tool(roots, name, "") != Probe::Real {
+            return absent(&format!("no {name} in {}", roots.bin.display()));
+        }
+    }
+    match Command::new(roots.bin.join("pactl")).arg("info").output() {
+        Ok(out) if out.status.success() => {
+            let text = String::from_utf8_lossy(&out.stdout);
+            if text
+                .lines()
+                .any(|l| l.starts_with("Server Name:") && l.contains("on PipeWire"))
+            {
+                Probe::Real
+            } else {
+                absent("the sound server isn't PipeWire")
+            }
+        }
+        _ => absent("no sound server answers `pactl info`"),
     }
 }
 
@@ -427,7 +461,8 @@ pub enum Mode {
 #[derive(Debug, Default)]
 pub struct Summary {
     modes: Vec<(Capability, Mode)>,
-    checks: Vec<(String, Result<String, String>)>,
+    /// Each check's result, and whether it couldn't run here: its text then says why.
+    checks: Vec<(String, Result<String, String>, bool)>,
 }
 
 impl Summary {
@@ -439,11 +474,18 @@ impl Summary {
     }
 
     pub fn check(&mut self, name: &str, result: Result<String, String>) {
-        self.checks.push((name.to_owned(), result));
+        self.checks.push((name.to_owned(), result, false));
+    }
+
+    /// A check that couldn't run on this PC, with why: never reported as passed, and never a
+    /// failure (Phase 9 plan, Task 5: the delay without PipeWire).
+    pub fn skipped(&mut self, name: &str, why: &str) {
+        self.checks
+            .push((name.to_owned(), Ok(why.to_owned()), true));
     }
 
     pub fn passed(&self) -> bool {
-        self.checks.iter().all(|(_, r)| r.is_ok())
+        self.checks.iter().all(|(_, r, _)| r.is_ok())
             && self
                 .modes
                 .iter()
@@ -453,8 +495,9 @@ impl Summary {
     /// The table, one line per check, then one per capability.
     pub fn table(&self) -> String {
         let mut out = String::from("check            result\n");
-        for (name, result) in &self.checks {
+        for (name, result, skipped) in &self.checks {
             let line = match result {
+                Ok(why) if *skipped => format!("not run {why}"),
                 Ok(note) => format!("passed  {note}"),
                 Err(reason) => format!("FAILED  {reason}"),
             };

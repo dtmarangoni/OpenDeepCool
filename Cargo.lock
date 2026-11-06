@@ -484,6 +484,7 @@ version = "0.0.0"
 dependencies = [
  "odc-protocol",
  "odc-testkit",
+ "rustix",
 ]
 
 [[package]]

@@ -8,6 +8,9 @@ publish.workspace = true
 
 [dependencies]
 odc-protocol = { path = "../odc-protocol" }
+# CLOCK_MONOTONIC for the recording's stamps (Phase 9 plan, Task 5); already in the tree through
+# zbus.
+rustix = { version = "1", features = ["time"] }
 
 [dev-dependencies]
 odc-testkit = { path = "../odc-testkit" }

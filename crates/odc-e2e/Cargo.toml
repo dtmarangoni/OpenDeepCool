@@ -19,5 +19,11 @@ odc-testkit = { path = "../odc-testkit" }
 # The dev service's test session, on the system bus (Phase 7 plan, Task 9).
 zbus = "6"
 
+# The Music tools' tests: their own binary also plays the fake pactl, systemctl, pw-dump and helper
+# (AGENTS.md rule 13), so it has its own main instead of the test harness.
+[[test]]
+name = "music_tools"
+harness = false
+
 [lints]
 workspace = true

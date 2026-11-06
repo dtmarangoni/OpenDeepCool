@@ -531,6 +531,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   1. `pactl load-module module-null-sink sink_name=odc-e2e`, keeping the module index.
   2. `systemctl --user stop opendeepcool-audio`.
   3. Start the dev helper with `--target odc-e2e.monitor`. Which node name the null sink's monitor has is unverified: Task 5 reads it from `pw-dump` and uses that.
+     - Read on this PC, 2026-11-05 (owner's OK, null sink loaded and unloaded): the null sink is one node, `node.name` `odc-e2e` (`media.class` `Audio/Sink`), whose monitor is its own ports; `pw-record --target odc-e2e` with `stream.capture.sink` captures it, so the helper gets `--target odc-e2e`. `pactl load-module` printed the index, `list short modules` gives `<index>\tmodule-null-sink\tsink_name=odc-e2e\t`, and the default output didn't change.
   4. Afterwards: stop it, `pactl unload-module <index>`, `systemctl --user start opendeepcool-audio`.
 
   The owner's own sound keeps playing on their output, unchanged, during the run.
@@ -544,6 +545,12 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - the run reports the median, the 95th and 99th percentiles and the maximum, so the margin under the target shows (solution review P9-06), and **fails if the 95th percentile is above 150 ms**.
   - Writing ahead of playback can only make the measured value larger than the true one, so a pass is safe. The report states the pacing (10 ms or less queued).
 - **Fake mode** (`pipewire` Absent): the same signals through `FakeAudio` in an in-process engine. The delay check is reported as not run, never as passed.
+- As built (2026-11-05):
+  - **Playback volume:** WirePlumber gave `pw-play`'s stream the volume it keeps for it (91 %, −2.6 dB, on this PC), so `pw-play` runs with `-P '{ "state.restore-props": false }'` (WirePlumber's `state-stream.lua`), and the capture came back at exactly the tone's 0.1. The check also fails, with its fix, if the helper's capture stream isn't at 100 % (`pactl list source-outputs`).
+  - **One clock** (owner, 2026-11-05): the dev recording stamps each report with `CLOCK_MONOTONIC` itself (`odc_device::monotonic_ns`), not ns since the recording began, so `odc-e2e` stamps each burst on the same clock. Phase 7's timing run reads only differences.
+  - `odc_testkit::hardware::Summary::skipped` reports a check that can't run here as `not run`, never as passed. Until mode 13 is drawn (Task 6), the Music checks are all `not run`.
+  - The capture check plays 1 s of silence, 2 s of the tone and 3 s of silence; frames from 300 ms into the tone to its end must show `expected.txt`'s steady rows, and frames before it and 1.8 s after it the floor line; rows 1–2 stay off.
+  - The real run checks, in order: the only-in-Music node check, the capture, the delay, each its own line (`music_only_in_music`, `music_capture`, `music_delay`), with the owner's settings set back by Phase 7's `Restore` and the harness dropped last.
 
 **Tests**
 - Parsing of the null sink's module index and of `pw-dump`'s monitor node; the drop guard restores the unit even when a check panics (tested with a fake `systemctl` and `pactl` on `PATH`, Rust test programs); and the start-up repair, with a fake `pactl` listing a leftover `odc-e2e` sink and a fake `systemctl` reporting the helper stopped (P9-10).

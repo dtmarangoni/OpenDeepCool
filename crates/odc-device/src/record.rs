@@ -1,9 +1,10 @@
 //! The recording: the reports actually written, so the tests compare what reached the cooler
 //! with the expected frames (AGENTS.md rule 3). One line per report,
-//! `<ns since the recording began, monotonic> <tick> out 64 <hex>`, which
-//! `odc_testkit::capture::read_recording` reads. The tick is the engine's, set through a
-//! [`RecordingHandle`] before each frame; the time is `Instant`'s, `CLOCK_MONOTONIC` on Linux
-//! (Phase 7 plan, Task 7; solution review P7-13).
+//! `<CLOCK_MONOTONIC ns> <tick> out 64 <hex>`, which `odc_testkit::capture::read_recording`
+//! reads. The tick is the engine's, set through a [`RecordingHandle`] before each frame (Phase 7
+//! plan, Task 7; solution review P7-13). The time is the kernel's monotonic clock itself, the same
+//! in every process, so a test sets its own events against the frames: the Music delay (owner,
+//! 2026-11-05; Phase 9 plan, Task 5).
 
 use std::fs::{self, File};
 use std::io::{self, BufWriter, Write};
@@ -14,6 +15,15 @@ use std::time::{Duration, Instant};
 use odc_protocol::{Report, startup_report};
 
 use crate::lp360::{Connector, OpenError, Transport};
+
+/// `CLOCK_MONOTONIC` now, in ns: the kernel's clock from boot, which every process reads alike
+/// and a suspend doesn't advance (clock_gettime(2)).
+pub fn monotonic_ns() -> u64 {
+    let now = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+    let secs = u64::try_from(now.tv_sec).expect("the monotonic clock is never negative");
+    let nanos = u64::try_from(now.tv_nsec).expect("0 to 999 999 999");
+    secs * 1_000_000_000 + nanos
+}
 
 /// Which reports a recording keeps.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -52,7 +62,6 @@ struct Log {
     out: BufWriter<File>,
     /// The first failed write to the recording; nothing more is recorded after it.
     failure: Option<String>,
-    began: Instant,
     keep: Keep,
     /// The tick of the frame being written.
     tick: u64,
@@ -105,7 +114,7 @@ impl Log {
         if !kept || self.failure.is_some() {
             return;
         }
-        let ns = self.began.elapsed().as_nanos();
+        let ns = monotonic_ns();
         let hex: String = report
             .as_bytes()
             .iter()
@@ -166,7 +175,6 @@ impl<C> Recording<C> {
                 path,
                 out,
                 failure: None,
-                began: now,
                 keep,
                 tick: 0,
                 reports: 0,

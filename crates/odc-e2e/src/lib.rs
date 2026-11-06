@@ -9,6 +9,7 @@ pub mod baseline;
 pub mod device;
 pub mod display;
 pub mod gpu_rank;
+pub mod music;
 pub mod plays;
 pub mod sensors;
 pub mod service;
@@ -27,10 +28,10 @@ pub const USAGE: &str =
   --require <list>  capabilities that must run real: lp360, lp360-reconnect,
                     cpu-temp, cpu-power, proc-stat, meminfo, gpu-amdgpu, gpu-i915,
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
-                    gpu-load-tool, dev-service
+                    gpu-load-tool, dev-service, pipewire
   --only <area>     run one area's checks: device, display, gpu-rank, sensors,
-                    service; or baseline, the dev service's resource use over
-                    10 minutes, which only runs when named
+                    service, music; or baseline, the dev service's resource use
+                    over 10 minutes, which only runs when named
   --modes <list>    the modes display, service and the tour take, as numbers and
                     ranges: 7, or 7-9,12; without it, every mode this build draws
   --attended        the optional tour for you to watch on the cooler, through the
@@ -55,6 +56,8 @@ pub enum Area {
     Sensors,
     /// The dev service's own checks (Phase 7 plan, Task 9).
     Service,
+    /// The Music checks through a virtual output: the capture and the delay (Phase 9 plan, Task 5).
+    Music,
     /// The resource baseline (Phase 7 plan, Task 10): only when named.
     Baseline,
 }
@@ -143,6 +146,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                     "gpu-rank" => Area::GpuRank,
                     "sensors" => Area::Sensors,
                     "service" => Area::Service,
+                    "music" => Area::Music,
                     "baseline" => Area::Baseline,
                     _ => return Err(format!("{area:?} isn't an area")),
                 });
@@ -192,6 +196,9 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only.is_none_or(|area| area == Area::Service) {
         service::run(roots, tick, &options.modes(), &mut summary);
+    }
+    if options.only.is_none_or(|area| area == Area::Music) {
+        music::run(roots, out_dir, &mut summary);
     }
     if options.only == Some(Area::Baseline) {
         baseline::run(roots, &mut summary);
