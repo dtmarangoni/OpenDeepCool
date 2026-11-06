@@ -616,6 +616,7 @@ Four sub-steps, **each its own commit** (rule 4).
   - Its first real `--only service --modes 14` failed S26: the loop restarted a tick late. The engine asked for Refresh's snapshot on the tick that took the call, so on the real service the reset always came a tick later. Phases 7–8 never showed it, because their real S26 runs used static pictures. It's fixed in its own commit: the D-Bus side now asks as the call arrives, and another GPU the same way (owner, 2026-11-06; PRD Decisions Log). One `odc-dev setup` served both commits (owner).
 - Mode 15 (2026-11-06): no change beyond `DRAWN` and the tests' lists of drawn Music modes. Its 6 captured steps, 350 frames, match the loop, and `--only display --modes 15` and `--only service --modes 15` passed.
 - Mode 16 (2026-11-06): the same; 6 captured steps, 350 frames, and both real runs passed.
+- Mode 17 (2026-11-06): 6 captured steps, 350 frames, match its 11-tick loop. Its first real `--only service --modes 17` failed S16 and S26 at tick 11. These scenarios are 16 ticks long, and their last tick starts a burst, but `odc-e2e`'s real play had already closed the sound's pipe, which the service takes as silence at once. It's fixed in its own commit: the pipe now closes after the last tick. Then both real runs passed.
 
 ### 8. Music, a value over the spectrum (modes 18, 19, 20, 21, 22)
 

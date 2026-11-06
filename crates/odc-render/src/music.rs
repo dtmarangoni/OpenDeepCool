@@ -15,7 +15,7 @@ use crate::value::{Shown, fahrenheit, number};
 use crate::{Unit, Values};
 
 /// The Music modes this build draws.
-const DRAWN: [u16; 4] = [13, 14, 15, 16];
+const DRAWN: [u16; 5] = [13, 14, 15, 16, 17];
 
 /// The value's top row in modes 18–22.
 const VALUE_TOP: usize = 2;

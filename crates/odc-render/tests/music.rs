@@ -43,7 +43,7 @@ fn the_value_area_of_modes_18_to_22_draws_every_case_over_a_silent_spectrum() {
 #[test]
 fn only_modes_18_to_22_have_a_value_area_and_the_music_modes_drawn_so_far_are_drawn() {
     // Phase 9 plan, Tasks 6–9: each Music mode is drawn in its own commit.
-    let music_drawn: [u16; 4] = [13, 14, 15, 16];
+    let music_drawn: [u16; 5] = [13, 14, 15, 16, 17];
     for mode in Mode::all() {
         let area = value_picture(mode, &values(&[]), Unit::Celsius);
         assert_eq!(
