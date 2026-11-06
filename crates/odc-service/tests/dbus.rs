@@ -2152,9 +2152,16 @@ fn the_sound_override_needs_the_session_and_ends_with_it() {
     });
 }
 
-/// Column 7's lit heights from the floor in mode 13's spectrum area, rows 3–14.
-fn column_7(frame: &Frame) -> usize {
-    (1..=12).filter(|&height| frame.get(15 - height, 7)).count()
+/// Column 7 in mode 13's spectrum area, rows 3–14: its bar's height from the floor, and whether a
+/// dot is lit above it.
+fn column_7(frame: &Frame) -> (usize, bool) {
+    let lit: Vec<usize> = (1..=12).filter(|&h| frame.get(15 - h, 7)).collect();
+    let bar = lit
+        .iter()
+        .enumerate()
+        .take_while(|&(i, &h)| h == i + 1)
+        .count();
+    (bar, lit.len() > bar)
 }
 
 /// The frames the fake cooler got on its last connection.
@@ -2204,22 +2211,31 @@ fn a_tone_through_the_pipe_draws_its_bar_and_a_closed_pipe_lets_it_fall() {
             drop(pipe);
         });
         assert!(
-            soon(|| frames_written(&s).iter().any(|f| column_7(f) >= 8)).await,
+            soon(|| frames_written(&s).iter().any(|f| column_7(f).0 >= 8)).await,
             "the tone's bar rises"
         );
         player.join().expect("played");
-        // Its writer closed: silence, and the bar falls from where it was to the floor.
-        sleep(Duration::from_millis(1500)).await;
-        let heights: Vec<usize> = frames_written(&s).iter().map(column_7).collect();
-        let top = heights
+        // Its writer closed: silence. The bar falls from where it was to the floor, 2 rows a tick;
+        // the peak dot, at its slow default, takes about 1.4 s to come down from there.
+        sleep(Duration::from_millis(2500)).await;
+        let shown: Vec<(usize, bool)> = frames_written(&s).iter().map(column_7).collect();
+        let top = shown
             .iter()
-            .rposition(|&h| h >= 8)
+            .rposition(|&(bar, _)| bar >= 8)
             .expect("the bar was up");
-        let fall = &heights[top..];
-        assert_eq!(fall.last(), Some(&1), "down to the floor: {fall:?}");
+        let bars: Vec<usize> = shown[top..].iter().map(|&(bar, _)| bar).collect();
+        // A dot right above the bar looks like a bar a row taller: once the bar is down, at most
+        // the floor and a dot touching it.
+        let falling = bars.iter().take_while(|&&bar| bar > 2).count();
         assert!(
-            fall.windows(2).all(|w| w[0] >= w[1] && w[0] - w[1] <= 3),
-            "falling at the bar fall rate (a bar 2 rows a tick, a dot above it): {fall:?}"
+            bars[..falling].windows(2).all(|w| w[0] - w[1] == 2),
+            "falling at the bar fall rate, 2 rows a tick: {bars:?}"
+        );
+        assert!(bars[falling..].iter().all(|&bar| bar <= 2), "{bars:?}");
+        assert_eq!(
+            shown.last(),
+            Some(&(1, false)),
+            "down to the floor, the dot too"
         );
         assert!(
             s.journal
