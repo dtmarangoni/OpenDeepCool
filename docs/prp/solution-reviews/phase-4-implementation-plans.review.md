@@ -70,7 +70,6 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
   - the Phase 5 plan cites `display.md:143-156` for rotation, which now lies in the Rotation section near the end of the file;
   - it cites `AGENTS.md:109-112` for Commands, a section that has since moved;
   - the Phase 6 plan cites `settings.md:66-69` for the app's reason texts, lines that now hold the end of the GPU choice and the start of the fan inputs.
-- **Every plan has an HTML companion**, a second copy to keep in step. Any change from the cross-check must update both.
 - **Only Phase 8** has a task to check the previous phase's real names (`picture`, `Marquee`, …) before starting. Phases 9, 10 and 11 depend on just as many names.
 
 ## Findings
@@ -82,7 +81,6 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
 | P4-03 | Low | Maintainability | Line-number references have drifted |
 | P4-04 | Low–Medium | Coherence | The D-Bus contract has no single committed description or conformance test |
 | P4-05 | Medium | Coherence, CI | The CI environment evolves across phases without being reconciled |
-| P4-06 | Low | Maintainability | Plans and their HTML companions must be kept in step |
 | P4-07 | Low | Process | Only Phase 8 checks the previous phase's real names before starting |
 | P4-08 | Medium | Security process | No threat model and no "must be refused" tests in the plans |
 
@@ -120,11 +118,6 @@ Security appears in the plans as design choices: the sandbox, polkit, group-only
 - **Evidence:** Phase 5 Task 10 (`ubuntu-latest`, `cargo test --workspace`); Phase 10 Task 10 (UI jobs in `archlinux`); Phase 11 Task 2 (`check()` runs the hardware-free tests).
 - **Recommendation:** run all CI in an `archlinux` container from Phase 5. It's the only supported platform, it has a current `systemd` for `udevadm verify`, and GTK is new enough. Mark the UI tests that need weston as their own target, outside `cargo test --workspace` and `check()` (P10-04, P11-08).
 - **Outcome (2026-10-27):** accepted. Every CI job runs in the official `archlinux:base-devel` container from Phase 5 (Docker Hub, read 2026-10-27), which also removes Phase 5's `udevadm verify` risk. The weston tests sit behind `odc-app`'s `weston-tests` feature, so `cargo test --workspace`, the guard and the PKGBUILD's `check()` need no display, and CI runs them in a job of their own. Phase 5 Task 10 and Risks; Phase 10 Tasks 3 and 10; Phase 11 Task 2; PRD Testing Strategy and Decisions Log. This also settles P10-03, P10-04, P11-08 and OV-10.
-
-### P4-06: HTML companions
-
-- **Recommendation:** after any plan change from the cross-check, regenerate its companion (`/prp-core:prp-companion`) in the same commit.
-- **Outcome (2026-10-27):** accepted from Phase 5 on: a plan change regenerates its HTML companion in the same commit (AGENTS.md How to work; `CLAUDE.md` names the command). During the cross-check, the companions are still regenerated once, when it ends, as the owner decided on 2026-10-26.
 
 ### P4-07: Name checks between phases
 

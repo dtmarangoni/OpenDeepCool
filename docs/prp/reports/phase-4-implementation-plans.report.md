@@ -7,7 +7,7 @@
 
 ## Outcome
 
-Every implementation phase has a plan an agent can execute from top to bottom, with its tests, its acceptance criteria and its HTML companion. Each plan's evidence was checked against the spec, this PC and primary sources, and spikes settled the architectural hinges.
+Every implementation phase has a plan an agent can execute from top to bottom, with its tests and its acceptance criteria. Each plan's evidence was checked against the spec, this PC and primary sources, and spikes settled the architectural hinges.
 
 | Phase | Plan | In one line |
 |---|---|---|
@@ -26,7 +26,6 @@ The PRD's Phase 4 row first said "phases 5–12". Removing Creative (2026-10-25)
 | Criterion | Result | Evidence |
 |---|---|---|
 | One plan per implementation phase | Met: Phases 5–11, each linked from the PRD table | PRD Implementation Phases |
-| Each plan has an HTML companion | Met | `docs/prp/plans/*.plan.html` |
 | Plans follow the spec and the owner's decisions | Met; a final sweep on 2026-10-25 found and fixed two stale lines (Phase 5's frame count, a leftover cold-boot mention in Phase 7) | Commit history below |
 | Hinges settled by evidence, not assumption | Met by spikes and checks on this PC | Spikes, below |
 | Nothing implemented yet | Met: plans, spec, design and research only; no Rust code | `git diff main --stat` |

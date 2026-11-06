@@ -71,7 +71,7 @@ The plan counted 32 skipped steps for mode 7; the 33rd is a one-off blank displa
 
 ## Changes from the plan
 
-Each was agreed with the owner where marked; the plan, its companion and the PRD say so.
+Each was agreed with the owner where marked; the plan and the PRD say so.
 
 - **Before Task 1** (2026-11-05; AGENTS.md, How to work): the plan was compared with what Phases 5–7 built and corrected: `number` was already the °C and power rule, `picture.rs` needed no change, `SetMode` and availability already shared `draws`, the scenario format had no unit, the generator was Load-only, `load.txt`'s "not yet available" example was mode 9, and `odc-e2e` assumed Load in more files than listed.
 - **`--only display`** (owner, 2026-11-05): Phase 7's direct check covers every drawn mode, renamed; each mode's commit ran it beside `--only service --modes <n>`.

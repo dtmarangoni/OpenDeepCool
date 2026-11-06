@@ -62,6 +62,6 @@ For each review, with the owner:
 
 1. Go through its findings, High first, then its questions.
 2. For each finding, the owner decides: **accepted** (the PRD, plan or spec changes), **rejected** (with the reason), or **deferred** (to a later phase or after v1, recorded in the PRD).
-3. Make the agreed changes in the PRD, the plan and the spec, each with the owner's OK, as AGENTS.md requires. The plans' HTML companions are regenerated once, when the whole cross-check ends.
+3. Make the agreed changes in the PRD, the plan and the spec, each with the owner's OK, as AGENTS.md requires.
 4. Record the outcome in the review: add an "Outcome" line under each finding, with the date and where the change went. Leave the finding's text as it was written.
 5. Then implement the phase.

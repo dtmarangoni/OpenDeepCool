@@ -30,7 +30,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
   - The owner's decisions, recorded as Outcome lines in the reviews, win over the PRD, the plans and the spec: where one disagrees with an outcome, correct it to match. A later outcome supersedes an earlier one (owner, 2026-10-27).
 - After a context compaction or a long pause, re-read the current plan step before continuing.
 - Before a phase's first task, compare its plan with what the earlier phases actually built (names, types, files, commands). Where they differ, update the plan with the owner's OK before writing code (owner, 2026-10-27).
-- From Phase 5 on, a change to a plan regenerates its HTML companion in the same commit (owner, 2026-10-27). During the solution-review cross-check, the companions are regenerated once, when it ends.
+- Plans, reviews and reports are Markdown only: no HTML companion pages (owner, 2026-11-06).
 - If the plan or spec is wrong, incomplete, or contradicts what you see: stop, explain, and update the document with the owner's OK before writing code.
 - When a phase changes state, update the PRD table (status, plan, report, PR). In Claude Code, use `/prp-core:prp-prd-update`.
 - When a phase is done and signed off, push its branch and wait until its CI run passes, then fast-forward `main` to it and push; no pull requests (owner, 2026-10-23 and 2026-10-27). Its PRD row then becomes `complete`, with `-` in the PR column. At sign-off, CI's pinned actions are checked for newer releases and their hashes updated (owner, 2026-10-27).
@@ -111,7 +111,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 | Path | Contents |
 |---|---|
 | `docs/prp/prds/` | PRD: scope, decisions, phase status |
-| `docs/prp/plans/` | One plan per phase (from Phase 3), with its HTML companion |
+| `docs/prp/plans/` | One plan per phase (from Phase 3) |
 | `docs/prp/reports/` | Implementation reports |
 | `docs/prp/solution-reviews/` | Solution reviews: the whole solution and each phase's plan, reviewed after planning and before implementation; their findings are crossed with the owner before any code |
 | `docs/spec/` | Functionality and protocol spec (from Phase 3) |

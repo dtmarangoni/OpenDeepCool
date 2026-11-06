@@ -312,8 +312,6 @@ Questions:
 - **Answered:** Q1, Q3 and Q5 (above); Q4 and Q7 later the same day (only the user at the PC; back after standby: OV-06, OV-19).
 - **Answered in the Phase 6 review** (2026-10-27): Q2 (detection stays automatic, made safer) and Q6 (a failed NVIDIA query stays unknown, made visible).
 
-The plans' HTML companions lagged behind their markdown during the cross-check. They were regenerated once, when it ended (2026-10-27): every text on them is copied from the plans, and the Phase 5 and Phase 11 diagrams were redrawn to match their plans.
-
 ## Found at the cross-check (2026-10-27)
 
 Found while checking this review against the outcomes of the eleven phase reviews (owner's request, 2026-10-27):

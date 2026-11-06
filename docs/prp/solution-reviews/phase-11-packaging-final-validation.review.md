@@ -332,7 +332,7 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 - **Core dumps.** With `panic = "abort"` (OV-03), a crash can leave a core dump, which systemd keeps for two weeks by default.
   - **Outcome:** accepted with the smaller fixes. The PRD's footprint lists it next to the journal, and the plan's invariant names it.
 - **A privacy slip.** The plan's risk table named the make of a part in the owner's PC.
-  - **Outcome:** fixed in the plan and its HTML companion, which now point at `docs/local/` (rule 10).
+  - **Outcome:** fixed in the plan, which now points at `docs/local/` (rule 10).
 
 ## Questions for the owner
 
