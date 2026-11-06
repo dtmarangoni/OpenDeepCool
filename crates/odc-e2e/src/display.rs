@@ -161,7 +161,8 @@ fn examples(mode: Mode) -> Result<Vec<Example>, String> {
     Ok(examples)
 }
 
-/// The mode's scenario S1, a value of 100 or more scrolling from home, as the oracle drew it.
+/// The mode's scenario S1, a value of 100 or more scrolling from home, as the oracle drew it: in a
+/// Music mode over the spectrum's floor line, as its scenarios start in silence.
 fn scrolling(mode: Mode) -> Result<Example, String> {
     let n = mode.number();
     let scenarios = mode_scenarios(n);
@@ -196,7 +197,7 @@ fn scrolling(mode: Mode) -> Result<Example, String> {
             .frame
             .clone()
             .ok_or_else(|| format!("{}: a missed tick", s1.heading))?;
-        frames.push(marquee.tick());
+        frames.push(in_silence(mode, marquee.tick()));
         expected.push(picture);
     }
     Ok(Example {
