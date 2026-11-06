@@ -658,6 +658,7 @@ Five sub-steps, **each its own commit** (rule 4):
 - Mode 19 (2026-11-06): no change beyond `DRAWN` and the tests' lists. Layer 2 compares 19 steps, 10 still and 9 scrolling in °F, 552 frames, all matching; the other 8 are listed with their reasons. Both real runs passed, all 35 service checks.
 - Mode 20 (2026-11-06): the same. Layer 2 has 6 still steps, 191 frames, matching, and 8 listed with their reasons. Both real runs passed, all 34 service checks.
 - Mode 21 (2026-11-06): Layer 2 has 8 still steps, 160 frames, matching, and 6 listed with their reasons. Its first display run failed its S1 example: where a mode's cases have no scrolling value, the display run shows scenario S1's, and it drew that value without the floor line its frames have in silence. It's fixed in its own commit, for mode 22 too. Then both real runs passed, all 33 service checks.
+- Mode 22 (2026-11-06): Layer 2 has 10 still steps, 269 frames, matching, and 4 listed with their reasons. Both real runs passed, all 34 service checks.
 
 ### 9. Music, the Dancer (mode 23)
 
