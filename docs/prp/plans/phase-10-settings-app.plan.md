@@ -180,7 +180,7 @@ flowchart LR
 ### Integration points
 
 - `odc_ipc`: the new members, and the state-key shape changes of `FanInputs` and `Gpus`. Everything is still `v1`: Phase 10 runs before any release, so nothing outside the repository depends on the old shapes.
-- `odc_render::{picture, music}`: called by the app for the tiles.
+- `odc_render`'s drawing, called by the app for the tiles (as built in Phases 7–9; decision D3): `picture` and `Marquee` for a value's home frame (modes 1–12 and 18–22), `with_spectrum` and `spectrum_height` for a Music spectrum, `EmojiLoop::of(mode)` for an emoji's first picture, and `Pose::new(0)` for the Dancer standing.
 - `tools/dev/` (`odc-dev`'s `setup`, `teardown`): the app binary, the desktop entry and the icon in the dev copy.
 
 ## Scope
@@ -188,7 +188,7 @@ flowchart LR
 ### In scope
 
 - The app as designed: both pages, the preview column, banners, Refresh, every state, keyboard and shortcuts, accessible names, the Omarchy theme with live reload, the default theme dark and light.
-- The six service and contract additions.
+- The five service and contract additions.
 - The desktop entry and an app icon (a simple 14 × 14 dot motif, our own).
 - Tests in all four layers, the headless weston harness, and the CI job.
 
@@ -279,7 +279,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
   - watchers are tracked by unique name and dropped on `NameOwnerChanged`.
 - **New and changed state keys:**
   - `FanInputs` `a(ssusd)` (RPM added, capped at 9999), in `StateChanged` once a second only to frame watchers;
-  - `Gpus` `a(sssqqb)` (vendor ID, device ID, has rule; from the Phase 6 `Registry`, whose GPU scan already reads the PCI device);
+  - `Gpus` `a(sssqqb)` (vendor ID, device ID, has rule). The Phase 6 GPU scan, `odc_sensors::display_devices`, reads each device's `class` and `driver` from its PCI folder but neither ID: it gains the `vendor` and `device` files of the same folder, carried in `Gpu` (decision D1). The rule flag comes from the `Registry`'s GPU rules;
   - `GpuInUse` (s); `CoolerFanInputPresent`, `PumpInputPresent` (b).
 
 **Tests** (layer 3, p2p D-Bus with a fake `Authorizer`, as Phase 7 Task 7)
@@ -573,6 +573,8 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 - **Followed by:** the Phase 11 plan (packaging: the desktop entry and the icon at their `/usr` paths, uninstall).
 
 ## Agent Notes
+
+- **Before Task 0** (2026-11-06; AGENTS.md, How to work): compared with what Phases 5–9 built. Three corrections, each in the decisions log (D1–D3): the GPU scan doesn't read the PCI IDs yet, the additions are five, and the tiles' drawing names `odc_render`'s pieces as built. The phase runs unattended (owner, 2026-11-06): every choice made without the owner is in `docs/prp/reports/phase-10-settings-app.decisions.md` for the owner's review at its end.
 
 - Any change to the app's UI updates `docs/design/settings-app.md` and, when a state changes, the mockups through `odc-mockups` (`tools/mockups/`, Task 0), before the code.
 - Mode names in the app: Load, Temperature, Power, Music; never "Guardian" or "… Mode" (owner, 2026-10-24).
