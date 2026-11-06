@@ -7,8 +7,8 @@ use std::sync::OnceLock;
 
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
-    Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Spectrum, Stop, Unit, Values, WINDOW,
-    analyse, draws, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Spectrum, Stop, Unit, Values,
+    WINDOW, analyse, draws, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Exact, Metric};
 use odc_testkit::diff;
@@ -78,15 +78,22 @@ fn strip(mode: Mode, values: &Values, unit: Unit) -> odc_render::Picture {
     }
 }
 
-/// Every signal of `spectrum/signals.txt` by its name, as each tick's window.
-fn windows() -> &'static HashMap<String, Vec<[f32; WINDOW]>> {
-    static WINDOWS: OnceLock<HashMap<String, Vec<[f32; WINDOW]>>> = OnceLock::new();
-    WINDOWS.get_or_init(|| {
+/// Every signal of `spectrum/signals.txt` by its name, as each tick's levels, analysed once for
+/// all the scenarios that play it.
+fn levels() -> &'static HashMap<String, Vec<[f64; COLUMNS]>> {
+    static LEVELS: OnceLock<HashMap<String, Vec<[f64; COLUMNS]>>> = OnceLock::new();
+    LEVELS.get_or_init(|| {
         signals()
             .into_iter()
-            .map(|s| (s.name.clone(), s.windows()))
+            .map(|s| (s.name.clone(), s.windows().iter().map(analyse).collect()))
             .collect()
     })
+}
+
+/// Silence's levels.
+fn silence() -> &'static [f64; COLUMNS] {
+    static SILENCE: OnceLock<[f64; COLUMNS]> = OnceLock::new();
+    SILENCE.get_or_init(|| analyse(&[0.0; WINDOW]))
 }
 
 /// Replays `scenario` from `base`; `false` when it switches into a mode this build doesn't draw
@@ -109,7 +116,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
     let mut top: Option<Top> = None;
     let mut music = MusicSettings::default();
     let mut spectrum: Option<Spectrum> = None;
-    let mut playing: Option<(&[[f32; WINDOW]], u32)> = None;
+    let mut playing: Option<(&[[f64; COLUMNS]], u32)> = None;
     for tick in &scenario.ticks {
         let (mut reset, mut changed, mut missed) = (false, false, false);
         for change in &tick.changes {
@@ -141,7 +148,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
                 Change::UnitSaved(new) => shown_unit = unit(*new),
                 Change::Missed => missed = true,
                 Change::Audio(name) => {
-                    let signal = windows()
+                    let signal = levels()
                         .get(name)
                         .unwrap_or_else(|| panic!("{}: no signal {name:?}", scenario.heading));
                     playing = Some((signal, tick.n));
@@ -175,21 +182,19 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
             assert!(tick.frame.is_none());
             continue;
         }
-        let window = playing
-            .and_then(|(signal, from)| signal.get(usize::try_from(tick.n - from).ok()?))
-            .copied()
-            .unwrap_or([0.0; WINDOW]);
-        let levels = (mode_info(mode).kind == Kind::Music).then(|| analyse(&window));
-        if let (Some(s), Some(l)) = (spectrum.as_mut(), levels.as_ref()) {
+        let levels = (mode_info(mode).kind == Kind::Music).then(|| {
+            playing
+                .and_then(|(signal, from)| signal.get(usize::try_from(tick.n - from).ok()?))
+                .unwrap_or(silence())
+        });
+        if let (Some(s), Some(l)) = (spectrum.as_mut(), levels) {
             s.update(l, &music);
         }
         let drawn = match top.as_mut().expect("a top") {
             Top::Strip(m) => m.tick(),
             Top::Nothing => Frame::blank(),
             Top::Emoji(e) => e.tick(),
-            Top::Dancer(d) => d
-                .tick(levels.as_ref().expect("mode 23 takes sound"))
-                .frame(),
+            Top::Dancer(d) => d.tick(levels.expect("mode 23 takes sound")).frame(),
         };
         let frame = match (spectrum_height(mode), &spectrum) {
             (Some(h), Some(s)) => with_spectrum(&drawn, &s.draw(h, music.peaks), h),
