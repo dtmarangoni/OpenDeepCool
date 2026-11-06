@@ -1,6 +1,6 @@
 # Settings app design
 
-The design of OpenDeepCool's GTK4 settings app (PRD, Phase 10): its structure, each screen's purpose, its GTK4 widgets, its states, its theme, keyboard use and accessible names, and the coverage check. The mockups are in [mockups/](mockups/); each one has a theme switch (a sample Omarchy theme and the default theme, dark and light).
+The design of OpenDeepCool's GTK4 settings app (PRD, Phase 10): its structure, each screen's purpose, its GTK4 widgets, its states, its theme, keyboard use and accessible names, and the coverage check. The mockups are in [mockups/](mockups/); each one has a theme switch (a sample Omarchy theme and the default theme, dark and light). `odc-mockups` (`tools/mockups/`) writes them from the states they show and the style sheet and script in [mockups-src/](mockups-src/), and its tests check the palettes against the contrast tables below.
 
 Sources: [settings.md](../spec/settings.md) "What the settings app must offer", [display.md](../spec/display.md), [music.md](../spec/music.md), [sensors.md](../spec/sensors.md), the PRD (Phase 10, Technical Approach → Theme, Decisions Log) and the designer brief (`.claude/agents/ui-ux-designer.md`). Every reading, chip name and GPU name in this document and in the mockups is made up.
 
@@ -322,7 +322,7 @@ OpenDeepCool's own palette, a cool neutral grey with a teal accent. It is used w
 | text on background (4.5) | 14.9 | 15.6 |
 | text on surface (4.5) | 13.4 | 16.9 |
 | muted text on background / surface (4.5) | 7.0 / 6.3 | 5.7 / 6.2 |
-| accent on background / surface (4.5, used as link text) | 8.4 / 7.6 | 4.8 / 5.2 |
+| accent on background / surface (4.5, used as link text) | 8.4 / 7.5 | 4.8 / 5.2 |
 | warning text (yellow) on background / surface (4.5) | 10.4 / 9.4 | 5.3 / 5.8 |
 | red, green on background (3.0, status dots) | 7.4, 10.0 | 6.1, 5.0 |
 | text on the selected fill (4.5) | 8.0 | 12.7 |

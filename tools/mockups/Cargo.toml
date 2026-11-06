@@ -1,0 +1,10 @@
+[package]
+name = "odc-mockups"
+description = "Writes the settings app's design mockups (docs/design/mockups/) from the states they show; dev-only"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

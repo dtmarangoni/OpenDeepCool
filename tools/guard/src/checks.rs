@@ -158,14 +158,16 @@ pub fn check_file(path: &str, content: &[u8], binary: bool, sensitive: &Sensitiv
     problems
 }
 
-/// The paths whose change runs the Rust checks: code, packaging, the frames and the contract the
-/// tests read, the guard and CI (owner, 2026-10-27; solution review P5-08).
+/// The paths whose change runs the Rust checks: code, packaging, the frames, the contract and the
+/// design the tests read, the guard and CI (owner, 2026-10-27; solution review P5-08; the design
+/// from Phase 10 Task 0).
 pub fn runs_rust_checks(path: &str) -> bool {
-    const PREFIXES: [&str; 7] = [
+    const PREFIXES: [&str; 8] = [
         "crates/",
         "tools/",
         "packaging/",
         "docs/spec/frames/",
+        "docs/design/",
         ".githooks/",
         ".github/",
         "docs/spec/dbus.md",
@@ -256,6 +258,8 @@ mod tests {
             "packaging/udev/70-opendeepcool.rules",
             "docs/spec/frames/mode-001.txt",
             "docs/spec/dbus.md",
+            "docs/design/mockups/display.html",
+            "docs/design/mockups-src/app.js",
             ".githooks/pre-commit",
             ".github/workflows/ci.yml",
         ] {

@@ -36,3 +36,23 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** 1. name the pieces as built: `picture` and `Marquee`, `with_spectrum` and `spectrum_height`, `EmojiLoop::of`, `Pose::new(0)`; 2. add a public `odc_render::tile(mode, values, unit, peaks)` that composes them, so the app makes one call.
 - **Chosen:** 1 for now: the app's tile code composes them as the engine does. Whether a `tile` helper is worth adding is decided in Task 5, where the tiles are drawn, and recorded here then.
 - **Implemented in:** the plan's Integration points (this commit).
+
+### D4 — The design's contrast figure for the dark accent on surface (Task 0)
+
+- **Question:** the ported contrast check recomputes the design's table. Every figure matches to one decimal but one: dark "accent on surface" reads 7.6, while the WCAG ratio of `#4fc3b4` on `#1d2126` is 7.5495. The old script printed 7.55, and that was rounded again for the table.
+- **Options:**
+  1. correct the table to 7.5 and compare every figure with the exact ratio at one decimal;
+  2. keep 7.6 and make the test round twice, as the table was made;
+  3. compare with a tolerance of 0.06.
+- **Chosen:** 1. The table should state the ratio itself. Both 7.5 and 7.6 are far above the 4.5 the check needs, so nothing in the design changes.
+- **Implemented in:** `docs/design/settings-app.md` (Default theme), `tools/mockups/tests/mockups.rs`; Task 0's commit.
+
+### D5 — How `odc-mockups` writes the mockups' JSON (Task 0)
+
+- **Question:** each mockup embeds its state as JSON, written by the old generator with Python's defaults: `", "` and `": "` separators, keys in insertion order, non-ASCII characters as themselves. The port must give the same bytes.
+- **Options:**
+  1. a small JSON writer of the tool's own (about 60 lines), whose objects keep their order;
+  2. `serde_json` with a custom `Formatter` for the separators, and `preserve_order` for the keys;
+  3. write the JSON once and keep it as text in the tool.
+- **Chosen:** 1. It's short, it needs no dependency in a dev tool, and a test pins its output. Option 3 would hide the states the design changes.
+- **Implemented in:** `tools/mockups/src/lib.rs` (`Json`); Task 0's commit.

@@ -104,7 +104,7 @@
 ### Evidence
 
 - `docs/design/settings-app.md`: Decisions D1–D8 and the pass-1 answers; Window; Preview column; Display page; Configuration page; Banners; Refresh; States; Theme (how it's applied, tokens, default theme with contrast ratios); Keyboard; Accessible names; What the Phase 10 plan must add to the D-Bus contract; Coverage check; Unverified.
-- `docs/design/mockups/` (14 states) and `docs/design/mockups-src/gen.py` (regenerates them exactly; checked 2026-10-25), which Task 0 ports to Rust.
+- `docs/design/mockups/` (14 states), written by `odc-mockups` (`tools/mockups/`) since Task 0, which ported the earlier Python generator byte for byte.
 - `docs/spec/settings.md` What the settings app must offer:
   - instant apply;
   - no app-only settings;
@@ -230,6 +230,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 
 **Validation**
 - `cargo test -p odc-mockups` passes, and `git ls-files '*.py'` prints nothing.
+- As built (2026-11-06): `odc_mockups::pages()` holds the 14 states and `render(css, js)` fills the template; its own JSON writer keeps the Python generator's text exactly (decision D5). Five tests: the 14 pages byte for byte, the JSON's form, unique files and titles, the palettes as `app.css` gives them, and the design's contrast table recomputed. The table's dark "accent on surface" was 7.6, the two-decimal 7.55 rounded again; the ratio is 7.5495, so it now reads 7.5 (decision D4).
 
 ### 1. Settle the GTK facts the design left unverified
 
