@@ -1228,8 +1228,8 @@ mod tests {
 
     #[test]
     fn pci_chips_are_named_as_libsensors_names_them() {
-        let card: PciAddr = "0000:03:00.0".parse().expect("an address");
-        assert_eq!(pci_chip("amdgpu", card), "amdgpu-pci-0300");
+        let card: PciAddr = "0000:0a:00.0".parse().expect("an address");
+        assert_eq!(pci_chip("amdgpu", card), "amdgpu-pci-0a00");
         let igpu: PciAddr = "0000:00:02.0".parse().expect("an address");
         assert_eq!(pci_chip("i915", igpu), "i915-pci-0010");
     }
