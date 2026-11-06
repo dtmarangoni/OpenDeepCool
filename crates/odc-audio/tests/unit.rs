@@ -74,9 +74,16 @@ fn systemd_accepts_the_unit() {
         &format!("ExecStart={}", stand_in.display()),
     );
     fs::write(&copy, text).expect("the copy");
+    // A user manager's verify needs a runtime folder, which a session sets in XDG_RUNTIME_DIR and
+    // CI's container, with no session, lacks: it gets one of its own.
+    let runtime = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("user-rt");
+    let _ = fs::remove_dir_all(&runtime);
+    fs::create_dir_all(&runtime).expect("a runtime folder");
+    fs::set_permissions(&runtime, fs::Permissions::from_mode(0o700)).expect("private");
     let out = Command::new("systemd-analyze")
         .args(["verify", "--user"])
         .arg(&copy)
+        .env("XDG_RUNTIME_DIR", &runtime)
         .output()
         .expect("systemd-analyze: pacman brings it on every Arch system");
     assert!(
