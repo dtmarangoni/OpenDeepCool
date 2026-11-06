@@ -41,7 +41,9 @@ fn programs_start_only_from_the_listed_places() {
             starts += 1;
         }
     }
-    assert_eq!(starts, 9, "a new place that starts a program needs a look");
+    // Phase 9 plan, Task 4: the manifest's `systemctl --global` for the sound helper's user unit
+    // made it 10.
+    assert_eq!(starts, 10, "a new place that starts a program needs a look");
 }
 
 #[test]

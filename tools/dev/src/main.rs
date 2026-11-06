@@ -1,7 +1,8 @@
 //! `odc-dev` installs, checks and removes OpenDeepCool's development setup on the development PC:
 //! the dev copies of the udev rule and the sysusers file, the dev-only reconnect rule, the user's
-//! membership, and from Phase 7 the dev copy of the display service with its GPU rank helper, all
-//! recorded in a manifest (PRD, System Footprint). It's a dev-only tool, never shipped.
+//! membership, from Phase 7 the dev copy of the display service with its GPU rank helper, and
+//! from Phase 9 the sound helper's user unit, all recorded in a manifest (PRD, System Footprint).
+//! It's a dev-only tool, never shipped.
 //!
 //! `setup` and `teardown` run as the user and never as root; each hands only its root step to
 //! `pkexec`, and that step never builds (owner, 2026-10-27; solution review P5-03): `setup`
@@ -15,7 +16,9 @@ use std::fs;
 use std::path::Path;
 use std::process::{Command, ExitCode};
 
-use odc_manifest::Manifest;
+use odc_manifest::{Manifest, USER_UNIT};
+
+use crate::system::Tool;
 
 const PKEXEC: &str = "/usr/bin/pkexec";
 
@@ -87,20 +90,28 @@ fn setup() -> Result<(), String> {
         "  the user and group {group} (systemd-sysusers), with you in the group\n  the manifest \
          {manifest}\nthen reload udev and re-trigger the LP360's node and USB device and the \
          CPU's package energy zones, reload the system bus's policies, polkit's actions and \
-         systemd's units, and enable {unit} at boot and (re)start it, which runs the GPU rank helper while there's no \
-         ranking. Its saved data goes in {state}.",
+         systemd's units, enable {unit} at boot and (re)start it, which runs the GPU rank helper \
+         while there's no ranking, and enable {user_unit} for every user. Its saved data goes in \
+         {state}. Then, as you, (re)start {user_unit} in this session.",
         group = odc_manifest::GROUP,
         manifest = odc_manifest::PATH,
         unit = odc_manifest::UNIT,
+        user_unit = USER_UNIT,
         state = odc_manifest::STATE_DIR,
     );
     let repo = repo.to_str().ok_or("the checkout's path isn't UTF-8")?;
-    as_root(&["install-root", "--repo", repo])
+    as_root(&["install-root", "--repo", repo])?;
+    // The user's own manager reads the new unit; the helper starts in this session now, and at
+    // every user's login from now on.
+    Tool::Systemctl.run(&["--user", "daemon-reload"])?;
+    Tool::Systemctl.run(&["--user", "restart", USER_UNIT])?;
+    println!("(re)started {USER_UNIT} in this session");
+    Ok(())
 }
 
-/// The dev copy's two binaries, built `--release` from the checkout's lock file, by the cargo
+/// The dev copy's three binaries, built `--release` from the checkout's lock file, by the cargo
 /// that built this tool (solution review P5-03).
-const BUILD: [&str; 11] = [
+const BUILD: [&str; 15] = [
     "build",
     "--release",
     "--locked",
@@ -112,6 +123,10 @@ const BUILD: [&str; 11] = [
     "odc-gpu-rank",
     "--bin",
     "odc-gpu-rank",
+    "-p",
+    "odc-audio",
+    "--bin",
+    "opendeepcool-audio",
 ];
 
 /// Builds [`BUILD`] in the checkout, as the user: the only build `odc-dev` starts.
@@ -130,9 +145,16 @@ fn build(repo: &Path) -> Result<(), String> {
     }
 }
 
+/// Stops the sound helper in this session first, as the user: the root step disables it for
+/// every user, but a running copy is each session's own.
 fn teardown() -> Result<(), String> {
     refuse_root(system::effective_uid()?)?;
-    as_root(&["remove-root"])
+    if Tool::Systemctl.succeeds(&["--user", "--quiet", "is-active", USER_UNIT])? {
+        Tool::Systemctl.run(&["--user", "stop", USER_UNIT])?;
+        println!("stopped {USER_UNIT} in this session");
+    }
+    as_root(&["remove-root"])?;
+    Tool::Systemctl.run(&["--user", "daemon-reload"])
 }
 
 /// Runs this binary's root step through `pkexec`.

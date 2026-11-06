@@ -26,13 +26,16 @@ pub const DEV_DIRS: &[&str] = &[
     "/etc/systemd/system",
     "/etc/dbus-1/system.d",
     "/etc/polkit-1/actions",
+    "/etc/systemd/user",
 ];
 
-/// The dev copy's own folders (Phase 7 plan, Task 8): any file in them is OpenDeepCool's.
+/// The dev copy's own folders (Phase 7 plan, Task 8; Phase 9 plan, Task 4): any file in them is
+/// OpenDeepCool's.
 pub const OWN_DIRS: &[&str] = &[
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/systemd/system/opendeepcool.service.d",
     "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+    "/etc/systemd/user/opendeepcool-audio.service.d",
 ];
 
 /// The folders the setup may create, when they're missing, and so remove: its own, and the
@@ -46,6 +49,7 @@ pub const CREATED_DIRS: &[&str] = &[
     "/etc/polkit-1/actions",
     "/etc/systemd/system/opendeepcool.service.d",
     "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
+    "/etc/systemd/user/opendeepcool-audio.service.d",
 ];
 
 /// The service's account (Phase 7 plan, Task 8: `u!` in the sysusers file).
@@ -56,6 +60,9 @@ pub const STATE_DIR: &str = "/var/lib/opendeepcool";
 
 /// The unit the setup enables at boot.
 pub const UNIT: &str = "opendeepcool.service";
+
+/// The user unit the setup enables for every user (Phase 9 plan, Task 4): the sound helper.
+pub const USER_UNIT: &str = "opendeepcool-audio.service";
 
 /// Whether a file in the state folder is one the service or its GPU rank helper writes: the
 /// settings, their temporary and refused copies (`odc-service`, settings.rs), the ranking and its
@@ -94,6 +101,9 @@ pub enum Entry {
     State,
     /// `enabled opendeepcool.service`: the unit it enabled at boot.
     Enabled,
+    /// `enabled-for-every-user opendeepcool-audio.service`: the user unit it enabled for every
+    /// user, `systemctl --global enable`.
+    EnabledForEveryUser,
 }
 
 impl Entry {
@@ -137,6 +147,10 @@ impl Entry {
             "state" => return Err(format!("{rest:?} isn't {STATE_DIR}")),
             "enabled" if rest == UNIT => Entry::Enabled,
             "enabled" => return Err(format!("the unit {rest:?} isn't {UNIT}")),
+            "enabled-for-every-user" if rest == USER_UNIT => Entry::EnabledForEveryUser,
+            "enabled-for-every-user" => {
+                return Err(format!("the user unit {rest:?} isn't {USER_UNIT}"));
+            }
             _ => return Err(format!("{kind:?} isn't a kind of entry")),
         };
         entry.check()?;
@@ -153,7 +167,11 @@ impl Entry {
                     path.display()
                 )),
             },
-            Entry::Group | Entry::User | Entry::State | Entry::Enabled => Ok(()),
+            Entry::Group
+            | Entry::User
+            | Entry::State
+            | Entry::Enabled
+            | Entry::EnabledForEveryUser => Ok(()),
             Entry::Member(user) => check_user(user),
         }
     }
@@ -167,6 +185,7 @@ impl Entry {
             Entry::User => format!("user {USER}"),
             Entry::State => format!("state {STATE_DIR}"),
             Entry::Enabled => format!("enabled {UNIT}"),
+            Entry::EnabledForEveryUser => format!("enabled-for-every-user {USER_UNIT}"),
         }
     }
 }
@@ -331,6 +350,11 @@ impl Manifest {
                     Ok(false) => Ok(format!("{UNIT}: already gone")),
                     Err(e) => Err(format!("{UNIT}: {e}")),
                 },
+                Entry::EnabledForEveryUser => match host.disable_for_every_user(USER_UNIT) {
+                    Ok(true) => Ok(format!("disabled {USER_UNIT} for every user")),
+                    Ok(false) => Ok(format!("{USER_UNIT} for every user: already gone")),
+                    Err(e) => Err(format!("{USER_UNIT}: {e}")),
+                },
             };
             match result {
                 Ok(line) => host.say(&line),
@@ -391,6 +415,9 @@ pub trait Host {
     fn remove_user(&mut self, user: &str) -> io::Result<()>;
     /// Stops and disables a unit; `false` when it was neither enabled nor running.
     fn disable(&mut self, unit: &str) -> io::Result<bool>;
+    /// Disables a user unit enabled for every user; `false` when it wasn't. Running copies in
+    /// users' sessions are each user's to stop.
+    fn disable_for_every_user(&mut self, unit: &str) -> io::Result<bool>;
     /// The group's members, or `None` when there's no such group.
     fn group_members(&mut self, group: &str) -> io::Result<Option<Vec<String>>>;
     fn remove_member(&mut self, group: &str, user: &str) -> io::Result<()>;
@@ -456,6 +483,19 @@ impl Host for SystemHost {
             run(SYSTEMCTL, &["stop", unit])?;
         }
         Ok(enabled || active)
+    }
+
+    fn disable_for_every_user(&mut self, unit: &str) -> io::Result<bool> {
+        // It fails for a unit that isn't enabled, or whose file is gone, alike; disabling removes
+        // the link and its folder, when empty (checked in a scratch root, 2026-11-05).
+        let enabled = Command::new(SYSTEMCTL)
+            .args(["--global", "--quiet", "is-enabled", unit])
+            .status()?
+            .success();
+        if enabled {
+            run(SYSTEMCTL, &["--global", "disable", unit])?;
+        }
+        Ok(enabled)
     }
 
     fn group_members(&mut self, group: &str) -> io::Result<Option<Vec<String>>> {
@@ -594,6 +634,29 @@ mod tests {
         assert_eq!(Manifest::parse(&text), Ok(m));
     }
 
+    // Phase 9 plan, Task 4: the sound helper's binary, its user unit and dev drop-in, the
+    // drop-in's folder, and the unit enabled for every user, last.
+    #[test]
+    fn what_the_setup_writes_for_the_sound_helper_is_accepted() {
+        let mut m = setup_manifest();
+        for entry in service_entries() {
+            m.push(entry).expect("new");
+        }
+        m.push(Entry::dir("/etc/systemd/user/opendeepcool-audio.service.d").expect("created"))
+            .expect("new");
+        for f in [
+            "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio",
+            "/etc/systemd/user/opendeepcool-audio.service",
+            "/etc/systemd/user/opendeepcool-audio.service.d/dev.conf",
+        ] {
+            m.push(Entry::file(f).expect("a dev file")).expect("new");
+        }
+        m.push(Entry::EnabledForEveryUser).expect("new");
+        let text = m.render();
+        assert!(text.ends_with("enabled-for-every-user opendeepcool-audio.service\n"));
+        assert_eq!(Manifest::parse(&text), Ok(m));
+    }
+
     #[test]
     fn only_the_files_the_service_and_its_helper_write_are_state_files() {
         for name in [
@@ -681,6 +744,15 @@ mod tests {
                 "isn't /var/lib/opendeepcool",
             ),
             ("enabled sshd.service", "isn't opendeepcool.service"),
+            (
+                "enabled-for-every-user pipewire.service",
+                "isn't opendeepcool-audio.service",
+            ),
+            (
+                "file /etc/systemd/user/pipewire.service",
+                "isn't an OpenDeepCool file",
+            ),
+            ("dir /etc/systemd/user", "isn't a folder the setup creates"),
             ("tmpfiles /etc/tmpfiles.d", "isn't a kind of entry"),
             (good.trim_end(), "is there twice"),
         ];

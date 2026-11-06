@@ -1,0 +1,31 @@
+[package]
+name = "odc-audio"
+description = "The session's sound helper: while the display service shows a Music mode, it hands it the default output's sound through pw-record"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# zbus, driven with block_on as the service is, and the D-Bus contract (Phase 9 plan, Task 4).
+[dependencies]
+futures-core = "0.3"
+odc-ipc = { path = "../odc-ipc" }
+zbus = "6"
+
+[dev-dependencies]
+# The fake service's pipe reader is the service's own.
+odc-service = { path = "../odc-service" }
+odc-testkit = { path = "../odc-testkit" }
+
+[[bin]]
+name = "opendeepcool-audio"
+path = "src/main.rs"
+
+# The tests' own binary also plays the fake pw-record (AGENTS.md rule 13), so it has its own main
+# instead of the test harness.
+[[test]]
+name = "helper"
+harness = false
+
+[lints]
+workspace = true

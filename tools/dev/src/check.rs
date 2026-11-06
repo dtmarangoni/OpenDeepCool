@@ -5,7 +5,7 @@ use std::fs;
 use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 
-use odc_manifest::{GROUP, Manifest, STATE_DIR, UNIT, USER};
+use odc_manifest::{GROUP, Manifest, STATE_DIR, UNIT, USER, USER_UNIT};
 use odc_sensors::{PciAddr, RANK_FILE, RankedKind, Ranking, display_devices};
 
 use crate::system::{
@@ -120,6 +120,7 @@ pub fn check() -> Result<(), String> {
     }
 
     check_service(&mut problems)?;
+    check_helper(&mut problems)?;
     check_ranking(&mut problems);
 
     match fs::read_to_string(odc_manifest::PATH) {
@@ -213,6 +214,79 @@ fn check_service(problems: &mut Vec<String>) -> Result<(), String> {
         )),
         (Ok(None), _) => problems.push(format!("{BUS_NAME}: busctl's reply isn't a user ID")),
         (Err(e), _) => problems.push(format!("{BUS_NAME} has no owner on the system bus ({e})")),
+    }
+    Ok(())
+}
+
+/// The sound helper (Phase 9 plan, Task 4): enabled for every user, active in this session from
+/// its dev build, and, while the display service wants sound, its sound connected.
+fn check_helper(problems: &mut Vec<String>) -> Result<(), String> {
+    if Tool::Systemctl.succeeds(&["--global", "--quiet", "is-enabled", USER_UNIT])? {
+        println!("ok       {USER_UNIT}: enabled for every user");
+    } else {
+        problems.push(format!("{USER_UNIT} isn't enabled for every user"));
+    }
+    if Tool::Systemctl.succeeds(&["--user", "--quiet", "is-active", USER_UNIT])? {
+        println!("ok       {USER_UNIT}: active in this session");
+    } else {
+        problems.push(format!(
+            "{USER_UNIT} isn't active in this session: `systemctl --user start {USER_UNIT}`"
+        ));
+        return Ok(());
+    }
+    let pid = Tool::Systemctl
+        .output(&["--user", "show", "--property=MainPID", "--value", USER_UNIT])?
+        .unwrap_or_default();
+    let runs = fs::read(format!("/proc/{}/cmdline", pid.trim()))
+        .map(|cmdline| {
+            cmdline
+                .split(|b| *b == 0)
+                .filter(|arg| !arg.is_empty())
+                .map(|arg| String::from_utf8_lossy(arg).into_owned())
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default();
+    if runs == [BINARIES[2].target] {
+        println!("ok       {USER_UNIT}: runs {}", BINARIES[2].target);
+    } else {
+        problems.push(format!(
+            "{USER_UNIT} runs {runs:?}, not {}: is the dev drop-in in place?",
+            BINARIES[2].target
+        ));
+    }
+    // The state's two sound keys, as busctl prints them: `"AudioWanted" b true`.
+    let state = Tool::Busctl
+        .output(&[
+            "--system",
+            "call",
+            BUS_NAME,
+            "/io/github/dtmarangoni/OpenDeepCool1",
+            BUS_NAME,
+            "GetState",
+        ])?
+        .unwrap_or_default();
+    let key = |name: &str| {
+        let after = state.split(&format!("\"{name}\" b ")).nth(1)?;
+        Some(after.starts_with("true"))
+    };
+    match (key("AudioWanted"), key("AudioConnected")) {
+        (Some(true), Some(true)) => {
+            println!("ok       a Music mode is shown: its sound is connected")
+        }
+        (Some(true), _) => problems.push(
+            "a Music mode is shown, but no sound is connected: `journalctl --user -u \
+             opendeepcool-audio` says why"
+                .into(),
+        ),
+        (Some(false), connected) => println!(
+            "ok       no Music mode is shown: sound {}",
+            if connected == Some(true) {
+                "still connected"
+            } else {
+                "not taken"
+            }
+        ),
+        (None, _) => problems.push("GetState doesn't say AudioWanted".into()),
     }
     Ok(())
 }

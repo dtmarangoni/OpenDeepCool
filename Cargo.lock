@@ -451,6 +451,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "odc-audio"
+version = "0.0.0"
+dependencies = [
+ "futures-core",
+ "odc-ipc",
+ "odc-service",
+ "odc-testkit",
+ "zbus",
+]
+
+[[package]]
 name = "odc-bindings"
 version = "0.0.0"
 dependencies = [

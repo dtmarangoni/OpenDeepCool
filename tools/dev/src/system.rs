@@ -1,6 +1,7 @@
 //! What the dev tool needs from the system: who runs it, the system tools it may start, the files
-//! it installs, the cooler's device files and the CPU's energy counters, and from Phase 7 the dev
-//! copy of the display service (Phase 7 plan, Task 8).
+//! it installs, the cooler's device files and the CPU's energy counters, from Phase 7 the dev
+//! copy of the display service (Phase 7 plan, Task 8), and from Phase 9 the sound helper's
+//! user unit (Phase 9 plan, Task 4).
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -164,7 +165,7 @@ pub const FILES: [Install; 3] = [
 ];
 
 /// The folders the dev copy needs, parents first; each one missing is created and recorded.
-pub const DIRS: [&str; 7] = [
+pub const DIRS: [&str; 8] = [
     "/usr/local/libexec",
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/systemd/system/opendeepcool.service.d",
@@ -172,11 +173,13 @@ pub const DIRS: [&str; 7] = [
     "/etc/dbus-1",
     "/etc/dbus-1/system.d",
     "/etc/polkit-1/actions",
+    "/etc/systemd/user/opendeepcool-audio.service.d",
 ];
 
-/// The dev copy of the display service and of the GPU rank helper, built `--release` by the
-/// user's side of `setup` (solution review P5-03); the root step only copies them.
-pub const BINARIES: [Install; 2] = [
+/// The dev copy of the display service, of the GPU rank helper and of the sound helper, built
+/// `--release` by the user's side of `setup` (solution review P5-03); the root step only copies
+/// them.
+pub const BINARIES: [Install; 3] = [
     Install {
         source: "target/release/opendeepcoold",
         target: "/usr/local/libexec/opendeepcool-dev/opendeepcoold",
@@ -185,11 +188,16 @@ pub const BINARIES: [Install; 2] = [
         source: "target/release/odc-gpu-rank",
         target: "/usr/local/libexec/opendeepcool-dev/odc-gpu-rank",
     },
+    Install {
+        source: "target/release/opendeepcool-audio",
+        target: "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio",
+    },
 ];
 
 /// The dev copy's units and their drop-ins, the D-Bus policy and the polkit actions (Phase 7
-/// plan, Task 8; owner, 2026-10-29). The detection one-shot isn't part of the dev copy.
-pub const SERVICE_FILES: [Install; 6] = [
+/// plan, Task 8; owner, 2026-10-29), and the sound helper's user unit with its drop-in (Phase 9
+/// plan, Task 4). The detection one-shot isn't part of the dev copy.
+pub const SERVICE_FILES: [Install; 8] = [
     Install {
         source: "packaging/systemd/opendeepcool.service",
         target: "/etc/systemd/system/opendeepcool.service",
@@ -213,6 +221,14 @@ pub const SERVICE_FILES: [Install; 6] = [
     Install {
         source: "packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy",
         target: "/etc/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy",
+    },
+    Install {
+        source: "packaging/systemd-user/opendeepcool-audio.service",
+        target: "/etc/systemd/user/opendeepcool-audio.service",
+    },
+    Install {
+        source: "tools/dev/opendeepcool-audio-dev.conf",
+        target: "/etc/systemd/user/opendeepcool-audio.service.d/dev.conf",
     },
 ];
 

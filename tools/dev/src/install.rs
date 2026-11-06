@@ -7,7 +7,7 @@ use std::io::{ErrorKind, Write};
 use std::os::unix::fs::{MetadataExt, OpenOptionsExt, PermissionsExt, chown};
 use std::path::Path;
 
-use odc_manifest::{Entry, GROUP, Manifest, SystemHost, UNIT, USER};
+use odc_manifest::{Entry, GROUP, Manifest, SystemHost, UNIT, USER, USER_UNIT};
 
 use crate::system::{
     BINARIES, DIRS, FILES, Install, SERVICE_FILES, Tool, effective_uid, lp360_node,
@@ -118,6 +118,11 @@ pub fn install_root(repo: &Path) -> Result<(), String> {
     record(&mut manifest, Entry::Enabled)?;
     Tool::Systemctl.run(&["restart", UNIT])?;
     println!("enabled and (re)started {UNIT}");
+    // The sound helper starts at every user's login (Phase 9 plan, Task 4); the user's side of
+    // setup starts it in the session that ran it.
+    Tool::Systemctl.run(&["--global", "enable", USER_UNIT])?;
+    record(&mut manifest, Entry::EnabledForEveryUser)?;
+    println!("enabled {USER_UNIT} for every user");
     Ok(())
 }
 

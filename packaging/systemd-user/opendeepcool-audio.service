@@ -1,0 +1,24 @@
+# OpenDeepCool's sound helper (docs/spec/dbus.md, AttachAudio; Phase 9 plan, Task 4): a user unit
+# enabled for every user. While the display shows a Music mode, it hands the display service the
+# default output's sound through pw-record; otherwise it only waits for events. System accounts,
+# a display manager's greeter among them, never run it (owner, 2026-10-26).
+[Unit]
+Description=OpenDeepCool sound for the cooler display's Music modes
+ConditionUser=!@system
+
+[Service]
+ExecStart=/usr/bin/opendeepcool-audio
+Restart=on-failure
+RestartSec=2
+# In a user unit these imply PrivateUsers=, which needs unprivileged user namespaces
+# (systemd.exec(5), read 2026-10-27): the unit is tested as written (solution review P9-04).
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX
+LockPersonality=yes
+# PipeWire's client may ask for realtime scheduling (unverified), so it isn't restricted.
+RestrictRealtime=no
+
+[Install]
+WantedBy=default.target

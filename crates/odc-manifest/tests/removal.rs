@@ -1,13 +1,14 @@
 //! Removal in a temporary folder (Phase 5 plan, Task 8; solution review P11-03): the last entry
 //! first, one at a time, never a folder's contents, and a second run finds everything gone. From
 //! Phase 7 also the dev copy of the service: its unit stopped and disabled first, its saved data,
-//! its account, and the folders the setup created, each only when empty.
+//! its account, and the folders the setup created, each only when empty. From Phase 9 the sound
+//! helper's user unit, disabled for every user before anything else goes.
 
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-use odc_manifest::{Entry, GROUP, Host, Manifest, STATE_DIR, UNIT, USER};
+use odc_manifest::{Entry, GROUP, Host, Manifest, STATE_DIR, UNIT, USER, USER_UNIT};
 
 /// Files under a temporary root; the group, the account and the unit in memory.
 struct TestHost {
@@ -16,6 +17,8 @@ struct TestHost {
     user: bool,
     /// Enabled, running.
     unit: (bool, bool),
+    /// The user unit enabled for every user.
+    user_unit: bool,
     said: Vec<String>,
 }
 
@@ -30,6 +33,7 @@ impl TestHost {
             members: Some(vec!["dev_user".to_owned(), "other".to_owned()]),
             user: true,
             unit: (true, true),
+            user_unit: true,
             said: Vec::new(),
         }
     }
@@ -74,6 +78,13 @@ impl Host for TestHost {
         assert_eq!(unit, UNIT);
         let was = self.unit.0 || self.unit.1;
         self.unit = (false, false);
+        Ok(was)
+    }
+
+    fn disable_for_every_user(&mut self, unit: &str) -> io::Result<bool> {
+        assert_eq!(unit, USER_UNIT);
+        let was = self.user_unit;
+        self.user_unit = false;
         Ok(was)
     }
 
@@ -169,15 +180,19 @@ fn a_folder_at_a_recorded_path_keeps_its_contents() {
 }
 
 /// The dev copy of the service, recorded after Phase 5's entries, as `odc-dev setup` records it.
-const SERVICE_DIRS: [&str; 3] = [
+const SERVICE_DIRS: [&str; 4] = [
     "/usr/local/libexec",
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/systemd/system/opendeepcool.service.d",
+    "/etc/systemd/user/opendeepcool-audio.service.d",
 ];
-const SERVICE_FILES: [&str; 3] = [
+const SERVICE_FILES: [&str; 6] = [
     "/usr/local/libexec/opendeepcool-dev/opendeepcoold",
+    "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio",
     "/etc/systemd/system/opendeepcool.service",
     "/etc/systemd/system/opendeepcool.service.d/dev.conf",
+    "/etc/systemd/user/opendeepcool-audio.service",
+    "/etc/systemd/user/opendeepcool-audio.service.d/dev.conf",
 ];
 
 fn service_manifest() -> Manifest {
@@ -189,7 +204,12 @@ fn service_manifest() -> Manifest {
     for f in SERVICE_FILES {
         m.push(Entry::file(f).expect("a dev file")).expect("new");
     }
-    for entry in [Entry::User, Entry::State, Entry::Enabled] {
+    for entry in [
+        Entry::User,
+        Entry::State,
+        Entry::Enabled,
+        Entry::EnabledForEveryUser,
+    ] {
         m.push(entry).expect("new");
     }
     m
@@ -201,6 +221,7 @@ fn install_service(host: &TestHost) {
         fs::create_dir_all(host.under_root(Path::new(d))).expect("a folder");
     }
     fs::create_dir_all(host.root.join("etc/systemd/system")).expect("a folder");
+    fs::create_dir_all(host.root.join("etc/systemd/user")).expect("a folder");
     for f in SERVICE_FILES {
         fs::write(host.under_root(Path::new(f)), "x").expect("a dev file");
     }
@@ -226,8 +247,9 @@ fn the_service_stops_before_its_data_its_account_and_its_files_go() {
     let failures = service_manifest().remove_all(&mut host);
     assert!(failures.is_empty(), "{failures:?}");
     assert_eq!(
-        host.said[..9],
+        host.said[..10],
         [
+            "disabled opendeepcool-audio.service for every user",
             "stopped and disabled opendeepcool.service",
             "removed /var/lib/opendeepcool/dev-frames.log",
             "removed /var/lib/opendeepcool/dev-frames.log.1",
@@ -235,14 +257,15 @@ fn the_service_stops_before_its_data_its_account_and_its_files_go() {
             "removed /var/lib/opendeepcool/settings.toml",
             "removed /var/lib/opendeepcool",
             "removed the user opendeepcool",
-            "removed /etc/systemd/system/opendeepcool.service.d/dev.conf",
-            "removed /etc/systemd/system/opendeepcool.service",
+            "removed /etc/systemd/user/opendeepcool-audio.service.d/dev.conf",
+            "removed /etc/systemd/user/opendeepcool-audio.service",
         ][..],
         "{:?}",
         host.said
     );
     assert!(!host.user);
     assert_eq!(host.unit, (false, false));
+    assert!(!host.user_unit);
     for d in SERVICE_DIRS {
         assert!(!host.under_root(Path::new(d)).exists(), "{d}");
     }

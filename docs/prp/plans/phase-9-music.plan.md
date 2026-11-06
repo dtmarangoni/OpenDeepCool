@@ -467,17 +467,20 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 
 **Files and integration points**
 - `crates/odc-audio/`: CREATE, the binary `opendeepcool-audio` (zbus, driven with `block_on` as the service is, since zbus 6 has no blocking API; no other dependency).
+  - As built (2026-11-05): besides zbus, `odc-ipc` (the contract) and `futures-core`, both already in the tree. The library's `run(conn, config, log, until)` is the helper; `main.rs` parses the flag, connects to the system bus and runs it. `Config.program` names `pw-record` (from `PATH`) or a test's fake, so the tests pass the fake's path instead of changing `PATH`.
 - `packaging/systemd-user/opendeepcool-audio.service`: CREATE.
   - `ExecStart=` the helper; `Restart=on-failure`;
   - `ConditionUser=!@system`: never for system accounts (owner, 2026-10-26);
   - `WantedBy=default.target`;
   - in a user unit these settings imply `PrivateUsers=`, which needs unprivileged user namespaces (systemd.exec(5), read 2026-10-27). So the unit is tested as written: capture works, polkit passes, `AudioConnected` turns true; the report lists every setting that had to go, with its reason (solution review P9-04);
   - `NoNewPrivileges=yes`, `PrivateTmp=yes`, `ProtectSystem=strict`, `RestrictAddressFamilies=AF_UNIX`, `LockPersonality=yes`, `RestrictRealtime=no` (PipeWire's client may ask for realtime scheduling: unverified, so not restricted).
+  - As built: `ExecStart=/usr/bin/opendeepcool-audio`, with `RestartSec=2`. `systemd-analyze verify --user` can't take a scratch root (`--root`), so the test verifies a copy whose `ExecStart` names a stand-in.
 - `crates/odc-manifest/`: UPDATE, an entry for a user unit enabled for every user (`systemctl --global enable`), which its removal disables.
 - `tools/dev/` (`odc-dev`'s `setup`, `teardown`, `check`): UPDATE.
   - **setup** installs the helper to `/usr/local/libexec/opendeepcool-dev/` and the unit to `/etc/systemd/user/`, with `ExecStart` pointing there, then runs `systemctl --global enable opendeepcool-audio.service`, all recorded in the manifest.
   - **teardown** runs `systemctl --global disable` and removes them.
   - **check** verifies, in the owner's session, `systemctl --user is-active opendeepcool-audio` and, while a Music mode is shown, `AudioConnected = true`.
+  - As built: the dev `ExecStart` is a drop-in, `tools/dev/opendeepcool-audio-dev.conf` in `/etc/systemd/user/opendeepcool-audio.service.d/`, as the service's is. The manifest's entry is `enabled-for-every-user opendeepcool-audio.service`; `systemctl --global disable` removes the link and its folder when empty (checked in a scratch root, 2026-11-05). Setup's user side then runs `systemctl --user daemon-reload` and restarts the helper in the session that ran it; teardown's user side stops it there first. `check` also checks the helper's process runs the dev build.
 
 **Implementation**
 - **Loop** (events, not polling; owner, 2026-10-26):
@@ -494,6 +497,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Flags:**
   - `--target <node>` passes `--target` to `pw-record`, for the end-to-end test only;
   - anything else is an error.
+- As built: the helper learns that its recorder ended from the service, whose `AudioConnected` turns false when the pipe closes, asked again with `GetState()` before the recorder is stopped, since a signal sent before a reply arrives after it; no thread waits on the child. A recorder that ran at least the timer's first wait starts again at once (a wake-up), one that failed sooner only after the timer. Only the service's current owner's `StateChanged` counts, and only the bus's `NameOwnerChanged`.
 - **Missing `pw-record`:** the helper logs "pw-record not found (package pipewire-audio)" once, then waits for the next watched change, or the fallback timer while `AudioWanted` is true.
 
 **Tests**
@@ -512,6 +516,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - After the owner approves the `odc-dev setup` run and its `pkexec` step:
   - `odc-dev check` exits 0;
   - `busctl call … GetState` shows `AudioConnected` as `b true` while the owner is logged in and a Music mode is shown. In mode 1 it shows `b false`, and no `opendeepcool-audio` node exists.
+  - **No Music mode can be shown on the real service before Task 6** (Task 3: none is drawable yet), so Task 4 checks mode 1 only: the helper active in the owner's session, `AudioWanted` and `AudioConnected` false, and no `opendeepcool-audio` node in `pw-dump`. The `b true` check moves to Task 6's first real run (owner, 2026-11-05).
 
 ### 5. Layer 4 tools: the virtual output, the real capture check and the delay measurement
 
@@ -576,6 +581,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `cargo test -p odc-render --test matrix_music --test scenarios_music`, `cargo test -p odc-service`: pass.
 - `cargo test -p odc-render --test differential_music -- --ignored`: passes and prints its counts.
 - `cargo run -p odc-e2e -- --only display --modes 13 --require lp360,dev-service`, `--only service --modes 13 --require dev-service` and `--only music --require dev-service,pipewire`: pass, with the delay's 95th percentile at 150 ms or less.
+- With mode 13 shown on the dev service and the owner logged in, `GetState` shows `AudioConnected` as `b true`: Task 4's check of the helper in a Music mode, moved here (owner, 2026-11-05).
 
 ### 7. Music, emojis over the spectrum (modes 14, 15, 16, 17)
 
