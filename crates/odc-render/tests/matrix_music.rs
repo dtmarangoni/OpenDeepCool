@@ -1,20 +1,22 @@
 //! Layer 1, the matrix (Phase 9 plan, Tasks 6–9): every case of each drawn Music mode's
 //! `docs/spec/frames/mode-0NN.txt`, in silence, its `?` pixels resolved as the floor line the files
 //! draw: mode 13's spectrum alone, an emoji's whole loop, a value over the spectrum, the Dancer's
-//! poses. And every signal of `spectrum/expected.txt` at *H* 12 as mode 13 draws it: rows 1–2
-//! always off, the spectrum's rows as the file says.
+//! poses. And every signal of `spectrum/expected.txt` at *H* 12 as mode 13 draws it, rows 1–2
+//! always off, and at *H* 6 under each drawn emoji's loop: the spectrum's rows as the file says.
 
 mod common;
 
+use std::collections::HashMap;
+
 use common::{drawn_modes, unit, values};
-use odc_protocol::Frame;
+use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Column, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Pose, Spectrum, Stop, analyse,
     spectrum_height, value_picture, with_spectrum,
 };
 use odc_testkit::diff;
 use odc_testkit::expected::{self, Case, load_mode};
-use odc_testkit::spectrum::{expected, signals};
+use odc_testkit::spectrum::{Expected, Rows, WINDOW, expected, signals};
 
 /// Silence: every bar 1 row high, the floor line.
 const FLOOR: [Column; COLUMNS] = [Column { bar: 1, dot: None }; COLUMNS];
@@ -88,14 +90,43 @@ fn every_case_of_each_drawn_music_mode_matches_its_expected_frames_in_silence() 
     }
 }
 
-/// Each column's lit heights in mode 13's spectrum area, rows 3–14, from the floor.
-fn heights(frame: &Frame) -> Vec<Vec<u8>> {
+/// Each column's lit heights in a spectrum area `h` rows high, from the floor.
+fn heights(frame: &Frame, h: u8) -> Vec<Vec<u8>> {
     (1..=14)
         .map(|c| {
-            (1..=12)
-                .filter(|&h| frame.get(15 - usize::from(h), c))
+            (1..=h)
+                .filter(|&height| frame.get(15 - usize::from(height), c))
                 .collect()
         })
+        .collect()
+}
+
+/// Each test signal's windows, one per tick, by name; the beat trains are the Dancer's.
+fn windows() -> HashMap<String, Vec<[f32; WINDOW]>> {
+    signals()
+        .into_iter()
+        .filter(|s| !s.is_beat_train())
+        .map(|s| (s.name.clone(), s.windows()))
+        .collect()
+}
+
+/// The Music settings a section of `expected.txt` names.
+fn settings(section: &Expected) -> MusicSettings {
+    let stop = |name: &str| Stop::from_name(name).expect("a stop");
+    MusicSettings {
+        peaks: section.peaks,
+        bar_fall: stop(&section.bar_fall),
+        peak_fall: section.peak_fall.as_deref().map_or(Stop::Slow, stop),
+    }
+}
+
+/// The lit heights `rows` give each column, bar and dot.
+fn wanted(rows: &Rows) -> Vec<Vec<u8>> {
+    let dots = rows.dots.unwrap_or([None; 14]);
+    rows.bars
+        .iter()
+        .zip(dots)
+        .map(|(&bar, dot)| (1..=bar).chain(dot).collect())
         .collect()
 }
 
@@ -108,19 +139,10 @@ fn every_signal_draws_its_rows_in_mode_13_with_rows_1_and_2_off() {
     if !drawn_modes(Kind::Music).contains(&thirteen) {
         return;
     }
-    let windows: std::collections::HashMap<String, Vec<_>> = signals()
-        .into_iter()
-        .filter(|s| !s.is_beat_train())
-        .map(|s| (s.name.clone(), s.windows()))
-        .collect();
-    let stop = |name: &str| Stop::from_name(name).expect("a stop");
+    let windows = windows();
     let mut sections = 0;
     for section in expected().iter().filter(|s| s.h == 12) {
-        let settings = MusicSettings {
-            peaks: section.peaks,
-            bar_fall: stop(&section.bar_fall),
-            peak_fall: section.peak_fall.as_deref().map_or(Stop::Slow, stop),
-        };
+        let settings = settings(section);
         let mut spectrum = Spectrum::enter();
         for (n, (window, rows)) in windows[&section.signal]
             .iter()
@@ -134,16 +156,69 @@ fn every_signal_draws_its_rows_in_mode_13_with_rows_1_and_2_off() {
                 "{}, tick {n}: rows 1–2 lit",
                 section.heading
             );
-            let dots = rows.dots.unwrap_or([None; 14]);
-            let want: Vec<Vec<u8>> = rows
-                .bars
-                .iter()
-                .zip(dots)
-                .map(|(&bar, dot)| (1..=bar).chain(dot).collect())
-                .collect();
-            assert_eq!(heights(&frame), want, "{}, tick {n}", section.heading);
+            assert_eq!(
+                heights(&frame, 12),
+                wanted(rows),
+                "{}, tick {n}",
+                section.heading
+            );
         }
         sections += 1;
     }
     assert_eq!(sections, 81 * 30);
+}
+
+// Modes 14–17 (Phase 9 plan, Task 7): every signal at H 6 with every listed peaks setting and
+// stop, under each drawn emoji's loop from its first picture, on the whole frame: rows 1–8 the
+// loop's pictures as `mode-01N.txt` draws them upright, the spectrum's rows `expected.txt`'s. The
+// music doesn't drive the loop, so it moves a picture a tick whatever the sound.
+#[test]
+fn every_signal_draws_its_rows_under_each_drawn_emoji_loop() {
+    let emojis: Vec<Mode> = drawn_modes(Kind::Music)
+        .into_iter()
+        .filter(|&mode| EmojiLoop::of(mode).is_some())
+        .collect();
+    if emojis.is_empty() {
+        return;
+    }
+    let windows = windows();
+    let upright = Rotation::from_setting(0).expect("0");
+    for mode in emojis {
+        let name = format!("mode-{:03}.txt", mode.number());
+        let file = load_mode(mode.number());
+        let case = file
+            .cases
+            .iter()
+            .find(|case| case.rotation == upright)
+            .unwrap_or_else(|| panic!("{name}: no upright case"));
+        let expected::Kind::Loop(steps) = &case.kind else {
+            panic!("{name}, {}: not a loop", case.heading)
+        };
+        let pictures: Vec<&expected::Picture> = steps
+            .iter()
+            .flat_map(|(duration, p)| {
+                let n = usize::try_from(duration.as_millis() / 100).expect("a short duration");
+                std::iter::repeat_n(p, n)
+            })
+            .collect();
+        let mut sections = 0;
+        for section in expected().iter().filter(|s| s.h == 6) {
+            let settings = settings(section);
+            let mut spectrum = Spectrum::enter();
+            let mut emoji = EmojiLoop::of(mode).expect("an emoji mode");
+            for (n, (window, rows)) in windows[&section.signal]
+                .iter()
+                .zip(&section.ticks)
+                .enumerate()
+            {
+                spectrum.update(&analyse(window), &settings);
+                let frame = with_spectrum(&emoji.tick(), &spectrum.draw(6, settings.peaks), 6);
+                let context = format!("{name}, {}, tick {n}", section.heading);
+                diff::assert_matches(pictures[n % pictures.len()], &frame, &context);
+                assert_eq!(heights(&frame, 6), wanted(rows), "{context}");
+            }
+            sections += 1;
+        }
+        assert_eq!(sections, 81 * 30, "{name}");
+    }
 }

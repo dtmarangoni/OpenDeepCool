@@ -3,8 +3,8 @@
 //! unattended). Each listed mode's upright cases, its three value sets in each unit it shows, and
 //! its dashes, then one variant of each scenario type the dev service can be driven through for
 //! each kind of mode, each shown on the real cooler, with the expected picture as text and one
-//! line on what should happen (`--modes` lists the modes; Phase 8 plan, Task 3). The
-//! owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
+//! line on what should happen (`--modes` lists the modes; Phase 8 plan, Task 3); an emoji mode
+//! also gets one Refresh mid-loop (Phase 9 plan, Task 7). The owner answers `y`, `n` (with an optional note) or `r` to see it again; optionally, one real
 //! standby. The answers go to `target/e2e/attended-<unix time>.txt`, and any `n` makes the exit
 //! status non-zero. Afterwards the owner's settings are as the tour found them. Later phases add
 //! one case of each of their modes and edge cases.
@@ -15,8 +15,10 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use odc_protocol::Message;
-use odc_render::{Mode, draws};
-use odc_testkit::expected::{Case, Kind, Picture, Unit, load_mode, load_unavailable};
+use odc_render::{EmojiLoop, Mode, draws};
+use odc_testkit::expected::{
+    Case, Kind, Picture, Unit, load_mode, load_unavailable, mode_scenarios,
+};
 use odc_testkit::hardware::{Capability, Probe, Roots, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
@@ -105,6 +107,33 @@ fn print_picture(picture: &Picture) {
     println!("{picture:?}");
 }
 
+/// For each emoji mode among `modes` that `accepted` takes, S26 mid-loop (Phase 9 plan, Task 7):
+/// at the first tick from halfway on whose picture isn't the loop's first, so the restart shows
+/// on its own frame. The first S26 of an emoji's file, which the scenario types take, comes as the
+/// loop is back at its first picture, where a restart shows nothing.
+fn refreshes_mid_loop(
+    modes: &[u16],
+    accepted: &dyn Fn(u16) -> bool,
+) -> Result<Vec<(String, Plan)>, String> {
+    let mut plans = Vec::new();
+    for &mode in modes.iter().filter(|&&mode| accepted(mode)) {
+        let Some(mut emoji) = Mode::new(mode).and_then(EmojiLoop::of) else {
+            continue;
+        };
+        let pictures: Vec<_> = (0..emoji.ticks()).map(|_| emoji.tick()).collect();
+        let tick = (pictures.len() / 2..pictures.len())
+            .find(|&t| pictures[t] != pictures[0])
+            .ok_or_else(|| format!("mode {mode}: one picture from halfway on"))?;
+        let heading = format!("## S26 · mode {mode} · at tick {tick}");
+        let scenario = mode_scenarios(mode)
+            .into_iter()
+            .find(|s| s.heading == heading)
+            .ok_or_else(|| format!("scenarios/mode-{mode:03}.txt: no `{heading}`"))?;
+        plans.push(("S26".to_owned(), Plan::of_scenario(&scenario)));
+    }
+    Ok(plans)
+}
+
 /// Runs the tour; `Ok(true)` when every answer was `y`.
 pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String> {
     match probe(Capability::DevService, roots) {
@@ -180,7 +209,12 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         }
     }
 
-    for (id, _, plan) in scenario_plans(modes, &accepted) {
+    let mut plans: Vec<(String, Plan)> = scenario_plans(modes, &accepted)
+        .into_iter()
+        .map(|(id, _, plan)| (id, plan))
+        .collect();
+    plans.extend(refreshes_mid_loop(modes, &accepted)?);
+    for (id, plan) in plans {
         if let Err(why) = real_or_why(&id, current.gpus.len(), switch.is_some()) {
             println!("== {id} isn't shown: {why}");
             continue;
@@ -273,4 +307,32 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         path.display()
     );
     Ok(wrong == 0)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Each emoji mode the service takes gets one Refresh mid-loop, on a picture other than the
+    // loop's first, from its own scenario file; no other mode does.
+    #[test]
+    fn each_emoji_mode_gets_a_refresh_mid_loop() {
+        let plans = refreshes_mid_loop(&[1, 13, 14, 15, 16, 17, 18, 23], &|_| true).expect("found");
+        let names: Vec<&str> = plans.iter().map(|(_, plan)| plan.name.as_str()).collect();
+        assert_eq!(
+            names,
+            [
+                "S26 · mode 14 · at tick 4",
+                "S26 · mode 15 · at tick 4",
+                "S26 · mode 16 · at tick 4",
+                "S26 · mode 17 · at tick 6",
+            ]
+        );
+        assert!(plans.iter().all(|(id, _)| id == "S26"));
+        assert!(
+            refreshes_mid_loop(&[14], &|_| false)
+                .expect("none")
+                .is_empty()
+        );
+    }
 }
