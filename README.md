@@ -16,7 +16,8 @@ Pre-alpha: planning and research. No installable app yet.
 - **Phase 5** (done, 2026-10-28): the Rust workspace. Frames reach the cooler byte-exact, without root, and keep reaching it after a reconnect, all tested unattended on the real cooler. CI runs on every push. See [the report](docs/prp/reports/phase-5-device-protocol-core.report.md).
 - **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind, and a once-per-board detection loads the board's fan driver. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md).
 - **Phase 7** (done, 2026-11-05): the MVP. A sandboxed system service shows Load on the cooler from boot, keeps its settings in one file, and takes changes over D-Bus, each checked with polkit. On the development PC, its end-to-end checks drive the real service through every Load mode and each scenario type a run can drive, unattended. See [the report](docs/prp/reports/phase-7-service-settings-load-mode.report.md).
-- **Phase 8** (done, 2026-11-05): Temperature and Power. The service shows the CPU's and the GPU's temperatures in °C or °F and their power in W, each alone or one over the other, every value in full up to 9999. Every scenario of modes 1–12 runs in-process in all four rotations, and each mode ran on the real cooler before its commit. See [the report](docs/prp/reports/phase-8-temperature-power.report.md). **Next, Phase 9**: Music.
+- **Phase 8** (done, 2026-11-05): Temperature and Power. The service shows the CPU's and the GPU's temperatures in °C or °F and their power in W, each alone or one over the other, every value in full up to 9999. Every scenario of modes 1–12 runs in-process in all four rotations, and each mode ran on the real cooler before its commit. See [the report](docs/prp/reports/phase-8-temperature-power.report.md).
+- **Phase 9** (implemented, 2026-11-06; awaiting the owner's sign-off): Music. The service shows the sound the PC plays as a 14-column spectrum with falling peak dots, alone, under one of four emoji animations, or under a value; and OpenDeepCool's own Dancer, who dances to the bass. A small helper in each user's session hands the service that sound, only while a Music mode is shown. Every mode from 1 to 23 is now drawn, and each ran on the real cooler before its commit. See [the report](docs/prp/reports/phase-9-music.report.md). **Next, Phase 10**: the settings app.
 - **Releases** (Phase 12, after the package and its final validation in Phase 11): an alpha, then a beta, each a GitHub pre-release for one month and until its open bugs are fixed; then `v1.0.0`, on GitHub and the AUR.
 
 The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-phases) is the only progress record.
@@ -92,7 +93,17 @@ busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepC
 journalctl -u opendeepcool
 ```
 
-`cargo run -p odc-e2e -- --only service` drives the dev service through each drawn mode, in each unit it shows, and each scenario it can be driven through, unattended. It tests the installed copy, so run `odc-dev setup` again after changing the service or what it links. `--only display` writes each drawn mode's examples straight to the cooler, from the code just built, and `--modes 7-9` limits either to some modes. `--only baseline` measures its CPU and memory use over 10 minutes, and `--attended` is an optional tour to watch on the cooler.
+From Phase 9, `odc-dev setup` also installs the sound helper `opendeepcool-audio` as a user unit enabled for every user, so it starts at each login. While the display shows a Music mode (13–23), it hands the service the sound of the session's default output through PipeWire's `pw-record`; in every other mode it captures nothing and only waits. Check it, show the full-screen spectrum and turn its peak dots off:
+
+```sh
+systemctl --user status opendeepcool-audio
+busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 \
+  io.github.dtmarangoni.OpenDeepCool1 SetMode u 13
+busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepCool1 \
+  io.github.dtmarangoni.OpenDeepCool1 SetMusicPeaks b false
+```
+
+`cargo run -p odc-e2e -- --only service` drives the dev service through each drawn mode, in each unit it shows, and each scenario it can be driven through, unattended. It tests the installed copy, so run `odc-dev setup` again after changing the service or what it links. `--only display` writes each drawn mode's examples straight to the cooler, from the code just built, and `--modes 7-9` limits either to some modes. `--only music` plays a test tone into a virtual output, checks what the cooler shows for it, and measures the delay from sound to frame. `--only baseline` measures its CPU and memory use over 10 minutes, and `--attended` is an optional tour to watch on the cooler.
 
 ## License
 
