@@ -614,6 +614,7 @@ Four sub-steps, **each its own commit** (rule 4).
   - `differential_music.rs` compares each drawn emoji's captured rows 1–8 with its loop, in order, with `cycle_match`: mode 14 has 6 steps and 351 frames, every one matching.
   - The tour adds one Refresh mid-loop for each emoji mode, at the first tick from halfway on whose picture isn't the loop's first: tick 4 in modes 14–16, tick 6 in mode 17. The scenario types' first S26 comes when the loop is back at its first picture, where a restart can't be seen.
   - Its first real `--only service --modes 14` failed S26: the loop restarted a tick late. The engine asked for Refresh's snapshot on the tick that took the call, so on the real service the reset always came a tick later. Phases 7–8 never showed it, because their real S26 runs used static pictures. It's fixed in its own commit: the D-Bus side now asks as the call arrives, and another GPU the same way (owner, 2026-11-06; PRD Decisions Log). One `odc-dev setup` served both commits (owner).
+- Mode 15 (2026-11-06): no change beyond `DRAWN` and the tests' lists of drawn Music modes. Its 6 captured steps, 350 frames, match the loop, and `--only display --modes 15` and `--only service --modes 15` passed.
 
 ### 8. Music, a value over the spectrum (modes 18, 19, 20, 21, 22)
 
