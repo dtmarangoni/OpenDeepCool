@@ -66,7 +66,7 @@ fn distinct() -> Values {
 #[test]
 fn draws_says_exactly_which_modes_picture_draws() {
     let values = distinct();
-    let music_drawn: [u16; 3] = [13, 14, 15];
+    let music_drawn: [u16; 4] = [13, 14, 15, 16];
     for mode in Mode::all() {
         for unit in [Unit::Celsius, Unit::Fahrenheit] {
             let drawn_picture = picture(mode, &values, unit).is_ok();
