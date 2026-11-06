@@ -3,7 +3,7 @@
 **Plan:** [phase-9-music.plan.md](../plans/phase-9-music.plan.md)
 **PRD phase:** 9 — Music
 **Branch:** `phase-9-music`
-**Status:** implemented, 2026-11-06: every task is committed and validated on the owner's PC. Waiting for the owner's sign-off, then CI on the branch and the fast-forward of `main` (no pull request).
+**Status:** complete, 2026-11-06: every task is committed and validated on the owner's PC, the owner signed the phase off, CI passed on the branch on its second run, and `main` was fast-forwarded to the branch (no pull request).
 
 ## Outcome
 
@@ -37,7 +37,10 @@ The service shows Music on the LP360, from boot and in every rotation: the sound
 | `49eea95` | Task 9: mode 23 |
 | `94a60bf` | The delay check spreads its bursts across the tick (owner, 2026-11-06; below) |
 | `60e2084`, `37753e8` | The plans' HTML companions removed, with every mention of them in the instructions (owner, 2026-11-06) |
-| this commit | Task 10: README, the PRD's footprint, this report |
+| `fc67b90` | Task 10: README, the PRD's footprint, this report |
+| `a556d89` | `jdx/mise-action` pinned to v5.2.7, the newest release at sign-off |
+| `6d75e0e` | Fix found by CI's first run: the helper's unit check (below) |
+| this commit | The phase complete |
 
 ## Acceptance
 
@@ -117,6 +120,7 @@ Each was agreed with the owner where marked; the plan and the PRD say so.
 - **S25's real path** (switching GPUs on a PC with two) is still **unverified**: this PC has one GPU, so S25 runs in process, now with the snapshot asked for at once.
 - **`--attended`** now has the Music items above but has never run; it's the owner's optional tour.
 - **Every mode's commit changed `odc-render`**, which the service links, so each needed `odc-dev setup` (one password prompt) before `--only service`.
+- **CI's actions at sign-off:** `actions/checkout` v7.0.1 was still the newest; `jdx/mise-action` moved to v5.2.7, released that day. `deny.toml`'s `syn` 2 skip stays: the newest nvml-wrapper (0.13.0), wrapcenum-derive (0.4.1) and tracing-attributes (0.1.31) still build with it.
 
 ## Validation
 
@@ -130,4 +134,4 @@ Each was agreed with the owner where marked; the plan and the PRD say so.
 | `--only service --require dev-service` | Every check passed with all 23 modes: 551 s of examples and scenarios; timing p99 104.19 ms over 3,000 frames |
 | Each mode's `--only service --modes <n>` | 13: as in Task 6; 14: passed after `bd6f274`; 15, 16, 17 (after `58e624c`), 18, 19 (35 checks), 20 (34), 21 (33), 22 (34), 23 (17): all passed |
 | `--only music --require dev-service,pipewire` | Passed: only in Music, the capture (17 frames of the tone, the floor line in silence), the delay above |
-| CI on the branch | After the owner's sign-off |
+| CI on the branch | Passed on its second run (2026-11-06): the dependency audit (`cargo deny check`: advisories, bans, licences and sources ok), format, lint, the workspace's tests as root (521, 6 ignored, as on the owner's PC), the expected-frame regeneration check, the udev rules and the privacy checks. The first run failed `systemd_accepts_the_unit`: `systemd-analyze verify --user` needs a user runtime folder, which CI's container has no session to give; the test now gives it its own (`6d75e0e`) |
