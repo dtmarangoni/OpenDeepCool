@@ -59,30 +59,25 @@ fn distinct() -> Values {
         })
 }
 
-// owner, 2026-10-27 (solution review P8-03): `draws` is true exactly where `picture` draws; every
-// mode from 1 to 12 is drawn (Phase 8), and no Music mode before Phase 9.
+// owner, 2026-10-27 (solution review P8-03): for a mode that shows values, `draws` is true exactly
+// where `picture` draws; a Music mode without values has no picture, and the engine draws it
+// from its spectrum, loop or Dancer. Every mode from 1 to 12 is drawn (Phase 8), and of Music
+// the modes Phase 9 has drawn so far, each in its own commit.
 #[test]
 fn draws_says_exactly_which_modes_picture_draws() {
     let values = distinct();
+    let music_drawn: [u16; 1] = [13];
     for mode in Mode::all() {
         for unit in [Unit::Celsius, Unit::Fahrenheit] {
-            assert_eq!(
-                draws(mode),
-                picture(mode, &values, unit).is_ok(),
-                "mode {}",
-                mode.number()
-            );
+            let drawn_picture = picture(mode, &values, unit).is_ok();
+            if mode_info(mode).metrics.is_empty() {
+                assert!(!drawn_picture, "mode {} has no value", mode.number());
+            } else {
+                assert_eq!(draws(mode), drawn_picture, "mode {}", mode.number());
+            }
         }
-        if mode.number() <= 12 {
-            assert!(draws(mode), "mode {} is drawn", mode.number());
-        }
-        if mode.number() > 12 {
-            assert!(
-                !draws(mode),
-                "mode {} comes in a later phase",
-                mode.number()
-            );
-        }
+        let n = mode.number();
+        assert_eq!(draws(mode), n <= 12 || music_drawn.contains(&n), "mode {n}");
     }
 }
 

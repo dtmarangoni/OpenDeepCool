@@ -138,11 +138,14 @@ fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
         ("x", "isn't a mode or a range of modes"),
         ("1,", "isn't a mode or a range of modes"),
         ("-3", "isn't a mode or a range of modes"),
-        // Music is Phase 9's.
-        ("13", "isn't drawn by this build yet"),
     ] {
         let error = modes(bad).expect_err(bad);
         assert!(error.contains(reason), "{bad:?}: {error}");
+    }
+    // The first mode a later commit draws, while there is one (Phase 9: Music, mode by mode).
+    if let Some(later) = odc_render::Mode::all().find(|&m| !odc_render::draws(m)) {
+        let error = modes(&later.number().to_string()).expect_err("not drawn yet");
+        assert!(error.contains("isn't drawn by this build yet"), "{error}");
     }
     // Without the flag, every mode this build draws.
     assert_eq!(Options::default().modes(), odc_e2e::drawn_modes());

@@ -41,7 +41,9 @@ fn the_value_area_of_modes_18_to_22_draws_every_case_over_a_silent_spectrum() {
 }
 
 #[test]
-fn only_modes_18_to_22_have_a_value_area_and_no_music_mode_is_drawn_yet() {
+fn only_modes_18_to_22_have_a_value_area_and_the_music_modes_drawn_so_far_are_drawn() {
+    // Phase 9 plan, Tasks 6–9: each Music mode is drawn in its own commit.
+    let music_drawn: [u16; 1] = [13];
     for mode in Mode::all() {
         let area = value_picture(mode, &values(&[]), Unit::Celsius);
         assert_eq!(
@@ -51,7 +53,12 @@ fn only_modes_18_to_22_have_a_value_area_and_no_music_mode_is_drawn_yet() {
             mode.number()
         );
         if mode_info(mode).kind == Kind::Music {
-            assert!(!draws(mode), "mode {}", mode.number());
+            assert_eq!(
+                draws(mode),
+                music_drawn.contains(&mode.number()),
+                "mode {}",
+                mode.number()
+            );
         }
     }
 }

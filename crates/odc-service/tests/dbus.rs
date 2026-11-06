@@ -472,11 +472,13 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
     zbus::block_on(async {
         let caller = h.client().await;
         let before = h.saved();
-        // Music comes in Phase 9.
-        assert!(matches!(
-            caller.main.set_mode(13).await,
-            Err(Error::NotYetAvailable(_))
-        ));
+        // The first mode a later commit draws, while there is one (Phase 9: Music, mode by mode).
+        if let Some(later) = Mode::all().find(|&m| !draws(m)) {
+            assert!(matches!(
+                caller.main.set_mode(u32::from(later.number())).await,
+                Err(Error::NotYetAvailable(_))
+            ));
+        }
         for mode in [0, 24, 70_000, u32::MAX] {
             assert!(
                 matches!(

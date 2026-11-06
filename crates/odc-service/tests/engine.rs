@@ -238,11 +238,12 @@ fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
 
 // The scenarios S1–S26 of each mode with values, the change in the top value, the bottom one
 // and both, every k, in each unit where a temperature is shown: S14–S18 and S21–S26 above all,
-// which only the engine can play out.
+// which only the engine can play out. From Phase 9 also those of each Music mode drawn so far,
+// with their sound and Music settings, and the switches into it from modes 1–12.
 #[test]
 fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_rotations() {
     let (mut replayed, mut skipped) = (0, 0);
-    for mode in 1..=12 {
+    for mode in 1..=23 {
         let scenarios = mode_scenarios(mode);
         assert!(!scenarios.is_empty(), "mode {mode}: no scenario");
         for scenario in &scenarios {
@@ -257,9 +258,13 @@ fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_ro
         }
     }
     println!("{replayed} scenarios replayed, {skipped} showing a mode not drawn yet skipped");
-    assert_eq!(replayed + skipped, 10_403, "the scenarios of modes 1–12");
-    assert!(replayed >= 2499, "Phase 7's Load scenarios at least");
-    if (1..=12).all(|m| Mode::new(m).is_some_and(draws)) {
+    assert_eq!(
+        replayed + skipped,
+        10_403 + 15_054,
+        "the scenarios of modes 1–12 and 13–23"
+    );
+    assert!(replayed >= 10_403, "Phase 8's modes 1–12 at least");
+    if Mode::all().all(draws) {
         assert_eq!(skipped, 0);
     }
 }
@@ -577,7 +582,10 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     // Every mode without a GPU metric: `with` gives the GPU's temperature and power the same
     // reading as its usage.
     let modes = engine.availability().modes;
-    assert_eq!(modes, drawn_among(&[1, 3, 5, 7, 10]));
+    assert_eq!(
+        modes,
+        drawn_among(&[1, 3, 5, 7, 10, 13, 14, 15, 16, 17, 18, 20, 22, 23])
+    );
     // A reading the PC may not give at all counts at once, settled or not.
     let denied = with(
         Reading::Unavailable(Unavailable::PermissionDenied {
@@ -586,7 +594,12 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
         value(67),
     );
     let early = availability(&denied, false);
-    assert_eq!(early.modes, drawn_among(&[2, 3, 6, 7, 8, 9, 10, 11, 12]));
+    assert_eq!(
+        early.modes,
+        drawn_among(&[
+            2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23
+        ])
+    );
 }
 
 // P8-03: only modes this build draws are ever available, whatever the readings.
@@ -595,11 +608,15 @@ fn only_modes_this_build_draws_are_available() {
     let all = with(value(42), value(67));
     for settled in [false, true] {
         let a = availability(&all, settled);
-        let every: Vec<u32> = (1..=12).collect();
+        let every: Vec<u32> = (1..=23).collect();
         assert_eq!(a.modes, drawn_among(&every));
         assert!(a.modes.starts_with(&[1, 2, 3, 4, 5, 6, 7]));
-        assert!(!a.modes.contains(&13));
-        assert_eq!(a.reasons[&13], "comes in a later version");
+        // The first mode a later commit draws, while there is one.
+        if let Some(later) = Mode::all().find(|&m| !draws(m)) {
+            let later = u32::from(later.number());
+            assert!(!a.modes.contains(&later));
+            assert_eq!(a.reasons[&later], "comes in a later version");
+        }
     }
 }
 
@@ -829,7 +846,7 @@ fn not_yet_draws_dashes_then_digits() {
     let mut engine = Engine::new(Settings::default(), first);
     let dashes = engine.tick(None, None, false).frame;
     assert_eq!(dashes, Some(home(1, &readings(&[("CPU Usage", None)]))));
-    let every: Vec<u32> = (1..=12).collect();
+    let every: Vec<u32> = (1..=23).collect();
     assert_eq!(
         engine.availability().modes,
         drawn_among(&every),

@@ -124,7 +124,10 @@ pub fn has_node(dump: &str, name: &str) -> bool {
 }
 
 /// Whether the helper's capture stream, in `pactl list source-outputs`, is at 100 % on every
-/// channel: a volume WirePlumber restored for it would scale every level.
+/// channel: a volume WirePlumber restored for it would scale every level. `None` while the stream
+/// isn't listed, or its volume isn't known yet: the service says the sound is connected as soon as
+/// the helper attaches, before `pw-record` has joined PipeWire (seen on the development PC,
+/// 2026-11-05).
 pub fn capture_at_full_volume(list: &str) -> Option<bool> {
     let block = list
         .split("Source Output #")
@@ -137,7 +140,10 @@ pub fn capture_at_full_volume(list: &str) -> Option<bool> {
         .map(str::trim)
         .filter(|part| part.ends_with('%'))
         .collect();
-    Some(!percents.is_empty() && percents.iter().all(|p| *p == "100%"))
+    if percents.is_empty() {
+        return None;
+    }
+    Some(percents.iter().all(|p| *p == "100%"))
 }
 
 /// Before the checks: a null sink a killed run left is unloaded, and the owner's helper, which a
@@ -513,12 +519,19 @@ fn ready(tools: &Tools, session: &Session) -> Result<(), String> {
     if !connected {
         return Err("in mode 13 the dev helper's sound didn't connect within 3 s".into());
     }
-    match capture_at_full_volume(&tools.output("pactl", &["list", "source-outputs"])?) {
+    let mut full = None;
+    soon(CONNECT_WITHIN, || {
+        full = capture_at_full_volume(&tools.output("pactl", &["list", "source-outputs"])?);
+        Ok(full.is_some())
+    })?;
+    match full {
         Some(true) => Ok(()),
         Some(false) => Err(format!(
             "the {HELPER_NODE} capture stream isn't at 100 %: set it back in a mixer"
         )),
-        None => Err(format!("pactl lists no {HELPER_NODE} capture stream")),
+        None => Err(format!(
+            "within 3 s pactl lists no {HELPER_NODE} capture stream with a volume"
+        )),
     }
 }
 

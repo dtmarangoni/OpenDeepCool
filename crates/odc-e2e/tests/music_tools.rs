@@ -192,6 +192,10 @@ fn the_tools_outputs_are_read_as_pipewire_prints_them() {
     assert_eq!(capture_at_full_volume(&outputs("100%")), Some(true));
     assert_eq!(capture_at_full_volume(&outputs("91%")), Some(false));
     assert_eq!(capture_at_full_volume("Source Output #1\n"), None);
+    // Not known yet: the stream has only just joined.
+    let joining = "Source Output #4380\n\tVolume: (invalid)\n\tProperties:\n\t\t\
+                   node.name = \"opendeepcool-audio\"\n";
+    assert_eq!(capture_at_full_volume(joining), None);
     let sorted: Vec<f64> = (1..=200).map(f64::from).collect();
     assert_eq!(quantile(&sorted, 0.5), 100.0);
     assert_eq!(quantile(&sorted, 0.95), 190.0);
