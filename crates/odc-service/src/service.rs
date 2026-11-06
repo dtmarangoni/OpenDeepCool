@@ -13,8 +13,9 @@ use odc_device::{Connector, Link, Lp360, Reason, RecordingHandle};
 use odc_protocol::Frame;
 use odc_sensors::{Binding, FanInput, Gpu, Metric};
 
+use crate::audio::PipeAudio;
 use crate::dbus::{self, Bus, Checks};
-use crate::engine::{Apply, Engine, Published, Requests};
+use crate::engine::{Apply, Drawn, Engine, Published, Requests};
 use crate::log::{Journal, Priority};
 use crate::pulse::Pulse;
 use crate::runtime::{
@@ -39,6 +40,9 @@ pub struct Config<C: Connector, S: Sensors> {
     pub journal: Arc<dyn Journal>,
     /// With `--dev`: the service's group, and the recording `lp360` writes through.
     pub dev: Option<(u32, RecordingHandle)>,
+    /// The modes the service draws: `odc_render::draws`; only a test passes more (Phase 9 plan,
+    /// Task 3).
+    pub drawn: Drawn,
 }
 
 /// The running service; dropping it stops it.
@@ -167,7 +171,14 @@ impl Running {
             fan_inputs: config.fan_inputs,
             ..Status::default()
         }));
-        let engine = Engine::new(config.settings.clone(), first.snapshot);
+        // The session's sound, which the D-Bus side attaches and the engine hears (Phase 9).
+        let audio = Arc::new(PipeAudio::new());
+        let engine = Engine::with_audio(
+            config.settings.clone(),
+            first.snapshot,
+            Arc::clone(&audio) as Arc<dyn crate::audio::AudioSource>,
+            config.drawn,
+        );
         let (requests_tx, requests) = mpsc::channel::<SensorRequest>();
         let (control_tx, control) = mpsc::channel();
         let mut threads = Vec::new();
@@ -294,6 +305,8 @@ impl Running {
                     .dev
                     .zip(durations)
                     .map(|((group, recording), durations)| (group, recording, durations)),
+                audio,
+                drawn: config.drawn,
             })
             .map_err(io::Error::other)
         });

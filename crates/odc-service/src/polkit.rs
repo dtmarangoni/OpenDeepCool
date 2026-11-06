@@ -19,6 +19,8 @@ pub enum Action {
     Use,
     /// Every change, `Refresh()` included, and every dev call.
     ChangeSettings,
+    /// `AttachAudio()`, and its check every second while attached (Phase 9).
+    FeedAudio,
 }
 
 impl Action {
@@ -26,6 +28,7 @@ impl Action {
         match self {
             Action::Use => odc_ipc::USE_ACTION,
             Action::ChangeSettings => odc_ipc::CHANGE_SETTINGS_ACTION,
+            Action::FeedAudio => odc_ipc::FEED_AUDIO_ACTION,
         }
     }
 }
@@ -46,6 +49,9 @@ pub trait Authorizer: Send + Sync {
 pub struct Identity {
     pub user: Option<u32>,
     pub groups: Option<Vec<u32>>,
+    /// The caller's process, which the journal names an attach by (Phase 9; solution review
+    /// P9-11).
+    pub pid: Option<u32>,
 }
 
 /// Asks the bus who a caller is.
@@ -146,6 +152,7 @@ impl Credentials for BusCredentials {
             Ok(Identity {
                 user: credentials.unix_user_id(),
                 groups: credentials.unix_group_ids().cloned(),
+                pid: credentials.process_id(),
             })
         })
     }

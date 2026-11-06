@@ -342,8 +342,8 @@ pub fn play_real(
                 | Change::MusicBarFall(_)
                 | Change::MusicPeakFall(_) => {
                     return Err(format!(
-                        "{}: {change:?}: the dev service takes sound and the Music settings from \
-                         Phase 9, Task 3",
+                        "{}: {change:?}: the dev service's plays take sound and the Music \
+                         settings from Phase 9, Task 5",
                         plan.name
                     ));
                 }
@@ -572,8 +572,8 @@ pub fn play_engine(plan: &Plan) -> Result<String, String> {
                 | Change::MusicBarFall(_)
                 | Change::MusicPeakFall(_) => {
                     return Err(format!(
-                        "{}: {change:?}: the engine takes sound and the Music settings from \
-                         Phase 9, Task 3",
+                        "{}: {change:?}: these plays take sound and the Music settings from \
+                         Phase 9, Task 5",
                         plan.name
                     ));
                 }

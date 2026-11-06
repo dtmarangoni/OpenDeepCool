@@ -412,8 +412,10 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - `docs/spec/dbus.md`: UPDATE, in the same commit: these members and state keys (solution review P4-04).
 - `crates/odc-service/src/audio.rs`: CREATE.
   - `trait AudioSource` keeps the latest 2048 mono samples, each with the monotonic time it was read.
+    - As built (2026-11-05): `window()` gives them oldest first; the reader keeps the time the newest was read, and once it's older than 200 ms the window is silence (owner, 2026-11-05: sound that stops coming is silence after 200 ms, and the bars fall at their sliders' rates; `music.md`, Spectrum: analysis). `Silence` is the engine's source unless it's given one.
   - `PipeAudio` reads `f32` stereo frames from the pipe's read end on its own thread and averages the channels. A sample that is NaN or infinite counts as 0, and one beyond ±1 is clipped to ±1 (`music.md` Spectrum: analysis; solution review P4-08, P9-03). The pipe keeps the kernel's default capacity, 65,536 bytes (measured on this PC, 2026-10-27, with 4 KiB pages), about 170 ms of this 384 kB/s stream: a reader stalled longer makes `pw-record` overrun, never corrupts data, and `F_SETPIPE_SZ` can raise it (solution review P9-09).
-  - `FakeAudio` is for the tests.
+  - `FakeAudio` is for the tests: each tick's window, set by the test.
+  - As built: `PipeAudio` reads each pipe on a thread of its own with `poll` (rustix, already in the tree through zbus), checking every 20 ms whether to stop, and joins a frame split across reads; `attach` names the holder by its unique bus name and tells the D-Bus side when the pipe ends by itself; `OverrideAudio`'s pipe replaces the window's source until cleared, its end of file being silence (`dbus.md`).
 - `crates/odc-service/src/settings.rs`, `engine.rs`, `dbus.rs`, `polkit.rs`: UPDATE.
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: UPDATE, adding `feed-audio` (`allow_active` yes, `allow_inactive` no, `allow_any` no).
 - `docs/spec/settings.md` "What the settings app must offer": UPDATE. Status gains "whether Music sound is coming in from the session at the PC" (`AudioConnected`), so the UI designer sees it (owner's rule, 2026-10-24).
@@ -434,8 +436,11 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
   - entering 13–22 from another mode calls `Spectrum::enter`;
   - each tick in a Music mode runs `analyse` on the window, then `Spectrum::update`;
   - a Music setting change is applied on the next tick with no reset;
-  - the emoji loop restarts on every reset in the Phase 7 list.
+  - the emoji loop restarts on every reset in the Phase 7 list;
+  - a missed tick draws nothing and moves nothing: no analysis, no bar or peak fall, no loop step, no Dancer step (owner, 2026-11-05; `music.md` point 8).
+  - As built: the engine draws every Music mode already (`Top`: a value's strip, nothing, an emoji loop or the Dancer), and `Engine::with_audio(settings, snapshot, audio, drawn)` takes the sound and **the test-only switch**, `drawn: fn(Mode) -> bool`, which `Config` and the D-Bus side's `Parts` carry too; `opendeepcoold` always passes `odc_render::draws`, so no Music mode is selectable until its own commit (Tasks 6–9). With the switch, every scenario of `mode-013.txt` to `mode-023.txt` plays out through the engine in all four rotations and matches the oracle's frames.
 - **Settings v1:** the three fields with their defaults; validation of the stop names.
+  - As built: `music_peaks`, `music_bar_fall` and `music_peak_fall`, each stop a `Fall` written by its name; an unknown name makes the file invalid, moved aside as Phase 7 does. `polkit::Identity` gains the caller's PID for the attach's journal line (P9-11).
 - **Dev recording:** each report already carries its monotonic write time (Phase 7; solution review P7-13), which the delay measurement in Task 5 uses.
 
 **Tests** (layer 3, CI; a private bus and a fake `Authorizer`, as Phase 7's D-Bus tests run them)
@@ -451,6 +456,7 @@ The owner wants to try it (2026-10-26; solution review OV-06). This task only re
 - **Setters:** each Music setter validates, stores and sends `StateChanged` to the watchers. A value already set changes nothing. A change while mode 1 is shown changes no frame.
 - **Old settings file:** a v1 file without the Music fields loads with the defaults.
 - **"Audio file → frames"** (PRD layer 3): `FakeAudio` plays each signal of `spectrum/signals.txt` through the engine. The recorded frames' spectrum rows match `expected.txt` tick for tick. This needs mode 13 drawable, so it lands with Task 6 and is written here against a test-only switch.
+  - As built: at *H* 12 (mode 13) and *H* 6 (mode 14), and every sequence of `dancer.txt` through the engine in mode 23, all with the switch; a missed tick in modes 13, 14, 17, 18 and 23 moves nothing.
 - **The `PipeAudio` reader:** a pipe that delivers half a frame then the rest; a writer that closes; a burst of a whole second at once. None loses or duplicates a sample.
 - **Samples out of range** (P4-08, P9-03): NaN, +∞ and −∞ samples reach the window as 0, and samples of 10⁶ and −10⁶ as 1 and −1; the frames stay valid under the spectrum's layout rules, and nothing panics.
 

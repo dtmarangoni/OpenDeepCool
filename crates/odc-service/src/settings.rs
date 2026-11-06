@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use odc_render::{Mode, Unit};
+use odc_render::{Mode, MusicSettings, Stop, Unit};
 use odc_sensors::PciAddr;
 use serde::{Deserialize, Serialize};
 
@@ -45,6 +45,65 @@ impl From<TemperatureUnit> for Unit {
     }
 }
 
+/// A falloff stop as the file writes it: Winamp's five, slowest first (`docs/spec/music.md`
+/// point 4). A name that isn't one of them makes the file invalid.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Fall {
+    Slower,
+    Slow,
+    Moderate,
+    Fast,
+    Faster,
+}
+
+impl Fall {
+    /// The stop called `name`, as `docs/spec/dbus.md`'s setters take it.
+    pub fn from_name(name: &str) -> Option<Fall> {
+        Stop::from_name(name).map(Fall::from)
+    }
+
+    pub fn name(self) -> &'static str {
+        Stop::from(self).name()
+    }
+}
+
+impl From<Fall> for Stop {
+    fn from(fall: Fall) -> Stop {
+        match fall {
+            Fall::Slower => Stop::Slower,
+            Fall::Slow => Stop::Slow,
+            Fall::Moderate => Stop::Moderate,
+            Fall::Fast => Stop::Fast,
+            Fall::Faster => Stop::Faster,
+        }
+    }
+}
+
+impl From<Stop> for Fall {
+    fn from(stop: Stop) -> Fall {
+        match stop {
+            Stop::Slower => Fall::Slower,
+            Stop::Slow => Fall::Slow,
+            Stop::Moderate => Fall::Moderate,
+            Stop::Fast => Fall::Fast,
+            Stop::Faster => Fall::Faster,
+        }
+    }
+}
+
+fn peaks_on() -> bool {
+    true
+}
+
+fn bars_moderate() -> Fall {
+    Fall::Moderate
+}
+
+fn peaks_slow() -> Fall {
+    Fall::Slow
+}
+
 /// A chosen fan input: its chip's name, its device path relative to the sysfs root, and its
 /// number, as Phase 6's `FanInput` identifies it, never by hwmon index.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -71,6 +130,14 @@ pub struct Settings {
     pub cooler_fan_input: Option<SavedInput>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pump_input: Option<SavedInput>,
+    /// The Music settings (`docs/spec/music.md` point 7; Phase 9): a file written before them
+    /// gets Winamp's defaults, peak dots on, bars moderate, peaks slow.
+    #[serde(default = "peaks_on")]
+    pub music_peaks: bool,
+    #[serde(default = "bars_moderate")]
+    pub music_bar_fall: Fall,
+    #[serde(default = "peaks_slow")]
+    pub music_peak_fall: Fall,
     /// The fields a later build added, as they were.
     #[serde(flatten)]
     pub later: toml::Table,
@@ -86,12 +153,24 @@ impl Default for Settings {
             gpu_choice: None,
             cooler_fan_input: None,
             pump_input: None,
+            music_peaks: peaks_on(),
+            music_bar_fall: bars_moderate(),
+            music_peak_fall: peaks_slow(),
             later: toml::Table::new(),
         }
     }
 }
 
 impl Settings {
+    /// The Music settings the spectrum is drawn with.
+    pub fn music(&self) -> MusicSettings {
+        MusicSettings {
+            peaks: self.music_peaks,
+            bar_fall: self.music_bar_fall.into(),
+            peak_fall: self.music_peak_fall.into(),
+        }
+    }
+
     /// Whether the settings have the form this build accepts.
     ///
     /// # Errors

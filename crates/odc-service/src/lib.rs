@@ -1,6 +1,8 @@
 //! The display service (Phase 7 plan, Tasks 5–8): its settings, the engine and the threads around
-//! it, the D-Bus interface, and the `opendeepcoold` binary that runs them under systemd.
+//! it, the D-Bus interface, and the `opendeepcoold` binary that runs them under systemd; from
+//! Phase 9 the sound for the Music modes.
 
+pub mod audio;
 pub mod dbus;
 pub mod engine;
 pub mod log;

@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 14] = [
+pub const STATE_KEYS: [(&str, &str); 19] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -24,6 +24,11 @@ pub const STATE_KEYS: [(&str, &str); 14] = [
     ("PumpInput", "(ssu)"),
     ("CoolerFanRpm", "d"),
     ("PumpRpm", "d"),
+    ("MusicPeaks", "b"),
+    ("MusicBarFall", "s"),
+    ("MusicPeakFall", "s"),
+    ("AudioConnected", "b"),
+    ("AudioWanted", "b"),
 ];
 
 /// A value the state's text keys take, by its text on the bus.
@@ -55,6 +60,18 @@ macro_rules! text_enum {
 text_enum! {
     /// `TemperatureUnit`.
     TemperatureUnit { Celsius => "celsius", Fahrenheit => "fahrenheit" }
+}
+
+text_enum! {
+    /// `MusicBarFall` and `MusicPeakFall`: Winamp's five falloff stops, slowest first
+    /// (`docs/spec/music.md` point 4).
+    FallStop {
+        Slower => "slower",
+        Slow => "slow",
+        Moderate => "moderate",
+        Fast => "fast",
+        Faster => "faster",
+    }
 }
 
 text_enum! {
@@ -137,6 +154,13 @@ pub struct State {
     pub pump_input: Option<Option<Input>>,
     pub cooler_fan_rpm: Option<FanSpeed>,
     pub pump_rpm: Option<FanSpeed>,
+    pub music_peaks: Option<bool>,
+    pub music_bar_fall: Option<FallStop>,
+    pub music_peak_fall: Option<FallStop>,
+    /// Whether the session's sound comes in: a helper is attached.
+    pub audio_connected: Option<bool>,
+    /// Whether the service takes sound: true exactly while a Music mode, 13–23, is shown.
+    pub audio_wanted: Option<bool>,
 }
 
 /// Why a dictionary isn't a state.
@@ -233,6 +257,21 @@ impl State {
         }
         if let Some(speed) = self.pump_rpm {
             put("PumpRpm", owned(speed_number(speed)));
+        }
+        if let Some(peaks) = self.music_peaks {
+            put("MusicPeaks", owned(peaks));
+        }
+        if let Some(stop) = self.music_bar_fall {
+            put("MusicBarFall", owned(stop.as_str()));
+        }
+        if let Some(stop) = self.music_peak_fall {
+            put("MusicPeakFall", owned(stop.as_str()));
+        }
+        if let Some(connected) = self.audio_connected {
+            put("AudioConnected", owned(connected));
+        }
+        if let Some(wanted) = self.audio_wanted {
+            put("AudioWanted", owned(wanted));
         }
         dict
     }
@@ -337,6 +376,11 @@ impl State {
             pump_input: input(dict, "PumpInput")?,
             cooler_fan_rpm: speed(dict, "CoolerFanRpm")?,
             pump_rpm: speed(dict, "PumpRpm")?,
+            music_peaks: get(dict, "MusicPeaks")?,
+            music_bar_fall: text(dict, "MusicBarFall", FallStop::parse)?,
+            music_peak_fall: text(dict, "MusicPeakFall", FallStop::parse)?,
+            audio_connected: get(dict, "AudioConnected")?,
+            audio_wanted: get(dict, "AudioWanted")?,
         })
     }
 
@@ -363,7 +407,12 @@ impl State {
             cooler_fan_input,
             pump_input,
             cooler_fan_rpm,
-            pump_rpm
+            pump_rpm,
+            music_peaks,
+            music_bar_fall,
+            music_peak_fall,
+            audio_connected,
+            audio_wanted
         );
     }
 
@@ -392,7 +441,12 @@ impl State {
             cooler_fan_input,
             pump_input,
             cooler_fan_rpm,
-            pump_rpm
+            pump_rpm,
+            music_peaks,
+            music_bar_fall,
+            music_peak_fall,
+            audio_connected,
+            audio_wanted
         );
         changes
     }

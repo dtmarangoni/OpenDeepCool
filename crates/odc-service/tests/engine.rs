@@ -1,16 +1,24 @@
 //! Layer 3, the engine's tick logic (Phase 7 plan, Task 6): every scenario of
 //! `docs/spec/frames/scenarios/` whose modes this build draws, through `Engine`, which turns each
 //! frame itself, in all four rotations; the newest settings; Refresh and another GPU waiting for
-//! their snapshot; availability with late sources; dashes. The threads and the clock are tested in
+//! their snapshot; availability with late sources; dashes. From Phase 9 the replay plays each
+//! scenario's sound and Music settings (Task 3). The threads and the clock are tested in
 //! `runtime.rs`.
 
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
+
 use odc_protocol::Rotation;
-use odc_render::{Mode, draws};
+use odc_render::{Mode, WINDOW, draws};
 use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
-use odc_service::engine::{Apply, Engine, LATE_SOURCE_TICKS, Override, Published, availability};
-use odc_service::settings::{Settings, TemperatureUnit};
+use odc_service::audio::{AudioSource, FakeAudio};
+use odc_service::engine::{
+    Apply, Drawn, Engine, LATE_SOURCE_TICKS, Override, Published, availability,
+};
+use odc_service::settings::{Fall, Settings, TemperatureUnit};
 use odc_testkit::diff;
 use odc_testkit::expected::{Change, Reset, Scenario, Unit, every_metric, mode_scenarios};
+use odc_testkit::spectrum::signals;
 
 /// A snapshot with the readings named and every other metric's filler; an unavailable reading is
 /// `NotYet`, which shows dashes.
@@ -47,6 +55,22 @@ fn unit(unit: Unit) -> TemperatureUnit {
     }
 }
 
+/// Every signal of `spectrum/signals.txt` by its name, as each tick's window.
+fn windows() -> &'static HashMap<String, Vec<[f32; WINDOW]>> {
+    static WINDOWS: OnceLock<HashMap<String, Vec<[f32; WINDOW]>>> = OnceLock::new();
+    WINDOWS.get_or_init(|| {
+        signals()
+            .into_iter()
+            .map(|s| (s.name.clone(), s.windows()))
+            .collect()
+    })
+}
+
+/// A falloff stop of the scenario files, by its name.
+fn fall(name: &str) -> Fall {
+    Fall::from_name(name).unwrap_or_else(|| panic!("{name:?} isn't a stop"))
+}
+
 /// Whether this build draws every mode `scenario` shows: the one it starts in and each it switches
 /// into. A scenario that shows another waits for that mode's commit (Phase 8 plan, Task 1).
 fn drawn(scenario: &Scenario) -> bool {
@@ -65,6 +89,12 @@ fn drawn(scenario: &Scenario) -> bool {
 
 /// Replays `scenario` through the engine from rotation `base`, comparing every frame.
 fn replay(scenario: &Scenario, base: u8) {
+    replay_drawing(scenario, base, draws);
+}
+
+/// [`replay`], with the engine drawing the modes `drawn` lets it: the sound plays from the tick
+/// that names it, one window a tick, then silence.
+fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
     let mut readings: Vec<(String, Option<Exact>)> = Vec::new();
     for change in &scenario.ticks[0].changes {
         if let Change::Reading { metric, value } = change {
@@ -77,12 +107,35 @@ fn replay(scenario: &Scenario, base: u8) {
         temperature_unit: unit(scenario.unit),
         ..Settings::default()
     };
-    let mut engine = Engine::new(start, snapshot(&readings));
+    let audio = Arc::new(FakeAudio::new());
+    let mut engine = Engine::with_audio(
+        start,
+        snapshot(&readings),
+        Arc::clone(&audio) as Arc<dyn AudioSource>,
+        drawn,
+    );
     let mut gpus = 0;
+    // The signal playing and the tick it started at.
+    let mut playing: Option<(&[[f32; WINDOW]], u32)> = None;
     for tick in &scenario.ticks {
+        for change in &tick.changes {
+            if let Change::Audio(name) = change {
+                let signal = windows()
+                    .get(name)
+                    .unwrap_or_else(|| panic!("{}: no signal {name:?}", scenario.heading));
+                playing = Some((signal, tick.n));
+            }
+        }
+        let window = playing.and_then(|(signal, from)| {
+            usize::try_from(tick.n - from)
+                .ok()
+                .and_then(|i| signal.get(i))
+        });
+        audio.set(window.copied().unwrap_or([0.0; WINDOW]));
         let mut settings = engine.settings().clone();
         let (mut set, mut refresh, mut wake, mut missed, mut read) =
             (false, false, false, false, false);
+        let mut gpus_asked = false;
         if tick.n > 0 {
             for change in &tick.changes {
                 match change {
@@ -103,6 +156,7 @@ fn replay(scenario: &Scenario, base: u8) {
                         gpus += 1;
                         settings.gpu_choice = Some(format!("0000:{:02x}:00.0", 0x0a + gpus));
                         set = true;
+                        gpus_asked = true;
                     }
                     Change::Reset(Reset::Refresh) => refresh = true,
                     Change::Reset(Reset::StartUp) => {
@@ -118,16 +172,24 @@ fn replay(scenario: &Scenario, base: u8) {
                     Change::Wake => wake = true,
                     Change::Missed => missed = true,
                     // A refused change never reaches the engine; the cooler's comings and
-                    // goings are the device thread's.
-                    Change::Refused { .. } | Change::CoolerAway | Change::CoolerBack => {}
-                    // Only Music scenarios hold them, and no Music mode is drawn yet.
-                    Change::Audio(_)
-                    | Change::MusicPeaks(_)
-                    | Change::MusicBarFall(_)
-                    | Change::MusicPeakFall(_) => panic!(
-                        "{}: the engine takes sound and the Music settings from Phase 9, Task 3",
-                        scenario.heading
-                    ),
+                    // goings are the device thread's; the sound is the source's, above.
+                    Change::Refused { .. }
+                    | Change::CoolerAway
+                    | Change::CoolerBack
+                    | Change::Audio(_) => {}
+                    // A Music setting is a settings change, never a reset (music.md point 7).
+                    Change::MusicPeaks(on) => {
+                        settings.music_peaks = *on;
+                        set = true;
+                    }
+                    Change::MusicBarFall(stop) => {
+                        settings.music_bar_fall = fall(stop);
+                        set = true;
+                    }
+                    Change::MusicPeakFall(stop) => {
+                        settings.music_peak_fall = fall(stop);
+                        set = true;
+                    }
                 }
             }
         }
@@ -137,7 +199,9 @@ fn replay(scenario: &Scenario, base: u8) {
             wake,
             readings: None,
         });
-        let published = read.then(|| fresh(&readings));
+        // Refresh's and another GPU's reset waits for a snapshot answering it: the scenarios
+        // show it come at once, with the readings unchanged when the tick gives none.
+        let published = (read || refresh || gpus_asked).then(|| fresh(&readings));
         let out = engine.tick(apply, published, missed);
         assert_eq!(out.number, u64::from(tick.n), "{}", scenario.heading);
         match (&tick.frame, out.frame) {
@@ -782,4 +846,210 @@ fn not_yet_draws_dashes_then_digits() {
         )
         .frame;
     assert_eq!(digits, Some(home(1, &usage(42))));
+}
+
+/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included, before
+/// each one's own commit makes it drawable (Tasks 6–9).
+fn every_mode(_: Mode) -> bool {
+    true
+}
+
+/// Every scenario of a Music mode's file through the engine with the test-only switch, in all four
+/// rotations: the spectrum from each scenario's sound, the Music settings, the emoji loops and the
+/// Dancer, and the resets, against the oracle's frames.
+fn music_scenarios_play_out(mode: u16) {
+    let scenarios = mode_scenarios(mode);
+    assert!(!scenarios.is_empty(), "mode {mode}: no scenario");
+    for scenario in &scenarios {
+        for base in 0..4 {
+            replay_drawing(scenario, base, every_mode);
+        }
+    }
+}
+
+macro_rules! music_scenarios {
+    ($($name:ident: $mode:literal),+ $(,)?) => {
+        $(
+            #[test]
+            fn $name() {
+                music_scenarios_play_out($mode);
+            }
+        )+
+    };
+}
+
+music_scenarios! {
+    every_scenario_of_mode_13_plays_out_through_the_engine_with_the_test_switch: 13,
+    every_scenario_of_mode_14_plays_out_through_the_engine_with_the_test_switch: 14,
+    every_scenario_of_mode_15_plays_out_through_the_engine_with_the_test_switch: 15,
+    every_scenario_of_mode_16_plays_out_through_the_engine_with_the_test_switch: 16,
+    every_scenario_of_mode_17_plays_out_through_the_engine_with_the_test_switch: 17,
+    every_scenario_of_mode_18_plays_out_through_the_engine_with_the_test_switch: 18,
+    every_scenario_of_mode_19_plays_out_through_the_engine_with_the_test_switch: 19,
+    every_scenario_of_mode_20_plays_out_through_the_engine_with_the_test_switch: 20,
+    every_scenario_of_mode_21_plays_out_through_the_engine_with_the_test_switch: 21,
+    every_scenario_of_mode_22_plays_out_through_the_engine_with_the_test_switch: 22,
+    every_scenario_of_mode_23_plays_out_through_the_engine_with_the_test_switch: 23,
+}
+
+/// The lit heights of each column in a frame's bottom `h` rows, from the floor, checked against
+/// the layout: a solid bar from the floor, then at most one dot. A dot right above its bar looks
+/// like a taller bar, so columns are compared by their lit heights.
+fn spectrum_rows(frame: &odc_protocol::Frame, h: u8) -> Vec<Vec<u8>> {
+    (1..=14)
+        .map(|c| {
+            let lit: Vec<u8> = (1..=h)
+                .filter(|&height| frame.get(15 - usize::from(height), c))
+                .collect();
+            let bar = lit
+                .iter()
+                .enumerate()
+                .take_while(|&(i, &height)| usize::from(height) == i + 1)
+                .count();
+            assert!(bar >= 1, "column {c}: the floor is lit");
+            assert!(lit.len() <= bar + 1, "column {c}: one dot at most, {lit:?}");
+            lit
+        })
+        .collect()
+}
+
+/// The lit heights `expected.txt`'s rows give each column: its bar, and its dot.
+fn expected_rows(rows: &odc_testkit::spectrum::Rows) -> Vec<Vec<u8>> {
+    let dots = rows.dots.unwrap_or([None; 14]);
+    rows.bars
+        .iter()
+        .zip(dots)
+        .map(|(&bar, dot)| (1..=bar).chain(dot).collect())
+        .collect()
+}
+
+// PRD layer 3, "audio file → frames" (Phase 9 plan, Task 3, written against the test-only
+// switch): every signal of `spectrum/signals.txt` through the engine, at H 12 in mode 13 and H 6
+// in mode 14 with the default Music settings; the frames' spectrum rows are `expected.txt`'s,
+// tick for tick.
+#[test]
+fn every_signal_through_the_engine_draws_its_expected_rows() {
+    let sections = odc_testkit::spectrum::expected();
+    let mut checked = 0;
+    for (mode, h) in [(13, 12), (14, 6)] {
+        let heading =
+            |signal: &str| format!("{signal} · H {h} · peaks on · bars moderate · peaks slow");
+        for signal in signals().iter().filter(|s| !s.is_beat_train()) {
+            let want = sections
+                .iter()
+                .find(|e| e.heading == heading(&signal.name))
+                .unwrap_or_else(|| panic!("no section {}", heading(&signal.name)));
+            let audio = Arc::new(FakeAudio::new());
+            let settings = Settings {
+                mode,
+                ..Settings::default()
+            };
+            let mut engine = Engine::with_audio(
+                settings,
+                snapshot(&usage(42)),
+                Arc::clone(&audio) as Arc<dyn AudioSource>,
+                every_mode,
+            );
+            for (n, (window, rows)) in signal.windows().iter().zip(&want.ticks).enumerate() {
+                audio.set(*window);
+                let frame = engine.tick(None, None, false).frame.expect("a frame");
+                assert_eq!(
+                    spectrum_rows(&frame, h),
+                    expected_rows(rows),
+                    "mode {mode}, {}, tick {n}",
+                    signal.name
+                );
+            }
+            checked += 1;
+        }
+    }
+    assert_eq!(checked, 2 * 81);
+}
+
+// The Dancer through the engine (Phase 9 plan, Task 9's "audio file → frames", here against the
+// test-only switch): every sequence of `spectrum/dancer.txt`, a reset being Refresh.
+#[test]
+fn every_dancer_sequence_through_the_engine_draws_its_poses() {
+    let poses: Vec<odc_protocol::Frame> = odc_render::Pose::all()
+        .map(odc_render::Pose::frame)
+        .collect();
+    let settings = Settings {
+        mode: 23,
+        ..Settings::default()
+    };
+    for dance in odc_testkit::spectrum::dances() {
+        let audio = Arc::new(FakeAudio::new());
+        let mut engine = Engine::with_audio(
+            settings.clone(),
+            snapshot(&usage(42)),
+            Arc::clone(&audio) as Arc<dyn AudioSource>,
+            every_mode,
+        );
+        for (n, (window, pose)) in windows()[&dance.signal]
+            .iter()
+            .zip(&dance.poses)
+            .enumerate()
+        {
+            audio.set(*window);
+            let reset = dance.resets.contains(&n);
+            let apply = reset.then(|| Apply {
+                refresh: true,
+                ..Apply::default()
+            });
+            let published = reset.then(|| fresh(&usage(42)));
+            let frame = engine.tick(apply, published, false).frame.expect("a frame");
+            assert_eq!(
+                frame,
+                poses[usize::from(*pose)],
+                "{}, tick {n}",
+                dance.heading
+            );
+        }
+    }
+}
+
+// music.md point 8 (owner, 2026-11-05): a missed tick draws nothing and moves nothing; the next
+// tick goes on from where the bars, the emoji loop and the Dancer were.
+#[test]
+fn a_missed_tick_in_music_moves_nothing() {
+    // One tick of a tone at column 7's centre, then silence.
+    let tone = windows()["burst train, column 7, -20 dBFS, 100 ms on, 400 ms off"][0];
+    let sound: Vec<[f32; WINDOW]> = std::iter::once(tone)
+        .chain(std::iter::repeat_n([0.0; WINDOW], 7))
+        .collect();
+    for mode in [13, 14, 17, 18, 23] {
+        let settings = Settings {
+            mode,
+            ..Settings::default()
+        };
+        let engine = |audio: &Arc<FakeAudio>| {
+            Engine::with_audio(
+                settings.clone(),
+                snapshot(&usage(42)),
+                Arc::clone(audio) as Arc<dyn AudioSource>,
+                every_mode,
+            )
+        };
+        let (on_time, late) = (Arc::new(FakeAudio::new()), Arc::new(FakeAudio::new()));
+        let (mut steady, mut missing) = (engine(&on_time), engine(&late));
+        // The tone, then silence: the bars fall, the loops step.
+        let mut frames = Vec::new();
+        for window in &sound {
+            on_time.set(*window);
+            frames.push(steady.tick(None, None, false).frame.expect("a frame"));
+        }
+        for (n, window) in sound[..3].iter().enumerate() {
+            late.set(*window);
+            assert_eq!(missing.tick(None, None, false).frame, Some(frames[n]));
+        }
+        // Tick 3 is missed: each later tick of the late engine is the steady one's tick before, as
+        // the sound is the same silence.
+        late.set(sound[3]);
+        assert_eq!(missing.tick(None, None, true).frame, None, "mode {mode}");
+        for (n, window) in sound[4..8].iter().enumerate() {
+            late.set(*window);
+            let frame = missing.tick(None, None, false).frame;
+            assert_eq!(frame, Some(frames[n + 3]), "mode {mode}, tick {}", n + 4);
+        }
+    }
 }

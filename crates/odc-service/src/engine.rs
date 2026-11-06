@@ -1,16 +1,28 @@
 //! The engine (Phase 7 plan, Task 6): the tick logic, with no I/O and no clock. Each tick it
 //! adopts the newest settings and the newest snapshot, decides between a reset and an update of
 //! the picture (`docs/spec/display.md`, Mode switches and Movement, precisely), draws one frame,
-//! turns it last, and works out which modes can be shown. The threads around it, and the clock,
-//! are in [`crate::runtime`].
+//! turns it last, and works out which modes can be shown. In a Music mode it also analyses the
+//! sound's window, keeps the spectrum, and steps the emoji loop or the Dancer (Phase 9 plan,
+//! Task 3; `docs/spec/music.md`). The threads around it, and the clock, are in
+//! [`crate::runtime`].
 
 use std::collections::BTreeMap;
+use std::sync::Arc;
 
 use odc_protocol::{Frame, Rotation};
-use odc_render::{Marquee, Mode, Picture, Unit, Values, draws, mode_info, picture};
+use odc_render::{
+    Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Unit, Values, analyse, draws,
+    mode_info, picture, spectrum_height, value_picture, with_spectrum,
+};
 use odc_sensors::{Snapshot, Unavailable};
 
+use crate::audio::{AudioSource, Silence};
 use crate::settings::Settings;
+
+/// Which modes the service draws: `odc_render::draws` in the service. A test that needs a Music
+/// mode before its own commit makes it drawable passes more (Phase 9 plan, Task 3: a test-only
+/// switch); `opendeepcoold` always passes `draws`.
+pub type Drawn = fn(Mode) -> bool;
 
 /// Ticks in the two minutes after start-up or a wake-up during which a metric without a device
 /// may still find one, so `NoDevice` doesn't count as lasting yet (owner, 2026-10-27; solution
@@ -106,7 +118,35 @@ pub struct Tick {
     pub requests: Requests,
 }
 
-/// The engine's state: the settings in force, the readings drawn, and the movement.
+/// What the engine draws above the spectrum, or in mode 23 in its place.
+enum Top {
+    /// A value's strip: on the whole grid in modes 1–12, in rows 1–8 in modes 18–22.
+    Strip(Marquee),
+    /// Mode 13: the spectrum alone.
+    Nothing,
+    /// Modes 14–17.
+    Emoji(EmojiLoop),
+    /// Mode 23.
+    Dancer(Dancer),
+}
+
+impl Top {
+    /// The top of `mode` from its start: its picture at home, the loop's first picture, or the
+    /// Dancer reset (`music.md`: a reset restarts the loop and the Dancer).
+    fn of(mode: Mode, picture: Option<Picture>) -> Top {
+        match mode.number() {
+            13 => Top::Nothing,
+            14..=17 => Top::Emoji(EmojiLoop::of(mode).expect("modes 14–17 have a loop")),
+            23 => Top::Dancer(Dancer::new()),
+            n => Top::Strip(Marquee::new(
+                picture.unwrap_or_else(|| panic!("mode {n} shows a value")),
+            )),
+        }
+    }
+}
+
+/// The engine's state: the settings in force, the readings drawn, the movement, and in Music the
+/// spectrum.
 pub struct Engine {
     settings: Settings,
     /// The readings drawn: the real ones, or the override's metrics with the real fans.
@@ -116,7 +156,12 @@ pub struct Engine {
     overridden: Option<Snapshot>,
     /// The last override taken: its number and its tick.
     adopted: Option<(u64, u64)>,
-    marquee: Marquee,
+    top: Top,
+    /// The bars and peaks, while a mode with a spectrum (13–22) is shown; entering one from any
+    /// other mode starts them at level 0 (`music.md` point 8).
+    spectrum: Option<Spectrum>,
+    audio: Arc<dyn AudioSource>,
+    drawn: Drawn,
     /// The next tick's number.
     tick: u64,
     /// The tick of start-up or of the last wake-up.
@@ -128,16 +173,27 @@ pub struct Engine {
 
 /// The mode the engine draws for the saved one: the saved mode when this build draws it, mode 1
 /// otherwise, which only a downgrade can bring about.
-pub(crate) fn shown_mode(settings: &Settings) -> Mode {
+pub(crate) fn shown_mode(settings: &Settings, drawn: Drawn) -> Mode {
     Mode::new(settings.mode)
-        .filter(|&mode| draws(mode))
+        .filter(|&mode| drawn(mode))
         .or_else(|| Mode::new(1))
         .expect("mode 1 exists")
 }
 
-fn picture_of(settings: &Settings, snapshot: &Snapshot) -> Picture {
+/// Whether `mode` takes sound: the Music modes, 13–23 (owner, 2026-10-26).
+pub fn takes_sound(mode: Mode) -> bool {
+    mode_info(mode).kind == Kind::Music
+}
+
+/// The picture of the value `mode` shows, `None` when it shows none: the whole grid in modes 1–12,
+/// the value area in rows 2–6 in modes 18–22.
+fn picture_of(mode: Mode, settings: &Settings, snapshot: &Snapshot) -> Option<Picture> {
     let unit: Unit = settings.temperature_unit.into();
-    picture(shown_mode(settings), &Values::of(snapshot), unit).expect("a drawn mode")
+    let values = Values::of(snapshot);
+    match mode_info(mode).kind {
+        Kind::Music => value_picture(mode, &values, unit),
+        _ => Some(picture(mode, &values, unit).expect("a drawn mode")),
+    }
 }
 
 /// The override's metrics with the real snapshot's fans.
@@ -155,10 +211,25 @@ fn rotation(settings: &Settings) -> Rotation {
 
 impl Engine {
     /// The engine at start-up, on the saved settings and the first snapshot: its first frame is
-    /// the saved mode's picture at home (`docs/spec/settings.md`, Start-up).
+    /// the saved mode's picture at home (`docs/spec/settings.md`, Start-up). It draws the modes
+    /// this build draws, and hears silence.
     pub fn new(settings: Settings, snapshot: Snapshot) -> Engine {
+        Engine::with_audio(settings, snapshot, Arc::new(Silence), draws)
+    }
+
+    /// The engine at start-up with the service's sound, drawing the modes `drawn` lets it.
+    pub fn with_audio(
+        settings: Settings,
+        snapshot: Snapshot,
+        audio: Arc<dyn AudioSource>,
+        drawn: Drawn,
+    ) -> Engine {
+        let mode = shown_mode(&settings, drawn);
         Engine {
-            marquee: Marquee::new(picture_of(&settings, &snapshot)),
+            top: Top::of(mode, picture_of(mode, &settings, &snapshot)),
+            spectrum: spectrum_height(mode).map(|_| Spectrum::enter()),
+            audio,
+            drawn,
             settings,
             real: snapshot.clone(),
             snapshot,
@@ -181,7 +252,7 @@ impl Engine {
 
     /// The mode drawn.
     pub fn mode(&self) -> Mode {
-        shown_mode(&self.settings)
+        shown_mode(&self.settings, self.drawn)
     }
 
     /// The last readings override the engine took: its number and the tick it took effect.
@@ -190,7 +261,8 @@ impl Engine {
     }
 
     /// One tick: adopt what arrived, reset or update the picture, then draw unless the deadline
-    /// was missed. A missed tick draws nothing and doesn't move the strip (S22).
+    /// was missed. A missed tick draws nothing and moves nothing: not the strip (S22), nor in Music
+    /// the spectrum, the emoji loop or the Dancer (`music.md` point 8; owner, 2026-11-05).
     pub fn tick(
         &mut self,
         apply: Option<Apply>,
@@ -214,10 +286,11 @@ impl Engine {
             if let Some(new) = apply.settings {
                 let old = std::mem::replace(&mut self.settings, new);
                 let new = &self.settings;
-                reset |= shown_mode(&old) != shown_mode(new)
+                let (before, after) = (shown_mode(&old, self.drawn), shown_mode(new, self.drawn));
+                // A Music setting is never a reset (`music.md` point 7).
+                reset |= before != after
                     || old.rotation != new.rotation
-                    || (old.temperature_unit != new.temperature_unit
-                        && shows_temperature(shown_mode(new)));
+                    || (old.temperature_unit != new.temperature_unit && shows_temperature(after));
                 if Choices::of(&old) != Choices::of(new) {
                     requests.choices = Some(Choices::of(new));
                     if old.gpu_choice != new.gpu_choice {
@@ -248,19 +321,47 @@ impl Engine {
             changed = drawn != self.snapshot;
             self.snapshot = drawn;
         }
-        let picture = picture_of(&self.settings, &self.snapshot);
+        let mode = self.mode();
+        let picture = picture_of(mode, &self.settings, &self.snapshot);
         if reset {
-            self.marquee.reset(picture);
-        } else if changed {
-            self.marquee.update(picture);
+            self.top = Top::of(mode, picture);
+        } else if changed && let (Top::Strip(marquee), Some(picture)) = (&mut self.top, picture) {
+            marquee.update(picture);
+        }
+        if spectrum_height(mode).is_none() {
+            self.spectrum = None;
+        } else if self.spectrum.is_none() {
+            self.spectrum = Some(Spectrum::enter());
         }
         let number = self.tick;
         self.tick += 1;
-        let frame = (!missed).then(|| self.marquee.tick().rotated(rotation(&self.settings)));
+        let frame = (!missed).then(|| self.draw(mode).rotated(rotation(&self.settings)));
         Tick {
             number,
             frame,
             requests,
+        }
+    }
+
+    /// This tick's frame, before it's turned: in a Music mode the sound's window is analysed, the
+    /// spectrum updated with its levels and drawn below the top, or the Dancer stepped with them.
+    fn draw(&mut self, mode: Mode) -> Frame {
+        let levels = takes_sound(mode).then(|| analyse(&self.audio.window()));
+        let music = self.settings.music();
+        if let (Some(spectrum), Some(levels)) = (self.spectrum.as_mut(), levels.as_ref()) {
+            spectrum.update(levels, &music);
+        }
+        let top = match &mut self.top {
+            Top::Strip(marquee) => marquee.tick(),
+            Top::Nothing => Frame::blank(),
+            Top::Emoji(emoji) => emoji.tick(),
+            Top::Dancer(dancer) => dancer
+                .tick(levels.as_ref().expect("mode 23 takes sound"))
+                .frame(),
+        };
+        match (spectrum_height(mode), &self.spectrum) {
+            (Some(h), Some(spectrum)) => with_spectrum(&top, &spectrum.draw(h, music.peaks), h),
+            _ => top,
         }
     }
 
@@ -275,7 +376,7 @@ impl Engine {
     /// Which modes can be shown now (Phase 7 plan, Task 6; `docs/spec/settings.md`, Availability).
     pub fn availability(&self) -> Availability {
         let settled = self.tick.saturating_sub(self.since) >= LATE_SOURCE_TICKS;
-        availability(&self.snapshot, settled)
+        availability_of(&self.snapshot, settled, self.drawn)
     }
 }
 
@@ -298,10 +399,15 @@ fn lasting(reason: &Unavailable, settled: bool) -> bool {
 /// The modes a snapshot lets the service show: those this build draws whose every metric can be
 /// read; the rest with their first reason (owner, 2026-10-27; solution review P8-03).
 pub fn availability(snapshot: &Snapshot, settled: bool) -> Availability {
+    availability_of(snapshot, settled, draws)
+}
+
+/// [`availability`] for the modes `drawn` lets the service draw.
+pub fn availability_of(snapshot: &Snapshot, settled: bool, drawn: Drawn) -> Availability {
     let mut result = Availability::default();
     for mode in Mode::all() {
         let number = u32::from(mode.number());
-        if !draws(mode) {
+        if !drawn(mode) {
             result
                 .reasons
                 .insert(number, "comes in a later version".to_owned());

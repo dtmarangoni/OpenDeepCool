@@ -18,22 +18,25 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use odc_device::{Link, Reason, RecordingHandle};
-use odc_ipc::{BUS_NAME, CoolerState, DEV_PATH, Error, FanSpeed, Input, OBJECT_PATH, State};
-use odc_render::{Mode, Shown, draws, number};
+use odc_ipc::{
+    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, FanSpeed, Input, OBJECT_PATH, State,
+};
+use odc_render::{Mode, Shown, number};
 use odc_sensors::{Binding, Exact, Fan, Metric, Reading, Snapshot, Unavailable};
 use zbus::fdo::DBusProxy;
 use zbus::message::{Header, Type};
 use zbus::names::BusName;
 use zbus::object_server::SignalEmitter;
-use zbus::wire::OwnedVariant;
+use zbus::wire::{OwnedFd, OwnedVariant};
 use zbus::{Connection, DBusError, MatchRule, MessageStream, connection};
 
-use crate::engine::{Apply, Override, shown_mode};
+use crate::audio::{Ended, PipeAudio};
+use crate::engine::{Apply, Drawn, Override, shown_mode, takes_sound};
 use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
 use crate::runtime::{DeviceControl, Durations, Slot};
-use crate::settings::{SavedInput, Settings, SettingsStore, TemperatureUnit};
+use crate::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
 use crate::watchers::{Checked, Watchers};
@@ -104,6 +107,10 @@ struct Shared {
     dev: Option<DevSide>,
     /// The last readings override's number.
     overrides: AtomicU64,
+    /// The session's sound, and on the dev copy a test's (Phase 9).
+    audio: Arc<PipeAudio>,
+    /// The modes the service draws: `odc_render::draws`, or a test's switch.
+    drawn: Drawn,
 }
 
 /// The caller's unique name. The bus sets it on every message; a message without one is refused.
@@ -237,6 +244,11 @@ impl Shared {
             return Err(Error::Failed(format!("the settings can't be saved: {e}")));
         }
         *saved = new.clone();
+        // Sound only in the Music modes (owner, 2026-10-26): leaving them closes the pipe at once,
+        // under the settings' lock, so no attach slips in between.
+        if !takes_sound(shown_mode(&new, self.drawn)) {
+            self.close_audio("the display left the Music modes");
+        }
         drop(saved);
         self.apply.merge(
             Apply {
@@ -254,7 +266,7 @@ impl Shared {
             .ok()
             .and_then(Mode::new)
             .ok_or_else(|| invalid(format!("mode {mode} isn't in the mode table")))?;
-        if !draws(shown) {
+        if !(self.drawn)(shown) {
             return Err(Error::NotYetAvailable(format!(
                 "mode {mode} comes in a later version"
             )));
@@ -304,10 +316,112 @@ impl Shared {
         }))
     }
 
-    /// The whole state: the settings' keys from the saved settings, the rest from the status.
+    /// The whole state: the settings' keys from the saved settings, the rest from the status and
+    /// the sound.
     fn state(&self) -> State {
         let settings = lock(&self.settings).clone();
-        state_of(&settings, &read(&self.status))
+        let connected = self.audio.holder().is_some();
+        state_of(&settings, &read(&self.status), self.drawn, connected)
+    }
+
+    /// A fall stop by its name, as the setters take it.
+    fn fall(stop: &str) -> Result<Fall, Error> {
+        within("a stop", stop, STRING_LIMIT)?;
+        Fall::from_name(stop).ok_or_else(|| {
+            invalid(format!(
+                "{stop:?} isn't slower, slow, moderate, fast or faster"
+            ))
+        })
+    }
+
+    /// Whether the display takes sound under `settings`: only in a Music mode, 13–23 (owner,
+    /// 2026-10-26).
+    fn wants_sound(&self, settings: &Settings) -> Result<(), Error> {
+        let mode = shown_mode(settings, self.drawn);
+        if takes_sound(mode) {
+            Ok(())
+        } else {
+            Err(Error::AudioNotWanted(format!(
+                "mode {} is shown; sound is taken only in the Music modes, 13 to 23",
+                mode.number()
+            )))
+        }
+    }
+
+    /// A new pipe for `sender`, read from now on in place of any earlier one; returns its write
+    /// end. Under the settings' lock, so the display can't leave Music meanwhile.
+    fn attach(&self, sender: &str, identity: &Identity) -> Result<OwnedFd, Error> {
+        let settings = lock(&self.settings);
+        self.wants_sound(&settings)?;
+        let failed = |what: &str, e: &dyn std::fmt::Display| {
+            let why = format!("{what}: {e}");
+            self.journal.write(
+                Priority::Error,
+                &format!("AttachAudio from {sender}: {why}"),
+            );
+            Error::Failed(why)
+        };
+        let (read_end, write_end) = rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC)
+            .map_err(|e| failed("a pipe can't be made", &e))?;
+        let before = self.audio.holder();
+        let (journal, pulse) = (Arc::clone(&self.journal), Arc::clone(&self.pulse));
+        let ended = move |holder: &str, why: Ended| {
+            journal.write(
+                Priority::Notice,
+                &format!("the sound from {holder} stopped, {why}: the spectrum hears silence"),
+            );
+            pulse.send();
+        };
+        self.audio
+            .attach(read_end, sender, ended)
+            .map_err(|e| failed("the sound can't be read", &e))?;
+        drop(settings);
+        let number = |n: Option<u32>| n.map_or_else(|| "unknown".to_owned(), |n| n.to_string());
+        let replaced = before
+            .map(|(_, holder)| format!(", in place of {holder}'s"))
+            .unwrap_or_default();
+        self.journal.write(
+            Priority::Info,
+            &format!(
+                "sound attached from {sender} (user {}, PID {}){replaced}",
+                number(identity.user),
+                number(identity.pid)
+            ),
+        );
+        self.pulse.send();
+        Ok(OwnedFd::from(write_end))
+    }
+
+    /// Closes the attached pipe, if any, saying why.
+    fn close_audio(&self, why: &str) {
+        if let Some(holder) = self.audio.detach() {
+            self.journal.write(
+                Priority::Notice,
+                &format!("the sound from {holder} is closed: {why}"),
+            );
+            self.pulse.send();
+        }
+    }
+
+    /// The attached caller's check, every second on the D-Bus side's timer: one that no longer
+    /// passes polkit's `feed-audio`, or whose check fails, has its pipe closed (Phase 9 plan,
+    /// Task 3).
+    async fn check_audio(&self) {
+        let Some((id, holder)) = self.audio.holder() else {
+            return;
+        };
+        let why = match self.authorizer.allowed(&holder, Action::FeedAudio).await {
+            Ok(true) => return,
+            Ok(false) => format!("polkit no longer allows {}", Action::FeedAudio.id()),
+            Err(e) => format!("the polkit check failed: {e}"),
+        };
+        if self.audio.detach_if(id) {
+            self.journal.write(
+                Priority::Notice,
+                &format!("the sound from {holder} is closed: {why}"),
+            );
+            self.pulse.send();
+        }
     }
 
     /// After a wake-up from standby: a new conversation with the cooler, and the readings
@@ -328,9 +442,20 @@ impl Shared {
         );
     }
 
-    /// A name left the bus: its watcher goes, and a test session it held ends.
+    /// A name left the bus: its watcher goes, its sound's pipe closes, and a test session it held
+    /// ends.
     fn gone(&self, name: &str) {
         lock(&self.watchers).remove(name);
+        if let Some((id, holder)) = self.audio.holder()
+            && holder == name
+            && self.audio.detach_if(id)
+        {
+            self.journal.write(
+                Priority::Notice,
+                &format!("the sound from {name} is closed: it left the bus"),
+            );
+            self.pulse.send();
+        }
         if let Some(dev) = &self.dev
             && lock(&dev.session).as_deref() == Some(name)
         {
@@ -348,6 +473,7 @@ impl Shared {
     fn end_session(&self, dev: &DevSide) {
         *lock(&dev.session) = None;
         self.post_override(None);
+        self.audio.clear_override();
         if dev.released.swap(false, Ordering::Relaxed) {
             dev.recording.end_session_keeping_return();
             let _ = self.device.send(DeviceControl::Resume);
@@ -410,8 +536,9 @@ impl Shared {
     }
 }
 
-/// The state the service tells its clients (`docs/spec/dbus.md`, State).
-fn state_of(settings: &Settings, status: &Status) -> State {
+/// The state the service tells its clients (`docs/spec/dbus.md`, State); `audio_connected` while a
+/// helper's pipe is attached.
+fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected: bool) -> State {
     let (connected, cooler) = cooler_state(status);
     let input = |saved: &Option<SavedInput>| {
         saved.as_ref().map(|s| Input {
@@ -421,8 +548,11 @@ fn state_of(settings: &Settings, status: &Status) -> State {
         })
     };
     let fans = status.snapshot.as_ref();
+    let fall =
+        |fall: Fall| FallStop::parse(fall.name()).expect("the five stops have the same names");
+    let mode = shown_mode(settings, drawn);
     State {
-        mode: Some(u32::from(shown_mode(settings).number())),
+        mode: Some(u32::from(mode.number())),
         rotation: Some(settings.rotation),
         temperature_unit: Some(match settings.temperature_unit {
             TemperatureUnit::Celsius => odc_ipc::TemperatureUnit::Celsius,
@@ -474,6 +604,11 @@ fn state_of(settings: &Settings, status: &Status) -> State {
         pump_input: Some(input(&settings.pump_input)),
         cooler_fan_rpm: Some(speed(fans.map(|s| &s.cooler_fans))),
         pump_rpm: Some(speed(fans.map(|s| &s.pump))),
+        music_peaks: Some(settings.music_peaks),
+        music_bar_fall: Some(fall(settings.music_bar_fall)),
+        music_peak_fall: Some(fall(settings.music_peak_fall)),
+        audio_connected: Some(audio_connected),
+        audio_wanted: Some(takes_sound(mode)),
     }
 }
 
@@ -715,6 +850,62 @@ impl Main {
         Ok(())
     }
 
+    /// The write end of a new pipe the service reads the session's sound from, only while a Music
+    /// mode is shown; polkit's `feed-audio`. It isn't a change: a test session doesn't refuse it.
+    #[zbus(out_args("pipe"))]
+    async fn attach_audio(&self, #[zbus(header)] header: Header<'_>) -> Result<OwnedFd, Error> {
+        let call = "AttachAudio";
+        let sender = sender(&header)?;
+        let wanted = self
+            .shared
+            .wants_sound(&lock(&self.shared.settings).clone());
+        self.shared.logged(call, &sender, wanted)?;
+        self.shared.check(&sender, Action::FeedAudio, call).await?;
+        let identity = self
+            .shared
+            .credentials
+            .of(&sender)
+            .await
+            .unwrap_or_default();
+        self.shared
+            .logged(call, &sender, self.shared.attach(&sender, &identity))
+    }
+
+    async fn set_music_peaks(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        peaks: bool,
+    ) -> Result<(), Error> {
+        let call = format!("SetMusicPeaks({peaks})");
+        let sender = self.shared.changer(&header, &call).await?;
+        self.shared
+            .logged(&call, &sender, self.shared.save(|s| s.music_peaks = peaks))
+    }
+
+    async fn set_music_bar_fall(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        stop: &str,
+    ) -> Result<(), Error> {
+        let call = "SetMusicBarFall";
+        let sender = self.shared.changer(&header, call).await?;
+        let result =
+            Shared::fall(stop).and_then(|fall| self.shared.save(|s| s.music_bar_fall = fall));
+        self.shared.logged(call, &sender, result)
+    }
+
+    async fn set_music_peak_fall(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        stop: &str,
+    ) -> Result<(), Error> {
+        let call = "SetMusicPeakFall";
+        let sender = self.shared.changer(&header, call).await?;
+        let result =
+            Shared::fall(stop).and_then(|fall| self.shared.save(|s| s.music_peak_fall = fall));
+        self.shared.logged(call, &sender, result)
+    }
+
     #[zbus(out_args("state"))]
     async fn get_state(
         &self,
@@ -800,11 +991,37 @@ impl Dev {
         Ok(self.shared.adopted(id).await)
     }
 
+    /// Samples from this pipe replace the session's sound until `ClearOverride()` or the end of
+    /// the session (Phase 9 plan, Task 3).
+    async fn override_audio(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        pipe: OwnedFd,
+    ) -> Result<(), Error> {
+        let call = "OverrideAudio";
+        let (sender, dev) = self.shared.dev_caller(&header, call).await?;
+        self.shared
+            .logged(call, &sender, Shared::holds(dev, &sender))?;
+        let result = self
+            .shared
+            .audio
+            .override_with(pipe.into())
+            .map_err(|e| Error::Failed(format!("the sound can't be read: {e}")));
+        self.shared.logged(call, &sender, result)?;
+        self.shared.journal.write(
+            Priority::Notice,
+            &format!("the sound is overridden by the test session of {sender}"),
+        );
+        Ok(())
+    }
+
+    /// Ends both overrides, the readings' and the sound's.
     async fn clear_override(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
         let call = "ClearOverride";
         let (sender, dev) = self.shared.dev_caller(&header, call).await?;
         self.shared
             .logged(call, &sender, Shared::holds(dev, &sender))?;
+        self.shared.audio.clear_override();
         let id = self.shared.post_override(None);
         self.shared.adopted(id).await;
         Ok(())
@@ -907,6 +1124,10 @@ pub struct Parts {
     pub journal: Arc<dyn Journal>,
     /// With `--dev`: the service's group, the recording, and the threads' durations.
     pub dev: Option<(u32, RecordingHandle, Arc<Durations>)>,
+    /// The sound the engine hears, which `AttachAudio()` and `OverrideAudio()` feed.
+    pub audio: Arc<PipeAudio>,
+    /// The modes the service draws: `odc_render::draws`, or a test's switch.
+    pub drawn: Drawn,
 }
 
 /// The running D-Bus side: its thread, inside one `zbus::block_on` call, and its timer.
@@ -1033,6 +1254,8 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
             .dev
             .map(|(group, recording, durations)| DevSide::new(group, recording, durations)),
         overrides: AtomicU64::new(0),
+        audio: parts.audio,
+        drawn: parts.drawn,
     });
     let server = conn.object_server();
     server
@@ -1088,6 +1311,7 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
         }
         let again = if Instant::now() >= check_at {
             check_at = Instant::now() + CHECK_EVERY;
+            shared.check_audio().await;
             shared.check_watchers().await
         } else {
             Vec::new()

@@ -13,6 +13,8 @@ odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-render = { path = "../odc-render" }
 odc-sensors = { path = "../odc-sensors" }
+# The sound's pipe and its reader's poll (Phase 9 plan, Task 3); already in the tree through zbus.
+rustix = { version = "1", features = ["event", "pipe"] }
 serde = { version = "1", features = ["derive"] }
 signal-hook = "0.4"
 toml = "1"

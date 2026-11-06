@@ -1377,7 +1377,7 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
         }
         // The spectrum, in 13–22: entering it from any other mode, 23 included, starts its levels
         // at 0, and a switch between them keeps them (music.md point 8). A missed tick, which only
-        // comes in silence, leaves it as it is.
+        // comes in silence, leaves it, the emoji loop and the Dancer as they are (point 8).
         if has_spectrum(mode) {
             let s = spectrum.get_or_insert_with(Spectrum::enter);
             if !missed {

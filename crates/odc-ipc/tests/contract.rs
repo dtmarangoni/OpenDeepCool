@@ -8,21 +8,22 @@ use std::fs;
 
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, ERROR_PREFIX, Error,
-    FanInput, FanSpeed, Gpu, GpuKind, INTERFACE, Input, OBJECT_PATH, STATE_KEYS, State, StateError,
-    TemperatureUnit, USE_ACTION,
+    FEED_AUDIO_ACTION, FallStop, FanInput, FanSpeed, Gpu, GpuKind, INTERFACE, Input, OBJECT_PATH,
+    STATE_KEYS, State, StateError, TemperatureUnit, USE_ACTION,
 };
 use zbus::DBusError;
 use zbus::names::{ErrorName, InterfaceName, WellKnownName};
 use zbus::wire::serialized::Context;
 use zbus::wire::{LE, ObjectPath, OwnedVariant, Variant, to_bytes};
 
-const ERRORS: [&str; 7] = [
+const ERRORS: [&str; 8] = [
     "NotAuthorized",
     "ModeUnavailable",
     "NotYetAvailable",
     "InvalidArgument",
     "TooManyWatchers",
     "Busy",
+    "AudioNotWanted",
     "Failed",
 ];
 
@@ -37,7 +38,7 @@ fn the_names_are_valid_dbus_names() {
         ErrorName::try_from(format!("{ERROR_PREFIX}.{name}")).expect("an error name");
     }
     // polkit(8): an action id is made of [A-Z][a-z][0-9].-
-    for action in [USE_ACTION, CHANGE_SETTINGS_ACTION] {
+    for action in [USE_ACTION, CHANGE_SETTINGS_ACTION, FEED_AUDIO_ACTION] {
         assert!(
             action
                 .chars()
@@ -57,6 +58,7 @@ fn each_error_is_named_with_the_prefix() {
         Error::InvalidArgument("x".into()),
         Error::TooManyWatchers("x".into()),
         Error::Busy("x".into()),
+        Error::AudioNotWanted("x".into()),
         Error::Failed("x".into()),
     ];
     assert_eq!(errors.len(), ERRORS.len());
@@ -106,6 +108,11 @@ fn full() -> State {
         pump_input: Some(None),
         cooler_fan_rpm: Some(FanSpeed::Rpm(1234)),
         pump_rpm: Some(FanSpeed::Unavailable),
+        music_peaks: Some(false),
+        music_bar_fall: Some(FallStop::Faster),
+        music_peak_fall: Some(FallStop::Slower),
+        audio_connected: Some(true),
+        audio_wanted: Some(true),
     }
 }
 
@@ -142,7 +149,7 @@ fn an_unknown_key_is_ignored_and_a_missing_key_stays_absent() {
     }
     .to_dict();
     // A key a later phase adds, which an older client doesn't know.
-    dict.insert("MusicPeakDots".to_owned(), variant(true));
+    dict.insert("AKeyOfALaterPhase".to_owned(), variant(true));
     let state = State::from_dict(&dict).expect("still a state");
     assert_eq!(
         state,
@@ -171,6 +178,19 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
     assert_eq!(
         State::from_dict(&one("CoolerState", variant("on fire"))),
         Err(StateError::BadValue("CoolerState", "on fire".into()))
+    );
+    for key in ["MusicBarFall", "MusicPeakFall"] {
+        assert!(
+            matches!(
+                State::from_dict(&one(key, variant("fastest"))),
+                Err(StateError::BadValue(k, v)) if k == key && v == "fastest"
+            ),
+            "{key}"
+        );
+    }
+    assert_eq!(
+        State::from_dict(&one("AudioWanted", variant("yes"))),
+        Err(StateError::WrongType("AudioWanted"))
     );
     let gpus = vec![(
         "0000:0a:00.0".to_owned(),
@@ -278,4 +298,22 @@ fn dbus_md_lists_exactly_the_errors() {
         .filter_map(|rest| rest.split('`').next())
         .collect();
     assert_eq!(rows, ERRORS);
+}
+
+// music.md point 4: the five stops, slowest first, each by its name.
+#[test]
+fn each_fall_stop_reads_back_from_its_name() {
+    let stops = [
+        FallStop::Slower,
+        FallStop::Slow,
+        FallStop::Moderate,
+        FallStop::Fast,
+        FallStop::Faster,
+    ];
+    let names: Vec<&str> = stops.iter().map(|s| s.as_str()).collect();
+    assert_eq!(names, ["slower", "slow", "moderate", "fast", "faster"]);
+    for stop in stops {
+        assert_eq!(FallStop::parse(stop.as_str()), Some(stop));
+    }
+    assert_eq!(FallStop::parse("Moderate"), None);
 }

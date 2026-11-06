@@ -9,6 +9,7 @@
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::future::{Future, poll_fn};
+use std::io::{ErrorKind, Write};
 use std::os::unix::fs::MetadataExt;
 use std::os::unix::net::UnixStream;
 use std::path::PathBuf;
@@ -24,14 +25,16 @@ use odc_device::fake::{FakeConnector, FakeLog, Presence};
 use odc_device::{Link, Lp360, Recording};
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, DevProxy, Error,
-    INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
+    FallStop, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
 };
 use odc_protocol::{Frame, Message, decode};
+use odc_render::{Mode, WINDOW, draws};
 use odc_sensors::{
     Binding, Exact, Fan, FanInput, Gpu, GpuKind, Metric, PciAddr, Reading, Snapshot, Unavailable,
 };
+use odc_service::audio::{AudioSource, PipeAudio};
 use odc_service::dbus::{Bus, Checks, Parts, Side, kind_of, reason_of};
-use odc_service::engine::{Apply, Choices, Engine, availability};
+use odc_service::engine::{Apply, Choices, Drawn, Engine, availability, availability_of};
 use odc_service::log::{Journal, Recorded};
 use odc_service::polkit::{
     Action, Answer, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer,
@@ -39,7 +42,7 @@ use odc_service::polkit::{
 use odc_service::pulse::Pulse;
 use odc_service::runtime::{DeviceControl, Durations, Sensors, Slot};
 use odc_service::service::{Config, Running};
-use odc_service::settings::{SavedInput, Settings, SettingsStore, TemperatureUnit};
+use odc_service::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
 use odc_service::status::{FIRST_READINGS, Status, parse_first_readings};
 use odc_testkit::bus::{PrivateBus, sleep, within};
 use odc_testkit::capture::read_recording;
@@ -47,8 +50,9 @@ use zbus::message::Header;
 use zbus::wire::OwnedVariant;
 use zbus::{Connection, Guid, connection};
 
-/// The callers' made-up Unix user, and the service's made-up group.
+/// The callers' made-up Unix user and process, and the service's made-up group.
 const USER: u32 = 1000;
+const PID: u32 = 4242;
 const GROUP: u32 = 960;
 
 /// How long a signal or a state that must come may take.
@@ -166,6 +170,7 @@ impl Credentials for FakeCredentials {
                 .unwrap_or(Identity {
                     user: Some(USER),
                     groups: Some(vec![GROUP]),
+                    pid: Some(PID),
                 }))
         })
     }
@@ -285,10 +290,20 @@ struct Harness {
     journal: Arc<Recorded>,
     /// The threads' durations, which the test writes itself.
     durations: Arc<Durations>,
+    /// The sound the engine would hear.
+    audio: Arc<PipeAudio>,
+    /// The status, which the test writes in the engine's place.
+    status: Arc<RwLock<Status>>,
 }
 
 impl Harness {
     fn start(name: &str, settings: Settings, status: Status, dev: bool) -> Harness {
+        Harness::drawing(name, settings, status, dev, draws)
+    }
+
+    /// [`Harness::start`], drawing the modes `drawn` lets it: the test-only switch (Phase 9 plan,
+    /// Task 3).
+    fn drawing(name: &str, settings: Settings, status: Status, dev: bool, drawn: Drawn) -> Harness {
         let dir = dir(name);
         let bus = PrivateBus::start(&dir.join("bus")).expect("a private bus");
         let state = dir.join("state");
@@ -307,6 +322,7 @@ impl Harness {
         let journal = Arc::new(Recorded::default());
         let (device_tx, device) = mpsc::channel();
         let durations = Arc::new(Durations::default());
+        let audio = Arc::new(PipeAudio::new());
         let side = Side::start(Parts {
             bus: Bus::Address(bus.address().to_owned()),
             checks: Checks::Given {
@@ -321,6 +337,8 @@ impl Harness {
             pulse: Arc::new(Pulse::default()),
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
+            audio: Arc::clone(&audio),
+            drawn,
         })
         .expect("the D-Bus side starts");
         Harness {
@@ -333,6 +351,8 @@ impl Harness {
             device,
             journal,
             durations,
+            audio,
+            status,
         }
     }
 
@@ -1032,6 +1052,7 @@ fn the_dev_interface_takes_only_the_service_s_group() {
             Identity {
                 user: Some(USER),
                 groups: Some(vec![GROUP + 1]),
+                pid: Some(PID),
             },
         );
         h.credentials.give(
@@ -1039,6 +1060,7 @@ fn the_dev_interface_takes_only_the_service_s_group() {
             Identity {
                 user: Some(USER),
                 groups: None,
+                pid: Some(PID),
             },
         );
         assert!(matches!(
@@ -1221,6 +1243,7 @@ fn watchers_are_capped_per_user_and_in_all_and_dropped_when_they_leave() {
                 Identity {
                     user: Some(user),
                     groups: Some(vec![]),
+                    pid: Some(PID),
                 },
             );
         }
@@ -1514,12 +1537,25 @@ struct Service {
 
 impl Service {
     fn start(name: &str, script: Vec<Presence>, dev: bool) -> Service {
+        Service::drawing(name, script, dev, &Settings::default(), draws)
+    }
+
+    /// [`Service::start`] on `saved`, drawing the modes `drawn` lets it: the test-only switch
+    /// (Phase 9 plan, Task 3).
+    fn drawing(
+        name: &str,
+        script: Vec<Presence>,
+        dev: bool,
+        saved: &Settings,
+        drawn: Drawn,
+    ) -> Service {
         let dir = dir(name);
         let bus = PrivateBus::start(&dir.join("bus")).expect("a private bus");
         let state = dir.join("state");
         fs::create_dir_all(&state).expect("a state directory");
         let store = SettingsStore::new(&state);
-        let (settings, _) = store.load().expect("the defaults");
+        store.store(saved).expect("the settings saved");
+        let (settings, _) = store.load().expect("the settings");
         let connector = FakeConnector::new(script);
         let log = connector.log();
         let recording_path = dir.join("dev-frames.log");
@@ -1540,6 +1576,7 @@ impl Service {
             },
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then_some((GROUP, handle)),
+            drawn,
         })
         .expect("the service starts");
         Service {
@@ -1723,4 +1760,472 @@ fn cooler_state_follows_the_cooler_once_per_change() {
             "the cooler is connected",
         ]
     );
+}
+
+/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included.
+fn every_mode(_: Mode) -> bool {
+    true
+}
+
+/// The status of [`status`], with the modes the test-only switch draws available.
+fn music_status() -> Status {
+    let snapshot = readings(value(51));
+    Status {
+        availability: availability_of(&snapshot, true, every_mode),
+        ..status(snapshot)
+    }
+}
+
+fn music(mode: u16) -> Settings {
+    Settings {
+        mode,
+        ..Settings::default()
+    }
+}
+
+/// `AttachAudio()`'s write end as a file.
+fn writer(fd: zbus::wire::OwnedFd) -> fs::File {
+    fs::File::from(std::os::fd::OwnedFd::from(fd))
+}
+
+/// Stereo frames whose mono samples are `samples`, both channels alike.
+fn frames(samples: &[f32]) -> Vec<u8> {
+    samples
+        .iter()
+        .flat_map(|s| [s.to_ne_bytes(), s.to_ne_bytes()].concat())
+        .collect()
+}
+
+/// Whether a write to the pipe now finds its read end closed.
+fn closed(pipe: &mut fs::File) -> bool {
+    matches!(pipe.write_all(&frames(&[0.0])), Err(e) if e.kind() == ErrorKind::BrokenPipe)
+}
+
+/// Waits until `check` holds, at most [`WAIT`]; whether it did.
+async fn soon(mut check: impl FnMut() -> bool) -> bool {
+    for _ in 0..(WAIT.as_millis() / 20) {
+        if check() {
+            return true;
+        }
+        sleep(Duration::from_millis(20)).await;
+    }
+    check()
+}
+
+fn state_of(changes: &HashMap<String, OwnedVariant>) -> State {
+    State::from_dict(changes).expect("a state")
+}
+
+// docs/spec/dbus.md, AttachAudio (Phase 9 plan, Task 3): allowed in a Music mode, a pipe whose
+// samples reach the engine's window; the attach is logged by the caller's user and PID, never with
+// any sound; AudioConnected tells the watchers.
+#[test]
+fn an_allowed_attach_gets_a_pipe_whose_samples_reach_the_window() {
+    let h = Harness::drawing("attach", music(13), music_status(), false, every_mode);
+    zbus::block_on(async {
+        let (helper, watcher) = (h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let before = state_of(&watcher.main.get_state().await.expect("the state"));
+        assert_eq!(before.audio_wanted, Some(true));
+        assert_eq!(before.audio_connected, Some(false));
+        let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        assert_eq!(h.polkit.asked(&helper.name()), [Action::FeedAudio]);
+        let samples = [0.5_f32, -0.25, 0.125];
+        pipe.write_all(&frames(&samples)).expect("written");
+        assert!(
+            soon(|| h.audio.window()[WINDOW - 3..] == samples).await,
+            "the samples reach the window"
+        );
+        let signal = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("StateChanged");
+        let changed = signal.args().expect("its changes").changes;
+        assert_eq!(keys(&changed), ["AudioConnected"]);
+        assert_eq!(state_of(&changed).audio_connected, Some(true));
+        assert!(h.journal_has(&format!(
+            "sound attached from {} (user {USER}, PID {PID})",
+            helper.name()
+        )));
+    });
+}
+
+#[test]
+fn a_refused_or_unwanted_attach_gets_no_pipe() {
+    let h = Harness::drawing(
+        "attach-refused",
+        music(13),
+        music_status(),
+        false,
+        every_mode,
+    );
+    zbus::block_on(async {
+        let helper = h.client().await;
+        h.polkit.refuse(&helper.name());
+        assert!(matches!(
+            helper.main.attach_audio().await,
+            Err(Error::NotAuthorized(_))
+        ));
+        assert_eq!(h.audio.holder(), None);
+    });
+    // Outside the Music modes it's refused before polkit is asked (owner, 2026-10-26).
+    let h = Harness::start(
+        "attach-unwanted",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let helper = h.client().await;
+        let state = state_of(&helper.main.get_state().await.expect("the state"));
+        assert_eq!(state.audio_wanted, Some(false));
+        assert!(matches!(
+            helper.main.attach_audio().await,
+            Err(Error::AudioNotWanted(_))
+        ));
+        assert_eq!(h.polkit.asked(&helper.name()), [Action::Use]);
+        assert_eq!(h.audio.holder(), None);
+        assert!(h.journal_has("AttachAudio from"));
+    });
+}
+
+// The check every second (Phase 9 plan, Task 3): a caller that no longer passes polkit's
+// feed-audio has its pipe closed, which its writer sees as EPIPE, and the journal says why.
+#[test]
+fn an_attached_caller_that_stops_passing_polkit_loses_its_pipe() {
+    let h = Harness::drawing(
+        "attach-recheck",
+        music(14),
+        music_status(),
+        false,
+        every_mode,
+    );
+    zbus::block_on(async {
+        let helper = h.client().await;
+        let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        sleep(Duration::from_millis(1200)).await;
+        assert!(!closed(&mut pipe), "still allowed after a check");
+        h.polkit.refuse(&helper.name());
+        assert!(soon(|| closed(&mut pipe)).await, "closed within a second");
+        assert_eq!(h.audio.holder(), None);
+        assert!(
+            h.journal_has("polkit no longer allows io.github.dtmarangoni.OpenDeepCool1.feed-audio")
+        );
+    });
+}
+
+// The latest authorized attach wins; a caller that leaves the bus loses its pipe.
+#[test]
+fn a_newer_attach_replaces_the_older_and_leaving_the_bus_closes_the_pipe() {
+    let h = Harness::drawing(
+        "attach-replace",
+        music(23),
+        music_status(),
+        false,
+        every_mode,
+    );
+    zbus::block_on(async {
+        let (first, second) = (h.client().await, h.client().await);
+        let mut older = writer(first.main.attach_audio().await.expect("a pipe"));
+        let mut newer = writer(second.main.attach_audio().await.expect("a pipe"));
+        assert!(soon(|| closed(&mut older)).await, "the older pipe closed");
+        assert!(!closed(&mut newer));
+        assert_eq!(h.audio.holder().map(|(_, n)| n), Some(second.name()));
+        assert!(h.journal_has(&format!("in place of {}'s", first.name())));
+        let name = second.name();
+        drop(second);
+        assert!(soon(|| closed(&mut newer)).await, "closed when it left");
+        assert_eq!(h.audio.holder(), None);
+        assert!(h.journal_has(&format!("the sound from {name} is closed: it left the bus")));
+    });
+}
+
+// Sound only in the Music modes (owner, 2026-10-26): leaving them closes the pipe at once and turns
+// AudioWanted off; coming back turns it on, and the watchers hear both.
+#[test]
+fn leaving_music_closes_the_pipe_and_audio_wanted_follows_the_mode() {
+    let h = Harness::drawing("attach-leave", music(13), music_status(), false, every_mode);
+    zbus::block_on(async {
+        let (helper, watcher, changer) = (h.client().await, h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        let connected = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("a signal");
+        assert_eq!(
+            keys(&connected.args().expect("changes").changes),
+            ["AudioConnected"]
+        );
+        changer.main.set_mode(1).await.expect("mode 1");
+        assert_eq!(h.audio.holder(), None, "closed by the time SetMode returns");
+        assert!(soon(|| closed(&mut pipe)).await);
+        let left = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("a signal");
+        let left = left.args().expect("changes").changes;
+        assert_eq!(keys(&left), ["AudioConnected", "AudioWanted", "Mode"]);
+        assert_eq!(state_of(&left).audio_wanted, Some(false));
+        assert!(h.journal_has("the display left the Music modes"));
+        assert!(matches!(
+            helper.main.attach_audio().await,
+            Err(Error::AudioNotWanted(_))
+        ));
+        changer.main.set_mode(16).await.expect("mode 16");
+        let back = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("a signal");
+        let back = back.args().expect("changes").changes;
+        assert_eq!(keys(&back), ["AudioWanted", "Mode"]);
+        assert_eq!(state_of(&back).audio_wanted, Some(true));
+    });
+}
+
+// docs/spec/dbus.md, the Music setters: each validates its stop, stores it, hands it to the engine
+// and tells the watchers; what's already set changes nothing.
+#[test]
+fn each_music_setter_validates_stores_and_tells_the_watchers() {
+    let h = Harness::start(
+        "music-settings",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (changer, watcher) = (h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let state = state_of(&watcher.main.get_state().await.expect("the state"));
+        assert_eq!(
+            (
+                state.music_peaks,
+                state.music_bar_fall,
+                state.music_peak_fall
+            ),
+            (Some(true), Some(FallStop::Moderate), Some(FallStop::Slow)),
+            "Winamp's defaults"
+        );
+        changer.main.set_music_peaks(false).await.expect("stored");
+        changer
+            .main
+            .set_music_bar_fall("fast")
+            .await
+            .expect("stored");
+        changer
+            .main
+            .set_music_peak_fall("slower")
+            .await
+            .expect("stored");
+        let saved = h.saved_settings();
+        assert_eq!(
+            (
+                saved.music_peaks,
+                saved.music_bar_fall,
+                saved.music_peak_fall
+            ),
+            (false, Fall::Fast, Fall::Slower)
+        );
+        let applied = h
+            .apply
+            .take()
+            .and_then(|a| a.settings)
+            .expect("handed to the engine");
+        assert_eq!(applied, saved, "the newest settings");
+        let mut seen = State::default();
+        while seen.music_peak_fall.is_none() {
+            let signal = within(WAIT, next(&mut changes))
+                .await
+                .flatten()
+                .expect("a signal");
+            seen.merge(state_of(&signal.args().expect("changes").changes));
+        }
+        assert_eq!(
+            (seen.music_peaks, seen.music_bar_fall, seen.music_peak_fall),
+            (Some(false), Some(FallStop::Fast), Some(FallStop::Slower))
+        );
+        assert_eq!(seen.mode, None, "no other key");
+        let before = h.saved();
+        for bad in ["fastest", "Moderate", "", &"x".repeat(65)] {
+            assert!(
+                matches!(
+                    changer.main.set_music_bar_fall(bad).await,
+                    Err(Error::InvalidArgument(_))
+                ),
+                "{bad:?}"
+            );
+            assert!(matches!(
+                changer.main.set_music_peak_fall(bad).await,
+                Err(Error::InvalidArgument(_))
+            ));
+        }
+        changer
+            .main
+            .set_music_peaks(false)
+            .await
+            .expect("already set");
+        changer
+            .main
+            .set_music_bar_fall("fast")
+            .await
+            .expect("already set");
+        h.nothing_stored_or_applied(&before);
+        h.polkit.refuse(&changer.name());
+        assert!(matches!(
+            changer.main.set_music_peaks(true).await,
+            Err(Error::NotAuthorized(_))
+        ));
+        h.nothing_stored_or_applied(&before);
+    });
+}
+
+// docs/spec/dbus.md, OverrideAudio: the test session's sound replaces the helper's until
+// ClearOverride or the session's end.
+#[test]
+fn the_sound_override_needs_the_session_and_ends_with_it() {
+    let h = Harness::drawing(
+        "override-audio",
+        music(13),
+        music_status(),
+        true,
+        every_mode,
+    );
+    zbus::block_on(async {
+        let (holder, other) = (h.client().await, h.client().await);
+        let (read_end, write_end) =
+            rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC).expect("a pipe");
+        let fd = zbus::wire::Fd::from(&read_end);
+        assert!(
+            matches!(
+                holder.dev.override_audio(fd).await,
+                Err(Error::NotAuthorized(_))
+            ),
+            "BeginTest() first"
+        );
+        holder.dev.begin_test().await.expect("the session");
+        assert!(matches!(
+            other
+                .dev
+                .override_audio(zbus::wire::Fd::from(&read_end))
+                .await,
+            Err(Error::Busy(_))
+        ));
+        holder
+            .dev
+            .override_audio(zbus::wire::Fd::from(&read_end))
+            .await
+            .expect("overridden");
+        drop(read_end);
+        assert!(h.audio.overridden());
+        let mut test = fs::File::from(write_end);
+        test.write_all(&frames(&[0.375; 4])).expect("written");
+        assert!(soon(|| h.audio.window()[WINDOW - 1] == 0.375).await);
+        // The engine has taken every override, as the D-Bus side alone has none.
+        h.status.write().expect("the status").adopted = Some((u64::MAX, 0));
+        holder.dev.clear_override().await.expect("cleared");
+        assert!(!h.audio.overridden());
+        assert!(soon(|| closed(&mut test)).await, "its pipe closed");
+        let (read_end, _write_end) =
+            rustix::pipe::pipe_with(rustix::pipe::PipeFlags::CLOEXEC).expect("a pipe");
+        holder
+            .dev
+            .override_audio(zbus::wire::Fd::from(&read_end))
+            .await
+            .expect("overridden");
+        holder.dev.end_test().await.expect("ended");
+        assert!(!h.audio.overridden(), "ended with the session");
+    });
+}
+
+/// Column 7's lit heights from the floor in mode 13's spectrum area, rows 3–14.
+fn column_7(frame: &Frame) -> usize {
+    (1..=12).filter(|&height| frame.get(15 - height, 7)).count()
+}
+
+/// The frames the fake cooler got on its last connection.
+fn frames_written(s: &Service) -> Vec<Frame> {
+    s.log
+        .connections()
+        .pop()
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|m| match m {
+            Message::Frame(frame) => Some(frame),
+            Message::Startup => None,
+        })
+        .collect()
+}
+
+// The whole service (Phase 9 plan, Task 3): a tone through the pipe draws its bar; when the pipe
+// closes (here its writer ends; polkit's check closes it the same way, above), the spectrum hears
+// silence and the bar falls to the floor at its bar fall rate: 2 rows a tick at moderate, H 12
+// (music.md point 5), a peak dot above it.
+#[test]
+fn a_tone_through_the_pipe_draws_its_bar_and_a_closed_pipe_lets_it_fall() {
+    let s = Service::drawing(
+        "music-pipe",
+        vec![Presence::Present],
+        false,
+        &music(13),
+        every_mode,
+    );
+    zbus::block_on(async {
+        let helper = Client::on(&s.bus).await;
+        let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        // Column 7's centre at −20 dBFS, written as it plays, 20 ms at a time.
+        let tone: Vec<f32> = (0..960 * 40)
+            .map(|n| {
+                (0.1 * (2.0 * std::f64::consts::PI * 645.891_059 * n as f64 / 48_000.0).sin())
+                    as f32
+            })
+            .collect();
+        let player = std::thread::spawn(move || {
+            for chunk in tone.chunks(960) {
+                if pipe.write_all(&frames(chunk)).is_err() {
+                    return;
+                }
+                std::thread::sleep(Duration::from_millis(20));
+            }
+            drop(pipe);
+        });
+        assert!(
+            soon(|| frames_written(&s).iter().any(|f| column_7(f) >= 8)).await,
+            "the tone's bar rises"
+        );
+        player.join().expect("played");
+        // Its writer closed: silence, and the bar falls from where it was to the floor.
+        sleep(Duration::from_millis(1500)).await;
+        let heights: Vec<usize> = frames_written(&s).iter().map(column_7).collect();
+        let top = heights
+            .iter()
+            .rposition(|&h| h >= 8)
+            .expect("the bar was up");
+        let fall = &heights[top..];
+        assert_eq!(fall.last(), Some(&1), "down to the floor: {fall:?}");
+        assert!(
+            fall.windows(2).all(|w| w[0] >= w[1] && w[0] - w[1] <= 3),
+            "falling at the bar fall rate (a bar 2 rows a tick, a dot above it): {fall:?}"
+        );
+        assert!(
+            s.journal
+                .lines()
+                .iter()
+                .any(|(_, l)| l.contains("stopped, its writer closed it"))
+        );
+    });
 }

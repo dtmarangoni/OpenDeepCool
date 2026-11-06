@@ -13,13 +13,15 @@ Later phases change this document in the same commit as their code, and `setting
 | Dev interface, only when the service starts with `--dev` | `io.github.dtmarangoni.OpenDeepCool1.Dev`, at `/io/github/dtmarangoni/OpenDeepCool1/Dev` |
 | polkit action for every read | `io.github.dtmarangoni.OpenDeepCool1.use` |
 | polkit action for every change, `Refresh()` included | `io.github.dtmarangoni.OpenDeepCool1.change-settings` |
+| polkit action for `AttachAudio()`, the session's helper handing the service its sound (Phase 9) | `io.github.dtmarangoni.OpenDeepCool1.feed-audio` |
 | Error names | `io.github.dtmarangoni.OpenDeepCool1.Error.<name>` |
 
 The names start with the project's public address, its GitHub repository, as the D-Bus specification asks of a name's owner; the `1` is the interface's major version (owner, 2026-10-24).
 
 ## Who may call
 
-- **Every call is checked with polkit**, reads and changes alike, and both actions are granted to the active local session only: `allow_active` yes, `allow_inactive` no, `allow_any` no. No remote or inactive session reads or changes anything (owner, 2026-10-26).
+- **Every call is checked with polkit**, reads and changes alike, and every action is granted to the active local session only: `allow_active` yes, `allow_inactive` no, `allow_any` no. No remote or inactive session reads or changes anything, or feeds the service sound (owner, 2026-10-26).
+- **Sound** (Phase 9): `AttachAudio()` is checked for `feed-audio`, and the attached caller is checked again every second. When it no longer passes, when its connection leaves the bus, when a newer authorized caller attaches, or when the display leaves the Music modes, the service closes the pipe and the spectrum hears silence. The journal names each attach by the caller's Unix user and PID from `GetConnectionCredentials`, and each close with its reason, never with any sound (owner, 2026-10-27; solution review P9-11).
 - **No D-Bus properties.** Anyone may read a property through `org.freedesktop.DBus.Properties`, and `PropertiesChanged` reaches every local process. The state is read with `GetState()` instead, and changes come as `StateChanged`, a signal addressed to each watcher alone.
 - **Watchers:** `Watch()` registers the caller, at most 8 per Unix user and 32 in all. A watcher is dropped on `Unwatch()`, or when its connection leaves the bus. Each one is checked again every second: one that isn't the active local session any more gets nothing until it passes again, then the whole state in one `StateChanged`.
 - **Arguments** are compared only with what the service found itself: a GPU must be listed in `Gpus`, a fan input in `FanInputs`. A string over its limit (64 bytes; 1024 for a device path) is refused before any lookup, and no file path is ever built from a caller's string (owner, 2026-10-26).
@@ -54,6 +56,18 @@ The names start with the project's public address, its GitHub repository, as the
       <arg name="input" type="u" direction="in"/>
     </method>
     <method name="Refresh"/>
+    <method name="AttachAudio">
+      <arg name="pipe" type="h" direction="out"/>
+    </method>
+    <method name="SetMusicPeaks">
+      <arg name="peaks" type="b" direction="in"/>
+    </method>
+    <method name="SetMusicBarFall">
+      <arg name="stop" type="s" direction="in"/>
+    </method>
+    <method name="SetMusicPeakFall">
+      <arg name="stop" type="s" direction="in"/>
+    </method>
     <method name="GetState">
       <arg name="state" type="a{sv}" direction="out"/>
     </method>
@@ -78,6 +92,9 @@ The names start with the project's public address, its GitHub repository, as the
 | `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus`, or empty for Automatic, which reads the first in `Gpus` (owner, 2026-11-04) | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `SetCoolerFanInput(ssu)`, `SetPumpInput(ssu)` | `change-settings` | The fan input listed in `FanInputs` with that chip, device path and number, or all empty for none | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `Refresh()` | `change-settings` | Fresh readings at once, and the picture from home; nothing is saved | `NotAuthorized` |
+| `AttachAudio() → h` | `feed-audio` | Only while a Music mode (13–23) is shown: the write end of a new pipe, which the service reads raw `f32` stereo frames from, 48 000 a second, in the machine's byte order (little-endian on x86_64, the only platform OpenDeepCool supports), as `pw-record --raw --format f32 --channels 2` writes them. It replaces an earlier caller's pipe, which the service closes. The pipe closes as **Sound** above says; the caller sees `EPIPE` | `AudioNotWanted`, `NotAuthorized`, `Failed` |
+| `SetMusicPeaks(b)` | `change-settings` | The peak dots on or off ([music.md](music.md#opendeepcools-spectrum-precisely) point 7); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `Failed` |
+| `SetMusicBarFall(s)`, `SetMusicPeakFall(s)` | `change-settings` | The bars' or the peaks' fall: `slower`, `slow`, `moderate`, `fast` or `faster` (point 4); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller | `NotAuthorized`, `TooManyWatchers` |
 | `Diagnostics() → a(sss)` | `use` | One entry per metric, in the order of [sensors.md](sensors.md)'s Metrics: its name as the spec writes it (`CPU Temperature`), its source as the service describes it, empty when none is bound, and its state, `ok` while it has a value, otherwise the one-line reason (`no device found`) (owner, 2026-10-29) | `NotAuthorized` |
@@ -105,6 +122,11 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `PumpInput` | `(ssu)` | The same, for the pump |
 | `CoolerFanRpm` | `d` | The cooler's fans, in whole RPM capped at 9999 (owner, 2026-10-25); NaN when no input is chosen or it can't be read |
 | `PumpRpm` | `d` | The same, for the pump |
+| `MusicPeaks` | `b` | Whether the spectrum's peak dots are drawn (Phase 9) |
+| `MusicBarFall` | `s` | The bars' fall: `slower`, `slow`, `moderate`, `fast` or `faster` |
+| `MusicPeakFall` | `s` | The peaks' fall, the same five stops |
+| `AudioConnected` | `b` | Whether the session's sound comes in: a helper's pipe is attached |
+| `AudioWanted` | `b` | Whether the service takes sound: true exactly while a Music mode, 13–23, is shown (owner, 2026-10-26), so the session's helper captures only then |
 
 ## Errors
 
@@ -116,6 +138,7 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `…Error.InvalidArgument` | An argument outside what the service found or allows, or over its length limit |
 | `…Error.TooManyWatchers` | The caller's user already has 8 watchers, or there are 32 in all |
 | `…Error.Busy` | The dev copy only: a test session holds the service ("a test is running on this dev copy") |
+| `…Error.AudioNotWanted` | `AttachAudio()` while the display shows no Music mode (owner, 2026-10-26) |
 | `…Error.Failed` | A failure inside the service, such as a settings file it can't write; the text gives the reason (owner, 2026-11-04) |
 
 A call that fails inside the service also leaves a line in the journal, and changes nothing. The service never answers with zbus's own `org.freedesktop.zbus.Error`: a client tells such a failure from a lost connection by its name, and the name doesn't depend on the library (D-Bus Specification, Error names: a service names its errors in its own namespace, read 2026-11-04).
@@ -132,6 +155,9 @@ Only when the service starts with `--dev`, which only the dev copy's drop-in pas
       <arg name="unavailable" type="a{ss}" direction="in"/>
       <arg name="tick" type="t" direction="out"/>
     </method>
+    <method name="OverrideAudio">
+      <arg name="pipe" type="h" direction="in"/>
+    </method>
     <method name="ClearOverride"/>
     <method name="BeginTest"/>
     <method name="EndTest"/>
@@ -147,12 +173,13 @@ Only when the service starts with `--dev`, which only the dev copy's drop-in pas
 | Member | What it does |
 |---|---|
 | `OverrideReadings(a{s(xt)}, a{ss}) → t` | Exact values (metric → numerator and denominator) and unavailable metrics with their reasons replace the sensor thread's snapshots from the next tick on, whose number it returns (rules below). It needs the test session |
-| `ClearOverride()` | Back to the real readings. It needs the test session |
-| `BeginTest()`, `EndTest()` | The test session: while one caller holds it, every change from any other caller gets `Busy`, and the frame recording runs. It ends, with every override and the recording, on `EndTest()` or when the holder's connection leaves the bus (owner, 2026-10-27; solution review P7-16). `BeginTest()` from the holder again succeeds and changes nothing |
+| `OverrideAudio(h)` | Raw `f32` stereo frames from this pipe's read end, in `AttachAudio()`'s format, replace the session's sound in the engine's window, in every mode, until `ClearOverride()` or the end of the session; an end of file is silence. A helper attached meanwhile stays attached and read, unheard. It needs the test session (Phase 9 plan, Task 3) |
+| `ClearOverride()` | Back to the real readings and the session's sound. It needs the test session |
+| `BeginTest()`, `EndTest()` | The test session: while one caller holds it, every change from any other caller gets `Busy` (`AttachAudio()` isn't a change), and the frame recording runs. It ends, with every override and the recording, on `EndTest()` or when the holder's connection leaves the bus (owner, 2026-10-27; solution review P7-16). `BeginTest()` from the holder again succeeds and changes nothing |
 | `ReleaseCooler()` | The session's holder only: the service closes the cooler and writes nothing until the session ends, then starts a new conversation, `03 08` first, so the direct checks share the cooler with the running dev service (owner, 2026-10-29). The recording keeps that `03 08` and the frame after it, then stops, so a test sees the service take the cooler back (owner, 2026-11-04) |
 | `Durations() → (at, at)` | Each frame write's and each snapshot's duration in µs since the session began, oldest first, the newest 100 000 of each, for the end-to-end run's timings (owner, 2026-11-04). It needs the test session |
 
-A call that needs the test session (`OverrideReadings`, `ClearOverride`, `ReleaseCooler`, `Durations`, `EndTest`) from a caller who doesn't hold it gets `Busy` while another caller holds the session, and `NotAuthorized` ("call BeginTest() first") while nobody does (owner, 2026-10-29).
+A call that needs the test session (`OverrideReadings`, `OverrideAudio`, `ClearOverride`, `ReleaseCooler`, `Durations`, `EndTest`) from a caller who doesn't hold it gets `Busy` while another caller holds the session, and `NotAuthorized` ("call BeginTest() first") while nobody does (owner, 2026-10-29).
 
 `OverrideReadings` (owner, 2026-10-29):
 

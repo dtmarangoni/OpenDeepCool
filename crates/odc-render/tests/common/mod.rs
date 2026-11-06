@@ -90,7 +90,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
                 | Change::MusicPeaks(_)
                 | Change::MusicBarFall(_)
                 | Change::MusicPeakFall(_) => panic!(
-                    "{}: the renderer draws sound from Phase 9, Task 2",
+                    "{}: the renderer's replay plays sound from Phase 9, Task 6",
                     scenario.heading
                 ),
                 // Already set, refused, the cooler away and back, a wake-up: the

@@ -9,7 +9,10 @@ use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use odc_ipc::{BUS_NAME, CHANGE_SETTINGS_ACTION, DEV_PATH, INTERFACE, OBJECT_PATH, USE_ACTION};
+use odc_ipc::{
+    BUS_NAME, CHANGE_SETTINGS_ACTION, DEV_PATH, FEED_AUDIO_ACTION, INTERFACE, OBJECT_PATH,
+    USE_ACTION,
+};
 
 fn packaging(path: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -179,8 +182,8 @@ fn block<'a>(text: &'a str, start: &str, tag: &str) -> &'a str {
 fn the_polkit_actions_are_for_the_active_session_and_owned_by_the_service() {
     let path = packaging(POLKIT);
     let text = fs::read_to_string(&path).expect("the policy");
-    assert_eq!(text.matches("<action id=").count(), 2);
-    for action in [USE_ACTION, CHANGE_SETTINGS_ACTION] {
+    assert_eq!(text.matches("<action id=").count(), 3);
+    for action in [USE_ACTION, CHANGE_SETTINGS_ACTION, FEED_AUDIO_ACTION] {
         let block = block(&text, &format!("<action id=\"{action}\">"), "action");
         for line in [
             "<allow_any>no</allow_any>",

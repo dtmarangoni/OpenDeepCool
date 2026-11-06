@@ -41,6 +41,7 @@ DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; s
   - **Not only the sound tagged as music** (owner, 2026-11-05, after Phase 9's research, `docs/research/phase9-music-tags.md`): of six common players only Spotify tags its sound as music (PipeWire `media.role` Music), so a music-only capture would show nothing for music played in a browser. The owner had wanted to try it (2026-10-26).
   - DeepCreative does the same on Windows: its .NET helper captures the default playback device for multimedia in loopback mode (NAudio's `WasapiLoopbackCapture`), everything played, with no filter, and on a timer restarts the capture on the new device when the default output changes (static analysis, 2026-11-05). On Linux, WirePlumber moves the monitor's capture to a new default output by itself.
 - **Samples out of range** (OpenDeepCool, owner, 2026-10-27; solution review P4-08, P9-03): a sample that is NaN or infinite counts as 0, and one beyond ±1 is clipped to ±1, so a broken stream draws silence or full bars, never a stuck bar. For normal music the clip changes nothing visible: the bars reach the top at −25 dB, far below full scale.
+- **Sound that stops coming** (OpenDeepCool, owner, 2026-11-05): while the sound is connected but no sample has arrived for 200 ms (two ticks), the window counts as silence, as when the connection closes. The bars and peaks then fall at the rates their two sliders set (point 7), so a stalled stream never leaves a stuck bar.
 
 ### OpenDeepCool's spectrum, precisely
 
@@ -69,6 +70,7 @@ Every Music mode (13–22) draws its spectrum this way, the emoji modes included
 
    A change shows on the next frame and resets nothing: the bars and peaks keep their levels, and a falling peak falls on from where it is (point 6). In a mode without a spectrum it is only saved. With the dots off, the peaks still follow point 6, so when they're turned back on they show where they would have been anyway: the setting only decides whether they're drawn (owner, 2026-11-05).
 8. **Continuity:** the bars and peaks keep their levels across a switch between Music modes, a rotation change and Refresh, and are drawn at the new mode's *H*. Entering a Music mode from any other mode starts them at level 0.
+   - **A missed tick** ([display.md](display.md) S22; owner, 2026-11-05) draws no frame and changes nothing: no analysis, no bar or peak fall, no emoji loop step and no Dancer step. The next tick goes on from where they were.
 9. **Delay** (owner, 2026-10-25): at most 150 ms for 95 % of frames, from the sound reaching the output's monitor to the frame written to the cooler. The 100 ms tick alone adds 0–100 ms.
 
 The values in points 2 and 3 are starting values the owner accepted on the preview page; changing them later is a spec change, not a setting.

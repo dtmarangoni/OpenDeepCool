@@ -5,7 +5,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use odc_service::settings::{
-    FILE, Found, SavedInput, Settings, SettingsStore, TemperatureUnit, check_device_path,
+    FILE, Fall, Found, SavedInput, Settings, SettingsStore, TemperatureUnit, check_device_path,
 };
 
 /// An empty directory of its own under `CARGO_TARGET_TMPDIR`.
@@ -50,6 +50,9 @@ fn every_field() -> Settings {
             device_path: "devices/platform/fakeboardchip.2592".to_owned(),
             input: 2,
         }),
+        music_peaks: false,
+        music_bar_fall: Fall::Faster,
+        music_peak_fall: Fall::Slower,
         ..Settings::default()
     }
 }
@@ -116,6 +119,9 @@ fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
         ("dot", input("devices/./platform")),
         ("long", input(&format!("devices/{}", "a".repeat(1100)))),
         ("future", base.replace("version = 1", "version = 2")),
+        ("stop", format!("{base}music_bar_fall = \"fastest\"\n")),
+        ("stop-case", format!("{base}music_peak_fall = \"Slow\"\n")),
+        ("peaks-type", format!("{base}music_peaks = \"yes\"\n")),
     ];
     for (name, text) in cases {
         let (settings, found, d) = load_text(name, &text);
@@ -245,4 +251,49 @@ fn settings_out_of_form_are_never_written() {
     };
     assert!(store.store(&bad).is_err());
     assert!(!d.join(FILE).exists());
+}
+
+// Phase 9 plan, Task 3: a v1 file written before the Music settings loads with Winamp's defaults,
+// peak dots on, bars moderate, peaks slow (music.md point 7), and the next store writes them.
+#[test]
+fn a_file_from_before_the_music_settings_gets_their_defaults() {
+    let text = "version = 1\nmode = 4\nrotation = 1\ntemperature_unit = \"celsius\"\n";
+    let (settings, found, d) = load_text("before-music", text);
+    assert_eq!(found, Found::Read);
+    assert_eq!(
+        (
+            settings.music_peaks,
+            settings.music_bar_fall,
+            settings.music_peak_fall
+        ),
+        (true, Fall::Moderate, Fall::Slow)
+    );
+    assert_eq!(settings.mode, 4, "the rest as it was");
+    let store = SettingsStore::new(&d);
+    store.store(&settings).expect("stores");
+    let written = fs::read_to_string(d.join(FILE)).expect("written");
+    for line in [
+        "music_peaks = true",
+        "music_bar_fall = \"moderate\"",
+        "music_peak_fall = \"slow\"",
+    ] {
+        assert!(written.contains(line), "{line}: {written}");
+    }
+    assert_eq!(settings.music(), odc_render::MusicSettings::default());
+}
+
+// The five stops by their names, as the setters take them (music.md point 4).
+#[test]
+fn each_fall_stop_is_known_by_its_name() {
+    for (name, fall) in [
+        ("slower", Fall::Slower),
+        ("slow", Fall::Slow),
+        ("moderate", Fall::Moderate),
+        ("fast", Fall::Fast),
+        ("faster", Fall::Faster),
+    ] {
+        assert_eq!(Fall::from_name(name), Some(fall));
+        assert_eq!(fall.name(), name);
+    }
+    assert_eq!(Fall::from_name("fastest"), None);
 }
