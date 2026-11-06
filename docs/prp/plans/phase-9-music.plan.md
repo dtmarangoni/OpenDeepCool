@@ -656,6 +656,7 @@ Five sub-steps, **each its own commit** (rule 4):
   - The tour gains each value mode's values of 100 or more scrolling over the burst train for a whole cycle, in °F for 18–19: S14 into mode 13 at *k* 20. The value modes' other scenarios play in silence.
   - `--only display --modes 18` and `--only service --modes 18` passed, every scenario type the run can drive included.
 - Mode 19 (2026-11-06): no change beyond `DRAWN` and the tests' lists. Layer 2 compares 19 steps, 10 still and 9 scrolling in °F, 552 frames, all matching; the other 8 are listed with their reasons. Both real runs passed, all 35 service checks.
+- Mode 20 (2026-11-06): the same. Layer 2 has 6 still steps, 191 frames, matching, and 8 listed with their reasons. Both real runs passed, all 34 service checks.
 
 ### 9. Music, the Dancer (mode 23)
 
