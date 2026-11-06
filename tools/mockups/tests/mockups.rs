@@ -29,7 +29,7 @@ fn writing_in_memory_gives_every_committed_mockup_byte_for_byte() {
         })
         .collect();
     assert_eq!(names, committed, "a page without its state, or the reverse");
-    assert_eq!(names.len(), 14);
+    assert_eq!(names.len(), 17);
 }
 
 #[test]

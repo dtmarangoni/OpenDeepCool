@@ -56,3 +56,125 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
   3. write the JSON once and keep it as text in the tool.
 - **Chosen:** 1. It's short, it needs no dependency in a dev tool, and a test pins its output. Option 3 would hide the states the design changes.
 - **Implemented in:** `tools/mockups/src/lib.rs` (`Json`); Task 0's commit.
+
+### D6 — Points of Task 1 that need the owner's desktop (Task 1)
+
+- **Question:** two of the design's open points can only be seen in the owner's own session: whether Hyprland honours the window's minimum size when it tiles, and whether `GtkWindow:is-active` turns true again after a switch back from another user's session. The plan allows a few seconds of a throwaway window on the owner's desktop, but the owner is away and the agent notes say no test opens a window on the owner's desktop.
+- **Options:**
+  1. open the throwaway window anyway, unattended;
+  2. leave both unverified, take the design's fallback where it has one, and look at both in the optional attended tour with the owner;
+  3. stop until the owner is back.
+- **Chosen:** 2. For `is-active`, the fallback is built in: the app also follows logind's `Active` property of its own session, so it connects again after a session switch either way, still without polling. For the minimum size, the app sets it as designed; whether Hyprland honours it changes nothing the app does.
+- **Implemented in:** `docs/design/settings-app.md` "Unverified"; the app's connect triggers (Task 4).
+
+### D7 — The dark or light base in GTK 4.20 and later (Task 1)
+
+- **Question:** which GTK switch picks a dark or light base for the default theme.
+- **Found** (docs.gtk.org, read 2026-11-06): `GtkSettings:gtk-application-prefer-dark-theme` is deprecated since 4.20, "use `GtkCssProvider` properties instead": `GtkCssProvider:prefers-color-scheme` (`GTK_INTERFACE_COLOR_SCHEME_LIGHT` or `_DARK`, since 4.20) sets the scheme a provider's `@media (prefers-color-scheme: …)` rules see, and changing it reloads the style sheet. `GtkSettings:gtk-interface-color-scheme` only carries the system's preference.
+- **Options:** 1. set `prefers-color-scheme` on the app's own provider, from the theme's `mode` or the default theme's; 2. keep the deprecated setting; 3. set the system-wide `gtk-interface-color-scheme`.
+- **Chosen:** 1, the documented replacement; the app's CSS gives every colour from the theme tokens anyway, so the base touches only what GTK draws itself. Whether GTK's own built-in theme follows the app provider's scheme is **unverified**; the layer 3 tests look at it.
+- **Implemented in:** the design's "Unverified" answers (this task); the theme code (Task 7).
+
+### D8 — The CSS provider call (Task 1)
+
+- **Question:** whether `gtk_style_context_add_provider_for_display` is deprecated, and what replaces it.
+- **Found** (docs.gtk.org): it carries no deprecation notice and is now declared in `gtkstyleprovider.h`, apart from the deprecated `GtkStyleContext`; gtk4-rs has it as `gtk::style_context_add_provider_for_display`.
+- **Options:** 1. use it; 2. look for another way to style the whole display. **Chosen:** 1.
+- **Implemented in:** the design's "Unverified" answers; the theme code (Task 7).
+
+### D9 — Gradient border colours (Task 1)
+
+- **Question:** whether GTK CSS can draw Hyprland's gradient border colours.
+- **Found** (docs.gtk.org, CSS Properties): `border-color` follows CSS Backgrounds and Borders 3 and takes colours; `border-image` and `border-image-source` take an image, a gradient included.
+- **Options:** 1. keep the gradient's first colour, as the design and review P10-05 already decided; 2. draw the border with `border-image` and the whole gradient.
+- **Chosen:** 1: one colour everywhere is what the design specifies, and a `border-image` border wouldn't follow the controls' rounded corners in CSS.
+- **Implemented in:** the design's "Unverified" answers; the theme's parser (Task 3).
+
+### D10 — Accessible roles of the preview and the tiles (Task 1)
+
+- **Question:** the default roles of `GtkFlowBoxChild`, `GtkDrawingArea` and labels.
+- **Found** (docs.gtk.org, Accessibility): `GtkFlowBoxChild` is `GRID_CELL` (its box `GRID`), `GtkLabel` is `LABEL`; `GtkDrawingArea`'s default role isn't documented.
+- **Options:** 1. rely on the defaults; 2. set the drawing areas' role to `IMG` when they're built, with their accessible label, and keep the others' defaults.
+- **Chosen:** 2: the preview and each tile's picture are images, and setting the role removes the undocumented default from the question. The AT-SPI tests (Task 8) read every role.
+- **Implemented in:** the design's "Unverified" answers; the window and tiles (Tasks 4–5).
+
+### D11 — Behaviour the docs don't state, and how it's handled (Task 1)
+
+- **Question:** four widget behaviours aren't stated in the docs: arrow keys between grouped `GtkToggleButton`s, live updates inside an open `GtkDropDown`, `GtkScale` while dragging, and tooltips on insensitive widgets.
+- **Found:** `GtkRange:round-digits` rounds the value "when it changes", user drags included (docs.gtk.org), so a scale with 0 digits over 0–4 only ever holds whole stops.
+- **Options per point:** check each now with a throwaway program in headless weston read through AT-SPI, or build the robust form now and let the layer 3 and 4 tests (Tasks 3–8) show which way GTK behaves.
+- **Chosen:** the robust form for each, checked by the later tests:
+  - each unit and rotation toggle is a Tab stop as well; arrow keys work too if GTK moves between them, which the tests record;
+  - the dropdown's rows bind their RPM to the item's property, so they update while open if GTK redraws bound rows, and in any case when it reopens;
+  - the falls' scales have `round-digits` 0 and apply each whole stop as it's reached (at most five calls a drag);
+  - tooltips on unavailable tiles are extra: the reason line under each group is what the design relies on.
+- **Implemented in:** the design's "Unverified" answers; Tasks 4–6 and their tests.
+
+### D12 — Accessible names and value text (Task 1)
+
+- **Question:** whether `update_property(&[Property::Label(…)])`, `Property::Description` and `Property::ValueText` reach AT-SPI.
+- **Found** (gtk4-rs book, Accessibility): `AccessibleExtManual::update_property` sets `Label` (what screen readers announce) and `Description`; GTK's accessibility guide gives `ValueText` as ARIA's `aria-valuetext` (docs.gtk.org, Accessibility). What AT-SPI shows for each is **unverified** until the AT-SPI driver reads them.
+- **Options:** 1. use them as designed and let Task 8's AT-SPI run prove each name; 2. check now with a throwaway program.
+- **Chosen:** 1: Task 8 builds the AT-SPI driver anyway, and every coverage item reads a name through it.
+- **Implemented in:** the design's "Unverified" answers; Tasks 4–8.
+
+### D13 — Automatic, and how it names the GPU it reads (Task 1, the designer)
+
+- **Question:** the wording of the GPU dropdown's first entry, the default, and how it shows which GPU it reads.
+- **Options:** (a) "Automatic (Dedicated · …)" on the button and in the list; (b) "Automatic" with the GPU's name greyed beside it; (c) "Automatic" on the button and in the list, and a muted line under the dropdown, "Using Dedicated · Contoso Graphics R870.", from `GpuInUse`.
+- **Chosen:** (c). Product names from `pci.ids` can be long: a line wraps, a button would cut them. The line is hidden when a GPU is chosen by hand, since the button names it then.
+- **Implemented in:** the design (Configuration → Display, Accessible names, Text), the mockups' script, `configuration.html`; the app in Task 6.
+
+### D14 — Saying why the GPU choice went back to Automatic (Task 1, the designer)
+
+- **Question:** after a GPU is added or removed, the service clears the user's choice at its next start, with only a journal line. Should the app say why?
+- **Options:** (a) say nothing; (b) a one-line note, which needs a new state key from the service; (c) the app remembers the old choice.
+- **Chosen:** (a). The app stores nothing, (c) would break one setup for the whole PC, and the "Using …" line still shows which GPU is read. The old "saved GPU missing" state is gone from the design, since it can't happen.
+- **Implemented in:** the design; `missing-input.html` replaces `missing-input-gpu.html`.
+
+### D15 — The `no-access` banner (Task 1, the designer)
+
+- **Question:** what the app shows when the service finds the cooler but can't open it.
+- **Options:** a red or a yellow banner; the fix as words, as a command with a copy button, or as a button.
+- **Chosen:** a red banner with the fix in words: "The cooler is plugged in, but the service can't open it. The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." Status "Cooler: no access". Nothing is disabled. No single command fixes both causes for both ways of installing, and the app never changes the system.
+- **Implemented in:** the design (Banners, States, Text), `cooler-no-access.html`; the app in Task 4.
+
+### D16 — `write-failed` (Task 1, the designer)
+
+- **Question:** a failed write can last one tick, for example while the cooler is unplugged. What does the app show?
+- **Options:** (a) as not connected; (b) its own banner at once; (c) its own banner after 2 s of `write-failed`.
+- **Chosen:** (c): a yellow banner, "The cooler is connected, but sending it the picture fails. The service keeps trying by itself, and changes are still saved. The journal says more.", through a one-shot GLib timer, so nothing runs while the state is steady. Accepted gap: a cooler where every other write fails never reaches 2 s, so the app shows it as connected and only the journal has it.
+- **Implemented in:** the design, `cooler-write-failed.html`; the app in Task 4.
+
+### D17 — Which cooler state the app reads (Task 1, the designer)
+
+- **Question:** `CoolerConnected` or `CoolerState`, and how to show other values (the dev copy's `released`, later ones).
+- **Chosen:** `CoolerState` only (`CoolerConnected` stays for other clients); any other value shows as not connected.
+- **Implemented in:** the design; the view model in Task 3.
+
+### D18 — A GPU whose kind query failed (Task 1, the designer)
+
+- **Question:** how the list shows a GPU of kind `query-failed`, ranked as unknown.
+- **Options:** a kind word of its own; a hint under the dropdown; a note in the open list.
+- **Chosen:** a note in the open list, "Unknown type · <name>" with the muted "driver couldn't be asked", listed with the unknown GPUs and choosable. The button and the list draw entries with separate factories (`GtkDropDown:list-factory`, docs.gtk.org), so the button shows the label alone. Only drivers with reading rules are asked for a kind, so a GPU can't carry both notes; if it ever did, "no readings" wins.
+- **Implemented in:** the design, `configuration-gpu-list.html`; the app in Task 6.
+
+### D19 — The mockups' sample GPU address (Task 1, the designer)
+
+- **Question:** the made-up dedicated GPU in the mockups needed an address of its own.
+- **Chosen:** `0000:0a:00.0`, the address the test fixtures already give their made-up card; and Automatic is now the base state's choice, so every page shows it.
+- **Implemented in:** `tools/mockups/src/lib.rs`, every mockup. The odc-e2e chip-name test took the same made-up address (`fcda8de`).
+
+### D20 — Which frames the preview gets (Task 1, from the designer)
+
+- **Question:** Task 2 said the engine hands the D-Bus side "each written frame". While the cooler is away, nothing is written, but the design wants the preview to keep showing the saved picture.
+- **Options:** 1. every frame the engine draws, written or not; 2. only written frames, and the preview freezes while the cooler is away.
+- **Chosen:** 1, as the design asks: the preview shows what the cooler would show.
+- **Implemented in:** the plan's Task 2 (this commit); the service in Task 2.
+
+### D21 — Automatic and a GPU without a reading rule (Task 1, raised by the designer)
+
+- **Question:** Automatic reads the first GPU of the ranking (kind, then address), not the first with a reading rule. With no ranking yet (first start, or the boot after a GPU change) every GPU is unknown, so Automatic could read a GPU without a rule while another has one.
+- **Options:** 1. keep `sensors.md`'s rule in Phase 10: the app names the GPU in use, so the user sees it and can choose another; 2. change the service so Automatic skips GPUs without a rule, a spec change outside Phase 10's plan.
+- **Chosen:** 1, for the owner to decide at the review whether the rule should change. The design works either way, because it names `GpuInUse`.
+- **Implemented in:** nothing changed; recorded here.

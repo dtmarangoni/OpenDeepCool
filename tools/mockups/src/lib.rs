@@ -143,7 +143,7 @@ fn gpus() -> Vec<Json> {
             "Dedicated",
             "Contoso Graphics R870",
             "exgpu",
-            "0000:03:00.0",
+            "0000:0a:00.0",
         ),
         gpu(
             "Integrated",
@@ -156,7 +156,7 @@ fn gpus() -> Vec<Json> {
 }
 
 /// The state every page starts from: the Display page in Temperature · CPU + GPU, everything
-/// connected, several GPUs and both inputs chosen.
+/// connected, several GPUs on Automatic and both inputs chosen.
 fn base() -> Json {
     obj(&[
         ("theme", s("omarchy")),
@@ -169,7 +169,7 @@ fn base() -> Json {
         ("unit", s("C")),
         ("rotation", Json::Int(0)),
         ("gpus", Json::Array(gpus())),
-        ("gpu", Json::Int(0)),
+        ("gpu", Json::Null),
         ("gpuInUse", Json::Int(0)),
         ("fans", fans()),
         ("fan", Json::Int(0)),
@@ -215,7 +215,7 @@ pub fn pages() -> Vec<Page> {
         state,
     };
     let config = || base().with("page", s("config"));
-    let [dedicated, integrated, _] = <[Json; 3]>::try_from(gpus()).expect("three GPUs");
+    let [dedicated, integrated, no_rule] = <[Json; 3]>::try_from(gpus()).expect("three GPUs");
     vec![
         page(
             "display.html",
@@ -238,7 +238,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Rotation, GPU (several GPUs), the cooler's fan and pump inputs, the Music settings. Rotation is 90°, and the preview turns with it.",
+            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the cooler's fan and pump inputs, the Music settings. Rotation is 90°, and the preview turns with it.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -248,9 +248,31 @@ pub fn pages() -> Vec<Page> {
             config().with("open", s("fan")),
         ),
         page(
+            "configuration-gpu-list.html",
+            "Configuration, GPU list open",
+            "Three GPUs: an integrated one, a graphics card whose kind query failed, and one without readings. Automatic reads the integrated GPU, the first in the ranking, and the line under the dropdown names it. The card is listed as Unknown type with its note; the GPU without readings comes last.",
+            config()
+                .with(
+                    "gpus",
+                    Json::Array(vec![
+                        integrated,
+                        no_rule,
+                        obj(&[
+                            ("kind", s("Unknown type")),
+                            ("name", s("Contoso Graphics R870")),
+                            ("driver", s("exgpu")),
+                            ("pci", s("0000:0a:00.0")),
+                            ("queryFailed", Json::Bool(true)),
+                        ]),
+                    ]),
+                )
+                .with("gpuInUse", Json::Int(0))
+                .with("open", s("gpu")),
+        ),
+        page(
             "first-start.html",
             "First start",
-            "Defaults: Load CPU, rotation 0°, °C, no fan inputs chosen, peak dots on, bar fall moderate, peak fall slow, the dedicated GPU.",
+            "Defaults: Load CPU, rotation 0°, °C, no fan inputs chosen, peak dots on, bar fall moderate, peak fall slow, the GPU on Automatic.",
             base()
                 .with("mode", Json::Int(1))
                 .with("fan", Json::Null)
@@ -259,8 +281,26 @@ pub fn pages() -> Vec<Page> {
         page(
             "cooler-disconnected.html",
             "Cooler disconnected",
-            "Everything still works and is saved; the banner and the status line say the cooler isn't connected.",
-            base().with("cooler", Json::Bool(false)),
+            "The service finds no cooler (not-found). Everything still works and is saved; the banner and the status line say the cooler isn't connected.",
+            base()
+                .with("cooler", Json::Bool(false))
+                .with("coolerState", s("not-found")),
+        ),
+        page(
+            "cooler-no-access.html",
+            "Cooler found, no access",
+            "The cooler is plugged in, but the service can't open it (no-access), for example because its udev rule is missing or not applied yet. Its own red banner names the fix; nothing is disabled, and the preview still shows the service's picture.",
+            base()
+                .with("cooler", Json::Bool(false))
+                .with("coolerState", s("no-access")),
+        ),
+        page(
+            "cooler-write-failed.html",
+            "Sending to the cooler fails",
+            "The cooler opens, but writing the picture to it keeps failing (write-failed for 2 s or more; a shorter failure, such as while the cooler is unplugged, shows nothing). The banner says the service keeps trying.",
+            base()
+                .with("cooler", Json::Bool(false))
+                .with("coolerState", s("write-failed")),
         ),
         page(
             "service-not-running.html",
@@ -299,26 +339,16 @@ pub fn pages() -> Vec<Page> {
             "one-gpu.html",
             "One GPU",
             "With one GPU, dedicated or integrated, the configuration screen has no GPU control at all.",
-            config().with("gpus", Json::Array(vec![dedicated.clone()])),
+            config().with("gpus", Json::Array(vec![dedicated])),
         ),
         page(
-            "missing-input-gpu.html",
-            "Saved fan input and GPU missing",
-            "The saved pump input and the saved GPU aren't found: both say so, the GPU in use is named, and nothing shows another input's RPM.",
-            config()
-                .with(
-                    "gpus",
-                    Json::Array(vec![
-                        dedicated.with("missing", Json::Bool(true)),
-                        integrated,
-                    ]),
-                )
-                .with("gpu", Json::Int(0))
-                .with("gpuInUse", Json::Int(1))
-                .with(
-                    "missing",
-                    obj(&[("fan", Json::Bool(false)), ("pump", Json::Bool(true))]),
-                ),
+            "missing-input.html",
+            "Saved pump input missing",
+            "The saved pump input isn't found: its picker says so with a hint, the preview column says \"Input not found\", and nothing shows another input's RPM.",
+            config().with(
+                "missing",
+                obj(&[("fan", Json::Bool(false)), ("pump", Json::Bool(true))]),
+            ),
         ),
         page(
             "no-fan-sensors.html",

@@ -1,5 +1,19 @@
 "use strict";
-// OpenDeepCool settings app mockup. All readings, chips and GPU names are made up.
+// OpenDeepCool settings app mockup. All readings, chips, GPU names and PCI addresses are made up.
+//
+// CONFIG keys of the 2026-11-06 design pass (docs/design/settings-app.md); every other key reads as before:
+// - coolerState (optional): the service's CoolerState, "connected", "not-found", "no-access" or "write-failed".
+//   Without it, cooler true reads as "connected" and false as "not-found". "write-failed" is drawn as it looks
+//   once it has lasted 2 s (before that the app shows it as "connected"). Any other value, such as the dev
+//   copy's "released", is drawn as "not-found".
+// - gpu: the saved GPU choice, an index into gpus, or null for Automatic (ChooseGpu(""), the default).
+// - gpuInUse: the index into gpus of the GPU the readings come from (GpuInUse); with Automatic, 0.
+// - gpus: in the service's order (Gpus: dedicated, integrated, then unknown, each by PCI address). The list
+//   shows the GPUs without a reading rule last. Each GPU: kind (the word shown: "Dedicated", "Integrated",
+//   "Unknown type"), name (from pci.ids, "" when it has none), driver, pci, and the optional flags
+//   norule (no reading rule for its driver) and queryFailed (its kind query failed: Gpus kind "query-failed",
+//   shown as "Unknown type" with a note).
+// - gpus[i].missing is no longer read: a saved GPU can't be missing since the owner's change of 2026-11-04.
 const S = JSON.parse(JSON.stringify(CONFIG));
 
 const METRIC = {
@@ -208,6 +222,20 @@ function fanOption(i) {
   return { text: fanLabel(f), rpm: f.rpm === null ? "no reading" : fmt(f.rpm) + " RPM" };
 }
 
+// The cooler's state as the app shows it (design, Banners): one of the four CoolerState values.
+const COOLER_STATES = ["connected", "not-found", "no-access", "write-failed"];
+function coolerState() {
+  const st = S.coolerState === undefined ? (S.cooler ? "connected" : "not-found") : S.coolerState;
+  return COOLER_STATES.includes(st) ? st : "not-found";
+}
+// Per state: the status dot, the status text, and the line under the preview's caption.
+const COOLER = {
+  "connected": ["good", "Cooler connected", "Shown on the cooler now"],
+  "not-found": ["warn", "Cooler not connected", "Not on the cooler: it isn't connected"],
+  "no-access": ["bad", "Cooler: no access", "Not on the cooler: the service can't open it"],
+  "write-failed": ["warn", "Cooler: sending fails", "Not on the cooler: sending it fails"]
+};
+
 function banners() {
   let out = "";
   if (!S.service) {
@@ -219,8 +247,17 @@ function banners() {
       <button class="btn" aria-label="Copy start command" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div>`;
     return out;
   }
-  if (!S.cooler) out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
+  // One cooler banner at a time, from CoolerState.
+  const cs = coolerState();
+  if (cs === "not-found") out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
       <div class="banner-text"><strong>The cooler isn't connected.</strong> Changes are still saved, and the cooler shows them when it's back.</div></div>`;
+  else if (cs === "no-access") out += `<div class="banner error" role="alert" aria-label="Cooler banner">${ICON.error}
+      <div class="banner-text"><strong>The cooler is plugged in, but the service can't open it.</strong>
+      The udev rule that gives the service access is missing or not applied yet.
+      Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more.</div></div>`;
+  else if (cs === "write-failed") out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
+      <div class="banner-text"><strong>The cooler is connected, but sending it the picture fails.</strong>
+      The service keeps trying by itself, and changes are still saved. The journal says more.</div></div>`;
   return out;
 }
 
@@ -245,7 +282,8 @@ function side() {
   if (!S.service) {
     status += dot("off", "Cooler: unknown", "Cooler status") + dot("bad", "Service not running", "Service status");
   } else {
-    status += S.cooler ? dot("good", "Cooler connected", "Cooler status") : dot("warn", "Cooler not connected", "Cooler status");
+    const [cls, text] = COOLER[coolerState()];
+    status += dot(cls, text, "Cooler status");
     status += dot("good", "Service running", "Service status");
     if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
@@ -263,7 +301,7 @@ function side() {
     return `<div class="rpm" aria-label="${name} speed"><span>${name}</span>${v}</div>`;
   };
   let caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
-  let sub = !S.service ? "The service draws the picture" : S.cooler ? "Shown on the cooler now" : "Not on the cooler: it isn't connected";
+  let sub = !S.service ? "The service draws the picture" : COOLER[coolerState()][2];
   return `<aside class="side">
     <div class="preview" role="img" aria-label="Cooler display preview" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
     <div class="pv-caption">${esc(caption)}</div>
@@ -310,7 +348,7 @@ function displayPage() {
 function dropdown(id, name, valueHtml, items, opts) {
   const open = S.open === id;
   return `<div class="dd${open ? " open" : ""}">
-    <button class="dd-btn${opts && opts.warn ? " warn-border" : ""}" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.disabled ? " disabled" : dis()} onclick="toggle('${id}')">
+    <button class="dd-btn${opts && opts.warn ? " warn-border" : ""}" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.desc ? ` aria-description="${esc(opts.desc)}"` : ""}${opts && opts.disabled ? " disabled" : dis()} onclick="toggle('${id}')">
       <span class="dd-val">${valueHtml}</span>${ICON.chevron}</button>
     ${open ? `<div class="dd-pop" role="listbox" aria-label="${name} choices">${items}</div>` : ""}
   </div>`;
@@ -337,19 +375,29 @@ function fanPicker(which, name) {
 function configPage() {
   const rot = [0, 1, 2, 3].map(r => `<button class="seg${S.rotation === r ? " on" : ""}" role="radio" aria-checked="${S.rotation === r}"
       aria-label="Rotation ${r * 90}°"${dis()} onclick="rotateTo(${r})">${r * 90}°</button>`).join("");
+  // GPU: only with more than one GPU. Automatic first (the default); while it's chosen, a muted line names the
+  // GPU in use (GpuInUse). Entries' notes show only in the open list: "no readings" for a GPU without a
+  // reading rule, "driver couldn't be asked" for one whose kind query failed (design, Configuration → Display).
   let gpuRow = "";
-  const present = S.gpus.filter(g => !g.missing);
-  if (present.length > 1 || S.gpus.some(g => g.missing)) {
-    const cur = S.gpus[S.gpu];
-    const items = S.gpus.map((g, i) => `<div class="dd-item${i === S.gpu ? " on" : ""}" role="option" aria-selected="${i === S.gpu}" onclick="choose('gpu', ${i})">
-        <span class="dd-check">${i === S.gpu ? ICON.check : ""}</span><span>${esc(gpuLabel(g))}</span>
-        <span class="muted">${g.missing ? '<span class="warn-text">not found</span>' : g.norule ? "no readings" : ""}</span></div>`).join("");
-    const val = esc(gpuLabel(cur)) + (cur.missing ? ` <span class="warn-text">— not found</span>` : "");
+  if (S.gpus.length > 1) {
+    const auto = S.gpu === null;
     const inUse = S.gpus[S.gpuInUse];
+    const note = g => g.norule ? "no readings" : g.queryFailed ? "driver couldn't be asked" : "";
+    const item = (i, text, n) => {
+      const on = i === S.gpu;
+      return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}"${n ? ` aria-description="${esc(n)}"` : ""} onclick="choose('gpu', ${i})">
+        <span class="dd-check">${on ? ICON.check : ""}</span><span>${esc(text)}</span><span class="muted">${esc(n)}</span></div>`;
+    };
+    const all = S.gpus.map((_, i) => i);
+    const order = all.filter(i => !S.gpus[i].norule).concat(all.filter(i => S.gpus[i].norule));
+    const items = item(null, "Automatic", "") + order.map(i => item(i, gpuLabel(S.gpus[i]), note(S.gpus[i]))).join("");
+    const val = auto ? "Automatic" : esc(gpuLabel(S.gpus[S.gpu]));
+    const desc = [auto && inUse ? `Using ${gpuLabel(inUse)}` : "", inUse && inUse.norule ? "no readings" : "",
+                  !auto && S.gpus[S.gpu].queryFailed ? "driver couldn't be asked" : ""].filter(Boolean).join("; ");
     gpuRow = `<div class="row"><div class="row-l"><span>GPU</span><span class="muted small">Where the display's GPU values come from</span></div>
-      <div class="row-r">${dropdown("gpu", "GPU", val, items, { warn: cur.missing })}
-      ${cur.missing ? `<div class="hint warn-text">${ICON.warn}<span>Using ${esc(gpuLabel(inUse))} until it's back.</span></div>` : ""}
-      ${cur.norule ? `<div class="hint muted">${ICON.info}<span>No reading for this GPU's driver: the GPU options are unavailable.</span></div>` : ""}</div></div>`;
+      <div class="row-r">${dropdown("gpu", "GPU", val, items, { desc })}
+      ${auto && inUse ? `<div class="hint muted" aria-label="GPU in use"><span>Using ${esc(gpuLabel(inUse))}.</span></div>` : ""}
+      ${inUse && inUse.norule ? `<div class="hint muted">${ICON.info}<span>No reading for this GPU's driver: the GPU options are unavailable.</span></div>` : ""}</div></div>`;
   }
   const stops = ["Slower", "Slow", "Moderate", "Fast", "Faster"];
   const slider = (id, name, v) => `<div class="row"><div class="row-l"><span id="${id}-l">${name}</span></div>
@@ -425,7 +473,8 @@ function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
 function choose(which, i) {
   if (which === "gpu") {
-    S.gpu = i; if (!S.gpus[i].missing) S.gpuInUse = i;
+    // Automatic (null) reads the first GPU in the service's order; a GPU chosen by hand is the one in use.
+    S.gpu = i; S.gpuInUse = i === null ? 0 : i;
     const nr = S.gpus[S.gpuInUse].norule;
     ["gpu_usage", "gpu_temp", "gpu_power"].forEach(k => {
       if (nr) S.unavailable[k] = "no reading for this GPU's driver";

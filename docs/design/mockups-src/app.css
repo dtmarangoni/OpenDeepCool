@@ -117,7 +117,7 @@ button { font: inherit; color: inherit; }
 .dd { position: relative; }
 .dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 340px; padding: 6px 10px; text-align: left; }
 .dd-btn.warn-border { border-color: var(--yellow); }
-.dd-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 380px; background: var(--surface);
+.dd-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 380px; width: max-content; max-width: 600px; background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }

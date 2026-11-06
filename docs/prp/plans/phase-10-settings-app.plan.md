@@ -104,7 +104,7 @@
 ### Evidence
 
 - `docs/design/settings-app.md`: Decisions D1–D8 and the pass-1 answers; Window; Preview column; Display page; Configuration page; Banners; Refresh; States; Theme (how it's applied, tokens, default theme with contrast ratios); Keyboard; Accessible names; What the Phase 10 plan must add to the D-Bus contract; Coverage check; Unverified.
-- `docs/design/mockups/` (14 states), written by `odc-mockups` (`tools/mockups/`) since Task 0, which ported the earlier Python generator byte for byte.
+- `docs/design/mockups/` (17 states since Task 1), written by `odc-mockups` (`tools/mockups/`) since Task 0, which ported the earlier Python generator byte for byte.
 - `docs/spec/settings.md` What the settings app must offer:
   - instant apply;
   - no app-only settings;
@@ -261,6 +261,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 
 **Validation**
 - `docs/design/settings-app.md` has no point left marked "unverified" without a recorded fallback.
+- As built (2026-11-06): the `ui-ux-designer` agent designed Automatic and the GPU it reads, the cleared choice, the `no-access` and `write-failed` banners and the query-failed GPU (decisions D13–D19, D21), with three new mockups and `missing-input.html` in place of `missing-input-gpu.html`; `odc-mockups` writes the 17, each rendered in headless Chrome with its new text. The design's "Unverified" section is a table of answers with their sources, and a fallback for each point still unverified (D6–D12).
 
 ### 2. The service and the contract gain what the app needs
 
@@ -275,7 +276,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 - **Frame watching:**
   - `WatchFrames()` and `UnwatchFrames()`: reads, checked with polkit `use` like every read (Phase 7), so only the active local session watches frames (owner, 2026-10-26; solution review P10-01). Frame watchers count toward Phase 7's watcher caps (8 per user, 32 in all) and its one-second re-check;
   - the `Frame(ay)` signal, 196 bytes, 0 or 1, row-major, after rotation;
-  - the engine hands each written frame to the D-Bus side over a bounded channel of 1, newest wins, so a slow bus never delays a tick;
+  - the engine hands each frame it draws to the D-Bus side over a bounded channel of 1, newest wins, so a slow bus never delays a tick. That's every tick's frame, written to the cooler or not: while the cooler is away (`not-found`, `no-access`, `write-failed`) the preview keeps showing the picture the cooler would show (design, Banners; decision D20);
   - the D-Bus side sends each `Frame` to each authorized watcher alone, only while watchers exist and only on change;
   - watchers are tracked by unique name and dropped on `NameOwnerChanged`.
 - **New and changed state keys:**
@@ -286,7 +287,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 **Tests** (layer 3, p2p D-Bus with a fake `Authorizer`, as Phase 7 Task 7)
 - **No watcher:** no `Frame` signal at all over 50 ticks.
 - **One watcher:**
-  - exactly one signal per changed frame, the bytes equal to the frame `Lp360` wrote, rotation included;
+  - exactly one signal per changed frame, the bytes equal to the frame the engine drew, rotation included, which is the frame `Lp360` writes while the cooler is there; with the cooler away the signals go on (D20);
   - none for unchanged frames;
   - a `100%` scroll gives 10 a second;
   - the watcher leaving the bus stops them;
