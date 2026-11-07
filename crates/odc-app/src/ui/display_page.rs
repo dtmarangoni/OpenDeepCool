@@ -12,7 +12,7 @@ use odc_ipc::TemperatureUnit;
 use odc_render::{Kind, Mode, Unit, mode_info};
 
 use super::Request;
-use super::names::Names;
+use super::names::{Names, group};
 use super::tiles::{self, TileWidget};
 use crate::model::{self, group_name};
 use crate::theme::Tokens;
@@ -38,6 +38,8 @@ fn per_line(kind: Kind) -> u32 {
 
 struct GroupWidgets {
     reasons: gtk::Label,
+    /// The group named "<group> unavailable reasons" around them (decisions log D72).
+    reasons_group: gtk::Box,
 }
 
 pub struct DisplayPage {
@@ -125,11 +127,12 @@ impl DisplayPage {
             let reasons = gtk::Label::builder()
                 .xalign(0.0)
                 .wrap(true)
-                .visible(false)
                 .css_classes(["muted", "small"])
                 .build();
-            names.name(&reasons, &format!("{name} unavailable reasons"));
-            column.append(&reasons);
+            let reasons_group = group().visible(false).build();
+            names.name(&reasons_group, &format!("{name} unavailable reasons"));
+            reasons_group.append(&reasons);
+            column.append(&reasons_group);
             let flowbox = gtk::FlowBox::builder()
                 .selection_mode(gtk::SelectionMode::None)
                 .activate_on_single_click(true)
@@ -168,7 +171,10 @@ impl DisplayPage {
                 // Load first, then Temperature and Power side by side, then Music.
                 root.insert_child_after(&pair, root.last_child().as_ref());
             }
-            groups.push(GroupWidgets { reasons });
+            groups.push(GroupWidgets {
+                reasons,
+                reasons_group,
+            });
         }
         DisplayPage {
             root,
@@ -207,7 +213,7 @@ impl DisplayPage {
         }
         for (group, widgets) in page.groups.iter().zip(&self.groups) {
             widgets.reasons.set_text(&group.reasons.join("\n"));
-            widgets.reasons.set_visible(!group.reasons.is_empty());
+            widgets.reasons_group.set_visible(!group.reasons.is_empty());
             for tile in &group.tiles {
                 if let Some(widget) = self.tiles.get(usize::from(tile.mode) - 1) {
                     widget.show(names, tile);

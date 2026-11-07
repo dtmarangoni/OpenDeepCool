@@ -1,0 +1,17 @@
+[package]
+name = "odc-ui-e2e"
+description = "Layer 4 of the settings app's tests: drives the real app through AT-SPI against a fake service; dev-only"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# The AT-SPI proxies and the zbus they're built on, zbus 5 (Phase 10 plan, Task 8): never the
+# workspace's zbus 6, odc-ipc or the app, so the driver sees only what AT-SPI shows and talks to
+# the fake service through its files.
+[dependencies]
+atspi = { version = "0.30", default-features = false, features = ["proxies", "zbus"] }
+toml = "1"
+
+[lints]
+workspace = true

@@ -11,8 +11,14 @@ odc-device = { path = "../odc-device" }
 odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-sensors = { path = "../odc-sensors" }
-# The dev service's probe asks the system bus who owns its name (Phase 7 plan, Task 9).
+# The settings app's fake service reads its state from a TOML file (Phase 10 plan, Task 8).
+toml = "1"
+# The dev service's probe asks the system bus who owns its name (Phase 7 plan, Task 9), and the
+# settings app's fake service serves the main interface (Phase 10 plan, Task 8).
 zbus = "6"
+
+[dev-dependencies]
+futures-core = "0.3"
 
 [lints]
 workspace = true

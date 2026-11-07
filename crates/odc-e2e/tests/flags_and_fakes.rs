@@ -153,11 +153,28 @@ fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
 }
 
 #[test]
-fn with_no_cooler_every_check_runs_against_fakes_and_passes() {
+fn with_no_cooler_every_check_but_the_app_s_runs_against_fakes_and_passes() {
     let t = tree("absent");
     let summary = run(&Options::default(), &t.roots(), &dir("absent"), TICK);
     let table = summary.table();
-    assert!(summary.passed(), "{table}");
+    // Every check passes but the settings app's, which fails with its fix, as weston is in no
+    // fake tree: a UI test without a display proves nothing (Phase 10 plan, Task 8).
+    let (checks, capabilities) = table.split_once("capability       mode\n").expect("both");
+    let failed: Vec<&str> = checks.lines().filter(|l| l.contains("FAILED")).collect();
+    assert_eq!(failed.len(), 1, "{table}");
+    assert!(
+        failed[0].starts_with("app              FAILED")
+            && failed[0]
+                .ends_with("weston is missing; fix: install weston: `sudo pacman -S weston`"),
+        "{table}"
+    );
+    assert!(
+        capabilities
+            .lines()
+            .filter(|l| l.contains("FAILED"))
+            .all(|l| l.starts_with("weston ")),
+        "{table}"
+    );
     assert!(table.contains("lp360            fake"), "{table}");
     assert!(table.contains("lp360-reconnect  fake"), "{table}");
     for check in ["test_images", "reconnect", "reset"] {

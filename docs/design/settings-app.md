@@ -403,38 +403,45 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 
 ## Accessible names
 
-The Phase 10 tests drive the app through AT-SPI, so every interactive widget gets a fixed English accessible label (`GTK_ACCESSIBLE_PROPERTY_LABEL`), and reasons go in `GTK_ACCESSIBLE_PROPERTY_DESCRIPTION`. Names never include live values, so tests find widgets by name and read values from state or description. Roles are GTK's defaults for each widget; the exact role per widget is **unverified** until checked with an accessibility inspector.
+The Phase 10 tests drive the app through AT-SPI, so every interactive widget gets a fixed English accessible label (`GTK_ACCESSIBLE_PROPERTY_LABEL`), and reasons go in `GTK_ACCESSIBLE_PROPERTY_DESCRIPTION`. Names never include live values, so tests find widgets by name and read values from state or description. The roles are the ones GTK gives each widget, as AT-SPI reads them (`GetRoleName`; the layer 4 run, Phase 10 Task 8, 2026-11-07).
 
-| Widget | GTK4 widget | Accessible name | State and description |
+What AT-SPI showed, and what the app does about it (decisions log D67–D72):
+
+- **A button's name:** a button with a text label is labelled by that label, which wins over the name the app gives it, so the app drops that relation when it names a widget: the `°C` toggle reads "Celsius" (D68).
+- **A label's name:** GTK names a label by its own text, again at every change, so a label that needs a fixed name sits in a group of that name, and its text is the value: "Cooler status", then "Cooler connected" (D72).
+- **Actions:** a tile and an open dropdown row get no AT-SPI action from GTK that chooses them, so the app gives each one: `tile.activate` and `row.activate`, which do what Enter or a click does. An insensitive tile offers none (D67, D69).
+- **Insensitive:** GTK marks only the widget itself disabled for assistive technology, not its children, so the app makes each control insensitive itself, never only its box (D70).
+
+| Widget | GTK4 widget (role) | Accessible name | State and description |
 |---|---|---|---|
-| Page switcher buttons | `GtkStackSwitcher` (or grouped `GtkToggleButton`) | `Display`, `Configuration` | selected or checked |
-| Refresh | `GtkButton` | `Refresh display` | insensitive while the service isn't running; absent when not available in this session |
-| Refresh and refusal label | `GtkLabel` in the `GtkOverlay` | `Change feedback` | its text ("Refreshed", or "Not changed." and the reason) |
-| Service banner | `GtkBox` in `GtkRevealer` | `Service banner` | its text |
-| Copy command | `GtkButton` | `Copy start command` | — |
-| Not-available message | `GtkBox` holding two `GtkLabel`s | `Not available in this session` | its text |
-| Cooler banner | `GtkBox` in `GtkRevealer` | `Cooler banner` | its text: not connected, no access or sending fails ([Banners](#banners)) |
-| Preview | `GtkDrawingArea` | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
-| Reason under the preview | `GtkLabel` | `Unavailable reading` | its text |
-| Status items | `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown") |
-| Fan and pump speed rows | `GtkLabel` | `Cooler fans speed`, `Pump speed` | their text (RPM, "Input not found", …) |
-| Choose-input links | `GtkButton` | `Choose cooler fans input`, `Choose pump input` | — |
-| Unit toggles | `GtkToggleButton` | `Celsius`, `Fahrenheit` | checked |
-| Tile groups | `GtkFlowBox` | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
-| Group reason lines | `GtkLabel` | `Load unavailable reasons` (and so on per group) | their text |
-| Tiles | `GtkFlowBoxChild` | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode |
-| Configuration cards | `GtkBox`, role group | `Display settings`, `Cooler settings`, `Music settings`, as the mockups label their sections (decisions log D62) | — |
-| Rotation | `GtkToggleButton` | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | checked |
-| GPU | `GtkDropDown` | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
-| GPU in use | `GtkLabel` under the GPU dropdown | `GPU in use` | its text ("Using Dedicated · Contoso Graphics R870."); present only while Automatic is chosen |
-| Cooler fans input | `GtkDropDown` | `Cooler fans input` | the selected item's label; description "not found" |
-| Pump input | `GtkDropDown` | `Pump input` | the same |
-| Dropdown items | list item `GtkLabel`s | the item label without the RPM or note (`None`, `acme6000 · fan1`, `Automatic`, `Dedicated · Contoso Graphics R870`) | the RPM or the note ("no readings", "driver couldn't be asked") in the description |
-| Peak dots | `GtkSwitch` | `Peak dots` | checked |
-| Bar fall | `GtkScale` | `Bar fall` | value 0–4; value text the stop's name (`Moderate`) |
-| Peak fall | `GtkScale` | `Peak fall` | the same (`Slow`) |
+| Page switcher buttons | two grouped `GtkToggleButton`s (toggle button; decisions log D50) | `Display`, `Configuration` | pressed; insensitive while the service isn't running |
+| Refresh | `GtkButton` (button) | `Refresh display` | insensitive while the service isn't running; absent when not available in this session |
+| Refresh and refusal label | `GtkBox` (group) in the `GtkOverlay`, around the `GtkLabel` | `Change feedback` | its label's text ("Refreshed", or "Not changed." and the reason) |
+| Service banner | `GtkBox` (group) in `GtkRevealer` | `Service banner` | description: its text |
+| Copy command | `GtkButton` (button) | `Copy start command` | — |
+| Not-available message | `GtkBox` (group) holding two `GtkLabel`s | `Not available in this session` | description: its text |
+| Cooler banner | `GtkBox` (group) in `GtkRevealer` | `Cooler banner` | description: its text: not connected, no access or sending fails ([Banners](#banners)) |
+| Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
+| Reason under the preview | `GtkBox` (group) around the icon and the `GtkLabel` | `Unavailable reading` | its label's text |
+| Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown") |
+| Fan and pump speed rows | `GtkBox` (group) around the row | `Cooler fans speed`, `Pump speed` | their labels' text: the row's title and the value (RPM, "Input not found", …), or the choose-input link |
+| Choose-input links | `GtkButton` (button) | `Choose cooler fans input`, `Choose pump input` | — |
+| Unit toggles | `GtkToggleButton` (toggle button) | `Celsius`, `Fahrenheit` | pressed |
+| Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
+| Group reason lines | `GtkBox` (group) around the `GtkLabel` | `Load unavailable reasons` (and so on per group) | its label's text |
+| Tiles | `GtkFlowBoxChild` (grid cell), its picture an image of the same name | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode; action `tile.activate` while sensitive |
+| Configuration cards | `GtkBox` (group) | `Display settings`, `Cooler settings`, `Music settings`, as the mockups label their sections (decisions log D62) | — |
+| Rotation | `GtkToggleButton` (toggle button) | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | pressed |
+| GPU | `GtkDropDown` (combo box) | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
+| GPU in use | `GtkBox` (group) around the `GtkLabel` under the GPU dropdown | `GPU in use` | its label's text ("Using Dedicated · Contoso Graphics R870."); present only while Automatic is chosen |
+| Cooler fans input | `GtkDropDown` (combo box) | `Cooler fans input` | the selected item's label; description "not found" |
+| Pump input | `GtkDropDown` (combo box) | `Pump input` | the same |
+| Dropdown items | the open list's rows (list item) | the item label without the RPM or note (`None`, `acme6000 · fan1`, `Automatic`, `Dedicated · Contoso Graphics R870`) | the RPM or the note ("no readings", "driver couldn't be asked") in the description; action `row.activate` on the row's content |
+| Peak dots | `GtkSwitch` (switch) | `Peak dots` | checked: the switch's handle, which moves at the press (decisions log D63, D79) |
+| Bar fall | `GtkScale` (slider) | `Bar fall` | value 0–4; value text the stop's name (`Moderate`) |
+| Peak fall | `GtkScale` (slider) | `Peak fall` | the same (`Slow`) |
 
-How to give a `GtkScale` a named value text (Slower … Faster) for AT-SPI is **unverified**; the plan checks `GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT`.
+A scale's value text reaches AT-SPI as its Value interface's text, the stop's name (`GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT`; the layer 4 run reads "Moderate").
 
 ## Text
 
@@ -529,12 +536,12 @@ Each point the design left open, with its answer and source, or the fallback the
 | `gtk_style_context_add_provider_for_display` | Not deprecated: it carries no deprecation notice and is declared in `gtkstyleprovider.h`, apart from the deprecated `GtkStyleContext`. gtk4-rs: `gtk::style_context_add_provider_for_display` | docs.gtk.org, `Gtk.StyleContext.add_provider_for_display` |
 | Dark or light base (GTK 4.20 and later) | The app sets `GtkCssProvider:prefers-color-scheme` to `GTK_INTERFACE_COLOR_SCHEME_DARK` or `_LIGHT` on its own provider; `gtk-application-prefer-dark-theme` is deprecated since 4.20, and `GtkSettings:gtk-interface-color-scheme` only carries the system's preference. Every colour the app draws comes from the tokens, so the scheme touches only what GTK draws itself; whether GTK's built-in theme follows the app provider's scheme is **unverified**, and the layer 3 tests look at it | docs.gtk.org, `Gtk.CssProvider:prefers-color-scheme`, `Gtk.Settings:gtk-application-prefer-dark-theme`, `Gtk.Settings:gtk-interface-color-scheme` |
 | Gradient border colours | `border-color` takes colours only; `border-image` takes an image, a gradient included. The app keeps a gradient's first colour, as Theme says, so no gradient is drawn | docs.gtk.org, GTK CSS Properties |
-| Default accessible roles | `GtkFlowBoxChild` is `GRID_CELL` (its box `GRID`), `GtkLabel` `LABEL`. `GtkDrawingArea`'s default isn't documented, so the preview and every tile picture are built with the role `IMG` and their accessible label. A named `GtkBox` (the banners, the not-available message) is built as `GROUP`, since its default, generic, may carry no name in ARIA (decisions log D48) | docs.gtk.org, Accessibility (List of accessible roles) |
-| Accessible names, descriptions, value text | `AccessibleExtManual::update_property` sets `Label` and `Description`; `ValueText` is ARIA's `aria-valuetext`. What AT-SPI shows for each is **unverified** until the layer 4 AT-SPI driver reads every name | gtk4-rs book, Accessibility; docs.gtk.org, Accessibility |
+| Default accessible roles | `GtkFlowBoxChild` is `GRID_CELL` (its box `GRID`), `GtkLabel` `LABEL`. `GtkDrawingArea`'s default isn't documented, so the preview and every tile picture are built with the role `IMG` and their accessible label. A named `GtkBox` (the banners, the not-available message, and every group around a label of a fixed name) is built as `GROUP`, since its default, generic, may carry no name in ARIA (decisions log D48, D72). Through AT-SPI, every role is as the [names table](#accessible-names) gives it (Phase 10 Task 8) | docs.gtk.org, Accessibility (List of accessible roles); the layer 4 run |
+| Accessible names, descriptions, value text | `AccessibleExtManual::update_property` sets `Label` and `Description`; `ValueText` is ARIA's `aria-valuetext`. Read through AT-SPI (Phase 10 Task 8): descriptions and value text arrive as set; a name arrives as set once the app drops a button's labelled-by relation (decisions log D68), and on a group around a label, since a label is always named by its text (D72) | gtk4-rs book, Accessibility; docs.gtk.org, Accessibility; GTK's source (`gtkbutton.c`, `gtklabel.c`); the layer 4 run |
 | `GtkScale` and whole stops | `GtkRange:round-digits` rounds the value "when it changes", drags included: with 0 digits over 0–4 the scale only holds whole stops, and the app applies each stop as it's reached (at most five calls a drag). If a test shows otherwise, the stop is applied on release | docs.gtk.org, `Gtk.Range:round-digits` |
-| Arrow keys between grouped `GtkToggleButton`s | **Unverified.** Each unit and rotation toggle is a Tab stop as well, so the keyboard reaches each one either way; the tests record whether arrows move too | the fallback of Keyboard |
+| Arrow keys between grouped `GtkToggleButton`s | **Unverified.** Each unit and rotation toggle is a Tab stop as well, so the keyboard reaches each one either way. AT-SPI's key events don't reach a Wayland app (Phase 10 Task 8, decisions log D71), so no test types keys; the shortcuts' keys are checked in-process | the fallback of Keyboard |
 | Live RPM inside an open `GtkDropDown` | It updates in place: each open row is bound to its entry by position, and every `StateChanged` sets the bound rows' notes again; the layer 3 tests change the speeds with the list open (Phase 10 Task 6) | `crates/odc-app/tests/config_page.rs` |
 | Tooltips on insensitive widgets | **Unverified**, and not relied on: the reason line under each group says why a tile is unavailable | Display page, Unavailable modes |
 | Hyprland and the window's minimum size | **Unverified**: it can be seen only in the owner's session, and no test opens a window there. The app sets its minimum size as designed; the optional attended tour looks at it | Window |
-| `GtkWindow:is-active` after a session switch | **Unverified**, for the same reason. The app also follows logind's `Active` property of its own session (org.freedesktop.login1), a third trigger for connecting again, still without polling | Not available in this session |
+| `GtkWindow:is-active` after a session switch | **Unverified** under Hyprland, for the same reason. The app also follows logind's `Active` property of its own session (org.freedesktop.login1), a third trigger for connecting again, still without polling. The reconnect on activation itself is checked in headless weston, where another window takes the focus and closes (Phase 10 Task 8, decisions log D78) | Not available in this session |
 | glib's one-shot timer name | `glib::timeout_add_local_once`, in glib 0.22, gtk4 0.11's (its source, `src/source.rs`, read 2026-11-06) | Banners, `write-failed` |

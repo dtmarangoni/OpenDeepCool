@@ -234,7 +234,7 @@ fn gpu_row(app: &gtk::Application) {
 // The fan picker's entries, each item named by its label and described by its RPM; the open
 // list's rows with the check on the saved entry; new speeds change the open rows in place.
 fn entries(app: &gtk::Application) {
-    let (window, _) = shown(app);
+    let (window, asked) = shown(app);
     window.state(with(|_| {}));
     let fans = window.config_page().fans();
     let entry = |label: &str, note: &str| Entry {
@@ -280,6 +280,13 @@ fn entries(app: &gtk::Application) {
         ],
         "the open list's speeds change in place"
     );
+    // An open row picked through its action, as assistive technology picks it (decisions log
+    // D69): the pick is asked for, and the saved entry stays shown until the service confirms.
+    taken(&asked);
+    assert!(fans.activate_row(2), "row 2 is bound");
+    run_for(Duration::from_millis(50));
+    assert_eq!(taken(&asked), [Request::SetCoolerFanInput(Some(input(2)))]);
+    assert_eq!(fans.button_text(), "acme6000 · fan1");
     close(window);
 }
 

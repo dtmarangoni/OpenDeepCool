@@ -18,7 +18,7 @@ use odc_protocol::Frame;
 use super::banners::Banners;
 use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
-use super::names::Names;
+use super::names::{Names, group};
 use super::preview::Preview;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::model::{
@@ -66,6 +66,18 @@ struct Header {
     display: gtk::ToggleButton,
     config: gtk::ToggleButton,
     refresh: gtk::Button,
+}
+
+impl Header {
+    /// The switcher shown or not, and usable or not: each toggle's own sensitivity, since GTK
+    /// marks only the widget itself disabled for assistive technology, not its children
+    /// (`gtk_widget_set_sensitive`, GTK's source); in an insensitive box the toggles read as
+    /// usable through AT-SPI (decisions log D70).
+    fn switcher(&self, visible: bool, sensitive: bool) {
+        self.switcher.set_visible(visible);
+        self.display.set_sensitive(sensitive);
+        self.config.set_sensitive(sensitive);
+    }
 }
 
 struct StatusRow {
@@ -226,8 +238,10 @@ impl Window {
         let caption = label("", &["caption"]);
         let line = label("", &["muted", "small"]);
         let reason = label("", &["warn-text", "small"]);
-        names.name(&reason, "Unavailable reading");
-        let reason_box = gtk::Box::builder().spacing(6).visible(false).build();
+        // A label's fixed name goes on a group around it: GTK names a label by its own text,
+        // again at each change, so a name never sticks to it (decisions log D72).
+        let reason_box = group().spacing(6).visible(false).build();
+        names.name(&reason_box, "Unavailable reading");
         reason_box.append(
             &gtk::Image::builder()
                 .icon_name("dialog-warning-symbolic")
@@ -238,13 +252,13 @@ impl Window {
         reason_box.append(&reason);
         let status_box = vbox(4);
         let status = STATUS_NAMES.map(|name| {
-            let row = gtk::Box::builder().spacing(8).build();
+            let row = group().spacing(8).build();
+            names.name(&row, name);
             let dot = gtk::Box::builder()
                 .css_classes(["dot"])
                 .valign(gtk::Align::Center)
                 .build();
             let text = label("", &[]);
-            names.name(&text, name);
             row.append(&dot);
             row.append(&text);
             status_box.append(&row);
@@ -256,12 +270,12 @@ impl Window {
         });
         let speeds = vbox(4);
         let speed_row = |title: &str, value_name: &str, link_name: &str| {
-            let row = gtk::Box::builder().spacing(8).build();
+            let row = group().spacing(8).build();
+            names.name(&row, value_name);
             let name = label(title, &[]);
             name.set_hexpand(true);
             let value = label("", &["num"]);
             value.set_xalign(1.0);
-            names.name(&value, value_name);
             let link = gtk::Button::builder()
                 .label("Choose input")
                 .css_classes(["link"])
@@ -353,8 +367,7 @@ impl Window {
         let feedback_icon = gtk::Image::from_icon_name("dialog-warning-symbolic");
         feedback_icon.add_css_class("warn-text");
         let feedback_label = label("", &[]);
-        names.name(&feedback_label, "Change feedback");
-        let feedback = gtk::Box::builder()
+        let feedback = group()
             .spacing(6)
             .css_classes(["feedback"])
             .halign(gtk::Align::End)
@@ -363,6 +376,7 @@ impl Window {
             .margin_end(12)
             .visible(false)
             .build();
+        names.name(&feedback, "Change feedback");
         feedback.append(&feedback_icon);
         feedback.append(&feedback_label);
         let overlay = gtk::Overlay::builder().child(&content).build();
@@ -655,8 +669,7 @@ impl Window {
         match &shown {
             View::NotAvailable => {
                 inner.screens.set_visible_child_name("not-available");
-                header.switcher.set_visible(false);
-                header.switcher.set_sensitive(false);
+                header.switcher(false, false);
                 header.refresh.set_visible(false);
                 inner.banners.show(&inner.names, false, None);
                 self.enable_actions(false);
@@ -669,8 +682,7 @@ impl Window {
             View::ServiceDown(column) => {
                 inner.announced.set(false);
                 inner.screens.set_visible_child_name("main");
-                header.switcher.set_visible(true);
-                header.switcher.set_sensitive(false);
+                header.switcher(true, false);
                 header.refresh.set_visible(true);
                 header.refresh.set_sensitive(false);
                 inner.banners.show(&inner.names, true, None);
@@ -682,8 +694,7 @@ impl Window {
             View::Normal(normal) => {
                 inner.announced.set(false);
                 inner.screens.set_visible_child_name("main");
-                header.switcher.set_visible(true);
-                header.switcher.set_sensitive(true);
+                header.switcher(true, true);
                 header.refresh.set_visible(true);
                 header.refresh.set_sensitive(true);
                 inner.banners.show(&inner.names, false, normal.banner);
@@ -799,7 +810,10 @@ impl Window {
     pub fn header(&self) -> [(bool, bool); 2] {
         let h = &self.0.header;
         [
-            (h.switcher.is_visible(), h.switcher.is_sensitive()),
+            (
+                h.switcher.is_visible(),
+                h.display.is_sensitive() && h.config.is_sensitive(),
+            ),
             (h.refresh.is_visible(), h.refresh.is_sensitive()),
         ]
     }

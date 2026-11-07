@@ -7,6 +7,7 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use gtk::accessible::Property;
+use gtk::gio;
 use gtk::prelude::*;
 use odc_protocol::Frame;
 use odc_render::{
@@ -145,6 +146,21 @@ impl TileWidget {
             .css_classes(["tile"])
             .build();
         names.name(&child, &label);
+        // `tile.activate`, as Enter, Space or a click: GTK gives a flow box child no AT-SPI
+        // action of its own, but offers assistive technology a widget's enabled actions, and
+        // only while it's sensitive (decisions log D67).
+        let activate = gio::SimpleAction::new("activate", None);
+        let weak = child.downgrade();
+        activate.connect_activate(move |_, _| {
+            if let Some(child) = weak.upgrade()
+                && child.is_sensitive()
+            {
+                child.activate();
+            }
+        });
+        let actions = gio::SimpleActionGroup::new();
+        actions.add_action(&activate);
+        child.insert_action_group("tile", Some(&actions));
         TileWidget {
             mode,
             child,

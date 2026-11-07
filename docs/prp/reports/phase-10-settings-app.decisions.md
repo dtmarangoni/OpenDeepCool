@@ -11,7 +11,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 | Check | Why it waits | Command |
 |---|---|---|
 | `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
-| CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41) | the first push of `phase-10-settings-app` |
+| CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73) | the first push of `phase-10-settings-app` |
 
 ## Decisions
 
@@ -498,3 +498,94 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** standard error; or the journal's own protocol, a new dependency.
 - **Chosen:** standard error, `opendeepcool: theme: …`, one line each: the source at start, each reload and each problem. Whether the session's journal gets a desktop app's standard error on Omarchy depends on how the session starts it and is unverified; the attended tour (Task 9) can look.
 - **Implemented in:** `crates/odc-app/src/main.rs` (`log`), `crates/odc-app/src/ui/theme.rs`; Task 7's commit.
+
+### D67 — Choosing a tile through AT-SPI (Task 8, found)
+
+- **Question:** the plan has every tile chosen through AT-SPI. GTK gives a `GtkFlowBoxChild` no AT-SPI action of its own, and the flow box's AT-SPI selection selects nothing, since the boxes select nothing (D55). GTK does offer assistive technology a widget's own enabled actions that take no parameter, and only while the widget is sensitive (`widget_action_vtable` in `gtk/a11y/gtkatspiaction.c`, GTK's source, read 2026-11-07).
+- **Options:** keep the tiles keyboard-only and their 23 calls in layer 3; or give each tile an action group with `activate`, which runs the tile's own activation, as Enter, Space or a click does.
+- **Chosen:** the action, `tile.activate`. A screen reader user gets it in the tile's action list, an unavailable tile offers none, and the driver chooses all 23 tiles through it.
+- **Implemented in:** `crates/odc-app/src/ui/tiles.rs`; the layer 3 checks in `crates/odc-app/tests/display_page.rs` (every tile's action asks for its mode once, an unavailable tile's asks for nothing); `docs/design/settings-app.md` (Accessible names); Task 8's commit.
+
+### D68 — A button's accessible name (Task 8, found)
+
+- **Question:** through AT-SPI the unit toggles read "°C" and "°F", and both choose-input links "Choose input", not the design's "Celsius", "Fahrenheit", "Choose cooler fans input" and "Choose pump input". `gtk_button_set_label` gives a button a `LABELLED_BY` relation to its label child (GTK's source, `gtk/gtkbutton.c`), and a labelled-by relation wins over the accessible label, as in ARIA's name computation. Layer 3 could only check that a label was set, not the name AT-SPI computes.
+- **Options:** change the design's names to the visible labels; or drop the relation when the app names a widget.
+- **Chosen:** drop it: `Names::name` resets `LabelledBy` after setting the label, so every widget carries the design's name ("Celsius" reads better than "degree C").
+- **Implemented in:** `crates/odc-app/src/ui/names.rs`; checked by the layer 4 scenario `names`; Task 8's commit.
+
+### D69 — Picking a dropdown entry through AT-SPI (Task 8, found)
+
+- **Question:** an open dropdown's rows offer AT-SPI only `listitem.scroll-to`: GTK's `listitem.select` and `list.activate-item` take parameters, which GTK leaves out. The list's AT-SPI selection moves the open list's highlight, but the dropdown takes an entry only when the list is activated, and then from that list's own selection, ignoring the position it's given (`row_activated` in `gtk/gtkdropdown.c`, GTK's source). Through AT-SPI no entry could be picked.
+- **Options:** keep the three pickers in layer 3 only, as the plan's risk row allows; or give each open row an action that does what a click does: the row's `listitem.select`, then the list's `list.activate-item` for its position.
+- **Chosen:** the action, `row.activate`, on the row's own box. Given to GTK's row widget while the row was bound, it broke GTK (criticals, then an abort: "Unable to create shared memory pool"), so it stays on the app's own widget.
+- **Implemented in:** `crates/odc-app/src/ui/dropdowns.rs` (and `Dropdown::activate_row` for the layer 3 check in `crates/odc-app/tests/config_page.rs`); `docs/design/settings-app.md`; Task 8's commit.
+
+### D70 — The switcher while the service is down (Task 8, found)
+
+- **Question:** with the service down, AT-SPI showed the Display and Configuration toggles as sensitive: the app made their box insensitive, and `gtk_widget_set_sensitive` marks only the widget itself disabled for assistive technology, not its children (GTK's source, `gtk/gtkwidget.c`). They looked usable to a screen reader.
+- **Options:** keep the box; or set each toggle's own sensitivity.
+- **Chosen:** each toggle's own. The tiles and the dropdowns already set their own.
+- **Implemented in:** `crates/odc-app/src/ui/window.rs` (`Header::switcher`, and the test getter `Window::header`); Task 8's commit.
+
+### D71 — The keyboard shortcuts in layer 4 (Task 8)
+
+- **Question:** the plan tries the shortcuts through AT-SPI's key events, and else keeps them in layer 3 with the report saying so. The registry accepts `GenerateKeyboardEvent`, but on Wayland nothing reaches the app (F5 tried on the development PC, 2026-11-07: no Refresh). The window does offer AT-SPI its actions: `win.page-display`, `win.page-config`, `win.refresh`, `win.close`, with no key bindings in the answer.
+- **Options:** the shortcuts in layer 3 only; or the actions through AT-SPI in layer 4, and each action's keys checked in layer 3.
+- **Chosen:** both halves: the layer 4 scenario `shortcuts` runs the three actions through AT-SPI and tries F5 every run, saying in its note whether it arrived; the layer 3 check `the_window_s_requests` now checks every action's keys (`accels_for_action`).
+- **Implemented in:** `crates/odc-ui-e2e/src/scenarios.rs` (`shortcuts`), `crates/odc-app/tests/window.rs`; Task 8's commit.
+
+### D72 — A fixed name for a label (Task 8, found)
+
+- **Question:** the design names eleven labels ("Cooler status", "Pump speed", "Change feedback", "Unavailable reading", "GPU in use", each group's reason line), so tests find them by name and read their values. GTK sets a label's accessible label to its own text at every change of it, unless its role forbids a name (`gtk_label_set_text_internal`, GTK's source, `gtk/gtklabel.c`): through AT-SPI "Cooler status" read "Cooler connected".
+- **Options:** let labels carry their text as their name and drop them from the names table; set the name again after every text change, so the name says "Cooler status" and the text the value, which a screen reader may read without the value; or a group around each label, named as the design names the label, as for the banners (D48).
+- **Chosen:** the named group: the status items, the two speed rows, the reason under the preview, the feedback, the GPU-in-use line and the four groups' reason lines. A screen reader reads "Cooler status, Cooler connected", and the name never holds a value.
+- **Implemented in:** `crates/odc-app/src/ui/names.rs` (`group`), `window.rs`, `display_page.rs`, `config_page.rs`; the layer 3 names check (their role is now group); `docs/design/settings-app.md` (Accessible names); Task 8's commit.
+
+### D73 — atspi on zbus 5, and cargo-deny (Task 8)
+
+- **Question:** `atspi` 0.30.0 is still the newest (crates.io, 2026-11-07) and is built on zbus 5; the workspace uses zbus 6. The plan keeps the driver a binary crate of its own, which links no workspace crate.
+- **Options:** atspi, as the plan says, with cargo-deny skips for the second zbus; or the few AT-SPI proxies the driver needs written on zbus 6, with no second zbus but more code of our own.
+- **Chosen:** atspi, with only its `proxies` and `zbus` features (no connection or peer-to-peer code). The workspace then has zbus 5.19.0 and zbus_macros 5.19.0 beside zbus 6, the only new duplicates (`cargo tree -d`); `deny.toml` skips the two, with the reason, until atspi moves to zbus 6, which each sign-off checks. Every new crate is MIT or Apache-2.0 (`cargo metadata`). `cargo deny check` itself isn't installed here: CI runs it at the first push (Pending real runs).
+- **Implemented in:** `crates/odc-ui-e2e/Cargo.toml`, `deny.toml`; Task 8's commit.
+
+### D74 — The accessibility bus of the test (Task 8, found)
+
+- **Question:** the app's AT-SPI tree must be on a bus the driver reaches and that nothing of the user's session shares. Three tries on the development PC, 2026-11-07: a private session bus that starts at-spi2-core's own launcher started the bus through dbus-broker, which starts the registry only through systemd ("unit failed"); a private dbus-daemon as the accessibility bus, starting the registry on demand, worked, but the registry outlived its bus, one process left per run.
+- **Options:** the user's own accessibility bus (not isolated, and absent in CI); the launcher; the registry started on demand; or a private dbus-daemon as the accessibility bus, the registry started by the harness from the program its installed service file names, both through `setpriv --pdeathsig KILL`, and GTK pointed at it with `AT_SPI_BUS_ADDRESS`.
+- **Chosen:** the last (`odc_testkit::bus::PrivateBus::accessibility`), without the service file's `--use-gnome-session`, since there's no session manager. `AT_SPI_BUS_ADDRESS` is GTK's own environment (GTK's source reads it first), like `GSK_RENDERER`, not an option of ours (AGENTS.md rule 5). A test checks that the bus holds the registry, starts nothing on demand, and leaves no process when dropped.
+- **Implemented in:** `crates/odc-testkit/src/bus.rs`, `crates/odc-testkit/tests/fake_service.rs`; Task 8's commit.
+
+### D75 — The weston of the end-to-end run (Task 8, found)
+
+- **Question:** under weston's kiosk shell, which the in-process tests use, GTK hid the window's header bar (the switcher and Refresh): the kiosk shell fullscreens every window. And with no seat, the window never turned active, so the reconnect on activation couldn't be reached.
+- **Options:** the kiosk shell, the header bar left out of layer 4; or the desktop shell with headless weston's `--fake-seat` (`weston --help`, weston 15).
+- **Chosen:** the desktop shell and a fake seat (`Weston::desktop`): the header bar shows, the window is active, and it turns inactive and active again when another window opens and closes (D78). The in-process tests keep the kiosk shell.
+- **Implemented in:** `crates/odc-testkit/src/weston.rs`; Task 8's commit.
+
+### D76 — The fake service's files (Task 8)
+
+- **Question:** the plan gives the fake its state "from a JSON file" and logs its calls to a file. JSON needs `serde_json`, new to the workspace; the state must also say what the fake answers: on the bus or not, reads allowed or not, changes refused or not.
+- **Options:** JSON; or TOML, which the workspace already reads (`toml`), with a `[fake]` table for the answers and a `[state]` table in the contract's keys, each read by its signature from `STATE_KEYS`, so any value can be sent, even one the app doesn't know (D33).
+- **Chosen:** TOML, written whole and moved into place. The fake never applies a change itself: it answers and logs it, and the driver confirms it by writing the new state, which the fake sends its watchers as `StateChanged` with the changed keys (`FanInputs` to frame watchers only, as the service does). So every control is checked to show its new value only after the service's word. The call log has one line per call, such as `SetMode(5)` or `GetState() refused NotAuthorized`, and `state <serial>` for each file taken.
+- **Implemented in:** `crates/odc-testkit/src/fake_service.rs` and its tests, `crates/odc-ui-e2e/src/fake.rs`; Task 8's commit.
+
+### D77 — Where `--only app` gets the app and the driver (Task 8)
+
+- **Question:** the area runs the real `opendeepcool` and the driver `odc-ui-e2e`, two binaries `cargo run -p odc-e2e` doesn't build.
+- **Options:** expect them built beforehand, and risk testing an old build; or build both at the area's start, with the profile `odc-e2e` was built with, next to it.
+- **Chosen:** build them (`cargo build -p odc-app -p odc-ui-e2e --bins`), so the plan's one command tests the code at hand.
+- **Implemented in:** `crates/odc-e2e/src/app.rs` (`build`); Task 8's commit.
+
+### D78 — Making the window active again (Task 8)
+
+- **Question:** "not available, then allowed again" needs the window to become active again, which no AT-SPI call does.
+- **Options:** leave it to the service's new owner, another trigger the app follows; or another window that takes the focus and closes.
+- **Chosen:** both are checked: the service's return in `service_stops`, and for `not_available` weston's own demo client `weston-simple-shm`, whose window takes the focus and is closed again; the app's window turns active about a second later, connects again, and shows the pages. Before that, the scenario waits 1.5 s and checks that the app asked nothing: no polling.
+- **Implemented in:** `crates/odc-ui-e2e/src/scenarios.rs` (`activate_again`); Task 8's commit.
+
+### D79 — What layer 4 leaves to the other layers (Task 8)
+
+- **Question:** some coverage items can't be read through AT-SPI.
+- **Options:** none: AT-SPI gives no pixels.
+- **Chosen, and where each is checked:** the preview's dots and every tile's picture (layer 3; the real frames in Task 9), the theme's colours (layer 3; layer 4 checks the reload and that the page stays), the arrow keys between toggles and the shortcuts' keys (layer 3, D71), and the 2 s `write-failed` wait on a fake clock (layer 1; layer 4 measures it on the real one: the banner after about 2.1 s). For the owner's review: through AT-SPI the peak dots switch reads its new value at the press, before the service answers, since AT-SPI reads GTK's handle, not its delayed state (D63); and a scale follows the drag until a refusal (D61). The layer 4 checks test both as built: the call, then the confirmed state, and a refusal putting each back.
+- **Implemented in:** `crates/odc-ui-e2e/src/scenarios.rs` (`music`, `refused`); this log; Task 8's commit.

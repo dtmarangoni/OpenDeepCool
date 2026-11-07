@@ -13,7 +13,7 @@ use odc_ipc::{FallStop, Input};
 
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
-use super::names::Names;
+use super::names::{Names, group};
 use crate::model::{self, MISSING_INPUT_HINT};
 
 /// The five fall stops, slowest first, as the scales hold them: 0 to 4.
@@ -64,6 +64,8 @@ pub struct ConfigPage {
     gpu_row: gtk::Box,
     gpu: Dropdown,
     gpu_in_use: gtk::Label,
+    /// The group named "GPU in use" around it (decisions log D72).
+    gpu_in_use_group: gtk::Box,
     gpu_hint: gtk::Label,
     fans: Dropdown,
     fans_hint: gtk::Label,
@@ -211,14 +213,16 @@ impl ConfigPage {
         let gpu = Dropdown::new();
         names.name(gpu.widget(), "GPU");
         let gpu_in_use = small("", &["muted", "small"]);
-        names.name(&gpu_in_use, "GPU in use");
+        let gpu_in_use_group = group().visible(false).build();
+        names.name(&gpu_in_use_group, "GPU in use");
+        gpu_in_use_group.append(&gpu_in_use);
         let gpu_hint = small("", &["muted", "small"]);
         for line in [&gpu_in_use, &gpu_hint] {
             line.set_max_width_chars(HINT_CHARS);
         }
         let gpu_box = right(320);
         gpu_box.append(gpu.widget());
-        gpu_box.append(&gpu_in_use);
+        gpu_box.append(&gpu_in_use_group);
         gpu_box.append(&gpu_hint);
         let gpu_row = row(
             &display,
@@ -330,6 +334,7 @@ impl ConfigPage {
             gpu_row,
             gpu,
             gpu_in_use,
+            gpu_in_use_group,
             gpu_hint,
             fans,
             fans_hint,
@@ -394,7 +399,7 @@ impl ConfigPage {
                     .show(entries, u32::try_from(gpu.chosen).ok(), &button);
                 self.gpu_in_use
                     .set_text(gpu.in_use.as_deref().unwrap_or(""));
-                self.gpu_in_use.set_visible(gpu.in_use.is_some());
+                self.gpu_in_use_group.set_visible(gpu.in_use.is_some());
                 self.gpu_hint.set_text(gpu.hint.unwrap_or(""));
                 self.gpu_hint.set_visible(gpu.hint.is_some());
                 names.describe(
@@ -476,9 +481,13 @@ impl ConfigPage {
     /// Whether the GPU row shows, and its line and hint while they show.
     pub fn gpu_row(&self) -> Option<(Option<String>, Option<String>)> {
         let shown = |l: &gtk::Label| l.is_visible().then(|| l.text().to_string());
+        let in_use = self
+            .gpu_in_use_group
+            .is_visible()
+            .then(|| self.gpu_in_use.text().to_string());
         self.gpu_row
             .is_visible()
-            .then(|| (shown(&self.gpu_in_use), shown(&self.gpu_hint)))
+            .then(|| (in_use, shown(&self.gpu_hint)))
     }
 
     /// Whether each input's missing hint shows, and the hint under the inputs.

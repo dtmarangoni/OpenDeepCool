@@ -336,6 +336,16 @@ fn requests(app: &gtk::Application) {
     assert_eq!(window.screen().1, "display");
     WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page action");
     assert_eq!(window.screen().1, "config");
+    // The keys of each action (Keyboard, Shortcuts): AT-SPI can't type on Wayland, so the
+    // end-to-end run reaches the actions and this check their keys (decisions log D71).
+    for (action, keys) in [
+        ("win.page-display", &["<Control>1"][..]),
+        ("win.page-config", &["<Control>2"]),
+        ("win.refresh", &["F5", "<Control>r"]),
+        ("win.close", &["<Control>w", "<Control>q"]),
+    ] {
+        assert_eq!(app.accels_for_action(action), keys, "{action}");
+    }
     let copy = window
         .names()
         .find("Copy start command")
@@ -380,7 +390,8 @@ const TILE_NAMES: [&str; 23] = [
 ];
 
 // Every name of the design's table built so far, typed here apart from the window's: each set
-// on its widget, with the widget's role.
+// on its widget, with the widget's role. A label's fixed name is on a group around it (decisions
+// log D72).
 fn names(app: &gtk::Application) {
     use gtk::AccessibleRole as R;
     let (window, _) = shown(app);
@@ -388,18 +399,18 @@ fn names(app: &gtk::Application) {
         ("Display", R::ToggleButton),
         ("Configuration", R::ToggleButton),
         ("Refresh display", R::Button),
-        ("Change feedback", R::Label),
+        ("Change feedback", R::Group),
         ("Service banner", R::Group),
         ("Copy start command", R::Button),
         ("Not available in this session", R::Group),
         ("Cooler banner", R::Group),
         ("Cooler display preview", R::Img),
-        ("Unavailable reading", R::Label),
-        ("Cooler status", R::Label),
-        ("Service status", R::Label),
-        ("Music sound status", R::Label),
-        ("Cooler fans speed", R::Label),
-        ("Pump speed", R::Label),
+        ("Unavailable reading", R::Group),
+        ("Cooler status", R::Group),
+        ("Service status", R::Group),
+        ("Music sound status", R::Group),
+        ("Cooler fans speed", R::Group),
+        ("Pump speed", R::Group),
         ("Choose cooler fans input", R::Button),
         ("Choose pump input", R::Button),
         // The Display page (Task 5).
@@ -409,10 +420,10 @@ fn names(app: &gtk::Application) {
         ("Temperature options", R::Grid),
         ("Power options", R::Grid),
         ("Music options", R::Grid),
-        ("Load unavailable reasons", R::Label),
-        ("Temperature unavailable reasons", R::Label),
-        ("Power unavailable reasons", R::Label),
-        ("Music unavailable reasons", R::Label),
+        ("Load unavailable reasons", R::Group),
+        ("Temperature unavailable reasons", R::Group),
+        ("Power unavailable reasons", R::Group),
+        ("Music unavailable reasons", R::Group),
         // The Configuration page (Task 6).
         ("Display settings", R::Group),
         ("Cooler settings", R::Group),
@@ -422,7 +433,7 @@ fn names(app: &gtk::Application) {
         ("Rotation 180°", R::ToggleButton),
         ("Rotation 270°", R::ToggleButton),
         ("GPU", R::ComboBox),
-        ("GPU in use", R::Label),
+        ("GPU in use", R::Group),
         ("Cooler fans input", R::ComboBox),
         ("Pump input", R::ComboBox),
         ("Peak dots", R::Switch),

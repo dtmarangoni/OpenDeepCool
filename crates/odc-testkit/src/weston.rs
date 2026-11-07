@@ -8,6 +8,12 @@
 //! Weston is started through util-linux's `setpriv --pdeathsig KILL`, so it dies with the
 //! thread that started it, even when the test is killed; a killed test's socket is removed by
 //! the next start in the same folder. Stopped when dropped.
+//!
+//! Two shells: the kiosk shell for the in-process tests, and for the end-to-end run (Phase 10
+//! plan, Task 8) the desktop shell with a fake seat. The kiosk shell fullscreens every window,
+//! and GTK hides a fullscreen window's header bar; without a seat, no window is ever focused, so
+//! none turns active (both seen through AT-SPI on the development PC, 2026-11-07; headless
+//! weston's `--fake-seat`: `weston --help`, weston 15).
 
 use std::fs::{self, DirBuilder};
 use std::io;
@@ -55,6 +61,20 @@ impl Weston {
     ///
     /// As [`Weston::headless`].
     pub fn headless_at(dir: &Path, size: (u32, u32)) -> io::Result<Weston> {
+        Weston::start(dir, size, &["--shell=kiosk"])
+    }
+
+    /// The same with the desktop shell and a fake seat, at [`SIZE`]: a window keeps its header
+    /// bar and is focused, and it turns inactive while another window is focused.
+    ///
+    /// # Errors
+    ///
+    /// As [`Weston::headless`].
+    pub fn desktop(dir: &Path) -> io::Result<Weston> {
+        Weston::start(dir, SIZE, &["--shell=desktop", "--fake-seat"])
+    }
+
+    fn start(dir: &Path, size: (u32, u32), shell: &[&str]) -> io::Result<Weston> {
         DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
         remove_dead_sockets(dir)?;
         let name = format!(
@@ -69,13 +89,13 @@ impl Weston {
             .args([
                 "--backend=headless",
                 "--renderer=pixman",
-                "--shell=kiosk",
                 "--no-config",
                 &format!("--width={}", size.0),
                 &format!("--height={}", size.1),
                 &format!("--socket={name}"),
                 &format!("--log={}", log.display()),
             ])
+            .args(shell)
             .env("XDG_RUNTIME_DIR", dir)
             .env_remove("WAYLAND_DISPLAY")
             .env_remove("WAYLAND_SOCKET")

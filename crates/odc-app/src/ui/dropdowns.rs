@@ -124,6 +124,32 @@ impl Dropdown {
             row.append(&check);
             row.append(&label);
             row.append(&note);
+            // `row.activate` picks the row as a click does, through GTK's own actions: the
+            // row's `listitem.select`, then the list's `list.activate-item`, which the dropdown
+            // takes from the list's selection (`row_activated`, GTK's source). GTK gives an open
+            // row no AT-SPI action that picks it: its actions take parameters, and the list's
+            // AT-SPI selection only moves the highlight (decisions log D69). On the row's own
+            // box, since GTK's row widget breaks when it's given actions while bound.
+            let activate = gtk::gio::SimpleAction::new("activate", None);
+            let (weak_item, weak_row) = (item.downgrade(), row.downgrade());
+            activate.connect_activate(move |_, _| {
+                if let (Some(item), Some(row)) = (weak_item.upgrade(), weak_row.upgrade()) {
+                    let picked = row
+                        .activate_action("listitem.select", Some(&(false, false).to_variant()))
+                        .and_then(|()| {
+                            row.activate_action(
+                                "list.activate-item",
+                                Some(&item.position().to_variant()),
+                            )
+                        });
+                    if let Err(e) = picked {
+                        eprintln!("opendeepcool: a list row's activation: {e}");
+                    }
+                }
+            });
+            let actions = gtk::gio::SimpleActionGroup::new();
+            actions.add_action(&activate);
+            row.insert_action_group("row", Some(&actions));
             item.set_child(Some(&row));
         });
         let s = Rc::clone(&shared);
@@ -261,6 +287,19 @@ impl Dropdown {
             .collect();
         rows.sort();
         rows
+    }
+
+    /// The open list's row at `position`, as assistive technology picks it: its `row.activate`.
+    /// False when no bound row is there.
+    pub fn activate_row(&self, position: u32) -> bool {
+        let row = self
+            .shared
+            .rows
+            .borrow()
+            .iter()
+            .find(|r| r.item.position() == position)
+            .and_then(|r| r.label.parent());
+        row.is_some_and(|row| row.activate_action("row.activate", None).is_ok())
     }
 }
 

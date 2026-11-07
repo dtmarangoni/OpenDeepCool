@@ -4,6 +4,7 @@
 //! start, never environment variables (owner, 2026-10-24). It never runs in `cargo test` or CI,
 //! because it touches real hardware when present.
 
+pub mod app;
 pub mod attended;
 pub mod baseline;
 pub mod device;
@@ -30,8 +31,8 @@ pub const USAGE: &str =
                     gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
                     gpu-load-tool, dev-service, pipewire
   --only <area>     run one area's checks: device, display, gpu-rank, sensors,
-                    service, music; or baseline, the dev service's resource use
-                    over 10 minutes, which only runs when named
+                    service, music, app; or baseline, the dev service's resource
+                    use over 10 minutes, which only runs when named
   --modes <list>    the modes display, service and the tour take, as numbers and
                     ranges: 7, or 7-9,12; without it, every mode this build draws
   --attended        the optional tour for you to watch on the cooler, through the
@@ -58,6 +59,9 @@ pub enum Area {
     Service,
     /// The Music checks through a virtual output: the capture and the delay (Phase 9 plan, Task 5).
     Music,
+    /// The settings app through AT-SPI in a headless weston, against a fake service (Phase 10
+    /// plan, Task 8).
+    App,
     /// The resource baseline (Phase 7 plan, Task 10): only when named.
     Baseline,
 }
@@ -147,6 +151,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
                     "sensors" => Area::Sensors,
                     "service" => Area::Service,
                     "music" => Area::Music,
+                    "app" => Area::App,
                     "baseline" => Area::Baseline,
                     _ => return Err(format!("{area:?} isn't an area")),
                 });
@@ -199,6 +204,9 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only.is_none_or(|area| area == Area::Music) {
         music::run(roots, out_dir, &mut summary);
+    }
+    if options.only.is_none_or(|area| area == Area::App) {
+        app::run(roots, out_dir, &mut summary);
     }
     if options.only == Some(Area::Baseline) {
         baseline::run(roots, &mut summary);

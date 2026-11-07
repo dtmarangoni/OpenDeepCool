@@ -221,6 +221,14 @@ fn activation(app: &gtk::Application) {
             [Request::SetMode(u32::from(mode))],
             "{name}"
         );
+        // The action assistive technology gets (decisions log D67) asks the same, once.
+        WidgetExt::activate_action(&child, "tile.activate", None).expect("the tile's action");
+        run_for(Duration::from_millis(5));
+        assert_eq!(
+            asked.borrow_mut().drain(..).collect::<Vec<_>>(),
+            [Request::SetMode(u32::from(mode))],
+            "{name}'s action"
+        );
     }
     close(window);
 }
@@ -257,7 +265,7 @@ fn selection(app: &gtk::Application) {
 // stays sensitive, flagged "Reading lost"; every other GPU tile is insensitive and "Unavailable",
 // drawn muted; each group lists its reasons once.
 fn unavailable(app: &gtk::Application) {
-    let (window, _) = shown(app);
+    let (window, asked) = shown(app);
     let reasons: HashMap<u32, String> = [
         (2, "Gpu usage"),
         (4, "Gpu usage"),
@@ -288,11 +296,14 @@ fn unavailable(app: &gtk::Application) {
         assert_eq!(tile.flag().as_deref(), flag, "mode {mode}");
     }
     let name = |n: &str| window.names().find(n).expect(n);
+    // The reasons' label, in the group that carries their name (decisions log D72).
     let text = |n: &str| {
-        name(n)
-            .downcast::<gtk::Label>()
-            .ok()
-            .filter(|l| l.is_visible())
+        let group = name(n);
+        group
+            .is_visible()
+            .then(|| group.first_child())
+            .flatten()
+            .and_then(|w| w.downcast::<gtk::Label>().ok())
             .map(|l| l.text().to_string())
     };
     assert_eq!(
@@ -323,6 +334,11 @@ fn unavailable(app: &gtk::Application) {
         Some("GPU usage: no device found")
     );
     assert_eq!(window.names().description("Load: CPU"), None);
+    // An unavailable tile's action asks for nothing (decisions log D67).
+    asked.borrow_mut().clear();
+    let _ = WidgetExt::activate_action(&name("Load: GPU"), "tile.activate", None);
+    run_for(Duration::from_millis(5));
+    assert_eq!(*asked.borrow(), [], "an unavailable tile's action");
     // An unavailable tile draws its lit dots muted.
     run_until("the tiles draw", || draws(&window).iter().all(|d| *d > 0));
     run_for(Duration::from_millis(150));

@@ -37,6 +37,13 @@ skip = [
     # so nothing of it reaches the binaries. Owner, 2026-10-29 (Phase 7 plan, Task 4); removed
     # once nvml-wrapper moves to syn 3, which each phase's sign-off checks.
     { crate = "syn@2.0.119", reason = "nvml-wrapper, tracing-attributes and bindgen still build with syn 2 (owner, 2026-10-29)" },
+    # atspi 0.30, the newest (crates.io, 2026-11-07), is built on zbus 5, while the workspace uses
+    # zbus 6. Only odc-ui-e2e, the settings app's dev-only AT-SPI driver, links it: a binary of
+    # its own that links no other workspace crate (Phase 10 plan, Task 8), so nothing of zbus 5
+    # reaches the shipped binaries. Removed once atspi moves to zbus 6, which each phase's
+    # sign-off checks. Phase 10 decisions log D73, pending the owner's review.
+    { crate = "zbus@5.19.0", reason = "atspi 0.30, in the dev-only AT-SPI driver, is built on zbus 5 (Phase 10 Task 8)" },
+    { crate = "zbus_macros@5.19.0", reason = "zbus 5's own macros, for atspi 0.30 in the dev-only AT-SPI driver (Phase 10 Task 8)" },
 ]
 
 [sources]
