@@ -3,14 +3,16 @@
 //! fake.
 
 pub mod banners;
+pub mod config_page;
 pub mod display_page;
 pub mod dots;
+pub mod dropdowns;
 pub mod names;
 pub mod preview;
 pub mod tiles;
 pub mod window;
 
-use odc_ipc::TemperatureUnit;
+use odc_ipc::{FallStop, Input, TemperatureUnit};
 
 /// What the window asks of the service.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,6 +21,17 @@ pub enum Request {
     SetMode(u32),
     /// `SetTemperatureUnit(s)`.
     SetTemperatureUnit(TemperatureUnit),
+    /// `SetRotation(y)`, 0–3.
+    SetRotation(u8),
+    /// `ChooseGpu(s)`: a GPU's address, or empty for Automatic.
+    ChooseGpu(String),
+    /// `SetCoolerFanInput(ssu)` and `SetPumpInput(ssu)`: an input, or none.
+    SetCoolerFanInput(Option<Input>),
+    SetPumpInput(Option<Input>),
+    /// `SetMusicPeaks(b)`, `SetMusicBarFall(s)`, `SetMusicPeakFall(s)`.
+    SetMusicPeaks(bool),
+    SetMusicBarFall(FallStop),
+    SetMusicPeakFall(FallStop),
     /// `Refresh()`.
     Refresh,
     /// `WatchFrames()` or `UnwatchFrames()`: while the window is mapped.

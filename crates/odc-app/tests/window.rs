@@ -413,6 +413,21 @@ fn names(app: &gtk::Application) {
         ("Temperature unavailable reasons", R::Label),
         ("Power unavailable reasons", R::Label),
         ("Music unavailable reasons", R::Label),
+        // The Configuration page (Task 6).
+        ("Display settings", R::Group),
+        ("Cooler settings", R::Group),
+        ("Music settings", R::Group),
+        ("Rotation 0°", R::ToggleButton),
+        ("Rotation 90°", R::ToggleButton),
+        ("Rotation 180°", R::ToggleButton),
+        ("Rotation 270°", R::ToggleButton),
+        ("GPU", R::ComboBox),
+        ("GPU in use", R::Label),
+        ("Cooler fans input", R::ComboBox),
+        ("Pump input", R::ComboBox),
+        ("Peak dots", R::Switch),
+        ("Bar fall", R::Slider),
+        ("Peak fall", R::Slider),
     ];
     want.extend(TILE_NAMES.iter().map(|name| (*name, R::GridCell)));
     let labels: BTreeSet<String> = window.names().labels().into_iter().collect();

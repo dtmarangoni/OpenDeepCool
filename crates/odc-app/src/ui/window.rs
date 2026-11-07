@@ -16,6 +16,7 @@ use odc_ipc::{CoolerState, State};
 use odc_protocol::Frame;
 
 use super::banners::Banners;
+use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::Names;
 use super::preview::Preview;
@@ -106,6 +107,7 @@ struct Inner {
     column: ColumnWidgets,
     preview: Preview,
     display: DisplayPage,
+    config: ConfigPage,
     provider: gtk::CssProvider,
     sending_timer: RefCell<Option<glib::SourceId>>,
     /// The not-available state was announced since it was entered.
@@ -285,7 +287,7 @@ impl Window {
             column_box.append(widget);
         }
 
-        // The pages; Task 6 fills the Configuration page.
+        // The pages.
         let pages = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::None)
             .hexpand(true)
@@ -293,7 +295,8 @@ impl Window {
             .build();
         let display_page = DisplayPage::new(&names, Rc::clone(&send), tokens);
         pages.add_named(&scrolled(display_page.widget()), Some("display"));
-        pages.add_named(&scrolled(&vbox(16)), Some("config"));
+        let config_page = ConfigPage::new(&names, Rc::clone(&send));
+        pages.add_named(&scrolled(config_page.widget()), Some("config"));
         let down = label(SERVICE_DOWN_PAGES, &["muted"]);
         down.set_halign(gtk::Align::Center);
         down.set_valign(gtk::Align::Center);
@@ -411,6 +414,7 @@ impl Window {
             },
             preview,
             display: display_page,
+            config: config_page,
             provider,
             sending_timer: RefCell::new(None),
             announced: Cell::new(false),
@@ -542,8 +546,9 @@ impl Window {
         self.show_feedback("Refreshed", false, REFRESHED_FOR);
     }
 
-    /// The service refused a change or a Refresh.
+    /// The service refused a change or a Refresh: each control shows the saved value again.
     pub fn refusal(&self, what: Refused, why: &Reason) {
+        self.render();
         let text = refusal_text(what, why);
         self.show_feedback(&text, true, REFUSED_FOR);
         (self.0.announcer.borrow())(&text);
@@ -668,6 +673,7 @@ impl Window {
                 inner
                     .display
                     .show(&inner.names, &normal.display, normal.config.peaks);
+                inner.config.show(&inner.names, &normal.config);
             }
         }
         *inner.shown.borrow_mut() = Some(shown);
@@ -737,6 +743,10 @@ impl Window {
 
     pub fn display_page(&self) -> &DisplayPage {
         &self.0.display
+    }
+
+    pub fn config_page(&self) -> &ConfigPage {
+        &self.0.config
     }
 
     /// The feedback label's words, while it shows.

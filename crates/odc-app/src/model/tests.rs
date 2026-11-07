@@ -780,9 +780,15 @@ fn a_saved_input_missing() {
         sensitive: true,
         missing: true,
     };
+    let mut entries = input_entries(None);
+    entries.push(InputEntry {
+        input: chosen(9),
+        label: "acme6000 · fan9".to_owned(),
+        rpm: "not found".to_owned(),
+    });
     want.config.pump = InputRow {
-        entries: input_entries(None),
-        chosen: None,
+        entries,
+        chosen: Some(4),
         button: "acme6000 · fan9 — not found".to_owned(),
         sensitive: true,
         missing: true,

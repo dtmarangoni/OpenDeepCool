@@ -197,6 +197,11 @@ flowboxchild.tile.lost .flag {
   color: var(--yellow);
 }
 
+/* A saved input that isn't found: a warning border. */
+dropdown.warn > button {
+  border-color: var(--yellow);
+}
+
 scale > trough {
   background-color: var(--ctl-normal-fill);
   border: 1px solid var(--ctl-normal-border);
@@ -204,11 +209,6 @@ scale > trough {
 
 scale > trough > highlight {
   background-color: var(--accent);
-}
-
-scale > trough > slider {
-  background-color: var(--fg);
-  border: 1px solid var(--ctl-normal-border);
 }
 
 switch {

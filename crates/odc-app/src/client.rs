@@ -20,7 +20,7 @@ use std::task::Poll;
 use futures_core::Stream;
 use gtk::glib;
 use odc_ipc::{
-    BUS_NAME, Error, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, State, StateError,
+    BUS_NAME, Error, INTERFACE, Input, OBJECT_PATH, OpenDeepCoolProxy, State, StateError,
     frame_from_pixels,
 };
 use zbus::fdo::DBusProxy;
@@ -81,6 +81,14 @@ fn reason(error: &Error) -> Reason {
         | Error::AudioNotWanted(text)
         | Error::Failed(text) => Reason::Message(text.clone()),
         Error::ZBus(error) => Reason::Message(error.to_string()),
+    }
+}
+
+/// An input as `SetCoolerFanInput` and `SetPumpInput` take it: all empty for none.
+fn input_args(input: Option<&Input>) -> (&str, &str, u32) {
+    match input {
+        Some(input) => (&input.chip, &input.device, input.input),
+        None => ("", "", 0),
     }
 }
 
@@ -181,6 +189,29 @@ impl Client {
             }
             Request::SetTemperatureUnit(unit) => self.change(move |service| async move {
                 service.set_temperature_unit(unit.as_str()).await
+            }),
+            Request::SetRotation(rotation) => {
+                self.change(move |service| async move { service.set_rotation(rotation).await })
+            }
+            Request::ChooseGpu(pci) => {
+                self.change(move |service| async move { service.choose_gpu(&pci).await })
+            }
+            Request::SetCoolerFanInput(input) => self.change(move |service| async move {
+                let (chip, device, number) = input_args(input.as_ref());
+                service.set_cooler_fan_input(chip, device, number).await
+            }),
+            Request::SetPumpInput(input) => self.change(move |service| async move {
+                let (chip, device, number) = input_args(input.as_ref());
+                service.set_pump_input(chip, device, number).await
+            }),
+            Request::SetMusicPeaks(on) => {
+                self.change(move |service| async move { service.set_music_peaks(on).await })
+            }
+            Request::SetMusicBarFall(stop) => self.change(move |service| async move {
+                service.set_music_bar_fall(stop.as_str()).await
+            }),
+            Request::SetMusicPeakFall(stop) => self.change(move |service| async move {
+                service.set_music_peak_fall(stop.as_str()).await
             }),
             Request::Refresh => {
                 let client = Rc::clone(self);

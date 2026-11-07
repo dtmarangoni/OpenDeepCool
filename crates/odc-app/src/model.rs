@@ -312,9 +312,10 @@ pub struct GpuEntry {
 /// A fan input dropdown.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct InputRow {
-    /// None first, then every fan input; empty without fan sensors.
+    /// None first, then every fan input, then the saved input when it isn't among them; empty
+    /// without fan sensors.
     pub entries: Vec<InputEntry>,
-    /// The chosen entry, when it's listed.
+    /// The chosen entry; `None` only without fan sensors.
     pub chosen: Option<usize>,
     /// What the dropdown's button reads.
     pub button: String,
@@ -806,7 +807,21 @@ impl Fan {
         let (chosen, button) = match (&self.chosen, listed) {
             (None, _) => (Some(0), "None".to_owned()),
             (Some(_), Some(i)) => (Some(i + 1), entries[i + 1].label.clone()),
-            (Some(c), None) => (None, input_label(&c.chip, "", c.input)),
+            (Some(c), None) => {
+                // The saved input wasn't found at all: it stands last in the list, so the picker
+                // has it to show as chosen (decisions log D59).
+                let label = input_label(&c.chip, "", c.input);
+                entries.push(InputEntry {
+                    input: Some(c.clone()),
+                    label: label.clone(),
+                    rpm: if missing {
+                        "not found".to_owned()
+                    } else {
+                        String::new()
+                    },
+                });
+                (Some(entries.len() - 1), label)
+            }
         };
         InputRow {
             entries,

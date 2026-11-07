@@ -60,7 +60,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Cooler found, but not usable.** When the service finds the cooler but can't open it (a permissions problem, such as a missing udev rule), the app says so in its own banner, distinct from "not connected", with the fix. The service gives the reason in its state, `CoolerState`: `connected`, `not-found`, `no-access` or `write-failed` (`docs/spec/settings.md` Status).
 - **A GPU of unknown kind because its query failed.** It's listed with the unknown GPUs, after an integrated one, with a short note that its driver couldn't be asked; the dropdown lets the user pick it. The service marks it `query-failed` (`docs/spec/settings.md` GPU list order).
 
-## Design brief (Phase 10 Tasks 3–5, 2026-11-06, pending the owner's review)
+## Design brief (Phase 10 Tasks 3–6, 2026-11-06, pending the owner's review)
 
 Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/prp/reports/phase-10-settings-app.decisions.md`; `docs/design/settings-app.md` has them in place.
 
@@ -70,6 +70,7 @@ Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/pr
 - **The theme's open values:** border widths as CSS's four sides, a missing control colour from the theme's own foreground, the default theme's selection, focus and selected border, a colour's own alpha, and disabled controls without `opacity` (D30–D32, D39, D43).
 - **The window (Task 4):** the page switcher is two grouped toggles; the banners and the not-available message have the group role; the preview is a 210 px drawing in its 226 px frame, as the mockups draw it (D48, D50, D51).
 - **The tiles (Task 5):** the boxes select nothing themselves; the saved mode's tile is marked by the app, so focus never shows a tile as chosen; an unavailable tile's lit dots are muted (D55, D56).
+- **The Configuration page (Task 6):** a saved input never found stands last in its picker with "not found"; a scale follows the drag and asks once a stop, back to the saved stop when refused; the peak dots switch keeps its state until confirmed; the three cards are named Display, Cooler and Music settings; the scale's knob is GTK's own (D59, D61–D64).
 
 ## Constraints
 

@@ -435,3 +435,52 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** the picture named as its tile; a name of its own ("Load: CPU picture"); or no name, hidden from screen readers.
 - **Chosen:** named as its tile, kept out of the app's own list of names, so the tests and the AT-SPI driver find each tile by its name and role, a grid cell, and its picture by the image role.
 - **Implemented in:** `crates/odc-app/src/ui/tiles.rs`; Task 5's commit.
+
+### D58 — The plan's GPU "not found" (Task 6, a correction)
+
+- **Question:** the plan's Task 6 still asks for the GPU dropdown's "— not found". Since the owner's change of 2026-11-04 the service clears the choice at start when a GPU is added or removed, so a saved GPU is never missing, and the design has no such state.
+- **Options:** keep the plan's line; or follow the design and the owner's later decision.
+- **Chosen:** the design: no GPU "not found". The dropdown has Automatic, the GPUs with their notes, the line naming the GPU in use and the no-readings hint.
+- **Implemented in:** the plan's Task 6 note; `crates/odc-app/src/ui/config_page.rs`; Task 6's commit.
+
+### D59 — A saved fan input that wasn't found at all (Task 6)
+
+- **Question:** a saved input missing since the service started isn't among `FanInputs`, so the picker had no entry to show as chosen, and a `GtkDropDown` with nothing chosen shows an empty button, not the design's "<chip> · <input> — not found".
+- **Options:** add the saved input to the list, last, with the note "not found"; or a button drawn apart from the list.
+- **Chosen:** the saved input last in the list, chosen, with "not found". Choosing it again asks for nothing new.
+- **Implemented in:** `crates/odc-app/src/model.rs` (`Fan::row`) and its test; Task 6's commit.
+
+### D60 — How the dropdowns are built (Task 6)
+
+- **Question:** the design's dropdowns draw a check mark, a label and a note per entry, with live RPM. The usual gtk-rs way is an item type of the app's own, a GObject subclass whose properties the rows bind to. Its macros expand to `unsafe` code; whether the workspace's `forbid(unsafe_code)` lets that through is unverified.
+- **Options:** a GObject item subclass; or a `GtkStringList` of the labels with `SignalListItemFactory` rows that look their entry up by position in the app's own list.
+- **Chosen:** the string list. The button shows the view's own words (so "— not found" reads there), each open row is named by its label and described by its note (`ListItem::set_accessible_label` and `set_accessible_description`, GTK 4.12), the open rows' notes are set again in place on every state, and the check mark shows by opacity so the labels line up. A pick goes to the client, and the confirmed entry shows again until the service confirms.
+- **Implemented in:** `crates/odc-app/src/ui/dropdowns.rs`; Task 6's commit.
+
+### D61 — How a scale asks for a stop (Task 6)
+
+- **Question:** the design calls `SetMusicBarFall` or `SetMusicPeakFall` "when the value lands on a new stop", and a control shows a new value only once the service confirms it. Putting a scale back while the user drags it fights the drag.
+- **Options:** put it back at once, as the toggles do; or let it follow the drag, ask once for each new stop, and go back to the saved stop when the service refuses.
+- **Chosen:** the second. The window shows its whole state again after every refusal, so a refused stop goes back; a confirmed one arrives in `StateChanged`.
+- **Implemented in:** `crates/odc-app/src/ui/config_page.rs`, `crates/odc-app/src/ui/window.rs` (`refusal`); Task 6's commit.
+
+### D62 — The Configuration cards' names (Task 6)
+
+- **Question:** the design's names table has no entry for the three cards; the mockups label them "Display settings", "Cooler settings" and "Music settings".
+- **Options:** no names; or the mockups' labels, as groups.
+- **Chosen:** the mockups' labels, each card a group; the design's names table now lists them.
+- **Implemented in:** `crates/odc-app/src/ui/config_page.rs`; `docs/design/settings-app.md`; Task 6's commit.
+
+### D63 — The peak dots switch until the service confirms (Task 6)
+
+- **Question:** a `GtkSwitch` flips at a click. The design wants the new value only once confirmed.
+- **Options:** flip it back by hand; or GTK's delayed state: the `state-set` handler returns `Stop`, so the switch keeps its state until the app sets it (`GtkSwitch`, docs.gtk.org).
+- **Chosen:** the delayed state: the handle moves, the state follows the service's `MusicPeaks`.
+- **Implemented in:** `crates/odc-app/src/ui/config_page.rs`; Task 6's commit.
+
+### D64 — The scale's knob (Task 6)
+
+- **Question:** GTK's own theme draws a scale with marks with a pin-shaped knob. Restyling it (a round knob in `--fg`) made GTK warn that the knob's minimum height was negative: its built-in theme's margins, which aren't documented, fight the app's sizes.
+- **Options:** restyle the knob against GTK's undocumented theme; or leave the knob to GTK and give only the trough and its filled part the theme's tokens.
+- **Chosen:** GTK's knob; the trough takes the control fill and border, its filled part the accent (checked in the saved picture: `#4fc3b4`).
+- **Implemented in:** `crates/odc-app/src/app.css`; Task 6's commit.
