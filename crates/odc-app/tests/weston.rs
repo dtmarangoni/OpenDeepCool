@@ -19,8 +19,17 @@ fn dir(name: &str) -> PathBuf {
         .join(name)
 }
 
+/// Whether `pid` no longer runs: gone, or a zombie nobody reaps. In CI's container the first
+/// process is `tail -f /dev/null` (the runner's `docker create --entrypoint "tail"`, read in the
+/// CI log, 2026-11-07), which never reaps an orphan, so a killed weston stays a zombie there.
 fn gone(pid: u32) -> bool {
-    !Path::new(&format!("/proc/{pid}")).exists()
+    match std::fs::read_to_string(format!("/proc/{pid}/stat")) {
+        Err(_) => true,
+        // `<pid> (<name>) <state> …`; the name may hold anything but its last `)`.
+        Ok(stat) => stat
+            .rsplit_once(')')
+            .is_some_and(|(_, rest)| rest.trim_start().starts_with('Z')),
+    }
 }
 
 /// Waits up to 5 s for `done`.
