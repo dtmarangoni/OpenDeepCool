@@ -2,18 +2,23 @@
 
 The owner asked for Phase 10 to run unattended (2026-11-06): wherever a question comes up, the recommended choice is taken and recorded here, with the question, every option and what was implemented. The owner reviews them all at the phase's end; any change follows, then the sign-off.
 
-Every entry below is **taken, pending the owner's review** unless it says otherwise.
+Every entry below was taken without the owner, and stands as taken since the owner's sign-off (below).
 
-## Pending real runs
+## The owner's sign-off
 
-The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is back, with one `odc-dev setup` (one password), and the real checks that need it then run in one go. Each check here waits for that; the work it checks is committed with its in-process tests.
+The owner, 2026-11-07, once back: "if all tests went well, do what you need to do finish this phase completely, if is all good, including tests, I approve sign off". The entries below were not reviewed one by one; they stand as taken.
 
-| Check | Why it waits | Command |
-|---|---|---|
-| `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
-| The dev copy's app, launcher entry and icon | Task 9 added them to `odc-dev setup` (D80–D82) | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-dev -- check` (exits 0), and the launcher lists OpenDeepCool with its icon and opens the dev copy's app |
-| The real app against the real dev service | Task 9's real run needs this build's dev service (D83, D84); the installed one predates Task 2, so `--only app` reports `app_real` failed with the setup fix until then | after `odc-dev setup`: `cargo run -p odc-e2e -- --only app --require dev-service,weston` |
-| CI: `cargo deny check`, the build with gtk4, and the new `ui` job (layer 3 in a headless weston, `--only app --require weston` against the fake) | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73); the `ui` job (Task 10) has never run in GitHub's container, where weston, GTK and the AT-SPI registry run as root | the first push of `phase-10-settings-app` |
+## Real runs, once the owner was back
+
+The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is back, with one `odc-dev setup` (one password), and the real checks that need it then run in one go. They ran on 2026-11-07, after `odc-dev setup` with the owner's password:
+
+| Check | Result |
+|---|---|
+| `odc-dev check` | Exits 0; the manifest has 36 entries, the five `/usr/local/share` folders among them; GLib's application list finds the launcher entry, shown, starting the dev copy's app with its icon (the launcher itself not looked at) |
+| `--only app --require dev-service,weston` | All 30 checks: the 24 fake scenarios, and the real run: the service confirmed all 23 tiles, the unit and each rotation; Refresh; every frame written to the cooler reached the app, 4 frames alike, at most 4 ms apart. The owner's settings were set back exactly |
+| `--only service --require dev-service` | 144 checks passed, modes 1–23; timing 3,000 frames, mean 100.001 ms, p99 104.09 ms |
+| `--only baseline --require dev-service` | Mode 4, 600 s: mean CPU 0.53 % of one core, peak RSS 7.5 MiB. Phase 9's was 0.25 %: see the report's findings |
+| CI: `cargo deny check` and the new `ui` job | Run 42403544852 passed, after the fixes the first run called for (D85) |
 
 ## Decisions
 
@@ -626,3 +631,10 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** compare the recording with the frames another watcher receives, which proves nothing of the app; or a third test-only flag, `--frame-log FILE`, which makes the app add each frame it receives to a file: the time it came, in ns of `CLOCK_MONOTONIC` as the recording's, and its 196 dots.
 - **Chosen:** the flag. Like the other two, it's for tests only: it makes the app non-unique (D47), and the package's entry passes none. The fake service now also sends a `frame` from its state file to its frame watchers, so the fake run's scenario `frame_log` proves the log before any real run.
 - **Implemented in:** `crates/odc-app/src/flags.rs`, `client.rs` (`log_frames`), `main.rs`; `crates/odc-testkit/src/fake_service.rs` (`frame`) and its test; `crates/odc-ui-e2e/src/scenarios.rs` (`frame_log`); the plan's test flags; Task 9's second commit.
+
+### D85 — What CI found at the sign-off push (sign-off, found)
+
+- **Question:** the first CI run of the branch (run 42390550617) failed twice. `cargo deny check`: RUSTSEC-2026-0370, -0371 and -0372 mark `zvariant`, `zbus_names` and `zvariant_derive` unmaintained, merged into zbus 6, with no upgrade for zbus 5; only atspi's zbus 5 uses them (D73). And the `ui` job's `a_killed_test_leaves_no_compositor_and_no_socket`: the job's container starts with `tail -f /dev/null` as its first process (the runner's `docker create --entrypoint "tail"`, in the CI log), which never reaps an orphan, so the killed weston stayed a zombie and the test took it for running.
+- **Options:** for the advisories, ignore the three with their reason, or move the driver off atspi to AT-SPI proxies of our own on zbus 6 (D73's second option), which would drop the zbus 5 skips too; for the test, count a zombie as ended, or reap orphans in CI.
+- **Chosen:** ignore the three advisories with their reason, removed with the zbus 5 skips once atspi moves to zbus 6 (the driver is dev-only, nothing of it ships, and the advisories say unmaintained, not unsound); and the test counts a zombie as ended, which is what "weston died" means. Moving off atspi is left as an option for after Phase 10.
+- **Implemented in:** `deny.toml`, `crates/odc-app/tests/weston.rs` (`gone`); two commits after the sign-off push.
