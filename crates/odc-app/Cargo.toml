@@ -33,6 +33,11 @@ name = "window"
 harness = false
 required-features = ["weston-tests"]
 
+[[test]]
+name = "display_page"
+harness = false
+required-features = ["weston-tests"]
+
 [dev-dependencies]
 odc-testkit = { path = "../odc-testkit" }
 proptest.workspace = true

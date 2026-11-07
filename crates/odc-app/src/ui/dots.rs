@@ -5,7 +5,7 @@
 use gtk::cairo;
 use odc_protocol::Frame;
 
-use crate::theme::Rgb;
+use crate::theme::{Rgb, Rgba};
 
 /// A dot's radius, in pitches.
 const RADIUS: f64 = 0.38;
@@ -18,11 +18,16 @@ pub fn centre(row: usize, col: usize, pitch: f64) -> (f64, f64) {
     )
 }
 
-/// Draws `frame`, or every dot unlit without one, from the top left.
-pub fn draw(cr: &cairo::Context, frame: Option<&Frame>, pitch: f64, lit: Rgb, unlit: Rgb) {
+/// Draws `frame`, or every dot unlit without one, from the top left: lit dots opaque, unlit ones
+/// in `unlit` with its alpha, over whatever is behind.
+pub fn draw(cr: &cairo::Context, frame: Option<&Frame>, pitch: f64, lit: Rgb, unlit: Rgba) {
+    let lit = Rgba {
+        rgb: lit,
+        alpha: 1.0,
+    };
     for (on, colour) in [(false, unlit), (true, lit)] {
-        let [r, g, b] = colour.unit();
-        cr.set_source_rgb(r, g, b);
+        let [r, g, b] = colour.rgb.unit();
+        cr.set_source_rgba(r, g, b, colour.alpha);
         for row in 0..Frame::SIZE {
             for col in 0..Frame::SIZE {
                 // `Frame` numbers its pixels from 1, as the spec does.

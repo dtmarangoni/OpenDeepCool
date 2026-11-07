@@ -10,7 +10,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 
 | Check | Why it waits | Command |
 |---|---|---|
-| `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
+| `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
 | CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41) | the first push of `phase-10-settings-app` |
 
 ## Decisions
@@ -407,3 +407,31 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** announce it too; or only refusals.
 - **Chosen:** only refusals, as the design writes it; the label itself carries "Refreshed", named Change feedback.
 - **Implemented in:** `crates/odc-app/src/ui/window.rs`; Task 4's commit.
+
+### D54 — How the tiles draw a fixed spectrum (Task 5)
+
+- **Question:** the Music tiles show "a fixed sample spectrum", drawn by the service's own code. `odc_render::Spectrum` keeps its levels private, and reaching a given pair of bars and peaks through `update()` takes a contrived run of ticks.
+- **Options:** 1. the app works out the drawn columns itself from the sample levels, a second copy of `Spectrum::draw`'s rule; 2. a run of `update()` ticks that ends near a sample; 3. a constructor in `odc_render`, `Spectrum::at(bars, peaks)`, a spectrum standing at those levels, which changes nothing the service draws.
+- **Chosen:** 3, with the mockups' sample levels (`app.js`, `SAMPLE_SPECTRUM`). The tiles then use the service's own `draw()` and `with_spectrum`. Its test: `at(levels, levels)` draws as one tick at those levels, and a peak above its bar draws its dot. As AGENTS.md asks for a change to `odc-render`, layer 2 and `--only display` ran before the commit.
+- **Implemented in:** `crates/odc-render/src/spectrum.rs`, `crates/odc-render/tests/spectrum.rs`, `crates/odc-app/src/ui/tiles.rs`; Task 5's commit.
+
+### D55 — How the four tile boxes act as one radio group (Task 5)
+
+- **Question:** the design makes each `GtkFlowBox` single-selection and has choosing a tile unselect the other three. A single-selection box moves its selection with keyboard focus, so a tile could look chosen though only focus moved; and a click would select a tile before the service confirms it, against the design's Refused changes.
+- **Options:** single selection, put back after each move or click; or no selection by GTK at all, the app marking the saved mode's tile (a `selected` style class and the accessible selected state).
+- **Chosen:** the second. Activation (Enter, Space, a click) still emits `child-activated`, which asks for the mode; the mark follows the service's state only. The design's text now says so.
+- **Implemented in:** `crates/odc-app/src/ui/display_page.rs`, `crates/odc-app/src/ui/tiles.rs`, `crates/odc-app/src/app.css`; `docs/design/settings-app.md`; Task 5's commit.
+
+### D56 — How a tile's dots are coloured (Task 5)
+
+- **Question:** the preview's unlit dots are `--fg` at 0.12, blended over its surface. A tile's background changes with its state (normal, hover, selected), and the design doesn't say how an unavailable tile's picture looks.
+- **Options:** unlit dots blended over one fixed colour, or `--fg` at 0.12 drawn over whatever is behind; an unavailable tile's lit dots in `--fg` or in `--muted`.
+- **Chosen:** unlit dots at 0.12 alpha over the tile's own fill, and an unavailable tile's lit dots in `--muted`, so it reads as unavailable before its words are read.
+- **Implemented in:** `crates/odc-app/src/ui/dots.rs`, `crates/odc-app/src/ui/tiles.rs`; `docs/design/settings-app.md`; Task 5's commit.
+
+### D57 — The tile picture's accessible name (Task 5)
+
+- **Question:** the design's answered points build every tile picture with the image role "and their accessible label", but its names table names only the tile (`Load: CPU`).
+- **Options:** the picture named as its tile; a name of its own ("Load: CPU picture"); or no name, hidden from screen readers.
+- **Chosen:** named as its tile, kept out of the app's own list of names, so the tests and the AT-SPI driver find each tile by its name and role, a grid cell, and its picture by the image role.
+- **Implemented in:** `crates/odc-app/src/ui/tiles.rs`; Task 5's commit.

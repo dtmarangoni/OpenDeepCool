@@ -129,10 +129,10 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
     - each tile is a `GtkFlowBoxChild` holding a 63 × 63 px `GtkDrawingArea` and a caption `GtkLabel`;
     - the picture comes from the same drawing code as the service (`odc_render`), with fixed sample values: CPU usage 42 %, GPU usage 63 %, RAM 51 %, CPU 57 °C, GPU 38 °C, CPU power 65 W, GPU power 88 W;
     - Music tiles have a fixed sample spectrum, the emoji tiles their loop's first picture, and the Dancer its standing pose;
-    - tiles are drawn upright (no rotation) in the current unit, with peak dots as currently set. They redraw only when the unit, the peak-dots setting or the theme changes.
+    - tiles are drawn upright (no rotation) in the current unit, with peak dots as currently set. They redraw only when the unit, the peak-dots setting or the theme changes;
+    - lit dots are opaque `--fg`, unlit ones `--fg` at 0.12 over the tile's own fill; an unavailable tile draws its lit dots in `--muted` (decisions log D56). The sample spectrum is the mockups' (`SAMPLE_SPECTRUM`), drawn by the service's own code from a spectrum standing at those levels (`odc_render::Spectrum::at`, decisions log D54).
   - **Selection:**
-    - each `GtkFlowBox` is `GTK_SELECTION_SINGLE` with `activate-on-single-click`;
-    - choosing a tile in one group unselects the other three, so the four boxes act as one radio group;
+    - each `GtkFlowBox` activates on a single click (`activate-on-single-click`) and selects nothing itself (`GTK_SELECTION_NONE`), since GTK's own selection would follow keyboard focus. The app marks the saved mode's tile, its look and its accessible selected state, so the four boxes act as one radio group and a tile shows as chosen only once the service confirms it (decisions log D55);
     - activating a tile calls `SetMode` at once. Moving keyboard focus never changes the mode; only Enter, Space or a click does;
     - the selected tile has the selected fill and an accent border. Its caption stays in the foreground colour, because muted text on the selected fill is below 4.5:1.
   - **Unavailable modes** (settings.md, Availability):

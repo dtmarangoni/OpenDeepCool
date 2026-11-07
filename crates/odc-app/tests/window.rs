@@ -3,80 +3,31 @@
 //! the banners and states in the design's order and words, the feedback label, the requests,
 //! and the accessible names. Against a fake client: the test gives the window the service's
 //! state and records what it asks.
-//!
-//! GTK runs on the main thread, so this test has a harness of its own. It starts weston, then
-//! runs itself again inside it, with an environment that reaches nothing of the user's session:
-//! weston's socket, the Cairo renderer, GTK's test accessibility backend, no session bus, and
-//! settings and configuration of its own. Behind the `weston-tests` feature.
+//! It runs in a headless weston through `common::run`. Behind the `weston-tests` feature.
 
-use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
-use std::fs::DirBuilder;
-use std::os::unix::fs::DirBuilderExt;
-use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
-use std::rc::Rc;
-use std::thread;
-use std::time::{Duration, Instant};
+mod common;
 
+use std::collections::BTreeSet;
+use std::process::ExitCode;
+use std::time::Duration;
+
+use gtk::glib;
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib, gsk};
 use odc_app::model::{SERVICE_BANNER, View};
-use odc_app::theme::{Rgb, Tokens};
+use odc_app::theme::Tokens;
 use odc_app::ui::window::Window;
-use odc_app::ui::{Reason, Refused, Request, dots, preview};
-use odc_ipc::{CoolerState, FallStop, FanInput, FanSpeed, Input, State, TemperatureUnit};
+use odc_app::ui::{Reason, Refused, Request, preview};
+use odc_ipc::CoolerState;
 use odc_protocol::Frame;
 use odc_testkit::expected::load_mode;
-use odc_testkit::weston::Weston;
 
-const IN_WESTON: &str = "--in-weston";
+use common::{
+    Check, Renderer, base, close, dots_of, near, run_for, run_until, shown, shown_saying,
+};
 
 fn main() -> ExitCode {
-    if std::env::args().any(|a| a == IN_WESTON) {
-        return checks();
-    }
-    let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("window");
-    let weston = Weston::headless(&dir.join("weston")).expect("weston starts");
-    let own = |name: &str| {
-        let path = dir.join(name);
-        DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(&path)
-            .expect("a folder of the test's own");
-        path
-    };
-    let status = Command::new(std::env::current_exe().expect("this test"))
-        .arg(IN_WESTON)
-        .args(std::env::args().skip(1))
-        .env("WAYLAND_DISPLAY", weston.display())
-        .env("GDK_BACKEND", "wayland")
-        .env("GSK_RENDERER", "cairo")
-        .env("GTK_A11Y", "test")
-        .env("GSETTINGS_BACKEND", "memory")
-        .env("XDG_RUNTIME_DIR", own("runtime"))
-        .env("XDG_CONFIG_HOME", own("config"))
-        .env("XDG_CACHE_HOME", own("cache"))
-        .env("XDG_STATE_HOME", own("state"))
-        .env_remove("DISPLAY")
-        .env_remove("WAYLAND_SOCKET")
-        .env_remove("DBUS_SESSION_BUS_ADDRESS")
-        .env_remove("GTK_THEME")
-        .env_remove("GTK_MODULES")
-        .env_remove("GDK_SCALE")
-        .env_remove("GDK_DPI_SCALE")
-        .status()
-        .expect("the checks start");
-    if status.success() {
-        ExitCode::SUCCESS
-    } else {
-        eprintln!("the checks ended: {status}");
-        ExitCode::FAILURE
-    }
+    common::run(&CHECKS)
 }
-
-type Check = fn(&gtk::Application);
 
 const CHECKS: [(&str, Check); 7] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
@@ -87,188 +38,6 @@ const CHECKS: [(&str, Check); 7] = [
     ("the_window_s_requests", requests),
     ("every_name_of_the_design_s_table", names),
 ];
-
-fn checks() -> ExitCode {
-    gtk::init().expect("GTK starts in weston");
-    let app = gtk::Application::builder()
-        .application_id("io.github.dtmarangoni.OpenDeepCool.Tests")
-        .flags(gio::ApplicationFlags::NON_UNIQUE)
-        .build();
-    app.register(None::<&gio::Cancellable>)
-        .expect("the test application registers");
-    let filter: Vec<String> = std::env::args()
-        .skip(1)
-        .filter(|a| !a.starts_with('-'))
-        .collect();
-    let mut ran = 0;
-    for (name, check) in CHECKS {
-        if !filter.is_empty() && !filter.iter().any(|f| name.contains(f.as_str())) {
-            continue;
-        }
-        let start = Instant::now();
-        print!("test {name} ... ");
-        let _ = std::io::Write::flush(&mut std::io::stdout());
-        check(&app);
-        println!("ok ({:.1} s)", start.elapsed().as_secs_f64());
-        ran += 1;
-    }
-    println!("\ntest result: ok. {ran} passed; 0 failed");
-    ExitCode::SUCCESS
-}
-
-/// Runs GTK's main loop for `duration`.
-fn run_for(duration: Duration) {
-    let context = glib::MainContext::default();
-    let until = Instant::now() + duration;
-    while Instant::now() < until {
-        while context.pending() {
-            context.iteration(false);
-        }
-        thread::sleep(Duration::from_millis(2));
-    }
-}
-
-/// Runs GTK's main loop until `done`, at most 5 s.
-fn run_until(what: &str, done: impl Fn() -> bool) {
-    let context = glib::MainContext::default();
-    let until = Instant::now() + Duration::from_secs(5);
-    while !done() {
-        assert!(Instant::now() < until, "{what}: not within 5 s");
-        while context.pending() {
-            context.iteration(false);
-        }
-        thread::sleep(Duration::from_millis(2));
-    }
-}
-
-type Log<T> = Rc<RefCell<Vec<T>>>;
-
-/// A window shown in weston, and what it asked.
-fn shown(app: &gtk::Application) -> (Window, Log<Request>) {
-    shown_saying(app).0
-}
-
-/// The same, and what it announced: GTK's test accessibility backend has no announcements
-/// (decisions log D49), so they're recorded here.
-fn shown_saying(app: &gtk::Application) -> ((Window, Log<Request>), Log<String>) {
-    let asked = Rc::new(RefCell::new(Vec::new()));
-    let log = Rc::clone(&asked);
-    let window = Window::new(
-        app,
-        move |request| log.borrow_mut().push(request),
-        PathBuf::from("/nonexistent/pci.ids"),
-        &Tokens::default_theme(true),
-    );
-    let said = Rc::new(RefCell::new(Vec::new()));
-    let say = Rc::clone(&said);
-    window.announce_with(move |text| say.borrow_mut().push(text.to_owned()));
-    window.widget().present();
-    run_until("the window maps", || {
-        window.preview().widget().is_mapped() && window.preview().widget().width() > 0
-    });
-    ((window, asked), said)
-}
-
-fn close(window: Window) {
-    window.widget().destroy();
-    run_for(Duration::from_millis(20));
-}
-
-/// A made-up state: Load · CPU, everything there.
-fn base() -> State {
-    let input = |n: u32| Input {
-        chip: "acme6000".to_owned(),
-        device: "devices/platform/acme6000.2592".to_owned(),
-        input: n,
-    };
-    State {
-        mode: Some(1),
-        rotation: Some(0),
-        temperature_unit: Some(TemperatureUnit::Celsius),
-        cooler_connected: Some(true),
-        cooler_state: Some(CoolerState::Connected),
-        available_modes: Some((1..=23).collect()),
-        unavailable_reasons: Some(HashMap::new()),
-        gpus: Some(Vec::new()),
-        chosen_gpu: Some(String::new()),
-        gpu_in_use: Some(String::new()),
-        fan_inputs: Some(vec![
-            FanInput {
-                chip: "acme6000".to_owned(),
-                device: "devices/platform/acme6000.2592".to_owned(),
-                input: 1,
-                label: String::new(),
-                rpm: FanSpeed::Rpm(1180),
-            },
-            FanInput {
-                chip: "acme6000".to_owned(),
-                device: "devices/platform/acme6000.2592".to_owned(),
-                input: 2,
-                label: String::new(),
-                rpm: FanSpeed::Rpm(3400),
-            },
-        ]),
-        cooler_fan_input: Some(Some(input(1))),
-        pump_input: Some(Some(input(2))),
-        cooler_fan_input_present: Some(true),
-        pump_input_present: Some(true),
-        cooler_fan_rpm: Some(FanSpeed::Rpm(1180)),
-        pump_rpm: Some(FanSpeed::Rpm(3400)),
-        music_peaks: Some(true),
-        music_bar_fall: Some(FallStop::Moderate),
-        music_peak_fall: Some(FallStop::Slow),
-        audio_connected: Some(true),
-        audio_wanted: Some(false),
-    }
-}
-
-/// A realized Cairo renderer, unrealized when dropped, as GSK asks.
-struct Renderer(gsk::CairoRenderer);
-
-impl Renderer {
-    fn new() -> Renderer {
-        let renderer = gsk::CairoRenderer::new();
-        renderer
-            .realize_for_display(&gdk::Display::default().expect("weston's display"))
-            .expect("the Cairo renderer");
-        Renderer(renderer)
-    }
-}
-
-impl Drop for Renderer {
-    fn drop(&mut self) {
-        self.0.unrealize();
-    }
-}
-
-/// The colour at the centre of each dot of the preview, as GTK last drew it: a widget's
-/// paintable serves the render node of its last draw.
-fn dot_colours(renderer: &gsk::CairoRenderer, area: &gtk::DrawingArea) -> Vec<[u8; 3]> {
-    let (width, height) = (f64::from(area.width()), f64::from(area.height()));
-    let paintable = gtk::WidgetPaintable::new(Some(area));
-    let snapshot = gtk::Snapshot::new();
-    paintable.snapshot(&snapshot, width, height);
-    let node = snapshot.to_node().expect("the preview draws something");
-    let texture = renderer.render_texture(&node, None);
-    let mut downloader = gdk::TextureDownloader::new(&texture);
-    downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
-    let (bytes, stride) = downloader.download_bytes();
-    let mut colours = Vec::with_capacity(Frame::SIZE * Frame::SIZE);
-    for row in 0..Frame::SIZE {
-        for col in 0..Frame::SIZE {
-            let (x, y) = dots::centre(row, col, preview::PITCH);
-            let at = y as usize * stride + x as usize * 4;
-            colours.push([bytes[at], bytes[at + 1], bytes[at + 2]]);
-        }
-    }
-    colours
-}
-
-fn near(got: [u8; 3], want: Rgb) -> bool {
-    got.iter()
-        .zip(want.0)
-        .all(|(g, w)| (i16::from(*g) - i16::from(w)).abs() <= 2)
-}
 
 // Each case of the expected frames of modes 1, 10 (scrolling) and 13 (silence), in all four
 // rotations as the files give them: every dot's centre is lit or unlit exactly as the frame says.
@@ -298,10 +67,11 @@ fn preview_pixels(app: &gtk::Application) {
                     run_until("the preview draws", || window.preview().draws() > before);
                 }
                 assert_eq!(window.preview().frame(), Some(frame));
-                let colours = dot_colours(&renderer.0, &area);
+                let colours = dots_of(&renderer.0, &area, preview::PITCH);
                 for row in 0..Frame::SIZE {
                     for col in 0..Frame::SIZE {
-                        let colour = colours[row * Frame::SIZE + col];
+                        let [r, g, b, _] = colours[row * Frame::SIZE + col];
+                        let colour = [r, g, b];
                         let want = if frame.get(row + 1, col + 1) {
                             lit
                         } else {
@@ -582,12 +352,39 @@ fn requests(app: &gtk::Application) {
     close(window);
 }
 
-// Every name of the design's table this task builds, typed here apart from the window's: each
-// set on its widget, with the widget's role.
+/// The design's tile names (Accessible names), typed here apart from the app's.
+const TILE_NAMES: [&str; 23] = [
+    "Load: CPU",
+    "Load: GPU",
+    "Load: RAM",
+    "Load: CPU + GPU",
+    "Load: CPU + RAM",
+    "Load: GPU + RAM",
+    "Temperature: CPU",
+    "Temperature: GPU",
+    "Temperature: CPU + GPU",
+    "Power: CPU",
+    "Power: GPU",
+    "Power: CPU + GPU",
+    "Music: Spectrum",
+    "Music: Emoji 1",
+    "Music: Emoji 2",
+    "Music: Emoji 3",
+    "Music: Emoji 4",
+    "Music: CPU temperature",
+    "Music: GPU temperature",
+    "Music: CPU usage",
+    "Music: GPU usage",
+    "Music: RAM usage",
+    "Music: Dancer",
+];
+
+// Every name of the design's table built so far, typed here apart from the window's: each set
+// on its widget, with the widget's role.
 fn names(app: &gtk::Application) {
     use gtk::AccessibleRole as R;
     let (window, _) = shown(app);
-    let want: [(&str, R); 17] = [
+    let mut want: Vec<(&str, R)> = vec![
         ("Display", R::ToggleButton),
         ("Configuration", R::ToggleButton),
         ("Refresh display", R::Button),
@@ -605,10 +402,23 @@ fn names(app: &gtk::Application) {
         ("Pump speed", R::Label),
         ("Choose cooler fans input", R::Button),
         ("Choose pump input", R::Button),
+        // The Display page (Task 5).
+        ("Celsius", R::ToggleButton),
+        ("Fahrenheit", R::ToggleButton),
+        ("Load options", R::Grid),
+        ("Temperature options", R::Grid),
+        ("Power options", R::Grid),
+        ("Music options", R::Grid),
+        ("Load unavailable reasons", R::Label),
+        ("Temperature unavailable reasons", R::Label),
+        ("Power unavailable reasons", R::Label),
+        ("Music unavailable reasons", R::Label),
     ];
+    want.extend(TILE_NAMES.iter().map(|name| (*name, R::GridCell)));
     let labels: BTreeSet<String> = window.names().labels().into_iter().collect();
     let typed: BTreeSet<String> = want.iter().map(|(n, _)| (*n).to_owned()).collect();
     assert_eq!(labels, typed);
+    assert_eq!(labels.len(), want.len(), "each name once");
     for (name, role) in want {
         let widget = window.names().find(name).expect(name);
         assert!(

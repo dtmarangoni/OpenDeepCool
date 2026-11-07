@@ -294,3 +294,42 @@ proptest! {
         }
     }
 }
+
+// A spectrum set at fixed levels (the settings app's tiles) draws them by the same rules: the
+// same as one tick at those levels when its peaks are its bars, and a dot where a peak stands
+// above its bar.
+#[test]
+fn a_spectrum_at_fixed_levels_draws_them_by_the_same_rules() {
+    let levels: [f64; COLUMNS] = std::array::from_fn(|c| c as f64 / 13.0);
+    let mut ticked = Spectrum::enter();
+    ticked.update(&levels, &MusicSettings::default());
+    assert_eq!(
+        Spectrum::at(levels, levels).draw(12, true),
+        ticked.draw(12, true)
+    );
+    let spectrum = Spectrum::at([0.5; COLUMNS], [0.75; COLUMNS]);
+    assert_eq!(
+        (spectrum.bars(), spectrum.peaks()),
+        ([0.5; COLUMNS], [0.75; COLUMNS])
+    );
+    for column in spectrum.draw(12, true) {
+        assert_eq!(
+            column,
+            Column {
+                bar: 6,
+                dot: Some(9)
+            }
+        );
+    }
+    for column in spectrum.draw(12, false) {
+        assert_eq!(column, Column { bar: 6, dot: None });
+    }
+    // A peak below its bar stands at the bar; levels outside 0–1 at the nearest end.
+    let spectrum = Spectrum::at([0.5; COLUMNS], [0.25; COLUMNS]);
+    assert_eq!(spectrum.peaks(), [0.5; COLUMNS]);
+    let spectrum = Spectrum::at([-1.0; COLUMNS], [2.0; COLUMNS]);
+    assert_eq!(
+        (spectrum.bars(), spectrum.peaks()),
+        ([0.0; COLUMNS], [1.0; COLUMNS])
+    );
+}

@@ -16,6 +16,7 @@ use odc_ipc::{CoolerState, State};
 use odc_protocol::Frame;
 
 use super::banners::Banners;
+use super::display_page::DisplayPage;
 use super::names::Names;
 use super::preview::Preview;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
@@ -29,6 +30,10 @@ use crate::theme::Tokens;
 /// The window's default and smallest size (Window).
 pub const DEFAULT_SIZE: (i32, i32) = (1040, 720);
 pub const MIN_SIZE: (i32, i32) = (720, 560);
+
+/// The preview column's width, and the most characters its wrapping lines ask room for.
+const COLUMN_WIDTH: i32 = 262;
+const COLUMN_CHARS: i32 = 28;
 
 /// The status items' accessible names, in the column's order.
 const STATUS_NAMES: [&str; 3] = ["Cooler status", "Service status", "Music sound status"];
@@ -85,7 +90,7 @@ struct ColumnWidgets {
 
 struct Inner {
     window: gtk::ApplicationWindow,
-    send: Box<dyn Fn(Request)>,
+    send: Rc<dyn Fn(Request)>,
     names: Names,
     inputs: RefCell<Inputs>,
     shown: RefCell<Option<View>>,
@@ -100,6 +105,7 @@ struct Inner {
     not_available: gtk::Box,
     column: ColumnWidgets,
     preview: Preview,
+    display: DisplayPage,
     provider: gtk::CssProvider,
     sending_timer: RefCell<Option<glib::SourceId>>,
     /// The not-available state was announced since it was entered.
@@ -156,6 +162,7 @@ impl Window {
         tokens: &Tokens,
     ) -> Window {
         let names = Names::default();
+        let send: Rc<dyn Fn(Request)> = Rc::new(send);
         let window = gtk::ApplicationWindow::builder()
             .application(app)
             .title("OpenDeepCool")
@@ -259,8 +266,14 @@ impl Window {
             "Choose cooler fans input",
         );
         let pump = speed_row("Pump", "Pump speed", "Choose pump input");
+        // The column keeps the design's width (the mockups' 262 px), however long its lines.
         let column_box = vbox(10);
         column_box.add_css_class("side");
+        column_box.set_hexpand(false);
+        column_box.set_width_request(COLUMN_WIDTH);
+        for line in [&caption, &line, &reason] {
+            line.set_max_width_chars(COLUMN_CHARS);
+        }
         for widget in [
             frame.upcast_ref::<gtk::Widget>(),
             caption.upcast_ref(),
@@ -272,13 +285,14 @@ impl Window {
             column_box.append(widget);
         }
 
-        // The pages: Tasks 5 and 6 fill them.
+        // The pages; Task 6 fills the Configuration page.
         let pages = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::None)
             .hexpand(true)
             .vexpand(true)
             .build();
-        pages.add_named(&scrolled(&vbox(16)), Some("display"));
+        let display_page = DisplayPage::new(&names, Rc::clone(&send), tokens);
+        pages.add_named(&scrolled(display_page.widget()), Some("display"));
         pages.add_named(&scrolled(&vbox(16)), Some("config"));
         let down = label(SERVICE_DOWN_PAGES, &["muted"]);
         down.set_halign(gtk::Align::Center);
@@ -361,7 +375,7 @@ impl Window {
 
         let inner = Rc::new(Inner {
             window,
-            send: Box::new(send),
+            send,
             names,
             inputs: RefCell::new(Inputs {
                 service: Service::Down,
@@ -396,6 +410,7 @@ impl Window {
                 pump,
             },
             preview,
+            display: display_page,
             provider,
             sending_timer: RefCell::new(None),
             announced: Cell::new(false),
@@ -548,6 +563,7 @@ impl Window {
             gtk::InterfaceColorScheme::Light
         });
         self.0.preview.set_theme(tokens);
+        self.0.display.set_theme(tokens);
     }
 
     fn go(&self, page: Page) {
@@ -649,6 +665,9 @@ impl Window {
                     toggle.set_active(true);
                 }
                 self.show_column(&normal.column);
+                inner
+                    .display
+                    .show(&inner.names, &normal.display, normal.config.peaks);
             }
         }
         *inner.shown.borrow_mut() = Some(shown);
@@ -714,6 +733,10 @@ impl Window {
 
     pub fn banners(&self) -> &Banners {
         &self.0.banners
+    }
+
+    pub fn display_page(&self) -> &DisplayPage {
+        &self.0.display
     }
 
     /// The feedback label's words, while it shows.

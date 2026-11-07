@@ -176,6 +176,12 @@ impl Client {
                 let client = Rc::clone(self);
                 glib::spawn_future_local(async move { client.connect().await });
             }
+            Request::SetMode(mode) => {
+                self.change(move |service| async move { service.set_mode(mode).await })
+            }
+            Request::SetTemperatureUnit(unit) => self.change(move |service| async move {
+                service.set_temperature_unit(unit.as_str()).await
+            }),
             Request::Refresh => {
                 let client = Rc::clone(self);
                 glib::spawn_future_local(async move {
@@ -189,6 +195,24 @@ impl Client {
                 });
             }
         }
+    }
+
+    /// A change: the service's call, and the refusal shown if it refuses. The control shows the
+    /// new value once `StateChanged` confirms it (Refused changes).
+    fn change<F, Fut>(self: &Rc<Self>, call: F)
+    where
+        F: FnOnce(OpenDeepCoolProxy<'static>) -> Fut + 'static,
+        Fut: std::future::Future<Output = Result<(), Error>>,
+    {
+        let client = Rc::clone(self);
+        glib::spawn_future_local(async move {
+            let Some(bus) = client.bus.get() else {
+                return;
+            };
+            if let Err(error) = call(bus.service.clone()).await {
+                client.window().refusal(Refused::Change, &reason(&error));
+            }
+        });
     }
 
     async fn run(self: &Rc<Self>, address: Option<String>) -> zbus::Result<()> {

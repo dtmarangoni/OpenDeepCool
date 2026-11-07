@@ -3,14 +3,22 @@
 //! fake.
 
 pub mod banners;
+pub mod display_page;
 pub mod dots;
 pub mod names;
 pub mod preview;
+pub mod tiles;
 pub mod window;
+
+use odc_ipc::TemperatureUnit;
 
 /// What the window asks of the service.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Request {
+    /// `SetMode(u)`: a tile was activated.
+    SetMode(u32),
+    /// `SetTemperatureUnit(s)`.
+    SetTemperatureUnit(TemperatureUnit),
     /// `Refresh()`.
     Refresh,
     /// `WatchFrames()` or `UnwatchFrames()`: while the window is mapped.

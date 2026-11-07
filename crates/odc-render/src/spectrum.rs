@@ -177,6 +177,22 @@ impl Spectrum {
         }
     }
 
+    /// A spectrum standing at `bars` and `peaks`, levels 0 to 1, each peak at its bar or above
+    /// it, as if it had come there: the settings app's Music tiles draw a fixed one (Phase 10
+    /// plan, Task 5). A level outside 0–1 is taken as the nearest end, and a peak below its bar
+    /// as the bar.
+    pub fn at(bars: [f64; COLUMNS], peaks: [f64; COLUMNS]) -> Spectrum {
+        let bars = bars.map(|level| level.clamp(0.0, 1.0));
+        let peaks: [f64; COLUMNS] = std::array::from_fn(|c| peaks[c].clamp(0.0, 1.0).max(bars[c]));
+        Spectrum {
+            bars,
+            peaks,
+            set_to: peaks,
+            since: [0; COLUMNS],
+            peak_fall: None,
+        }
+    }
+
     /// One tick with this tick's `levels` (points 5 and 6): each bar rises to a higher level at
     /// once, or falls by *b* ÷ 72 but never below the level; then each peak is set to its bar
     /// when the bar is at it or above, or falls by Winamp's recurrence summed over the tick's

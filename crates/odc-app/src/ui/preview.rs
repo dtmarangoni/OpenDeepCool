@@ -9,7 +9,7 @@ use gtk::prelude::*;
 use odc_protocol::Frame;
 
 use super::dots;
-use crate::theme::{Rgb, Tokens};
+use crate::theme::{Rgb, Rgba, Tokens};
 
 /// The grid's pitch, px per dot: 14 × 15 = 210 px inside the 226 px frame's 8 px padding.
 pub const PITCH: f64 = 15.0;
@@ -48,7 +48,12 @@ impl Preview {
         area.set_draw_func(move |_, cr, _, _| {
             count.set(count.get() + 1);
             let state = drawn.borrow();
-            dots::draw(cr, state.frame.as_ref(), PITCH, state.lit, state.unlit);
+            // Opaque unlit dots: the frame behind is the surface they're blended over.
+            let unlit = Rgba {
+                rgb: state.unlit,
+                alpha: 1.0,
+            };
+            dots::draw(cr, state.frame.as_ref(), PITCH, state.lit, unlit);
         });
         Preview { area, state, draws }
     }

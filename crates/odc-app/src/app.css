@@ -68,7 +68,7 @@ flowboxchild.tile:active {
 }
 
 button:checked,
-flowboxchild.tile:selected {
+flowboxchild.tile.selected {
   background-color: var(--ctl-selected-fill);
   border-color: var(--accent);
   color: var(--fg);
