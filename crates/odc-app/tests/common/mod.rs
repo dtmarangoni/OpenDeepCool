@@ -31,11 +31,16 @@ pub const IN_WESTON: &str = "--in-weston";
 
 /// Runs `checks` in a headless weston: the test's `main`.
 pub fn run(checks: &[(&str, Check)]) -> ExitCode {
+    run_at(checks, odc_testkit::weston::SIZE)
+}
+
+/// The same, on an output of `size` px.
+pub fn run_at(checks: &[(&str, Check)], size: (u32, u32)) -> ExitCode {
     if std::env::args().any(|a| a == IN_WESTON) {
         return in_weston(checks);
     }
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(env!("CARGO_CRATE_NAME"));
-    let weston = Weston::headless(&dir.join("weston")).expect("weston starts");
+    let weston = Weston::headless_at(&dir.join("weston"), size).expect("weston starts");
     let own = |name: &str| {
         let path = dir.join(name);
         DirBuilder::new()

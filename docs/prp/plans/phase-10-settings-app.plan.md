@@ -470,6 +470,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 
 **Validation**
 - `cargo test -p odc-app --test theme`: passes.
+- As built (2026-11-06): `ui::theme::LiveTheme::first(state, log)` reads the theme and logs its source; `LiveTheme::follow(window, state, tokens, log)` watches `current/`, `current/theme/` and, while missing, the nearest folder above (D65), waits 150 ms of quiet, and gives the window the theme only when its tokens changed, through `Window::set_theme` (the same provider, `prefers-color-scheme` from `mode`, the preview and tiles redrawn). The window keeps it (`Window::keep`) and is held weakly (`WeakWindow`). Logs go to standard error (D66). `Weston::headless_at` takes an output size, and `common::run_at` uses it. Tests (`cargo test -p odc-app --features weston-tests --test theme`, 900 × 600 so the Display page scrolls): the sample theme's background, card surface, selected tile border and lit dot, and the dark scheme; Omarchy's own switch (staged in `current/next-theme`, the old folder removed, the new moved in) taken in under 1 s on the same page and scroll position, light scheme, logged; no Omarchy folder, the default dark theme, then a light theme missing its accent written later, found, the light default's accent filling it, both logged; the window opaque throughout.
 
 ### 8. Layer 4: the real app in headless weston, driven through AT-SPI against a fake service
 

@@ -27,7 +27,7 @@ const PREFIX: &str = "odc-test-";
 
 /// The output's size: room for the window's default 1040 × 720 (`docs/design/settings-app.md`,
 /// Window).
-const SIZE: (u32, u32) = (1280, 800);
+pub const SIZE: (u32, u32) = (1280, 800);
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
@@ -46,6 +46,15 @@ impl Weston {
     /// When `weston` or `setpriv` can't start, or weston doesn't listen within 10 s; the error
     /// carries weston's log.
     pub fn headless(dir: &Path) -> io::Result<Weston> {
+        Weston::headless_at(dir, SIZE)
+    }
+
+    /// The same, with an output of `size` px.
+    ///
+    /// # Errors
+    ///
+    /// As [`Weston::headless`].
+    pub fn headless_at(dir: &Path, size: (u32, u32)) -> io::Result<Weston> {
         DirBuilder::new().recursive(true).mode(0o700).create(dir)?;
         remove_dead_sockets(dir)?;
         let name = format!(
@@ -62,8 +71,8 @@ impl Weston {
                 "--renderer=pixman",
                 "--shell=kiosk",
                 "--no-config",
-                &format!("--width={}", SIZE.0),
-                &format!("--height={}", SIZE.1),
+                &format!("--width={}", size.0),
+                &format!("--height={}", size.1),
                 &format!("--socket={name}"),
                 &format!("--log={}", log.display()),
             ])

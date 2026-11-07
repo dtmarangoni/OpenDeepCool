@@ -1,7 +1,6 @@
 //! `opendeepcool`: the settings app (Phase 10). One window per user (GTK's default), which
 //! mirrors the cooler and changes its settings through the service.
 
-use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
@@ -10,43 +9,20 @@ use gtk::prelude::*;
 use odc_app::client::Client;
 use odc_app::flags::{self, Flags};
 use odc_app::pci_ids;
-use odc_app::theme::{self, Theme};
+use odc_app::ui::theme::LiveTheme;
 use odc_app::ui::window::Window;
 
 const APP_ID: &str = "io.github.dtmarangoni.OpenDeepCool";
 
-/// The current Omarchy theme's folder: `<state>/current/theme`, where `<state>` is
-/// `~/.local/state/omarchy` or the folder `--omarchy-state` gives.
-fn theme_dir(flags: &Flags) -> Option<PathBuf> {
-    match &flags.omarchy_state {
-        Some(state) => Some(state.join("current/theme")),
-        None => {
-            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(theme::OMARCHY_THEME_DIR))
-        }
-    }
+/// The Omarchy state folder: `--omarchy-state`, or `~/.local/state/omarchy`.
+fn state_dir(flags: &Flags) -> Option<PathBuf> {
+    flags.omarchy_state.clone().or_else(|| {
+        std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state/omarchy"))
+    })
 }
 
-/// The theme, its problems written to the journal.
-fn load_theme(flags: &Flags) -> Theme {
-    let dir = theme_dir(flags);
-    let read = |name: &str| {
-        dir.as_ref()
-            .and_then(|d| fs::read_to_string(d.join(name)).ok())
-    };
-    let colors = read("colors.toml");
-    let theme = theme::theme(colors.as_deref(), read("shell.toml").as_deref());
-    for problem in &theme.problems {
-        eprintln!("opendeepcool: theme: {problem}");
-    }
-    eprintln!(
-        "opendeepcool: theme: {}",
-        if colors.is_some() {
-            "the Omarchy theme"
-        } else {
-            "the default theme"
-        }
-    );
-    theme
+fn log(line: &str) {
+    eprintln!("opendeepcool: {line}");
 }
 
 fn main() -> ExitCode {
@@ -73,7 +49,8 @@ fn main() -> ExitCode {
             window.present();
             return;
         }
-        let theme = load_theme(&flags);
+        let state = state_dir(&flags);
+        let theme = LiveTheme::first(state.as_deref(), &log);
         let client = Client::new();
         let window = Window::new(
             app,
@@ -81,6 +58,9 @@ fn main() -> ExitCode {
             PathBuf::from(pci_ids::PATH),
             &theme.tokens,
         );
+        if let Some(live) = LiveTheme::follow(&window, state, theme.tokens, log) {
+            window.keep(live);
+        }
         client.start(window.clone(), flags.service_address.clone());
         window.widget().present();
     });

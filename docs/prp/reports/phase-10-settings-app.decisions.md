@@ -484,3 +484,17 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** restyle the knob against GTK's undocumented theme; or leave the knob to GTK and give only the trough and its filled part the theme's tokens.
 - **Chosen:** GTK's knob; the trough takes the control fill and border, its filled part the accent (checked in the saved picture: `#4fc3b4`).
 - **Implemented in:** `crates/odc-app/src/app.css`; Task 6's commit.
+
+### D65 — Which folders the theme watches (Task 7)
+
+- **Question:** the plan watches `current/`. That misses an edit inside `current/theme/`, and a `current/` that doesn't exist yet: away from Omarchy, or before its first theme. Whether GLib's monitor on a missing folder reports its creation, and how soon, is unverified.
+- **Options:** only `current/`; or each of the state folder, `current/` and `current/theme/` that exists, the nearest existing folder above while none does, all watched again after each reload, and the theme applied only when its tokens changed, so an unrelated change in a watched folder costs one read.
+- **Chosen:** the second. The layer 3 test finds a theme written into a state folder that didn't exist within its wait, and an Omarchy switch within 1 s.
+- **Implemented in:** `crates/odc-app/src/ui/theme.rs` (`watched`, `LiveTheme`); `docs/design/settings-app.md`; Task 7's commit.
+
+### D66 — Where the theme's log lines go (Task 7)
+
+- **Question:** the design has the journal name each missing or rejected key. The app is a desktop program, not a unit of its own.
+- **Options:** standard error; or the journal's own protocol, a new dependency.
+- **Chosen:** standard error, `opendeepcool: theme: …`, one line each: the source at start, each reload and each problem. Whether the session's journal gets a desktop app's standard error on Omarchy depends on how the session starts it and is unverified; the attended tour (Task 9) can look.
+- **Implemented in:** `crates/odc-app/src/main.rs` (`log`), `crates/odc-app/src/ui/theme.rs`; Task 7's commit.

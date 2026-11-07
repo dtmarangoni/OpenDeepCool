@@ -115,12 +115,24 @@ struct Inner {
     /// Says a text to screen readers: GTK's `announce`, or a test's recorder (decisions log
     /// D49: GTK's test accessibility backend crashes on it).
     announcer: RefCell<Announcer>,
+    /// What lives as long as the window, such as the theme it follows.
+    kept: RefCell<Vec<Box<dyn std::any::Any>>>,
     actions: [gio::SimpleAction; 3],
 }
 
 /// The window; clones share it.
 #[derive(Clone)]
 pub struct Window(Rc<Inner>);
+
+/// A window held without keeping it.
+#[derive(Clone)]
+pub struct WeakWindow(Weak<Inner>);
+
+impl WeakWindow {
+    pub fn upgrade(&self) -> Option<Window> {
+        self.0.upgrade().map(Window)
+    }
+}
 
 fn label(text: &str, classes: &[&str]) -> gtk::Label {
     gtk::Label::builder()
@@ -419,6 +431,7 @@ impl Window {
             sending_timer: RefCell::new(None),
             announced: Cell::new(false),
             announcer: RefCell::new(Box::new(|_| {})),
+            kept: RefCell::new(Vec::new()),
             actions,
         });
         let weak = Rc::downgrade(&inner);
@@ -488,6 +501,20 @@ impl Window {
 
     pub fn widget(&self) -> &gtk::ApplicationWindow {
         &self.0.window
+    }
+
+    pub fn downgrade(&self) -> WeakWindow {
+        WeakWindow(Rc::downgrade(&self.0))
+    }
+
+    /// Keeps `thing` as long as the window.
+    pub fn keep(&self, thing: impl std::any::Any) {
+        self.0.kept.borrow_mut().push(Box::new(thing));
+    }
+
+    /// Whether GTK's own parts take the dark scheme (Theme, the base variant).
+    pub fn prefers_dark(&self) -> bool {
+        self.0.provider.prefers_color_scheme() == gtk::InterfaceColorScheme::Dark
     }
 
     /// The service's bus name has no owner.

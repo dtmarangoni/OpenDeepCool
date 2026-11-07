@@ -14,9 +14,6 @@ use std::fmt::Write as _;
 /// The app's stylesheet, after the `:root` block.
 const STYLESHEET: &str = include_str!("app.css");
 
-/// Where Omarchy keeps the current theme, under the user's home (AGENTS.md, Verified facts).
-pub const OMARCHY_THEME_DIR: &str = ".local/state/omarchy/current/theme";
-
 /// The widest border a theme may give a control, in px; wider is rejected (decisions log D30).
 const MAX_BORDER_WIDTH: f64 = 16.0;
 

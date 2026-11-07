@@ -313,8 +313,8 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
   - GTK supports `:root`, custom properties and `var()` since 4.16 (verified, GTK CSS Properties). Arch's repository ships a newer GTK.
 - **Colours with alpha** (`rgba(…)`) are computed in Rust and written into the `:root` block as literals, so the stylesheet needs no CSS colour functions.
 - **Live reload (Omarchy).**
-  - A `GFileMonitor` on `~/.local/state/omarchy/current/` reacts when `theme` is replaced (the PRD, Theme: themes are moved over `current/theme`).
-  - After 150 ms of quiet, the app re-reads `colors.toml` and `shell.toml`, regenerates the string, reloads the same provider, and repaints the preview and tiles. There's no restart, and the page and scroll position are kept.
+  - A `GFileMonitor` on `~/.local/state/omarchy/current/` reacts when `theme` is replaced (the PRD, Theme: themes are moved over `current/theme`; Omarchy stages the new one in `current/next-theme`, removes `current/theme` and moves it in, its `omarchy-theme-set`, read 2026-11-06). A second one on `current/theme/` catches an edit in place, and while a folder of that path is missing, the nearest existing folder above it is watched, so a theme that appears later is found (decisions log D65).
+  - After 150 ms of quiet, the app re-reads `colors.toml` and `shell.toml` and, when the tokens changed, regenerates the string, reloads the same provider, and repaints the preview and tiles. There's no restart, and the page and scroll position are kept. The source at start and each reload are logged (`theme: the Omarchy theme`, `theme: the default theme`, `theme: reloaded, …`), with each missing or rejected key.
 - **Fallback rules.**
   - When `colors.toml` is missing or unreadable, the whole default theme is used.
   - When one key is missing or invalid, that token comes from the default theme (dark, or light when `mode` says light), and the journal names the key.
