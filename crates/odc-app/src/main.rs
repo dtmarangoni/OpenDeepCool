@@ -52,6 +52,11 @@ fn main() -> ExitCode {
         let state = state_dir(&flags);
         let theme = LiveTheme::first(state.as_deref(), &log);
         let client = Client::new();
+        if let Some(path) = &flags.frame_log
+            && let Err(e) = client.log_frames(path)
+        {
+            log(&format!("the frame log {}: {e}", path.display()));
+        }
         let window = Window::new(
             app,
             client.sink(),

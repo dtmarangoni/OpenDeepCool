@@ -12,7 +12,10 @@
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
+use std::fs::{File, OpenOptions};
 use std::future::poll_fn;
+use std::io::{self, Write};
+use std::path::Path;
 use std::pin::{Pin, pin};
 use std::rc::Rc;
 use std::task::Poll;
@@ -55,6 +58,8 @@ pub struct Client {
     /// A connect runs; another was asked meanwhile.
     connecting: Cell<bool>,
     again: Cell<bool>,
+    /// `--frame-log`: each frame the service sends is added to it (decisions log D84).
+    frame_log: RefCell<Option<File>>,
 }
 
 /// How a state dictionary is read: as `odc-ipc` reads it, except that a `CoolerState` the app
@@ -153,6 +158,19 @@ impl Client {
                 client.request(request);
             }
         }
+    }
+
+    /// Adds each frame the service sends to `path`, one line each: the time it came, in
+    /// nanoseconds of `CLOCK_MONOTONIC` as the dev recording's, and its 196 dots as `0` and `1`,
+    /// row by row (`--frame-log`, for the end-to-end run's comparison; decisions log D84).
+    ///
+    /// # Errors
+    ///
+    /// When the file can't be opened.
+    pub fn log_frames(&self, path: &Path) -> io::Result<()> {
+        let file = OpenOptions::new().create(true).append(true).open(path)?;
+        *self.frame_log.borrow_mut() = Some(file);
+        Ok(())
     }
 
     /// Connects, on the system bus or at `address`, and serves `window` from then on.
@@ -471,6 +489,12 @@ impl Client {
         if let Ok((pixels,)) = message.body().deserialize::<(Vec<u8>,)>()
             && let Some(frame) = frame_from_pixels(&pixels)
         {
+            if let Some(log) = self.frame_log.borrow_mut().as_mut() {
+                let dots: String = pixels.iter().map(|&p| char::from(b'0' + p)).collect();
+                if let Err(e) = writeln!(log, "{} {dots}", monotonic_ns()) {
+                    eprintln!("opendeepcool: the frame log: {e}");
+                }
+            }
             self.window().frame(frame);
         }
     }
@@ -512,6 +536,14 @@ impl Client {
             self.connect().await;
         }
     }
+}
+
+/// Now, in nanoseconds of `CLOCK_MONOTONIC`, the dev recording's clock (`odc_device`).
+fn monotonic_ns() -> u64 {
+    let now = rustix::time::clock_gettime(rustix::time::ClockId::Monotonic);
+    let secs = u64::try_from(now.tv_sec).unwrap_or(0);
+    let nanos = u64::try_from(now.tv_nsec).unwrap_or(0);
+    secs * 1_000_000_000 + nanos
 }
 
 #[cfg(test)]

@@ -23,7 +23,7 @@ use crate::fake::{self, DEDICATED, Fake, INTEGRATED, NO_RULE, QUERY_FAILED, Serv
 const HOLD: Duration = Duration::from_millis(250);
 
 /// The design's tiles (Display page, Tiles), mode 1 first: group and option.
-const TILES: [(&str, &str); 23] = [
+pub const TILES: [(&str, &str); 23] = [
     ("Load", "CPU"),
     ("Load", "GPU"),
     ("Load", "RAM"),
@@ -50,13 +50,13 @@ const TILES: [(&str, &str); 23] = [
 ];
 
 /// A tile's accessible name, `<group>: <option>`.
-fn tile(mode: u32) -> String {
+pub fn tile(mode: u32) -> String {
     let (group, option) = TILES[mode as usize - 1];
     format!("{group}: {option}")
 }
 
 /// The preview's caption, `<group> · <option>`.
-fn caption(mode: u32) -> String {
+pub fn caption(mode: u32) -> String {
     let (group, option) = TILES[mode as usize - 1];
     format!("{group} · {option}")
 }
@@ -111,6 +111,7 @@ pub struct Run {
     pub driver: Driver,
     pub fake: Fake,
     app_log: PathBuf,
+    frame_log: PathBuf,
     omarchy_state: PathBuf,
     wayland_display: PathBuf,
 }
@@ -140,6 +141,7 @@ impl Run {
             driver: Driver::connect(&paths.a11y_bus)?,
             fake: Fake::new(&paths.fake),
             app_log: paths.app_log.clone(),
+            frame_log: paths.frame_log.clone(),
             omarchy_state: paths.omarchy_state.clone(),
             wayland_display: paths.wayland_display.clone(),
         })
@@ -401,10 +403,11 @@ impl Run {
 
 pub type Scenario = fn(&mut Run) -> Result<String>;
 
-pub const ALL: [(&str, Scenario); 23] = [
+pub const ALL: [(&str, Scenario); 24] = [
     ("service_down", service_down),
     ("first_start", first_start),
     ("names", names),
+    ("frame_log", frame_log),
     ("tiles", tiles),
     ("unit", unit),
     ("rotation", rotation),
@@ -576,6 +579,30 @@ fn names(run: &mut Run) -> Result<String> {
     check(run, &always)?;
     check(run, &configuration)?;
     run.page("Display")?;
+    NO_NOTE
+}
+
+/// The frames the service sends reach the app, which logs each with its time (`--frame-log`,
+/// for the real run's comparison with the dev recording; decisions log D84).
+fn frame_log(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    for lit in [0_usize, 195, 97] {
+        let mut dots = vec!['0'; 196];
+        dots[lit] = '1';
+        let dots: String = dots.into_iter().collect();
+        run.fake.frame = Some(dots.clone());
+        run.fake.write()?;
+        wait(
+            &format!("the app logging the frame with dot {lit} lit"),
+            || {
+                let log = fs::read_to_string(&run.frame_log)
+                    .map_err(|e| format!("{}: {e}", run.frame_log.display()))?;
+                let last = log.lines().last().unwrap_or("");
+                let (time, logged) = last.split_once(' ').unwrap_or(("", ""));
+                Ok((logged == dots && time.parse::<u64>().is_ok()).then_some(()))
+            },
+        )?;
+    }
     NO_NOTE
 }
 

@@ -24,6 +24,9 @@ odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-render = { path = "../odc-render" }
 odc-sensors = { path = "../odc-sensors" }
+# The frame log's clock, CLOCK_MONOTONIC, as the dev recording's (decisions log D84); already in
+# the tree through odc-device.
+rustix = { version = "1", features = ["time"] }
 toml = "1"
 zbus = "6"
 

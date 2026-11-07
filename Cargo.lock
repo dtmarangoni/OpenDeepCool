@@ -1040,6 +1040,7 @@ dependencies = [
  "odc-sensors",
  "odc-testkit",
  "proptest",
+ "rustix",
  "toml",
  "zbus 6.2.0",
 ]

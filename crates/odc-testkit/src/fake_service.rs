@@ -17,6 +17,7 @@
 //! on_bus = true     # owns the service's bus name; false gives it up, as a stopped service
 //! reads = true      # false: every read and watch is refused with NotAuthorized
 //! refuse = "ModeUnavailable: Gpu usage: no device found"  # when set: every change, and Refresh
+//! frame = "0110…"   # when set: 196 dots, row by row, sent as `Frame` to each frame watcher
 //!
 //! [state]           # the contract's keys, each as its signature's TOML form
 //! Mode = 1
@@ -72,6 +73,8 @@ struct Behaviour {
     reads: bool,
     /// The error's name and text.
     refuse: Option<(String, String)>,
+    /// The preview frame, `Frame`'s 196 bytes, sent to each frame watcher when it changes.
+    frame: Option<Vec<u8>>,
 }
 
 #[derive(Default)]
@@ -274,6 +277,9 @@ impl Main {
 
     #[zbus(signal)]
     async fn state_changed(emitter: &SignalEmitter<'_>, changes: Dict) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    async fn frame(emitter: &SignalEmitter<'_>, pixels: Vec<u8>) -> zbus::Result<()>;
 }
 
 /// The fake, serving until dropped.
@@ -380,7 +386,7 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
     };
     let serial = behaviour.serial;
     let on_bus = behaviour.on_bus;
-    let sends = {
+    let (sends, frames) = {
         let mut inner = lock(&shared.inner);
         let changed: Dict = state
             .iter()
@@ -396,8 +402,21 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
             inner.watchers.clear();
             inner.frame_watchers.clear();
         }
+        // A new frame goes to each frame watcher, as the service sends each changed one.
+        let new_frame = behaviour
+            .frame
+            .clone()
+            .filter(|frame| inner.behaviour.frame.as_ref() != Some(frame));
         inner.state = state;
         inner.behaviour = behaviour;
+        let frames: Vec<(String, Vec<u8>)> = match new_frame {
+            Some(frame) if *owned && on_bus => inner
+                .frame_watchers
+                .iter()
+                .map(|watcher| (watcher.clone(), frame.clone()))
+                .collect(),
+            _ => Vec::new(),
+        };
         let mut sends = Vec::new();
         if *owned && on_bus && !changed.is_empty() {
             for watcher in &inner.watchers {
@@ -411,13 +430,20 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
                 }
             }
         }
-        sends
+        (sends, frames)
     };
     for (to, changes) in sends {
         if let (Ok(to), Ok(emitter)) =
             (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
         {
             let _ = Main::state_changed(&emitter.set_destination(to), changes).await;
+        }
+    }
+    for (to, pixels) in frames {
+        if let (Ok(to), Ok(emitter)) =
+            (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
+        {
+            let _ = Main::frame(&emitter.set_destination(to), pixels).await;
         }
     }
     if on_bus != *owned {
@@ -465,11 +491,26 @@ fn parse(text: &str) -> Result<(Behaviour, Dict), String> {
             Some((name.to_owned(), why.to_owned()))
         }
     };
+    let frame = match fake.get("frame") {
+        None => None,
+        Some(value) => {
+            let dots = value.as_str().unwrap_or_default();
+            let pixels: Vec<u8> = dots
+                .bytes()
+                .filter_map(|b| matches!(b, b'0' | b'1').then_some(b - b'0'))
+                .collect();
+            if pixels.len() != dots.len() || pixels.len() != odc_ipc::FRAME_PIXELS {
+                return Err("[fake] frame isn't 196 dots, each 0 or 1".to_owned());
+            }
+            Some(pixels)
+        }
+    };
     let behaviour = Behaviour {
         serial,
         on_bus: flag("on_bus")?,
         reads: flag("reads")?,
         refuse,
+        frame,
     };
     let given = table
         .get("state")
@@ -618,6 +659,11 @@ mod tests {
                 "",
                 "[fake] refuse isn't \"<error>: <text>\"",
             ),
+            (
+                "serial = 1\non_bus = true\nreads = true\nframe = \"0101\"",
+                "",
+                "[fake] frame isn't 196 dots, each 0 or 1",
+            ),
         ] {
             let text = format!("[fake]\n{fake}\n[state]\n{state}");
             assert_eq!(parse(&text).map(|_| ()), Err(why.to_owned()), "{text}");
@@ -654,6 +700,7 @@ MusicBarFall = "faster""#
                 on_bus: true,
                 reads: true,
                 refuse: Some(("NotAuthorized".to_owned(), "no".to_owned())),
+                frame: None,
             }
         );
         for (key, signature) in STATE_KEYS {

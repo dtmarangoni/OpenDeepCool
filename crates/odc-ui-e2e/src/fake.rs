@@ -245,6 +245,8 @@ pub struct Fake {
     pub reads: bool,
     /// `<error>: <text>`: every change and Refresh refused so.
     pub refuse: Option<String>,
+    /// The preview frame sent to frame watchers: 196 dots, `0` or `1`, row by row.
+    pub frame: Option<String>,
     pub service: Service,
 }
 
@@ -270,6 +272,7 @@ impl Fake {
             on_bus: false,
             reads: true,
             refuse: None,
+            frame: None,
             service: Service::first_start(),
         }
     }
@@ -287,6 +290,9 @@ impl Fake {
         fake.insert("reads".to_owned(), toml::Value::Boolean(self.reads));
         if let Some(refuse) = &self.refuse {
             fake.insert("refuse".to_owned(), toml::Value::String(refuse.clone()));
+        }
+        if let Some(frame) = &self.frame {
+            fake.insert("frame".to_owned(), toml::Value::String(frame.clone()));
         }
         let mut file = toml::Table::new();
         file.insert("fake".to_owned(), toml::Value::Table(fake));

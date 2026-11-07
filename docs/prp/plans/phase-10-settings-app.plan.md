@@ -98,6 +98,7 @@
 **Test-only flags on the app, like the service's `--dev`:**
 - `--service-address <D-Bus address>`: talk to a fake service on a private bus instead of the system bus.
 - `--omarchy-state <dir>`: read the theme from that directory instead of `~/.local/state/omarchy`.
+- `--frame-log <file>`: add each preview frame received to that file, with its time, for Task 9's comparison with the dev recording (decisions log D84, pending the owner's review).
 - Any other argument is an error.
 - The packaged desktop entry passes neither.
 
@@ -519,6 +520,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 **Validation**
 - After the owner approves the dev copy update: `odc-dev check` exits 0, and the launcher lists OpenDeepCool.
 - `cargo run -p odc-e2e -- --only app --require dev-service,weston`: passes.
+- As built (2026-11-07), real runs pending the owner's setup: the package's launcher entry and the app's icon (D80, D81), installed by `odc-dev setup` with the app under `/usr/local`, recorded in the manifest, no caches written (D82). The real mode as planned can't run: during a test session the dev service refuses every other caller's change with `Busy` (Phase 7). It's split instead (D83): the driver's `--real` scenarios make the app's own changes, every tile, the unit, each rotation and Refresh, with no session held, each counted once the real service confirms it; then the harness holds a session at the design's sample readings, shows modes 1, 9 turned once, 12 and 13, and checks that every frame written to the cooler reached the app, in order, within 0.5 s, read from the app's new test-only `--frame-log` (D84); the owner's settings are set back inside the session. A dev copy whose state this build can't read fails with the setup fix. The fake service sends frames too, so the fake run's `frame_log` scenario proves the log now. The optional attended tour isn't built yet.
 
 ### 10. CI and records
 

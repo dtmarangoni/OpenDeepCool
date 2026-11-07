@@ -12,6 +12,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 |---|---|---|
 | `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
 | The dev copy's app, launcher entry and icon | Task 9 added them to `odc-dev setup` (D80–D82) | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-dev -- check` (exits 0), and the launcher lists OpenDeepCool with its icon and opens the dev copy's app |
+| The real app against the real dev service | Task 9's real run needs this build's dev service (D83, D84); the installed one predates Task 2, so `--only app` reports `app_real` failed with the setup fix until then | after `odc-dev setup`: `cargo run -p odc-e2e -- --only app --require dev-service,weston` |
 | CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73) | the first push of `phase-10-settings-app` |
 
 ## Decisions
@@ -611,3 +612,17 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** run both; or neither.
 - **Chosen:** neither. The entry declares no MIME type, which is what the desktop database indexes, and launchers read entries from the folders in `XDG_DATA_DIRS`, `/usr/local/share` among them on this PC; an icon cache needs an `index.theme` in `/usr/local/share/icons/hicolor`, which nobody installs there, and GTK finds an icon without a cache. Whether the launcher lists the app and shows the icon is checked at the owner's setup (Pending real runs).
 - **Implemented in:** `tools/dev/src/install.rs` (nothing run); Task 9's first commit.
+
+### D83 — The real run and the test session (Task 9, found)
+
+- **Question:** the plan's real run has the app change settings while the harness reads the dev recording ("each tile → the dev recording shows that mode's frame"). The recording runs only while a test session is held, and the dev service then answers every other caller's change with `Busy` (Phase 7; `odc-service` dbus.rs, `changer`). As written, the app's changes would all be refused.
+- **Options:** (1) a dev-only allowance: the session's holder names another caller, by PID, whose changes the session takes, a change to the dev interface, the service and `docs/spec/dbus.md`; (2) split the run: the app's own changes against the real service with no session held, each counted once the app shows it, which it does only after the service's `StateChanged`; then a session in which the harness itself shows a few modes at fixed readings, and every frame written to the cooler must reach the app, in order, within 0.5 s; (3) only the app showing the real service's state, no frames.
+- **Chosen:** (2), with no change to the service. Each link is checked: the app to the service (no session), the service to the cooler (`--only service`, and the session here), the service to the app's preview (the session here; how the preview draws a frame, layer 3). The owner's settings are read first and set back by Phase 7's `Restore` guard inside the session, however the run ends. A dev copy whose state this build can't read fails with the setup fix. Pending the owner's review; it runs at the owner's setup (Pending real runs).
+- **Implemented in:** `crates/odc-e2e/src/app.rs` (`against_the_service`, `preview`, `compare`), `crates/odc-ui-e2e/src/real.rs`; Task 9's second commit.
+
+### D84 — The app's frame log (Task 9)
+
+- **Question:** the plan compares "the Frame signals the app receives (logged by the app)" with the recording, but gives the app two test flags only, and the app logs no readings (Delivery Considerations, Observability).
+- **Options:** compare the recording with the frames another watcher receives, which proves nothing of the app; or a third test-only flag, `--frame-log FILE`, which makes the app add each frame it receives to a file: the time it came, in ns of `CLOCK_MONOTONIC` as the recording's, and its 196 dots.
+- **Chosen:** the flag. Like the other two, it's for tests only: it makes the app non-unique (D47), and the package's entry passes none. The fake service now also sends a `frame` from its state file to its frame watchers, so the fake run's scenario `frame_log` proves the log before any real run.
+- **Implemented in:** `crates/odc-app/src/flags.rs`, `client.rs` (`log_frames`), `main.rs`; `crates/odc-testkit/src/fake_service.rs` (`frame`) and its test; `crates/odc-ui-e2e/src/scenarios.rs` (`frame_log`); the plan's test flags; Task 9's second commit.

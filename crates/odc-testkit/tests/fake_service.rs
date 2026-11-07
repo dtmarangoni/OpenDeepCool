@@ -309,3 +309,69 @@ fn the_accessibility_bus_holds_the_registry_and_takes_it_along() {
         thread::sleep(Duration::from_millis(20));
     }
 }
+
+/// The bytes of the next `Frame`, within 5 s, or none.
+async fn next_frame(stream: &mut MessageStream, wait: Duration) -> Option<Vec<u8>> {
+    let next = poll_fn(|cx| Pin::new(&mut *stream).poll_next(cx));
+    let message: Message = within(wait, next).await??.ok()?;
+    let (pixels,): (Vec<u8>,) = message.body().deserialize().ok()?;
+    Some(pixels)
+}
+
+#[test]
+fn a_new_frame_goes_to_frame_watchers_once() {
+    let dir = dir("frames");
+    let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
+    let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
+    write(&dir, ON, &state(7, FANS));
+    logged(&dir, "state 1");
+    let dots = |lit: usize| {
+        let mut dots = vec!['0'; 196];
+        dots[lit] = '1';
+        dots.into_iter().collect::<String>()
+    };
+    let pixels = |lit: usize| {
+        let mut pixels = vec![0_u8; 196];
+        pixels[lit] = 1;
+        pixels
+    };
+    zbus::block_on(async {
+        let conn = connect(&bus).await;
+        let rule = MatchRule::builder()
+            .msg_type(Type::Signal)
+            .member("Frame")
+            .build()
+            .expect("a rule");
+        let mut frames = MessageStream::for_match_rule(rule, &conn, None)
+            .await
+            .expect("subscribed");
+        let proxy = OpenDeepCoolProxy::new(&conn).await.expect("the proxy");
+        proxy.watch().await.expect("watching");
+        let with = |serial: u32, lit: usize| {
+            format!(
+                "serial = {serial}\non_bus = true\nreads = true\nframe = \"{}\"",
+                dots(lit)
+            )
+        };
+        write(&dir, &with(2, 0), &state(7, FANS));
+        logged(&dir, "state 2");
+        assert_eq!(
+            next_frame(&mut frames, Duration::from_millis(300)).await,
+            None,
+            "no frame without WatchFrames()"
+        );
+        proxy.watch_frames().await.expect("watching frames");
+        write(&dir, &with(3, 14), &state(7, FANS));
+        assert_eq!(
+            next_frame(&mut frames, Duration::from_secs(5)).await,
+            Some(pixels(14))
+        );
+        // The same frame again sends nothing.
+        write(&dir, &with(4, 14), &state(8, FANS));
+        logged(&dir, "state 4");
+        assert_eq!(
+            next_frame(&mut frames, Duration::from_millis(300)).await,
+            None
+        );
+    });
+}
