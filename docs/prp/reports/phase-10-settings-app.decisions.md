@@ -344,3 +344,66 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** wait for Task 10; or add the crate to the layout and the weston test command now, and the rest (`--only app`, the design-first rule) in Task 10.
 - **Chosen:** now, as AGENTS.md asks; Task 10 adds the rest.
 - **Implemented in:** `AGENTS.md`; Task 3's commit.
+
+### D45 — Where the client runs (Task 4)
+
+- **Question:** the plan puts "the `odc-ipc` proxy on a zbus thread", with updates reaching GTK's main loop "through a glib channel". glib-rs no longer has `MainContext::channel`; the gtk4-rs book now uses the `async-channel` crate, and says I/O from crates of the `futures`/`smol` family can run on the main loop with no channel at all (gtk4-rs book, The Main Event Loop, read 2026-11-06).
+- **Options:** 1. a thread of the app's own with the blocking proxy, and `async-channel` to the main loop (a new dependency); 2. the async proxy awaited on GLib's main loop with `glib::spawn_future_local`: zbus's default runtime runs a connection's I/O, timers and tasks on two threads of its own (zbus README, Compatibility with async runtimes, read 2026-11-06), so nothing blocks the window.
+- **Chosen:** 2. No thread, channel or crate of the app's own, and the window is only ever touched from its thread. The streams are subscribed before `Watch()`, then `GetState()` is applied, then every `StateChanged` in the order it's read, as `odc-audio` does; a `StateChanged` sent before the reply but read after it only replays an older value that a later one, or the reply, already holds.
+- **Implemented in:** `crates/odc-app/src/client.rs`; Task 4's commit.
+
+### D46 — A state the app can't read (Task 4)
+
+- **Question:** `GetState()` succeeds but its state doesn't read (a value of another type, or an unknown value other than `CoolerState`'s, D33): what does the window show?
+- **Options:** the service-down state; the not-available message; or a new banner, "The service's state can't be read", which the design doesn't have.
+- **Chosen:** the service-down state, with the reason in the journal (`opendeepcool: the service's state can't be read: …`). Only a service and an app of different versions can cause it, and they ship together; a new banner would need the designer first.
+- **Implemented in:** `crates/odc-app/src/client.rs` (`connect_once`); Task 4's commit.
+
+### D47 — The app started by a test never hands over (Task 4)
+
+- **Question:** the app is one instance per user (GTK's default). A test's app (`--service-address` or `--omarchy-state`) that finds the user's own window open would hand over to it and exit, and the test would drive the user's app.
+- **Options:** keep one instance always; or `G_APPLICATION_NON_UNIQUE` when a test flag is given.
+- **Chosen:** non-unique with a test flag; one instance per user otherwise.
+- **Implemented in:** `crates/odc-app/src/main.rs`, `crates/odc-app/src/flags.rs` (`Flags::testing`); Task 4's commit.
+
+### D48 — The accessible role of a named box (Task 4)
+
+- **Question:** the design gives the banners and the not-available message, each a `GtkBox`, an accessible name, and says roles are GTK's defaults. A `GtkBox` defaults to the generic role, which ARIA lets carry no name, so a screen reader may skip it.
+- **Options:** keep the generic role; group; or alert and status, as the mockups write them, though GTK fixes a widget's role when it's built, and the one cooler banner is an error or a warning by turns.
+- **Chosen:** group for the three named boxes. The banners' words are their descriptions. The design's answered points say so, and the AT-SPI driver (Task 8) reads what screen readers get.
+- **Implemented in:** `crates/odc-app/src/ui/banners.rs`, `crates/odc-app/src/ui/window.rs`; `docs/design/settings-app.md`; Task 4's commit.
+
+### D49 — Announcements crash GTK's test accessibility backend (Task 4, found)
+
+- **Question:** the layer 3 tests run GTK with `GTK_A11Y=test`, its test backend (docs.gtk.org, Running GTK applications), so the accessible properties can be checked in the test's process. There `gtk_accessible_announce` calls a null function and the process dies (SIGSEGV, backtrace through `gtk_accessible_announce`): the test backend seems to have no announcements.
+- **Options:** run the tests without an accessibility backend, so no property can be checked; or send announcements through a function the window holds, GTK's own by default and a recorder in the tests.
+- **Chosen:** the second: the tests also check what's announced and when (the not-available message once, each refusal's words). GTK's own call stays for the real app; AT-SPI in Task 8 is where it can be seen. Not reported to GTK: no outside service is contacted without the owner.
+- **Implemented in:** `crates/odc-app/src/ui/window.rs` (`announce_with`), `crates/odc-app/tests/window.rs`; Task 4's commit.
+
+### D50 — The page switcher (Task 4)
+
+- **Question:** the design names the header's switcher a `GtkStackSwitcher` "(or grouped `GtkToggleButton`)". A `GtkStackSwitcher` builds its own buttons, whose accessible names and sensitivity the app doesn't set.
+- **Options:** `GtkStackSwitcher`; or two grouped `GtkToggleButton`s that switch the page.
+- **Chosen:** the two toggles, named Display and Configuration, insensitive while the service is down and hidden when not available, as the design's names table allows.
+- **Implemented in:** `crates/odc-app/src/ui/window.rs`; Task 4's commit.
+
+### D51 — The preview's size (Task 4)
+
+- **Question:** the design calls the preview "a `GtkDrawingArea`, 226 × 226 px, in a frame with the surface colour"; the mockups draw a 210 px grid (15 px per dot) inside a 226 px frame with 8 px of padding.
+- **Options:** a 226 px drawing; or the mockups' 210 px drawing in a 226 px frame.
+- **Chosen:** the mockups': the same picture as the design shows, and the tests' dot centres follow from 15 px per dot. The design's text now says so.
+- **Implemented in:** `crates/odc-app/src/ui/preview.rs`; `docs/design/settings-app.md`; Task 4's commit.
+
+### D52 — Where the layer 3 tests run (Task 4)
+
+- **Question:** the plan runs layer 3 "in-process, in `Weston::headless()`". GTK must run on the main thread, reads its display and settings from the environment, and the workspace forbids the `unsafe` that changing a test process's environment takes in Rust 2024. Started as it is, GTK would reach the user's own session: its display, session bus, GTK settings and `gtk.css`.
+- **Options:** run the checks in the test process as started; or, with a harness of the test's own, have it start weston and run itself again inside it, with an environment that reaches only weston: its socket, the Cairo renderer, GTK's test accessibility backend, no session bus, in-memory GSettings, and configuration, cache and runtime folders of its own.
+- **Chosen:** the second. The app's code still runs in the test's own process, against a fake client, and nothing of the owner's session is touched.
+- **Implemented in:** `crates/odc-app/tests/window.rs`; Task 4's commit.
+
+### D53 — Whether "Refreshed" is announced (Task 4)
+
+- **Question:** the design has screen readers get a refusal's words; it doesn't say whether "Refreshed" is announced.
+- **Options:** announce it too; or only refusals.
+- **Chosen:** only refusals, as the design writes it; the label itself carries "Refreshed", named Change feedback.
+- **Implemented in:** `crates/odc-app/src/ui/window.rs`; Task 4's commit.

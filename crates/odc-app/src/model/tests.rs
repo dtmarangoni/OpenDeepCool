@@ -623,7 +623,7 @@ fn service_not_running() {
     );
     assert_eq!(Speed::Unknown.text(), "—");
     assert_eq!(
-        SERVICE_BANNER[1],
+        SERVICE_BANNER[2],
         "sudo systemctl start opendeepcool.service"
     );
 }

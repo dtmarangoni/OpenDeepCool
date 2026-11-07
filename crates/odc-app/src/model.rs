@@ -87,9 +87,11 @@ pub enum View {
 pub const NOT_AVAILABLE_HEADING: &str = "OpenDeepCool can be used only from the session at the PC";
 pub const NOT_AVAILABLE_TEXT: &str = "This session is remote or not the active one.";
 
-/// The service banner's parts: what happened, the start command, and how the app goes on.
-pub const SERVICE_BANNER: [&str; 3] = [
-    "The OpenDeepCool service isn't running. The cooler shows nothing until it starts. Start it from a terminal:",
+/// The service banner's parts: what happened, in bold; the fix; the start command; and how the
+/// app goes on.
+pub const SERVICE_BANNER: [&str; 4] = [
+    "The OpenDeepCool service isn't running.",
+    "The cooler shows nothing until it starts. Start it from a terminal:",
     "sudo systemctl start opendeepcool.service",
     "The app connects by itself once it runs.",
 ];

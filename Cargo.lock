@@ -780,6 +780,7 @@ dependencies = [
 name = "odc-app"
 version = "0.0.0"
 dependencies = [
+ "futures-core",
  "gtk4",
  "odc-ipc",
  "odc-protocol",
@@ -788,6 +789,7 @@ dependencies = [
  "odc-testkit",
  "proptest",
  "toml",
+ "zbus",
 ]
 
 [[package]]
