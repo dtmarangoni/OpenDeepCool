@@ -41,6 +41,7 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 |---|---|
 | [PRD](docs/prp/prds/opendeepcool-lp360.prd.md) | Problem, scope, decisions, phases, planned system footprint |
 | [Spec](docs/spec/) | The contract: USB messages, display modes, sensors, settings, expected frames and the parity checklist |
+| [Settings app design](docs/design/settings-app.md) | The settings app's screens, states, theme, keyboard and accessible names, with [mockups](docs/design/mockups/) |
 | [Solution reviews](docs/prp/solution-reviews/README.md) | Architecture, best-practice and security reviews of the whole solution and of each phase's plan, done after planning and before implementation |
 | [Phase 1 report](docs/research/phase1-wine-spike.md) | History: the Wine spike that first recorded DeepCreative; the spec supersedes it |
 | [LP360 notes](docs/hardware/deepcool-lp360.md) | Wiring, identity, what the manual does and doesn't say |
@@ -104,7 +105,7 @@ busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepC
   io.github.dtmarangoni.OpenDeepCool1 SetMusicPeaks b false
 ```
 
-From Phase 10, `odc-dev setup` also installs the settings app `opendeepcool` with its launcher entry and icon under `/usr/local`, so the launcher lists OpenDeepCool; `odc-dev teardown` removes them with the rest.
+From Phase 10, `odc-dev setup` also installs the settings app `opendeepcool` with its launcher entry and icon under `/usr/local`, so the launcher lists OpenDeepCool; `odc-dev teardown` removes them with the rest. `cargo run -p odc-app` starts the app being built, against the dev service on the system bus. It follows the current Omarchy theme live, and uses its own default theme elsewhere. Its three flags are for the tests only: `--service-address` points it at a fake service on a private bus, `--omarchy-state` at another theme folder, and `--frame-log` makes it write each preview frame it receives to a file. `cargo test -p odc-app --features weston-tests` runs its widget tests in a headless weston (it needs `weston`), and `cargo run -p odc-e2e -- --only app` drives the real app through the accessibility interface (AT-SPI), against a fake service and, where the dev service runs, against that too; nothing appears on your screen.
 
 `cargo run -p odc-e2e -- --only service` drives the dev service through each drawn mode, in each unit it shows, and each scenario it can be driven through, unattended. It tests the installed copy, so run `odc-dev setup` again after changing the service or what it links. `--only display` writes each drawn mode's examples straight to the cooler, from the code just built, and `--modes 7-9` limits either to some modes. `--only music` plays a test tone into a virtual output, checks what the cooler shows for it, and measures the delay from sound to frame. `--only baseline` measures its CPU and memory use over 10 minutes, and `--attended` is an optional tour to watch on the cooler.
 

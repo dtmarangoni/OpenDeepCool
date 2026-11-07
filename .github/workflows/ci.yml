@@ -1,5 +1,6 @@
 # OpenDeepCool's CI (Phase 5 plan, Task 10): layers 1 and 3, the dependency audit, the udev rules,
-# and the privacy check, on every push. Every job runs in Arch Linux, the only supported platform
+# and the privacy check, on every push; from Phase 10, the settings app's layers 3 and 4 in a
+# headless weston. Every job runs in Arch Linux, the only supported platform
 # (owner, 2026-10-27; solution review P4-05). The actions are pinned to full commit hashes, checked
 # for newer releases at each phase sign-off (AGENTS.md; solution review P5-06).
 name: CI
@@ -30,6 +31,23 @@ jobs:
         run: cargo test --workspace
       - name: udev rules
         run: udevadm verify --resolve-names=never packaging/udev/70-opendeepcool.rules tools/dev/reconnect.rules
+
+  # The settings app's display tests (Phase 10 plan, Task 10), apart from the workspace's tests,
+  # which need no display: layer 3 in a headless weston, and layer 4, the real app driven through
+  # AT-SPI against the fake service. gtk4 and weston, at-spi2-core for the registry, dbus for the
+  # private buses, hwdata for the PCI ID list the app names GPUs from; util-linux's setpriv,
+  # which starts weston, the buses and the app, is in the base image.
+  ui:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    steps:
+      - run: pacman -Syu --noconfirm git gtk4 weston at-spi2-core dbus hwdata
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+      - name: Layer 3, the app's widgets in a headless weston
+        run: cargo test -p odc-app --features weston-tests
+      - name: Layer 4, the real app through AT-SPI against the fake service
+        run: cargo run -p odc-e2e -- --only app --require weston
 
   privacy:
     runs-on: ubuntu-latest

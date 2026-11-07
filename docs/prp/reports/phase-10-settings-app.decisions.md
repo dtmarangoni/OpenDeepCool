@@ -13,7 +13,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 | `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
 | The dev copy's app, launcher entry and icon | Task 9 added them to `odc-dev setup` (D80–D82) | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-dev -- check` (exits 0), and the launcher lists OpenDeepCool with its icon and opens the dev copy's app |
 | The real app against the real dev service | Task 9's real run needs this build's dev service (D83, D84); the installed one predates Task 2, so `--only app` reports `app_real` failed with the setup fix until then | after `odc-dev setup`: `cargo run -p odc-e2e -- --only app --require dev-service,weston` |
-| CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73) | the first push of `phase-10-settings-app` |
+| CI: `cargo deny check`, the build with gtk4, and the new `ui` job (layer 3 in a headless weston, `--only app --require weston` against the fake) | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73); the `ui` job (Task 10) has never run in GitHub's container, where weston, GTK and the AT-SPI registry run as root | the first push of `phase-10-settings-app` |
 
 ## Decisions
 

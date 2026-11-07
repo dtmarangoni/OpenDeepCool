@@ -538,6 +538,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 
 **Validation**
 - `.githooks/pre-commit` and CI pass.
+- As built (2026-11-07): CI's new `ui` job installs `gtk4 weston at-spi2-core dbus hwdata` and runs layer 3 (`cargo test -p odc-app --features weston-tests`) and layer 4 against the fake (`cargo run -p odc-e2e -- --only app --require weston`); `cargo test --workspace` stays display-free. AGENTS.md already had the design folder and gained the app's commands with Tasks 3 and 8; the README gains the design document, how to run and test the app and its three test flags, and the dev copy's files (Task 9); the PRD's footprint names the package's entry and icon and the dev copy's, and weston's demo client. The guard passes; CI runs at the first push, at sign-off (decisions log, Pending real runs).
 
 ## Acceptance
 
