@@ -8,7 +8,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [advisories]
 # Every vulnerability, unsound and notice advisory is an error; ignore one only with a reason.
-ignore = []
+ignore = [
+    # zvariant, zvariant_derive and zbus_names are unmaintained since zbus 6 took them in: only
+    # zbus 5, under atspi in the dev-only AT-SPI driver odc-ui-e2e, still uses them, so nothing of
+    # them reaches the shipped binaries. They go with the zbus 5 skips below, once atspi moves to
+    # zbus 6. Found by CI at Phase 10's sign-off, 2026-11-07 (decisions log D85).
+    { id = "RUSTSEC-2026-0370", reason = "zvariant, under zbus 5 in the dev-only AT-SPI driver only" },
+    { id = "RUSTSEC-2026-0371", reason = "zbus_names, under zbus 5 in the dev-only AT-SPI driver only" },
+    { id = "RUSTSEC-2026-0372", reason = "zvariant_derive, under zbus 5 in the dev-only AT-SPI driver only" },
+]
 
 [licenses]
 # Every dependency in the graph offers MIT or Apache-2.0, one also requires Unicode-3.0 (counted
