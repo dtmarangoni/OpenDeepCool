@@ -52,13 +52,17 @@ pub enum Capability {
     /// The user's PipeWire, answering `pactl info`, with `pw-record`, `pw-play`, `pw-dump` and
     /// `pactl` (Phase 9 plan, Task 5): the Music checks' virtual output.
     PipeWire,
+    /// `weston`, whose headless backend the settings app's tests run in (Phase 10 plan,
+    /// Task 3); without it, they fail with the fix, since a UI test without a display proves
+    /// nothing.
+    Weston,
 }
 
 /// The drivers with a kind signal (`docs/spec/sensors.md`, GPU choice).
 const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
 
 impl Capability {
-    pub const ALL: [Capability; 16] = [
+    pub const ALL: [Capability; 17] = [
         Capability::Lp360,
         Capability::Lp360Reconnect,
         Capability::CpuTemp,
@@ -75,6 +79,7 @@ impl Capability {
         Capability::GpuLoadTool,
         Capability::DevService,
         Capability::PipeWire,
+        Capability::Weston,
     ];
 
     /// The name `--require` takes.
@@ -96,6 +101,7 @@ impl Capability {
             Capability::GpuLoadTool => "gpu-load-tool",
             Capability::DevService => "dev-service",
             Capability::PipeWire => "pipewire",
+            Capability::Weston => "weston",
         }
     }
 
@@ -278,6 +284,7 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
         Capability::GpuLoadTool => tool(roots, "ffmpeg", "install ffmpeg: `sudo pacman -S ffmpeg`"),
         Capability::DevService => dev_service(roots),
         Capability::PipeWire => pipewire(roots),
+        Capability::Weston => tool(roots, "weston", "install weston: `sudo pacman -S weston`"),
     }
 }
 

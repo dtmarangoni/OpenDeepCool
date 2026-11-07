@@ -100,6 +100,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
   - `1,180 RPM`;
   - "Choose input": a link-style `GtkButton` that opens the Configuration page;
   - "Input not found";
+  - "No reading": the chosen input is there, but its speed can't be read (the picker says "no reading"; Phase 10 decisions log D34);
   - "No fan sensors found";
   - "—" while the service is down.
 
@@ -157,7 +158,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
     - The name comes from `GpuInUse`, with the same label as that GPU's entry, and the line follows `GpuInUse` when it changes.
     - It names the GPU instead of saying "the first in the list". The list moves the GPUs without a reading rule last, while the service's order (`Gpus`) doesn't, so the first in the list isn't always the one Automatic reads.
     - A GPU chosen by hand is named on the button, so the line is hidden then.
-  - **The GPUs:** each entry is `<kind> · <product name>`, for example "Dedicated · Contoso Graphics R870". The product name comes from the system's PCI ID list (`hwdata`). Without an entry there, the label is `<kind> · <driver> · <PCI address>`.
+  - **The GPUs:** each entry is `<kind> · <product name>`, for example "Dedicated · Contoso Graphics R870". The product name comes from the system's PCI ID list (`hwdata`): the last bracketed part of the device's name there when it ends with one ("Chip 12 [Contoso Graphics R870]"), else the whole name. Without an entry there, the label is `<kind> · <driver> · <PCI address>`. Two GPUs whose labels would be the same each get ` · <PCI address>` after it (decisions log D36).
     - The kind reads "Dedicated", "Integrated" or "Unknown type". `unknown` and `query-failed` both read "Unknown type".
     - **Order:** the service's (`Gpus`: dedicated, integrated, then unknown, each by PCI address), with the GPUs without a reading rule moved last (settings.md, GPU list order).
   - **Notes**, muted, at the right of an entry, in the open list only:
@@ -341,6 +342,13 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | `--ctl-pressed-fill` | `pressed-fill-alpha` | `:active` |
 | `--radius` | (none in `shell.toml`) | 0 px with an Omarchy theme, 6 px in the default theme |
 
+- **Computed tokens**, from the fixed alphas of the mockups: `--line` (`--fg` at 0.12: header, column and banner rules), `--code-bg` (`--fg` at 0.08: the start command), `--unlit` (`--fg` at 0.12: unlit preview dots), `--banner-error` and `--banner-warn` (`--red` at 0.16 and `--yellow` at 0.14 over `--bg`, opaque).
+- **Values the tables leave open** (decisions log D30–D32, D39, D43):
+  - a border width is CSS's four sides, as `shell.toml`'s comment allows (`N`, `"Y X"`, `"T X B"`, `"T R B L"`, with `-top`, `-right`, `-bottom` and `-left` keys over it), each from 0 to 16 px;
+  - a missing or rejected `shell.toml` colour key takes the theme's own `--fg`, as Omarchy's template writes them, and a missing alpha the default theme's; `--ctl-pressed-fill` uses `normal-color`;
+  - the default theme's focus fill and border are its hover ones, its selected border is `--fg` opaque, its border widths 1 px, and its `--selection` is `--accent` at 0.35 over `--bg`;
+  - a `colors.toml` colour's own alpha is dropped, so the window stays opaque; a `shell.toml` colour's own alpha is multiplied by its `*-alpha` key;
+  - a disabled control has muted text on the normal fill and border, since the CSS has no `opacity`.
 - **Focus ring:** keyboard focus also gets a 2 px `--accent` outline, whatever the theme's focus alphas, so focus is always visible (WCAG 2.4.7).
 - **Gradients:** `shell.toml` border keys may hold a Hyprland-style gradient (`"rgba(…) rgba(…) 45deg"`, per its comments). The app uses the gradient's first colour, since a gradient border colour in GTK CSS is **unverified**.
 
@@ -431,7 +439,7 @@ How to give a `GtkScale` a named value text (Slower … Faster) for AT-SPI is **
 
 - Short English sentences, with the mode names Load, Temperature, Power and Music, never "Guardian" or "… Mode".
 - Metrics are named as the display shows them: CPU usage, GPU usage, RAM usage, CPU temperature, GPU temperature, CPU power, GPU power.
-- Reasons come from the service and aren't rewritten. The app adds only the metric name in front.
+- Reasons come from the service and aren't rewritten. The service puts the metric in front by the spec's name ("Gpu usage: …", "Memory Load: …"); the app writes that name as the display does ("GPU usage: …", "RAM usage: …") and keeps the rest (decisions log D35).
 - A banner that needs the user's action says what happened in bold, then the fix in one sentence. Details, such as device paths and error codes, go to the journal, and the banner says "The journal says more."
 - Numbers use English digit grouping (`1,180 RPM`) and tabular figures.
 

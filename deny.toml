@@ -16,6 +16,13 @@ ignore = []
 # with, is ISC (owner, 2026-10-28; Phase 6 plan, Task 8). bindgen, in the dev tool odc-bindings
 # only, is BSD-3-Clause (owner, 2026-10-28; Phase 6 plan, Task 9; counted 2026-10-29).
 allow = ["MIT", "Apache-2.0", "Unicode-3.0", "ISC", "BSD-3-Clause"]
+# target-lexicon's licence is Apache-2.0 with LLVM's exception, which only relaxes Apache's
+# terms for binaries built with it. gtk-rs's build scripts use it, through system-deps and
+# cfg-expr, so nothing of it reaches the binaries. Phase 10 Task 3, decisions log D40, pending
+# the owner's review.
+exceptions = [
+    { crate = "target-lexicon", allow = ["Apache-2.0 WITH LLVM-exception"] },
+]
 
 [bans]
 multiple-versions = "deny"

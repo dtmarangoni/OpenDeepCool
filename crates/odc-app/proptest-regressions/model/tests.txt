@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 296320dee4990d8cc90b09a9d9066367a543a3e788571880cd62296aaa4aff31 # shrinks to state = State { mode: Some(1), rotation: Some(0), temperature_unit: Some(Celsius), cooler_connected: Some(false), cooler_state: None, available_modes: Some([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]), unavailable_reasons: Some({}), gpus: Some([]), chosen_gpu: Some(""), gpu_in_use: Some(""), fan_inputs: Some([]), cooler_fan_input: Some(None), pump_input: Some(None), cooler_fan_input_present: Some(false), pump_input_present: Some(false), cooler_fan_rpm: None, pump_rpm: None, music_peaks: Some(false), music_bar_fall: Some(Slower), music_peak_fall: Some(Slower), audio_connected: Some(false), audio_wanted: Some(false) }

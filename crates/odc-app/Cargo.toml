@@ -1,0 +1,31 @@
+[package]
+name = "odc-app"
+description = "OpenDeepCool's settings app: one GTK4 window that mirrors the cooler and changes its settings"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "opendeepcool"
+path = "src/main.rs"
+
+[features]
+# The tests that start a headless weston (solution review P4-05, P10-04): outside
+# `cargo test --workspace`, the guard and the PKGBUILD's check(); CI runs them in a job of their own.
+weston-tests = []
+
+[dependencies]
+gtk4 = "0.11"
+odc-ipc = { path = "../odc-ipc" }
+odc-protocol = { path = "../odc-protocol" }
+odc-render = { path = "../odc-render" }
+odc-sensors = { path = "../odc-sensors" }
+toml = "1"
+
+[dev-dependencies]
+odc-testkit = { path = "../odc-testkit" }
+proptest.workspace = true
+
+[lints]
+workspace = true

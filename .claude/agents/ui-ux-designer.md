@@ -60,6 +60,15 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Cooler found, but not usable.** When the service finds the cooler but can't open it (a permissions problem, such as a missing udev rule), the app says so in its own banner, distinct from "not connected", with the fix. The service gives the reason in its state, `CoolerState`: `connected`, `not-found`, `no-access` or `write-failed` (`docs/spec/settings.md` Status).
 - **A GPU of unknown kind because its query failed.** It's listed with the unknown GPUs, after an integrated one, with a short note that its driver couldn't be asked; the dropdown lets the user pick it. The service marks it `query-failed` (`docs/spec/settings.md` GPU list order).
 
+## Design brief (Phase 10 Task 3, 2026-11-06, pending the owner's review)
+
+Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/prp/reports/phase-10-settings-app.decisions.md`; `docs/design/settings-app.md` has them in place.
+
+- **"No reading"** under the preview, and "no reading" in the picker, when the chosen fan or pump input is there but its speed can't be read (D34).
+- **Identical GPUs** each get their PCI address after the label; a product name is the bracketed part of the PCI ID list's device name (D36).
+- **Reasons** name the metric as the display does ("GPU usage: …"), though the service writes the spec's names (D35).
+- **The theme's open values:** border widths as CSS's four sides, a missing control colour from the theme's own foreground, the default theme's selection, focus and selected border, a colour's own alpha, and disabled controls without `opacity` (D30–D32, D39, D43).
+
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–23; 23 is OpenDeepCool's Music → Dancer) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).

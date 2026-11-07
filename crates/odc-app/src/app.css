@@ -1,0 +1,232 @@
+/* The settings app's stylesheet (docs/design/settings-app.md, Theme). It comes after the
+   generated :root block and uses only its tokens: no colour literal, no opacity, no motion. */
+
+* {
+  transition: none;
+  animation: none;
+  box-shadow: none;
+  text-shadow: none;
+  -gtk-icon-shadow: none;
+}
+
+window,
+window.background {
+  background-color: var(--bg);
+  color: var(--fg);
+}
+
+headerbar {
+  background-color: var(--bg);
+  background-image: none;
+  color: var(--fg);
+  border-bottom: 1px solid var(--line);
+}
+
+.app-name {
+  font-weight: 600;
+}
+
+label.muted,
+.muted {
+  color: var(--muted);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Controls: shell.toml [controls]. */
+button,
+dropdown > button,
+flowboxchild.tile {
+  background-color: var(--ctl-normal-fill);
+  background-image: none;
+  border-style: solid;
+  border-width: var(--ctl-normal-border-width);
+  border-color: var(--ctl-normal-border);
+  border-radius: var(--radius);
+  color: var(--fg);
+}
+
+button:hover,
+dropdown > button:hover,
+flowboxchild.tile:hover {
+  background-color: var(--ctl-hover-fill);
+  border-color: var(--ctl-hover-border);
+}
+
+button:focus-visible,
+dropdown > button:focus-visible,
+flowboxchild.tile:focus-visible {
+  background-color: var(--ctl-focus-fill);
+  border-color: var(--ctl-focus-border);
+}
+
+button:active,
+flowboxchild.tile:active {
+  background-color: var(--ctl-pressed-fill);
+}
+
+button:checked,
+flowboxchild.tile:selected {
+  background-color: var(--ctl-selected-fill);
+  border-color: var(--accent);
+  color: var(--fg);
+}
+
+button:disabled,
+dropdown > button:disabled,
+flowboxchild.tile:disabled {
+  background-color: var(--ctl-normal-fill);
+  border-color: var(--ctl-normal-border);
+  color: var(--muted);
+}
+
+/* Keyboard focus is always visible, whatever the theme's focus alphas (WCAG 2.4.7). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+button.link,
+button.link label {
+  background-color: var(--bg);
+  border-color: var(--bg);
+  color: var(--accent);
+  text-decoration-line: underline;
+}
+
+/* Banners. */
+.banner {
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.banner.error {
+  background-color: var(--banner-error);
+}
+
+.banner.error > image {
+  color: var(--red);
+}
+
+.banner.warn {
+  background-color: var(--banner-warn);
+}
+
+.banner.warn > image {
+  color: var(--yellow);
+}
+
+.banner .command {
+  font-family: monospace;
+  background-color: var(--code-bg);
+  padding: 4px 8px;
+}
+
+.banner .command selection,
+label selection {
+  background-color: var(--selection);
+  color: var(--fg);
+}
+
+/* The preview column. */
+.side {
+  padding: 18px;
+  border-right: 1px solid var(--line);
+}
+
+.preview {
+  background-color: var(--surface);
+  border-radius: var(--radius);
+  padding: 8px;
+}
+
+.caption {
+  font-weight: 600;
+}
+
+.warn-text {
+  color: var(--yellow);
+}
+
+.dot {
+  min-width: 9px;
+  min-height: 9px;
+  border-radius: 5px;
+}
+
+.dot.good {
+  background-color: var(--green);
+}
+
+.dot.warn {
+  background-color: var(--yellow);
+}
+
+.dot.bad {
+  background-color: var(--red);
+}
+
+.dot.off {
+  border: 1px solid var(--muted);
+}
+
+/* The pages. */
+.card,
+popover > contents {
+  background-color: var(--surface);
+  border-radius: var(--radius);
+  color: var(--fg);
+}
+
+.card {
+  padding: 14px 16px;
+}
+
+popover > contents {
+  border: 1px solid var(--line);
+}
+
+.group-heading,
+.card-heading {
+  font-weight: 600;
+}
+
+flowboxchild.tile.lost .flag {
+  color: var(--yellow);
+}
+
+scale > trough {
+  background-color: var(--ctl-normal-fill);
+  border: 1px solid var(--ctl-normal-border);
+}
+
+scale > trough > highlight {
+  background-color: var(--accent);
+}
+
+scale > trough > slider {
+  background-color: var(--fg);
+  border: 1px solid var(--ctl-normal-border);
+}
+
+switch {
+  background-color: var(--ctl-normal-fill);
+  border: 1px solid var(--ctl-normal-border);
+}
+
+switch:checked {
+  background-color: var(--accent);
+}
+
+switch > slider {
+  background-color: var(--fg);
+}
+
+.feedback {
+  background-color: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+}

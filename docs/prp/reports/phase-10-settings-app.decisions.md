@@ -11,6 +11,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 | Check | Why it waits | Command |
 |---|---|---|
 | `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
+| CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41) | the first push of `phase-10-settings-app` |
 
 ## Decisions
 
@@ -238,3 +239,108 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** 1. take the rerun, and record that the check reads OpenDeepCool and `sensors` at two moments, so a CPU cooling fast between them can fail it; 2. change the check to read `sensors` just before and after OpenDeepCool and pass within that range, outside Task 2's plan.
 - **Chosen:** 1, for the owner to decide at the review whether the check should change (option 2).
 - **Implemented in:** nothing changed; Task 2's commit message records both runs.
+
+### D30 — How a theme's border widths are read (Task 3)
+
+- **Question:** `shell.toml`'s own comment says a border width takes "one CSS-style scalar/list: N, "Y X", "T X B", or "T R B L"", with per-side keys such as `normal-border-width-left` over the list. The design has one token, `--ctl-normal-border-width`, and P10-05 lists only colours and alphas.
+- **Options:** 1. take only a number, or a list's first number; 2. read the whole four-sides list and the per-side keys, as the comment describes, and write them as CSS's four sides; and in both, cap a width: at 16 px, or none.
+- **Chosen:** 2, with each width a number from 0 to 16 px. Anything else, including `"1px"` or five numbers, takes the default theme's 1 px with a log line, like a rejected colour. GTK's `border-width` takes the same four sides (docs.gtk.org, GTK CSS Properties, read 2026-11-06).
+- **Implemented in:** `crates/odc-app/src/theme.rs` (`four_sides`, `Reader::widths`, `MAX_BORDER_WIDTH`); Task 3's commit.
+
+### D31 — The default theme's selection colour (Task 3)
+
+- **Question:** the design's `--selection` token (selected text in the command label) has no value in its Default theme table.
+- **Options:** the accent at Omarchy's own default `selection-fill-alpha`, 0.35, over the background, opaque; or the selected control fill.
+- **Chosen:** the accent at 0.35 over the background. Text on it keeps 4.5:1 in both default palettes, which a test checks. With an Omarchy theme, `colors.toml` `selection` is used as given.
+- **Implemented in:** `crates/odc-app/src/theme.rs` (`SELECTION_ALPHA`); Task 3's commit.
+
+### D32 — What a missing `shell.toml` key falls back to (Task 3)
+
+- **Question:** the design says a missing key takes "that token from the default theme". A control token is a colour key and an alpha key together (`normal-color` with `normal-fill-alpha`), and the default theme's control colour is its own foreground, which may clash with an Omarchy theme. Four more points were open: the colour of `--ctl-pressed-fill` (Omarchy gives only `pressed-fill-alpha`), and the default theme's focus fill and border, selected border, and border width, which its table doesn't give.
+- **Options:** for a missing colour key, the default theme's foreground, or this theme's own foreground, as Omarchy's template writes every control colour (`$OMARCHY_PATH/default/themed/shell.toml.tpl`, read 2026-11-06); for a missing alpha, the default theme's alpha in either case.
+- **Chosen:** this theme's own foreground for a colour key, and the default theme's alpha (dark or light by `mode`) for an alpha. The pressed fill uses `normal-color`. The default theme follows Omarchy's template where its table is silent: focus as hover, the selected border opaque, borders 1 px. A missing `shell.toml`, or one without `[controls]`, gives the default controls in the theme's foreground, with one log line.
+- **Implemented in:** `crates/odc-app/src/theme.rs` (`controls`, `default_controls`); Task 3's commit.
+
+### D33 — A `CoolerState` value the app doesn't know (Task 3)
+
+- **Question:** the design shows any other `CoolerState` value, "one a later service adds", as `not-found`. But `odc-ipc`'s `State::from_dict` refuses a value it doesn't know (`BadValue`), so the app couldn't read the state at all, and the contract tests expect that refusal (Phase 7).
+- **Options:** 1. the contract reads an unknown value as `not-found`; 2. the contract stays strict, and the app's client drops an unknown `CoolerState` before reading the rest, so the view model sees no cooler state and shows it as `not-found`.
+- **Chosen:** 2. The service's other clients, the e2e checks among them, still catch a wrong value; the app alone shows it as the design says. The view model shows a missing state and `released` as `not-found` (Task 3); the client's part comes with the client (Task 4). Other unknown values, such as a later GPU kind, still refuse the whole state, as the contract says.
+- **Implemented in:** `crates/odc-app/src/model.rs` (`shown`); `client.rs` in Task 4.
+
+### D34 — A chosen input that's there but can't be read (Task 3)
+
+- **Question:** the design gives five values for the fan and pump rows: an RPM, "Choose input", "Input not found", "No fan sensors found" and "—". A chosen input can be there (`CoolerFanInputPresent` true) while its speed can't be read (NaN, for example a permission error).
+- **Options:** "No reading" under the preview and "no reading" in the picker, as the mockups' picker already writes it; or "Input not found" for it too.
+- **Chosen:** "No reading", and "no reading" in the picker. The input is found, so "not found" would be wrong, and no other input's RPM ever stands in for it.
+- **Implemented in:** `crates/odc-app/src/model.rs` (`Speed::NoReading`); Task 3's commit. The design gains the value with Task 4's window.
+
+### D35 — The metric names in the service's reasons (Task 3)
+
+- **Question:** the design says reasons come from the service unchanged and "the app adds only the metric name in front", in the display's names ("GPU usage: …"). The service already puts the metric in front, by the spec's DeepCreative names: "Gpu usage: no reading for this driver", "Memory Load: …" (Phase 7's `availability`).
+- **Options:** 1. show the service's text as it is; 2. the app rewrites only the name in front to the display's (`CPU usage`, `GPU usage`, `RAM usage`, `CPU temperature`, …) and keeps the rest; 3. the service writes the display's names.
+- **Chosen:** 2. It keeps rule 11 and the design's Text rule in the app, needs no service change, and leaves a text without a known name ("comes in a later version") as it is. The same rewrite applies to `ModeUnavailable`'s message when a change is refused (Task 4).
+- **Implemented in:** `crates/odc-app/src/model.rs` (`reason_text`); Task 3's commit.
+
+### D36 — The GPU's product name, and identical GPUs (Task 3)
+
+- **Question:** the design labels a GPU `<kind> · <product name>` from `pci.ids`. A device line there reads like "Chip 12 [Graphics R870]": a chip name, then the product in brackets. And two identical cards would get the same label.
+- **Options:** the whole device name, or the last bracketed part when the name ends with one; for identical labels, nothing, or each one's PCI address after it.
+- **Chosen:** the last bracketed part, else the whole name. Identical labels get ` · <address>`, so each entry can be told apart. A GPU without an entry stays `<kind> · <driver> · <address>`.
+- **Implemented in:** `crates/odc-app/src/pci_ids.rs` (`product`), `crates/odc-app/src/model.rs` (`gpu_labels`); Task 3's commit.
+
+### D37 — The fake service is built with its first user (Task 3)
+
+- **Question:** the plan puts `odc-testkit/src/fake_service.rs` in Task 3, but lists no test for it there. Its only users are Task 8's scenarios, whose needs decide its shape: refusals, leaving the bus, the state file, the call log.
+- **Options:** build it now, untested; or build it in Task 8, with its tests and its first user.
+- **Chosen:** Task 8. Task 3 builds the weston harness and the pure modules, each with its tests.
+- **Implemented in:** the plan's Task 3 note; `fake_service.rs` in Task 8.
+
+### D38 — How the headless weston runs (Task 3)
+
+- **Question:** the plan names `Weston::headless()`, with a socket of its own, removed when dropped, and "a killed test leaves no socket". Open: where the socket lives, which shell and renderer, and how a killed test's weston ends, since the workspace forbids `unsafe` and Rust's standard library can't set a parent-death signal.
+- **Options:** the socket in the user's own runtime folder, or in a private one the test gives, with `WAYLAND_DISPLAY` holding its full path (libwayland takes one since 1.15); weston's desktop shell, or its kiosk shell; for a killed test, start weston through util-linux's `setpriv --pdeathsig KILL`, or leave it running.
+- **Chosen:** a private runtime folder (`Weston::headless(dir)`, created 0700), the kiosk shell (no panel, no lock screen), the pixman renderer (no GPU needed in CI), a 1280 × 800 output and `--no-config`, all through `setpriv --pdeathsig KILL`. Weston dies with the thread that started it; a killed test's socket file can't be removed by the dead test, so the next start in the same folder removes every socket that takes no connection. The `weston` capability is `tool()`'s probe, unusable with the fix when missing, as Task 8 asks.
+- **Implemented in:** `crates/odc-testkit/src/weston.rs`, `crates/odc-testkit/src/hardware.rs` (`Capability::Weston`), `crates/odc-app/tests/weston.rs`; Task 3's commit.
+
+### D39 — A colour's own alpha (Task 3)
+
+- **Question:** P10-05 accepts `#RRGGBBAA` and `rgba(RRGGBBAA)`, with an alpha of their own. The design wants the window opaque.
+- **Options:** keep the alpha everywhere; drop it everywhere; or drop it for `colors.toml`'s base colours and multiply it by the key's alpha for `shell.toml`'s control colours.
+- **Chosen:** the third. The window, its text and its surfaces stay opaque, and a control colour with its own alpha keeps it, times its `*-alpha` key.
+- **Implemented in:** `crates/odc-app/src/theme.rs` (`theme`, `Reader::colour`); Task 3's commit.
+
+### D40 — target-lexicon's licence (Task 3)
+
+- **Question:** gtk4's build scripts use `system-deps`, which brings `cfg-expr` and `target-lexicon`. Its licence is "Apache-2.0 WITH LLVM-exception", which `deny.toml` doesn't allow, so `cargo deny check` would fail.
+- **Options:** allow that licence everywhere; or an exception for that one crate, with the reason.
+- **Chosen:** the one-crate exception (cargo-deny's `exceptions`, embarkstudios.github.io/cargo-deny, licenses config, read 2026-11-06). The LLVM exception only relaxes Apache's terms for binaries built with it, and the crate is a build dependency only: `cargo tree -i target-lexicon -e normal` finds nothing. `cargo deny` isn't installed on this PC, so CI checks it at the first push (Pending real runs).
+- **Implemented in:** `deny.toml`; Task 3's commit.
+
+### D41 — CI installs gtk4 from Task 3 (Task 3)
+
+- **Question:** the plan adds CI's packages in Task 10, but the workspace build links gtk4 from Task 3 on, so CI's test job would fail until then.
+- **Options:** add `gtk4` to the test job now, and the rest (`weston`, `at-spi2-core`, `hwdata`) with their jobs; or all of them now.
+- **Chosen:** `gtk4` now, in the commit that adds the dependency; the rest with the UI job in Task 10.
+- **Implemented in:** `.github/workflows/ci.yml`; Task 3's commit.
+
+### D42 — What the view model's window input holds (Task 3)
+
+- **Question:** the plan's `Ui` holds "the page, the open dropdown".
+- **Options:** keep the open dropdown in it; or leave it to GTK, which owns the popup, with every entry always carrying its note and RPM.
+- **Chosen:** the page and the `write-failed` wait's end (`sending_failed_long`), which the design asks to be an input like a state change. The open dropdown changes nothing the view model decides.
+- **Implemented in:** `crates/odc-app/src/model.rs` (`Ui`, `SendingFails`); Task 3's commit.
+
+### D43 — How a disabled control looks without `opacity` (Task 3)
+
+- **Question:** the mockups dim disabled controls with `opacity: .45`, but the plan forbids `opacity` in the app's CSS.
+- **Options:** muted text on the normal fill and border; or a computed dimmer fill.
+- **Chosen:** muted text on the normal fill and border. The unavailable tiles' reasons are visible text under each group heading anyway, and Task 5 draws an insensitive tile's picture itself.
+- **Implemented in:** `crates/odc-app/src/app.css`; Task 3's commit.
+
+### D44 — AGENTS.md gains the app's crate and its weston tests now (Task 3)
+
+- **Question:** the plan updates AGENTS.md in Task 10, but AGENTS.md says a changed rule or command is written there in the same commit, and Task 3 adds a crate and a test command.
+- **Options:** wait for Task 10; or add the crate to the layout and the weston test command now, and the rest (`--only app`, the design-first rule) in Task 10.
+- **Chosen:** now, as AGENTS.md asks; Task 10 adds the rest.
+- **Implemented in:** `AGENTS.md`; Task 3's commit.
