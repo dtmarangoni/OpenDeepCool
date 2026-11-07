@@ -27,6 +27,9 @@ pub const DEV_DIRS: &[&str] = &[
     "/etc/dbus-1/system.d",
     "/etc/polkit-1/actions",
     "/etc/systemd/user",
+    // The settings app's launcher entry and icon (Phase 10 plan, Task 9).
+    "/usr/local/share/applications",
+    "/usr/local/share/icons/hicolor/scalable/apps",
 ];
 
 /// The dev copy's own folders (Phase 7 plan, Task 8; Phase 9 plan, Task 4): any file in them is
@@ -39,8 +42,9 @@ pub const OWN_DIRS: &[&str] = &[
 ];
 
 /// The folders the setup may create, when they're missing, and so remove: its own, and the
-/// shared ones Arch doesn't create (checked on the development PC, 2026-10-29). A folder is
-/// removed only when empty.
+/// shared ones Arch doesn't create (checked on the development PC, 2026-10-29; the
+/// `/usr/local/share` ones for the settings app, 2026-11-07: Arch's `filesystem` package makes
+/// `/usr/local/share` alone). A folder is removed only when empty.
 pub const CREATED_DIRS: &[&str] = &[
     "/usr/local/libexec",
     "/usr/local/libexec/opendeepcool-dev",
@@ -50,6 +54,11 @@ pub const CREATED_DIRS: &[&str] = &[
     "/etc/systemd/system/opendeepcool.service.d",
     "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
     "/etc/systemd/user/opendeepcool-audio.service.d",
+    "/usr/local/share/applications",
+    "/usr/local/share/icons",
+    "/usr/local/share/icons/hicolor",
+    "/usr/local/share/icons/hicolor/scalable",
+    "/usr/local/share/icons/hicolor/scalable/apps",
 ];
 
 /// The service's account (Phase 7 plan, Task 8: `u!` in the sysusers file).
@@ -655,6 +664,40 @@ mod tests {
         let text = m.render();
         assert!(text.ends_with("enabled-for-every-user opendeepcool-audio.service\n"));
         assert_eq!(Manifest::parse(&text), Ok(m));
+    }
+
+    // Phase 10 plan, Task 9: the settings app's binary, its launcher entry and icon, and the
+    // folders under /usr/local/share they need; nothing else of /usr/local/share.
+    #[test]
+    fn what_the_setup_writes_for_the_settings_app_is_accepted() {
+        let mut m = setup_manifest();
+        for dir in [
+            "/usr/local/share/applications",
+            "/usr/local/share/icons",
+            "/usr/local/share/icons/hicolor",
+            "/usr/local/share/icons/hicolor/scalable",
+            "/usr/local/share/icons/hicolor/scalable/apps",
+        ] {
+            m.push(Entry::dir(dir).expect("created")).expect("new");
+        }
+        for f in [
+            "/usr/local/libexec/opendeepcool-dev/opendeepcool",
+            "/usr/local/share/applications/io.github.dtmarangoni.OpenDeepCool.desktop",
+            "/usr/local/share/icons/hicolor/scalable/apps/io.github.dtmarangoni.OpenDeepCool.svg",
+        ] {
+            m.push(Entry::file(f).expect("a dev file")).expect("new");
+        }
+        assert_eq!(Manifest::parse(&m.render()), Ok(m));
+        for refused in [
+            "/usr/local/share/applications/firefox.desktop",
+            "/usr/local/share/icons/hicolor/scalable/apps/other.svg",
+            "/usr/local/share/icons/hicolor/index.theme",
+        ] {
+            assert!(Entry::file(refused).is_err(), "{refused}");
+        }
+        for refused in ["/usr/local/share", "/usr/local/share/man"] {
+            assert!(Entry::dir(refused).is_err(), "{refused}");
+        }
     }
 
     #[test]

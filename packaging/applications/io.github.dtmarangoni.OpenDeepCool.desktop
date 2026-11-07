@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=OpenDeepCool
+Comment=Settings for the display of the DeepCool LP360 cooler
+Exec=opendeepcool
+Icon=io.github.dtmarangoni.OpenDeepCool
+Terminal=false
+Categories=Settings;HardwareSettings;
+StartupNotify=true

@@ -165,7 +165,7 @@ pub const FILES: [Install; 3] = [
 ];
 
 /// The folders the dev copy needs, parents first; each one missing is created and recorded.
-pub const DIRS: [&str; 8] = [
+pub const DIRS: [&str; 13] = [
     "/usr/local/libexec",
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/systemd/system/opendeepcool.service.d",
@@ -174,12 +174,17 @@ pub const DIRS: [&str; 8] = [
     "/etc/dbus-1/system.d",
     "/etc/polkit-1/actions",
     "/etc/systemd/user/opendeepcool-audio.service.d",
+    "/usr/local/share/applications",
+    "/usr/local/share/icons",
+    "/usr/local/share/icons/hicolor",
+    "/usr/local/share/icons/hicolor/scalable",
+    "/usr/local/share/icons/hicolor/scalable/apps",
 ];
 
-/// The dev copy of the display service, of the GPU rank helper and of the sound helper, built
-/// `--release` by the user's side of `setup` (solution review P5-03); the root step only copies
-/// them.
-pub const BINARIES: [Install; 3] = [
+/// The dev copy of the display service, of the GPU rank helper, of the sound helper and of the
+/// settings app, built `--release` by the user's side of `setup` (solution review P5-03); the
+/// root step only copies them.
+pub const BINARIES: [Install; 4] = [
     Install {
         source: "target/release/opendeepcoold",
         target: "/usr/local/libexec/opendeepcool-dev/opendeepcoold",
@@ -191,6 +196,23 @@ pub const BINARIES: [Install; 3] = [
     Install {
         source: "target/release/opendeepcool-audio",
         target: "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio",
+    },
+    Install {
+        source: "target/release/opendeepcool",
+        target: "/usr/local/libexec/opendeepcool-dev/opendeepcool",
+    },
+];
+
+/// The settings app's launcher entry, whose `Exec` names the dev copy's app, and its icon
+/// (Phase 10 plan, Task 9), in `/usr/local/share`, which launchers read (`XDG_DATA_DIRS`).
+pub const APP_FILES: [Install; 2] = [
+    Install {
+        source: "tools/dev/io.github.dtmarangoni.OpenDeepCool.desktop",
+        target: "/usr/local/share/applications/io.github.dtmarangoni.OpenDeepCool.desktop",
+    },
+    Install {
+        source: "packaging/icons/io.github.dtmarangoni.OpenDeepCool.svg",
+        target: "/usr/local/share/icons/hicolor/scalable/apps/io.github.dtmarangoni.OpenDeepCool.svg",
     },
 ];
 
@@ -279,9 +301,29 @@ mod tests {
         );
     }
 
+    // The dev copy's launcher entry is the product's, but for `Exec`, which names the dev
+    // copy's app (Phase 10 plan, Task 9).
+    #[test]
+    fn the_dev_launcher_entry_is_the_product_s_but_for_exec() {
+        let read = |path: &str| {
+            std::fs::read_to_string(repo_root().join(path)).expect("the launcher entry")
+        };
+        let product = read("packaging/applications/io.github.dtmarangoni.OpenDeepCool.desktop");
+        let dev = read(APP_FILES[0].source);
+        assert!(product.lines().any(|l| l == "Exec=opendeepcool"));
+        assert_eq!(
+            dev,
+            product.replace(
+                "Exec=opendeepcool\n",
+                &format!("Exec={}\n", BINARIES[3].target)
+            )
+        );
+        assert!(BINARIES[3].target.ends_with("/opendeepcool"));
+    }
+
     #[test]
     fn every_installed_file_and_folder_is_one_the_manifest_accepts() {
-        for file in FILES.iter().chain(&SERVICE_FILES) {
+        for file in FILES.iter().chain(&SERVICE_FILES).chain(&APP_FILES) {
             assert!(
                 odc_manifest::Entry::file(file.target).is_ok(),
                 "{}",

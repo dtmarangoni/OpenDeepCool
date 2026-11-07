@@ -104,6 +104,8 @@ busctl call io.github.dtmarangoni.OpenDeepCool1 /io/github/dtmarangoni/OpenDeepC
   io.github.dtmarangoni.OpenDeepCool1 SetMusicPeaks b false
 ```
 
+From Phase 10, `odc-dev setup` also installs the settings app `opendeepcool` with its launcher entry and icon under `/usr/local`, so the launcher lists OpenDeepCool; `odc-dev teardown` removes them with the rest.
+
 `cargo run -p odc-e2e -- --only service` drives the dev service through each drawn mode, in each unit it shows, and each scenario it can be driven through, unattended. It tests the installed copy, so run `odc-dev setup` again after changing the service or what it links. `--only display` writes each drawn mode's examples straight to the cooler, from the code just built, and `--modes 7-9` limits either to some modes. `--only music` plays a test tone into a virtual output, checks what the cooler shows for it, and measures the delay from sound to frame. `--only baseline` measures its CPU and memory use over 10 minutes, and `--attended` is an optional tour to watch on the cooler.
 
 ## License

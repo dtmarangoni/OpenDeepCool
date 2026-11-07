@@ -11,6 +11,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 | Check | Why it waits | Command |
 |---|---|---|
 | `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`, and Task 5 `odc-render`, which the service links; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
+| The dev copy's app, launcher entry and icon | Task 9 added them to `odc-dev setup` (D80–D82) | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-dev -- check` (exits 0), and the launcher lists OpenDeepCool with its icon and opens the dev copy's app |
 | CI: `cargo deny check` and the build with gtk4 | `cargo deny` isn't installed on this PC, and the branch is pushed only at sign-off (D40, D41; the zbus 5 skips, D73) | the first push of `phase-10-settings-app` |
 
 ## Decisions
@@ -589,3 +590,24 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** none: AT-SPI gives no pixels.
 - **Chosen, and where each is checked:** the preview's dots and every tile's picture (layer 3; the real frames in Task 9), the theme's colours (layer 3; layer 4 checks the reload and that the page stays), the arrow keys between toggles and the shortcuts' keys (layer 3, D71), and the 2 s `write-failed` wait on a fake clock (layer 1; layer 4 measures it on the real one: the banner after about 2.1 s). For the owner's review: through AT-SPI the peak dots switch reads its new value at the press, before the service answers, since AT-SPI reads GTK's handle, not its delayed state (D63); and a scale follows the drag until a refusal (D61). The layer 4 checks test both as built: the call, then the confirmed state, and a refusal putting each back.
 - **Implemented in:** `crates/odc-ui-e2e/src/scenarios.rs` (`music`, `refused`); this log; Task 8's commit.
+
+### D80 — The dev copy's launcher entry (Task 9)
+
+- **Question:** the package's entry starts `opendeepcool` from `/usr/bin` (`Exec=opendeepcool`); the dev copy's app is `/usr/local/libexec/opendeepcool-dev/opendeepcool`, which isn't on `PATH`.
+- **Options:** rewrite the `Exec` line while installing, a step unlike every other file `odc-dev` installs; or a dev copy of the entry in `tools/dev/`, as the units' dev drop-ins are, with a test that it's the package's entry but for `Exec`.
+- **Chosen:** the dev copy and its test (`the_dev_launcher_entry_is_the_product_s_but_for_exec`). Both entries pass `desktop-file-validate`.
+- **Implemented in:** `packaging/applications/`, `tools/dev/io.github.dtmarangoni.OpenDeepCool.desktop`, `tools/dev/src/system.rs` (`APP_FILES`); the manifest's folders (`crates/odc-manifest`); Task 9's first commit.
+
+### D81 — The app's icon (Task 9)
+
+- **Question:** the plan asks for "a simple 14 × 14 dot motif, our own".
+- **Options:** a ring of lit dots; the letters; or spectrum bars, the most display-like picture the app shows.
+- **Chosen:** a 14 × 14 dot display on a rounded square, lit dots forming spectrum bars of made-up heights, in the default dark theme's background and accent; an SVG of two dot patterns and fourteen bars, written by hand. It renders as intended (`rsvg-convert`, looked at on the development PC).
+- **Implemented in:** `packaging/icons/io.github.dtmarangoni.OpenDeepCool.svg`; Task 9's first commit.
+
+### D82 — Desktop and icon caches (Task 9)
+
+- **Question:** whether the dev setup runs `update-desktop-database` and `gtk-update-icon-cache` after installing the entry and the icon.
+- **Options:** run both; or neither.
+- **Chosen:** neither. The entry declares no MIME type, which is what the desktop database indexes, and launchers read entries from the folders in `XDG_DATA_DIRS`, `/usr/local/share` among them on this PC; an icon cache needs an `index.theme` in `/usr/local/share/icons/hicolor`, which nobody installs there, and GTK finds an icon without a cache. Whether the launcher lists the app and shows the icon is checked at the owner's setup (Pending real runs).
+- **Implemented in:** `tools/dev/src/install.rs` (nothing run); Task 9's first commit.

@@ -10,7 +10,7 @@ use std::path::Path;
 use odc_manifest::{Entry, GROUP, Manifest, SystemHost, UNIT, USER, USER_UNIT};
 
 use crate::system::{
-    BINARIES, DIRS, FILES, Install, SERVICE_FILES, Tool, effective_uid, lp360_node,
+    APP_FILES, BINARIES, DIRS, FILES, Install, SERVICE_FILES, Tool, effective_uid, lp360_node,
     lp360_usb_device, package_zones, user_name,
 };
 
@@ -79,7 +79,7 @@ pub fn install_root(repo: &Path) -> Result<(), String> {
     for binary in &BINARIES {
         install(&mut manifest, repo, binary, 0o755)?;
     }
-    for file in &SERVICE_FILES {
+    for file in SERVICE_FILES.iter().chain(&APP_FILES) {
         install(&mut manifest, repo, file, 0o644)?;
     }
 

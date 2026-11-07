@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>OpenDeepCool</title>
+  <!-- OpenDeepCool's own motif: a 14 x 14 dot display showing spectrum bars. -->
+  <defs>
+    <pattern id="unlit" x="8" y="8" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3" fill="#e4dccb" fill-opacity="0.14"/>
+    </pattern>
+    <pattern id="lit" x="8" y="8" width="8" height="8" patternUnits="userSpaceOnUse">
+      <circle cx="4" cy="4" r="3" fill="#4fc3b4"/>
+    </pattern>
+  </defs>
+  <rect x="2" y="2" width="124" height="124" rx="22" fill="#1f2120"/>
+  <rect x="8" y="8" width="112" height="112" fill="url(#unlit)"/>
+  <!-- One bar per column, its height in dots: 4 7 10 12 9 6 8 11 13 10 7 5 6 3. -->
+  <g fill="url(#lit)">
+    <rect x="8" y="88" width="8" height="32"/>
+    <rect x="16" y="64" width="8" height="56"/>
+    <rect x="24" y="40" width="8" height="80"/>
+    <rect x="32" y="24" width="8" height="96"/>
+    <rect x="40" y="48" width="8" height="72"/>
+    <rect x="48" y="72" width="8" height="48"/>
+    <rect x="56" y="56" width="8" height="64"/>
+    <rect x="64" y="32" width="8" height="88"/>
+    <rect x="72" y="16" width="8" height="104"/>
+    <rect x="80" y="40" width="8" height="80"/>
+    <rect x="88" y="64" width="8" height="56"/>
+    <rect x="96" y="80" width="8" height="40"/>
+    <rect x="104" y="72" width="8" height="48"/>
+    <rect x="112" y="96" width="8" height="24"/>
+  </g>
+</svg>

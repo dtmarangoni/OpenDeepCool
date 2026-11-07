@@ -9,8 +9,8 @@ use odc_manifest::{GROUP, Manifest, STATE_DIR, UNIT, USER, USER_UNIT};
 use odc_sensors::{PciAddr, RANK_FILE, RankedKind, Ranking, display_devices};
 
 use crate::system::{
-    BINARIES, BUS_NAME, FILES, SERVICE_FILES, Tool, effective_uid, lp360_node, lp360_usb_device,
-    package_zones, parse_groups, process_status, repo_root, user_name,
+    APP_FILES, BINARIES, BUS_NAME, FILES, SERVICE_FILES, Tool, effective_uid, lp360_node,
+    lp360_usb_device, package_zones, parse_groups, process_status, repo_root, user_name,
 };
 
 /// Reports each installed file and binary against the checkout and its release build, the group
@@ -21,7 +21,12 @@ use crate::system::{
 pub fn check() -> Result<(), String> {
     let mut problems = Vec::new();
     let repo = repo_root();
-    for file in FILES.iter().chain(&SERVICE_FILES).chain(&BINARIES) {
+    for file in FILES
+        .iter()
+        .chain(&SERVICE_FILES)
+        .chain(&BINARIES)
+        .chain(&APP_FILES)
+    {
         let wanted = match fs::read(repo.join(file.source)) {
             Ok(wanted) => wanted,
             Err(e) => {

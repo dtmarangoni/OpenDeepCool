@@ -109,9 +109,9 @@ fn setup() -> Result<(), String> {
     Ok(())
 }
 
-/// The dev copy's three binaries, built `--release` from the checkout's lock file, by the cargo
+/// The dev copy's four binaries, built `--release` from the checkout's lock file, by the cargo
 /// that built this tool (solution review P5-03).
-const BUILD: [&str; 15] = [
+const BUILD: [&str; 19] = [
     "build",
     "--release",
     "--locked",
@@ -127,6 +127,10 @@ const BUILD: [&str; 15] = [
     "odc-audio",
     "--bin",
     "opendeepcool-audio",
+    "-p",
+    "odc-app",
+    "--bin",
+    "opendeepcool",
 ];
 
 /// Builds [`BUILD`] in the checkout, as the user: the only build `odc-dev` starts.
