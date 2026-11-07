@@ -69,6 +69,9 @@ pub struct Status {
     pub bindings: Vec<(Metric, Binding)>,
     pub gpus: Vec<Gpu>,
     pub fan_inputs: Vec<FanInput>,
+    /// Each of `fan_inputs`' speed, in its order, from the sensor thread's last snapshot (Phase
+    /// 10); empty before the first.
+    pub fan_rpms: Vec<Reading>,
     /// The readings drawn; `None` before the engine's first tick.
     pub snapshot: Option<Snapshot>,
     /// The last readings override the engine took: its number and its tick.

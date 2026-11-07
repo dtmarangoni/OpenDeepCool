@@ -260,6 +260,14 @@ static GPU_RULES: &[GpuRule] = &[
     },
 ];
 
+/// Whether `driver` has a reading rule for any GPU metric (`docs/spec/sensors.md`): without one,
+/// as for nouveau, a GPU on it gives no GPU reading at all.
+pub fn has_gpu_rule(driver: &str) -> bool {
+    GPU_RULES
+        .iter()
+        .any(|rule| rule.driver == driver && !matches!(rule.source, GpuSource::Nothing))
+}
+
 /// The chosen GPU's rules for `metric`, as candidates looking under `roots`. A driver without
 /// rows, such as nouveau, has no reading for any GPU metric.
 pub(crate) fn gpu_candidates(

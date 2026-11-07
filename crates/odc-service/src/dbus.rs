@@ -20,9 +20,13 @@ use std::time::{Duration, Instant};
 use odc_device::{Link, Reason, RecordingHandle};
 use odc_ipc::{
     BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, FanSpeed, Input, OBJECT_PATH, State,
+    frame_pixels,
 };
+use odc_protocol::Frame;
 use odc_render::{Mode, Shown, number};
-use odc_sensors::{Binding, Exact, Fan, Metric, Reading, Snapshot, Unavailable};
+use odc_sensors::{
+    Binding, Exact, Fan, Metric, PciAddr, Reading, Snapshot, Unavailable, choose, has_gpu_rule,
+};
 use zbus::fdo::DBusProxy;
 use zbus::message::{Header, Type};
 use zbus::names::BusName;
@@ -39,7 +43,7 @@ use crate::runtime::{DeviceControl, Durations, SensorRequest, Slot};
 use crate::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
-use crate::watchers::{Checked, Watchers};
+use crate::watchers::{Checked, Watch, Watchers};
 
 /// Each watcher is checked again this often, on the D-Bus side's own timer.
 const CHECK_EVERY: Duration = Duration::from_secs(1);
@@ -106,6 +110,9 @@ struct Shared {
     dbus: DBusProxy<'static>,
     watchers: Mutex<Watchers>,
     pulse: Arc<Pulse>,
+    /// The newest frame the engine drew, and the pulse that says one came (Phase 10).
+    frames: Arc<Slot<Frame>>,
+    frame_pulse: Arc<Pulse>,
     journal: Arc<dyn Journal>,
     dev: Option<DevSide>,
     /// The last readings override's number.
@@ -540,6 +547,35 @@ impl Shared {
 
     /// Checks each watcher for `use` again; returns those that pass again after failing, which
     /// get the whole state.
+    /// `Watch()` or `WatchFrames()`: registers the caller for `what`, within the caps.
+    async fn add_watch(&self, header: &Header<'_>, call: &str, what: Watch) -> Result<(), Error> {
+        let sender = self.reader(header, call).await?;
+        let user = match self.credentials.of(&sender).await {
+            Ok(Identity {
+                user: Some(user), ..
+            }) => user,
+            _ => {
+                return Err(self.refused(
+                    call,
+                    &sender,
+                    Error::NotAuthorized("the bus doesn't say whose the caller is".into()),
+                ));
+            }
+        };
+        let added = lock(&self.watchers)
+            .add(&sender, user, what)
+            .map_err(Error::TooManyWatchers);
+        self.logged(call, &sender, added)?;
+        // A caller that left the bus before it was added would stay: its NameOwnerChanged came
+        // first.
+        if let Ok(name) = BusName::try_from(sender.as_str())
+            && let Ok(false) = self.dbus.name_has_owner(name).await
+        {
+            lock(&self.watchers).remove(&sender);
+        }
+        Ok(())
+    }
+
     async fn check_watchers(&self) -> Vec<String> {
         let names = lock(&self.watchers).names();
         let mut again = Vec::new();
@@ -606,6 +642,9 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
                 .map(|gpu| odc_ipc::Gpu {
                     pci: gpu.pci.to_string(),
                     driver: gpu.driver.clone(),
+                    vendor: gpu.vendor.unwrap_or(0),
+                    device: gpu.device.unwrap_or(0),
+                    has_rule: has_gpu_rule(&gpu.driver),
                     kind: match &gpu.kind {
                         odc_sensors::GpuKind::Dedicated => odc_ipc::GpuKind::Dedicated,
                         odc_sensors::GpuKind::Integrated => odc_ipc::GpuKind::Integrated,
@@ -618,20 +657,35 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
                 .collect(),
         ),
         chosen_gpu: Some(settings.gpu_choice.clone().unwrap_or_default()),
+        gpu_in_use: Some(
+            choose(
+                &status.gpus,
+                settings
+                    .gpu_choice
+                    .as_deref()
+                    .and_then(|pci| pci.parse::<PciAddr>().ok()),
+            )
+            .map(|gpu| gpu.pci.to_string())
+            .unwrap_or_default(),
+        ),
         fan_inputs: Some(
             status
                 .fan_inputs
                 .iter()
-                .map(|found| odc_ipc::FanInput {
+                .enumerate()
+                .map(|(i, found)| odc_ipc::FanInput {
                     chip: found.chip.clone(),
                     device: found.device.to_string_lossy().into_owned(),
                     input: found.input,
                     label: found.label.clone().unwrap_or_default(),
+                    rpm: rpm(status.fan_rpms.get(i)),
                 })
                 .collect(),
         ),
         cooler_fan_input: Some(input(&settings.cooler_fan_input)),
         pump_input: Some(input(&settings.pump_input)),
+        cooler_fan_input_present: Some(present(fans.map(|s| &s.cooler_fans))),
+        pump_input_present: Some(present(fans.map(|s| &s.pump))),
         cooler_fan_rpm: Some(speed(fans.map(|s| &s.cooler_fans))),
         pump_rpm: Some(speed(fans.map(|s| &s.pump))),
         music_peaks: Some(settings.music_peaks),
@@ -659,12 +713,29 @@ fn cooler_state(status: &Status) -> (bool, CoolerState) {
 /// A fan's speed in whole RPM, capped at 9999, like every number the display draws.
 fn speed(fan: Option<&Fan>) -> FanSpeed {
     match fan {
-        Some(Fan::Chosen(Reading::Value(rpm))) => match number(Some(*rpm)) {
+        Some(Fan::Chosen(reading)) => rpm(Some(reading)),
+        _ => FanSpeed::Unavailable,
+    }
+}
+
+/// A fan input's reading in whole RPM, capped at 9999.
+fn rpm(reading: Option<&Reading>) -> FanSpeed {
+    match reading {
+        Some(Reading::Value(rpm)) => match number(Some(*rpm)) {
             Shown::Number(n) => FanSpeed::Rpm(n),
             Shown::Dashes => FanSpeed::Unavailable,
         },
         _ => FanSpeed::Unavailable,
     }
+}
+
+/// Whether a chosen fan input is there: its reading isn't "no device"; true with none chosen, or
+/// before the first snapshot.
+fn present(fan: Option<&Fan>) -> bool {
+    !matches!(
+        fan,
+        Some(Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)))
+    )
 }
 
 /// `Diagnostics()`: each metric, in the spec's order, with its source and its state (owner,
@@ -948,37 +1019,26 @@ impl Main {
     }
 
     async fn watch(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
-        let call = "Watch";
-        let sender = self.shared.reader(&header, call).await?;
-        let user = match self.shared.credentials.of(&sender).await {
-            Ok(Identity {
-                user: Some(user), ..
-            }) => user,
-            _ => {
-                return Err(self.shared.refused(
-                    call,
-                    &sender,
-                    Error::NotAuthorized("the bus doesn't say whose the caller is".into()),
-                ));
-            }
-        };
-        let added = lock(&self.shared.watchers)
-            .add(&sender, user)
-            .map_err(Error::TooManyWatchers);
-        self.shared.logged(call, &sender, added)?;
-        // A caller that left the bus before it was added would stay: its NameOwnerChanged came
-        // first.
-        if let Ok(name) = BusName::try_from(sender.as_str())
-            && let Ok(false) = self.shared.dbus.name_has_owner(name).await
-        {
-            lock(&self.shared.watchers).remove(&sender);
-        }
-        Ok(())
+        self.shared.add_watch(&header, "Watch", Watch::State).await
     }
 
     async fn unwatch(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
         let sender = self.shared.reader(&header, "Unwatch").await?;
-        lock(&self.shared.watchers).remove(&sender);
+        lock(&self.shared.watchers).end(&sender, Watch::State);
+        Ok(())
+    }
+
+    /// `Frame` for this caller from the next frame drawn (Phase 10); a second call changes
+    /// nothing.
+    async fn watch_frames(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
+        self.shared
+            .add_watch(&header, "WatchFrames", Watch::Frames)
+            .await
+    }
+
+    async fn unwatch_frames(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
+        let sender = self.shared.reader(&header, "UnwatchFrames").await?;
+        lock(&self.shared.watchers).end(&sender, Watch::Frames);
         Ok(())
     }
 
@@ -996,6 +1056,9 @@ impl Main {
         emitter: &SignalEmitter<'_>,
         changes: HashMap<String, OwnedVariant>,
     ) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    pub async fn frame(emitter: &SignalEmitter<'_>, pixels: Vec<u8>) -> zbus::Result<()>;
 }
 
 /// The dev interface (`docs/spec/dbus.md`, Dev interface), registered only with `--dev`.
@@ -1156,6 +1219,9 @@ pub struct Parts {
     /// another GPU ask for.
     pub sensors: Sender<SensorRequest>,
     pub pulse: Arc<Pulse>,
+    /// The newest frame the engine drew, and the pulse that says one came (Phase 10).
+    pub frames: Arc<Slot<Frame>>,
+    pub frame_pulse: Arc<Pulse>,
     pub journal: Arc<dyn Journal>,
     /// With `--dev`: the service's group, the recording, and the threads' durations.
     pub dev: Option<(u32, RecordingHandle, Arc<Durations>)>,
@@ -1241,6 +1307,7 @@ async fn serve(parts: Parts, ready: &Sender<Result<(), String>>, stop: &AtomicBo
     let _ = ready.send(Ok(()));
     let tasks: Vec<Pin<Box<dyn Future<Output = ()> + Send + '_>>> = vec![
         Box::pin(tell_watchers(&shared, &conn, stop)),
+        Box::pin(tell_frame_watchers(&shared, &conn, stop)),
         Box::pin(names.run(|name| shared.gone(name))),
         Box::pin(sleep.run(|| shared.woke())),
     ];
@@ -1286,6 +1353,8 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
         dbus: DBusProxy::new(&conn).await?,
         watchers: Mutex::new(Watchers::default()),
         pulse: parts.pulse,
+        frames: parts.frames,
+        frame_pulse: parts.frame_pulse,
         journal: parts.journal,
         dev: parts
             .dev
@@ -1355,19 +1424,63 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
         };
         let state = shared.state();
         let changes = state.changed_since(&sent);
-        let watchers = lock(&shared.watchers).allowed();
+        let watchers = lock(&shared.watchers).allowed(Watch::State);
         for name in watchers {
-            let dict = if again.contains(&name) {
-                state.to_dict()
-            } else if !changes.is_empty() {
-                changes.to_dict()
+            let mut send = if again.contains(&name) {
+                state.clone()
             } else {
-                continue;
+                changes.clone()
             };
-            signal(conn, &name, dict).await;
+            // The fan speeds change every second: only the settings app, which watches frames,
+            // asks for them (`docs/spec/dbus.md`, `WatchFrames`).
+            if !lock(&shared.watchers).watches(&name, Watch::Frames) {
+                send.fan_inputs = None;
+            }
+            if send.is_empty() {
+                continue;
+            }
+            signal(conn, &name, send.to_dict()).await;
         }
         sent = state;
     }
+}
+
+/// Sends each frame watcher the frame the engine drew whenever it differs from the last that
+/// watcher got: a new watcher gets the next frame drawn, within a tick, and then only changes
+/// (`docs/spec/dbus.md`, `Frame`). One that fails its check gets nothing until it passes again,
+/// and then the next frame.
+async fn tell_frame_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
+    let mut sent: HashMap<String, Frame> = HashMap::new();
+    let mut seen = shared.frame_pulse.count();
+    loop {
+        seen = shared.frame_pulse.after(seen).await;
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some(frame) = shared.frames.take() else {
+            continue;
+        };
+        let watchers = lock(&shared.watchers).allowed(Watch::Frames);
+        sent.retain(|name, _| watchers.contains(name));
+        for name in watchers {
+            if sent.get(&name) == Some(&frame) {
+                continue;
+            }
+            sent.insert(name.clone(), frame);
+            signal_frame(conn, &name, frame_pixels(&frame)).await;
+        }
+    }
+}
+
+/// `Frame`, addressed to one frame watcher.
+async fn signal_frame(conn: &Connection, to: &str, pixels: Vec<u8>) {
+    let (Ok(destination), Ok(emitter)) =
+        (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
+    else {
+        return;
+    };
+    // A watcher that just left misses nothing it could read.
+    let _ = Main::frame(&emitter.set_destination(destination), pixels).await;
 }
 
 /// `StateChanged`, addressed to one watcher: the bus delivers it to that connection alone (D-Bus

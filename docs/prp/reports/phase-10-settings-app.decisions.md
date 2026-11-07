@@ -10,6 +10,7 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 
 | Check | Why it waits | Command |
 |---|---|---|
+| `--only service`, every mode | Task 2 changed `odc-service` and `odc-ipc`; the installed dev copy is older | `cargo run -p odc-dev -- setup`, then `cargo run -p odc-e2e -- --only service --require dev-service` |
 
 ## Decisions
 
@@ -178,3 +179,62 @@ The owner decided (2026-11-06) that the dev copy is rebuilt when the owner is ba
 - **Options:** 1. keep `sensors.md`'s rule in Phase 10: the app names the GPU in use, so the user sees it and can choose another; 2. change the service so Automatic skips GPUs without a rule, a spec change outside Phase 10's plan.
 - **Chosen:** 1, for the owner to decide at the review whether the rule should change. The design works either way, because it names `GpuInUse`.
 - **Implemented in:** nothing changed; recorded here.
+
+### D22 — Where every fan input's speed is read (Task 2)
+
+- **Question:** `FanInputs` gains each input's live RPM, about once a second. Which part reads them?
+- **Options:**
+  1. the sensor thread, in each snapshot, published to the status beside the bindings;
+  2. the same thread, but inside the readings snapshot the engine draws from;
+  3. the D-Bus side, reading sysfs when it builds the state.
+- **Chosen:** 1. The sensor thread already owns every sysfs read, so a slow driver delays only it. Kept out of the snapshot, the speeds don't make the engine see new readings every second. `Sensors::fan_rpms` reads each input found at start, through `odc_sensors::fan_rpm`, and a change pulses the D-Bus side.
+- **Implemented in:** `crates/odc-service/src/runtime.rs` (`Sensors::fan_rpms`, `RegistrySensors`), `service.rs`, `status.rs` (`fan_rpms`); Task 2's commit.
+
+### D23 — Where the PCI IDs are read, and what a missing one is (Task 2)
+
+- **Question:** D1 put the IDs in the GPU scan, `display_devices`, which five other callers use as `(address, driver)`. And sysfs may not give an ID.
+- **Options:** read them in `display_devices` and change its callers, or in `gpus()`, the one place that builds `Gpu`; and for a missing ID, `None` in `odc-sensors` and 0 on the bus, or leave the GPU out.
+- **Chosen:** `gpus()` reads each device's `vendor` and `device` files, `0x` and four hex digits, and anything else is `None`. On the bus `Gpus` carries 0, which the app treats as no product name: `<kind> · <driver> · <address>`.
+- **Implemented in:** `crates/odc-sensors/src/gpu.rs`, `docs/spec/dbus.md`; Task 2's commit.
+
+### D24 — What "the chosen input is present" means (Task 2)
+
+- **Question:** the design needs `CoolerFanInputPresent` and `PumpInputPresent`. What do they say with no input chosen, and when does a chosen one count as gone?
+- **Options:** with none chosen, true or false; gone when it isn't among the inputs found at start, or when its own reading says there's no device.
+- **Chosen:** true with none chosen (the app shows "Choose input" from the empty `CoolerFanInput`), and false exactly when the chosen input's reading is "no device", so an input that vanishes while the service runs counts too.
+- **Implemented in:** `crates/odc-service/src/dbus.rs` (`present`), `docs/spec/dbus.md`; Task 2's commit.
+
+### D25 — How frame watchers count against the caps (Task 2)
+
+- **Question:** watchers are capped at 8 per user and 32 in all, frame and state watchers together. Does the app, which does both, count once or twice?
+- **Options:** one entry per caller with two watches, counted once; or each watch counted.
+- **Chosen:** one entry per caller, counted once, dropped when it watches nothing any more or leaves the bus.
+- **Implemented in:** `crates/odc-service/src/watchers.rs` (`Watch`), `docs/spec/dbus.md`; Task 2's commit.
+
+### D26 — Who gets `FanInputs` in `StateChanged` (Task 2)
+
+- **Question:** the plan sends `FanInputs`, whose speeds change every second, "only to frame watchers". What about a caller that watches frames but not the state, and the whole state a watcher gets after passing its check again?
+- **Options:** `FanInputs` in `StateChanged` for callers that watch both; or a separate signal for the speeds.
+- **Chosen:** `StateChanged` goes to state watchers as before, with `FanInputs` only for those that also watch frames, in the whole state after a check too. `GetState()` always has it. No new signal.
+- **Implemented in:** `crates/odc-service/src/dbus.rs` (`tell_watchers`), `docs/spec/dbus.md`; Task 2's commit.
+
+### D27 — A new frame watcher's first frame (Task 2)
+
+- **Question:** `Frame` is sent "only on change". A caller that starts watching a still picture would then get nothing, and the preview would stay empty.
+- **Options:** keep the last frame sent to each watcher, so a newcomer gets the next frame drawn (within a tick) and then only changes; or a `GetFrame()` method.
+- **Chosen:** the first. A watcher that fails its check is forgotten, so it gets a frame as soon as it passes again.
+- **Implemented in:** `crates/odc-service/src/dbus.rs` (`tell_frame_watchers`); Task 2's commit.
+
+### D28 — A state value of another shape crashed the reader (Task 2, found)
+
+- **Question:** testing the old `FanInputs` shape showed that zbus 6 panics, instead of returning an error, when it converts a structure with fewer fields than asked. A client reading another version's state would crash.
+- **Options:** check each value's D-Bus signature against the contract before converting it; or catch the panic.
+- **Chosen:** check the signature first: a value of another type is `WrongType`, as before, and nothing converts it. (Not reported upstream: no outside service is contacted without the owner.)
+- **Implemented in:** `crates/odc-ipc/src/state.rs` (`from_dict`), `crates/odc-ipc/tests/contract.rs`; Task 2's commit.
+
+### D29 — A CPU temperature check that failed once (Task 2, found)
+
+- **Question:** the first `--only sensors` run after Task 2 failed `cpu_temp`: OpenDeepCool read 58 °C, `sensors` 36 °C. It ran right after several builds, and Task 2 doesn't touch the CPU temperature rules. A rerun after 20 s idle passed, 35 ≈ 35 °C.
+- **Options:** 1. take the rerun, and record that the check reads OpenDeepCool and `sensors` at two moments, so a CPU cooling fast between them can fail it; 2. change the check to read `sensors` just before and after OpenDeepCool and pass within that range, outside Task 2's plan.
+- **Chosen:** 1, for the owner to decide at the review whether the check should change (option 2).
+- **Implemented in:** nothing changed; Task 2's commit message records both runs.

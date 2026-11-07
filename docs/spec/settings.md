@@ -87,6 +87,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - the settings app talks to the service over the D-Bus system bus; polkit lets the user of the active local session read and change settings without a password, and refuses every other session (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
   - in the fan and pump pickers, a note when no fan sensors were found.
+- **What the service gives the app for this** (Phase 10; [dbus.md](dbus.md)): the preview's frames, every frame the engine draws, rotation included, whether or not the cooler got it, sent only to the app that watches them (`WatchFrames`, `Frame`); every fan input's live RPM (`FanInputs`); the GPU the readings come from, so Automatic can name it (`GpuInUse`); each GPU's PCI vendor and device ID, for its product name, and whether its driver has a reading rule (`Gpus`); and whether each chosen fan input is there (`CoolerFanInputPresent`, `PumpInputPresent`).
 
   Details, such as which source each value comes from, and the first readings at each start, exact (`first readings: CPU Temperature 45000/1000, CPU Usage not-yet, …`; owner, 2026-11-04), go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. There's no theme setting in v1; choosing another desktop's theme comes after v1.

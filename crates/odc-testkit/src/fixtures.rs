@@ -84,6 +84,15 @@ pub fn pci_device(
     Ok(dir)
 }
 
+/// The PCI device at `addr`'s `vendor` and `device` IDs, as sysfs writes them (`0x` and four hex
+/// digits).
+pub fn pci_ids(tree: &FakeTree, addr: &str, vendor: u16, device: u16) -> io::Result<()> {
+    let dir = format!("sys/devices/pci0000:00/{addr}");
+    tree.file(format!("{dir}/vendor"), format!("0x{vendor:04x}\n"))?;
+    tree.file(format!("{dir}/device"), format!("0x{device:04x}\n"))?;
+    Ok(())
+}
+
 /// An hwmon device named `name` under the device folder `parent` (relative to the tree's root),
 /// with `files` (`Documentation/hwmon/sysfs-interface.rst`). `class/hwmon/hwmonN`, with the
 /// lowest free N, leads to it, and its `device` link points to `parent`. Returns its full path.

@@ -17,9 +17,12 @@ use std::time::{Duration, Instant};
 
 use odc_device::{Connector, DisplayPort, Link, Lp360, RecordingHandle};
 use odc_protocol::Frame;
-use odc_sensors::{Binding, Clock, FanInput, Gpu, Metric, PciAddr, Readings, Registry, Snapshot};
+use odc_sensors::{
+    Binding, Clock, FanInput, Gpu, Metric, PciAddr, Reading, Readings, Registry, Snapshot, fan_rpm,
+};
 
 use crate::engine::{Apply, Choices, Engine, Published, Requests};
+use crate::pulse::Pulse;
 use crate::settings::SavedInput;
 
 /// One frame per 100 ms tick (`docs/spec/protocol.md`, Timing).
@@ -124,6 +127,22 @@ impl<T> Slot<T> {
             .wait_timeout_while(slot, timeout, |value| value.is_none())
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         slot.take()
+    }
+}
+
+/// The engine's frames for the D-Bus side's `Frame` watchers (Phase 10): the newest replaces an
+/// older one not yet taken, and the pulse wakes the D-Bus side, so a slow bus never holds up a
+/// tick.
+#[derive(Clone, Default)]
+pub struct FrameTap {
+    pub frames: Arc<Slot<Frame>>,
+    pub pulse: Arc<Pulse>,
+}
+
+impl FrameTap {
+    pub fn post(&self, frame: Frame) {
+        self.frames.post(frame);
+        self.pulse.send();
     }
 }
 
@@ -398,12 +417,20 @@ pub trait Sensors: Send {
     /// The GPU and fan inputs to read from now on.
     fn choose(&mut self, choices: &Choices);
     fn bindings(&self) -> Vec<(Metric, Binding)>;
+    /// The speed of each fan input found at start, in its order, for the settings app's pickers
+    /// (Phase 10); none by default.
+    fn fan_rpms(&mut self) -> Vec<Reading> {
+        Vec::new()
+    }
 }
 
-/// The registry over the built-in rules, with the GPUs found at start.
+/// The registry over the built-in rules, with the GPUs and the fan inputs found at start.
 pub struct RegistrySensors<C: Clock> {
     pub registry: Registry<C>,
     pub gpus: Vec<Gpu>,
+    pub fan_inputs: Vec<FanInput>,
+    /// The sysfs root the fan inputs are read under.
+    pub sys: PathBuf,
 }
 
 fn fan_input(saved: &Option<SavedInput>) -> Option<FanInput> {
@@ -439,6 +466,13 @@ impl<C: Clock + Send> Sensors for RegistrySensors<C> {
 
     fn bindings(&self) -> Vec<(Metric, Binding)> {
         self.registry.bindings()
+    }
+
+    fn fan_rpms(&mut self) -> Vec<Reading> {
+        self.fan_inputs
+            .iter()
+            .map(|fan| fan_rpm(&self.sys, fan))
+            .collect()
     }
 }
 
@@ -521,13 +555,14 @@ impl<S: Sensors> SensorLoop<S> {
 }
 
 /// The sensor thread: a snapshot once a second on its own monotonic timer, and at once when
-/// asked; each one published, the newest replacing an older one the engine hasn't taken.
+/// asked; each one published, the newest replacing an older one the engine hasn't taken. After
+/// each, `on_read` gets the bindings and every fan input's speed.
 pub fn run_sensors<S: Sensors>(
     work: &mut SensorLoop<S>,
     requests: &Receiver<SensorRequest>,
     published: &Slot<Published>,
     progress: &Progress,
-    on_bindings: &mut dyn FnMut(Vec<(Metric, Binding)>),
+    on_read: &mut dyn FnMut(Vec<(Metric, Binding)>, Vec<Reading>),
     stop: &AtomicBool,
 ) {
     let mut due = Instant::now() + SNAPSHOT_EVERY;
@@ -546,7 +581,7 @@ pub fn run_sensors<S: Sensors>(
         let now = Instant::now();
         if now_please || now >= due {
             published.post(work.snapshot());
-            on_bindings(work.sensors.bindings());
+            on_read(work.sensors.bindings(), work.sensors.fan_rpms());
             progress.sensors(Instant::now());
             due = Instant::now() + SNAPSHOT_EVERY;
         }

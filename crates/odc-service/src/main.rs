@@ -84,8 +84,10 @@ fn run(dev: bool, journal: &Arc<dyn Journal>) -> Result<(), String> {
     }
     let inputs = fan_inputs(&roots.sys);
     let mut sensors = RegistrySensors {
+        sys: roots.sys.clone(),
         registry: Registry::from_rules(SystemClock, roots),
         gpus: found.gpus.clone(),
+        fan_inputs: inputs.clone(),
     };
     sensors.choose(&Choices::of(&settings));
     let connector = HidrawConnector::system();

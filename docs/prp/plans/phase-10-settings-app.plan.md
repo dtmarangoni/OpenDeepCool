@@ -303,6 +303,7 @@ The design's mockups are rebuilt by a Rust program, like every other tool in the
 
 **Validation**
 - `cargo test -p odc-ipc -p odc-service`: passes.
+- As built (2026-11-06): `odc_ipc::{frame_pixels, frame_from_pixels}` (196 bytes, row by row); `Watchers` holds one entry per caller with its two watches (D25); the engine posts every drawn frame through a `FrameTap` and `tell_frame_watchers` sends each watcher the frames that differ from its last, a newcomer the next one (D27); the sensor thread reads every fan input's speed into the status (D22); `gpus()` reads the PCI IDs (D23) and `odc_sensors::has_gpu_rule` gives the rule flag; the present flags follow the chosen input's reading (D24); `FanInputs` goes in `StateChanged` only to frame watchers (D26). `State::from_dict` checks each value's signature first, since zbus 6 panics on a shorter structure (D28). Tests: watchers' units, the IDs and rule flag over fake trees, the frame signals on a private bus (once per change, a newcomer, a match rule without a watch, polkit and the check), the fan speeds, the GPU in use, the present flags, about ten frames a second from a scrolling value with no cooler through the whole service, and a stalled tap keeping the tick on its grid. `--only service` waits for the owner's `odc-dev setup` (decisions log, Pending real runs).
 
 ### 3. `odc-app`: the view model and the theme, pure, and the headless test harness
 

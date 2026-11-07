@@ -6,10 +6,12 @@ use std::path::PathBuf;
 
 use odc_sensors::{
     Gpu, GpuKind, PciAddr, RANK_FILE, Ranked, RankedKind, Ranking, Unknown, choose, delete_stale,
-    gpus, rank_is_stale, review_ranking,
+    gpus, has_gpu_rule, rank_is_stale, review_ranking,
 };
 use odc_testkit::fake_tree::FakeTree;
-use odc_testkit::fixtures::{amdgpu_apu, amdgpu_dgpu, i915, nouveau, nvidia_proprietary, xe};
+use odc_testkit::fixtures::{
+    amdgpu_apu, amdgpu_dgpu, i915, nouveau, nvidia_proprietary, pci_ids, xe,
+};
 
 fn tree(name: &str) -> FakeTree {
     let root = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
@@ -336,4 +338,44 @@ fn a_ranking_renders_and_parses_back_whatever_its_texts_hold() {
         Ranking::parse(&Ranking::default().render()),
         Ok(Ranking::default())
     );
+}
+
+// Phase 10 (design, GPU names): each GPU carries its PCI vendor and device ID, read from its own
+// `vendor` and `device` files, for the settings app's PCI ID list; a file that's missing or
+// doesn't read as `0x` and four hex digits gives none.
+#[test]
+fn each_gpu_carries_its_pci_ids_when_sysfs_gives_them() {
+    let t = tree("pci-ids");
+    amdgpu_dgpu(&t, CARD, 41_000, 37, 182_000_000).expect("a card");
+    i915(&t, IGPU, 44_000, 9_100_000).expect("an iGPU");
+    nouveau(&t, CARD2).expect("a second card");
+    pci_ids(&t, CARD, 0x0abc, 0x0def).expect("its IDs");
+    t.file(
+        "sys/devices/pci0000:00/0000:00:02.0/vendor",
+        "8086 but not as sysfs writes it\n",
+    )
+    .expect("a broken vendor file");
+    let list = gpus(&sys(&t), None);
+    let ids = |at: &str| {
+        let gpu = list.iter().find(|g| g.pci == pci(at)).expect("listed");
+        (gpu.vendor, gpu.device)
+    };
+    assert_eq!(ids(CARD), (Some(0x0abc), Some(0x0def)));
+    assert_eq!(
+        ids(IGPU),
+        (None, None),
+        "a broken vendor file and no device file"
+    );
+    assert_eq!(ids(CARD2), (None, None), "no files");
+}
+
+// Only a driver with a rule gives GPU readings; nouveau and an unknown driver have none.
+#[test]
+fn the_drivers_with_reading_rules_are_the_ones_the_spec_lists() {
+    for driver in ["amdgpu", "i915", "xe", "nvidia"] {
+        assert!(has_gpu_rule(driver), "{driver}");
+    }
+    for driver in ["nouveau", "othergpu", ""] {
+        assert!(!has_gpu_rule(driver), "{driver}");
+    }
 }

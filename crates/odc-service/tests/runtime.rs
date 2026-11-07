@@ -17,8 +17,8 @@ use odc_sensors::fake::{FakeClock, FakeReadings};
 use odc_sensors::{Binding, Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Choices, Engine, Published, Requests};
 use odc_service::runtime::{
-    Device, DeviceControl, DeviceEvent, Outputs, Progress, SensorLoop, SensorRequest, Sensors,
-    Slot, SystemTicker, TICK, Ticker, run_device, run_engine, run_sensors,
+    Device, DeviceControl, DeviceEvent, FrameTap, Outputs, Progress, SensorLoop, SensorRequest,
+    Sensors, Slot, SystemTicker, TICK, Ticker, run_device, run_engine, run_sensors,
 };
 use odc_service::settings::Settings;
 
@@ -82,6 +82,8 @@ struct Recorder<'a> {
     /// Keeps both threads' progress fresh until this time, every this often.
     progress: Option<(&'a Progress, Instant, Duration)>,
     last_progress: Option<Instant>,
+    /// The frames posted again for `Frame` watchers, as the service does.
+    tap: Option<FrameTap>,
 }
 
 impl<'a> Recorder<'a> {
@@ -94,6 +96,7 @@ impl<'a> Recorder<'a> {
             requests: Vec::new(),
             progress: None,
             last_progress: None,
+            tap: None,
         }
     }
 }
@@ -101,6 +104,9 @@ impl<'a> Recorder<'a> {
 impl Outputs for Recorder<'_> {
     fn frame(&mut self, tick: u64, frame: Frame) {
         self.frames.push((tick, self.ticker.now(), frame));
+        if let Some(tap) = &self.tap {
+            tap.post(frame);
+        }
     }
 
     fn requests(&mut self, requests: Requests) {
@@ -160,6 +166,26 @@ fn fifty_ticks_give_fifty_frames_on_the_grid() {
         assert_eq!(*at - start, TICK * n as u32, "tick {n}");
     }
     assert!(recorder.skipped.is_empty());
+}
+
+// Phase 10 plan, Task 2: the frames for `Frame` watchers never hold up a tick. With nobody taking
+// them, as with a stalled bus, 50 ticks stay on the grid, and the tap keeps only the newest frame.
+#[test]
+fn frames_for_watchers_never_hold_up_a_tick() {
+    let ticker = FakeTicker::new(&[]);
+    let progress = Progress::new(ticker.now());
+    let start = ticker.now();
+    let tap = FrameTap::default();
+    let mut recorder = Recorder::new(&ticker);
+    recorder.tap = Some(tap.clone());
+    run(&ticker, 50, &mut recorder, &progress);
+    assert_eq!(recorder.frames.len(), 50);
+    for (n, (_, at, _)) in recorder.frames.iter().enumerate() {
+        assert_eq!(*at - start, TICK * n as u32, "tick {n}");
+    }
+    assert_eq!(tap.pulse.count(), 50, "one pulse a frame");
+    assert_eq!(tap.frames.take(), recorder.frames.last().map(|f| f.2));
+    assert_eq!(tap.frames.take(), None, "only the newest was kept");
 }
 
 // A tick delayed 250 ms gives one frame for the deadlines it missed, and the deadlines after it
@@ -356,7 +382,7 @@ fn the_tick_never_waits_for_a_slow_write_or_snapshot() {
                 &requests,
                 &published,
                 &progress,
-                &mut |_| {},
+                &mut |_, _| {},
                 &stop,
             );
         })
@@ -619,7 +645,7 @@ fn a_changed_reading_shows_within_ten_ticks() {
                 &requests,
                 &published,
                 &progress,
-                &mut |_| {},
+                &mut |_, _| {},
                 &stop,
             );
         })

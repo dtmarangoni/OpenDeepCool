@@ -101,6 +101,10 @@ pub struct Gpu {
     pub pci: PciAddr,
     pub driver: String,
     pub kind: GpuKind,
+    /// Its PCI vendor and device ID, from the device's `vendor` and `device` files, for the
+    /// settings app's PCI ID list (Phase 10); `None` when a file isn't there or reads otherwise.
+    pub vendor: Option<u16>,
+    pub device: Option<u16>,
 }
 
 /// What `odc-gpu-rank` found for one GPU.
@@ -294,6 +298,15 @@ pub fn display_devices(sys: &Path) -> Vec<(PciAddr, String)> {
     devices
 }
 
+/// A PCI device's `vendor` or `device` ID, as sysfs writes it: `0x` and four hex digits.
+fn pci_id(sys: &Path, pci: PciAddr, file: &str) -> Option<u16> {
+    let path = sys.join("bus/pci/devices").join(pci.to_string()).join(file);
+    let text = fs::read_to_string(path).ok()?;
+    let hex = text.trim().strip_prefix("0x")?;
+    (hex.len() == 4).then_some(())?;
+    u16::from_str_radix(hex, 16).ok()
+}
+
 /// The GPUs in the order the settings app lists them: dedicated, integrated, then unknown, each
 /// by PCI address. Each kind comes from `ranking` when it lists the GPU.
 pub fn gpus(sys: &Path, ranking: Option<&Ranking>) -> Vec<Gpu> {
@@ -305,7 +318,13 @@ pub fn gpus(sys: &Path, ranking: Option<&Ranking>) -> Vec<Gpu> {
                 .map_or(GpuKind::Unknown(Unknown::NotRanked), |g| {
                     g.kind.clone().into()
                 });
-            Gpu { pci, driver, kind }
+            Gpu {
+                pci,
+                driver,
+                kind,
+                vendor: pci_id(sys, pci, "vendor"),
+                device: pci_id(sys, pci, "device"),
+            }
         })
         .collect();
     gpus.sort_by_key(|gpu| (gpu.kind.rank(), gpu.pci));

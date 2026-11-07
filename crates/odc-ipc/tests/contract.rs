@@ -86,19 +86,27 @@ fn full() -> State {
                 pci: "0000:0a:00.0".to_owned(),
                 driver: "amdgpu".to_owned(),
                 kind: GpuKind::Dedicated,
+                vendor: 0x0abc,
+                device: 0x0def,
+                has_rule: true,
             },
             Gpu {
                 pci: "0000:00:02.0".to_owned(),
-                driver: "i915".to_owned(),
+                driver: "othergpu".to_owned(),
                 kind: GpuKind::QueryFailed,
+                vendor: 0,
+                device: 0,
+                has_rule: false,
             },
         ]),
         chosen_gpu: Some("0000:0a:00.0".to_owned()),
+        gpu_in_use: Some("0000:0a:00.0".to_owned()),
         fan_inputs: Some(vec![FanInput {
             chip: "fakeboardchip".to_owned(),
             device: "devices/platform/fakeboardchip.2592".to_owned(),
             input: 2,
             label: String::new(),
+            rpm: FanSpeed::Rpm(2345),
         }]),
         cooler_fan_input: Some(Some(Input {
             chip: "fakeboardchip".to_owned(),
@@ -106,6 +114,8 @@ fn full() -> State {
             input: 1,
         })),
         pump_input: Some(None),
+        cooler_fan_input_present: Some(false),
+        pump_input_present: Some(true),
         cooler_fan_rpm: Some(FanSpeed::Rpm(1234)),
         pump_rpm: Some(FanSpeed::Unavailable),
         music_peaks: Some(false),
@@ -196,11 +206,45 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
         "0000:0a:00.0".to_owned(),
         "amdgpu".to_owned(),
         "big".to_owned(),
+        0_u16,
+        0_u16,
+        true,
     )];
     assert_eq!(
         State::from_dict(&one("Gpus", variant(gpus))),
         Err(StateError::BadValue("Gpus", "big".into()))
     );
+    // Phase 9's shapes of Gpus and FanInputs, without the IDs, the rule flag and the RPM.
+    let old_gpus = vec![(
+        "0000:0a:00.0".to_owned(),
+        "amdgpu".to_owned(),
+        "dedicated".to_owned(),
+    )];
+    assert_eq!(
+        State::from_dict(&one("Gpus", variant(old_gpus))),
+        Err(StateError::WrongType("Gpus"))
+    );
+    let old_inputs = vec![(
+        "chip".to_owned(),
+        "devices/x".to_owned(),
+        1_u32,
+        String::new(),
+    )];
+    assert_eq!(
+        State::from_dict(&one("FanInputs", variant(old_inputs))),
+        Err(StateError::WrongType("FanInputs"))
+    );
+    let inputs = vec![(
+        "chip".to_owned(),
+        "devices/x".to_owned(),
+        1_u32,
+        String::new(),
+        12_000.0,
+    )];
+    assert!(matches!(
+        State::from_dict(&one("FanInputs", variant(inputs))),
+        Err(StateError::BadValue("FanInputs", _))
+    ));
     for rpm in [10_000.0, -1.0, 1.5, f64::INFINITY] {
         assert!(
             matches!(

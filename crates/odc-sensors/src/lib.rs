@@ -25,4 +25,4 @@ pub use model::{Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, SystemCl
 pub use nvml::{NvmlReading, NvmlSource, RealNvml};
 pub use powercap::rapl_package_zones;
 pub use registry::{Binding, Candidate, Registry, Source};
-pub use rules::Roots;
+pub use rules::{Roots, has_gpu_rule};

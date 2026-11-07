@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 19] = [
+pub const STATE_KEYS: [(&str, &str); 22] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -17,11 +17,14 @@ pub const STATE_KEYS: [(&str, &str); 19] = [
     ("CoolerState", "s"),
     ("AvailableModes", "au"),
     ("UnavailableReasons", "a{us}"),
-    ("Gpus", "a(sss)"),
+    ("Gpus", "a(sssqqb)"),
     ("ChosenGpu", "s"),
-    ("FanInputs", "a(ssus)"),
+    ("GpuInUse", "s"),
+    ("FanInputs", "a(ssusd)"),
     ("CoolerFanInput", "(ssu)"),
     ("PumpInput", "(ssu)"),
+    ("CoolerFanInputPresent", "b"),
+    ("PumpInputPresent", "b"),
     ("CoolerFanRpm", "d"),
     ("PumpRpm", "d"),
     ("MusicPeaks", "b"),
@@ -105,6 +108,13 @@ pub struct Gpu {
     pub pci: String,
     pub driver: String,
     pub kind: GpuKind,
+    /// Its PCI vendor and device ID, for the system's PCI ID list; 0 when sysfs doesn't give
+    /// one (Phase 10).
+    pub vendor: u16,
+    pub device: u16,
+    /// Whether its driver has a reading rule (`docs/spec/sensors.md`); without one, no GPU
+    /// metric can be read from it.
+    pub has_rule: bool,
 }
 
 /// One fan input of `FanInputs`.
@@ -116,6 +126,8 @@ pub struct FanInput {
     pub input: u32,
     /// The driver's label, empty when it gives none.
     pub label: String,
+    /// Its speed now, as `CoolerFanRpm` gives the chosen one's (Phase 10).
+    pub rpm: FanSpeed,
 }
 
 /// A chosen fan input, `CoolerFanInput` or `PumpInput`.
@@ -148,10 +160,15 @@ pub struct State {
     pub gpus: Option<Vec<Gpu>>,
     /// Empty when the user chose none.
     pub chosen_gpu: Option<String>,
+    /// The GPU the readings come from: the chosen one, or Automatic's; empty with no GPU.
+    pub gpu_in_use: Option<String>,
     pub fan_inputs: Option<Vec<FanInput>>,
     /// `None` inside: no input chosen, sent as empty strings and 0.
     pub cooler_fan_input: Option<Option<Input>>,
     pub pump_input: Option<Option<Input>>,
+    /// Whether the chosen input is there; true when none is chosen.
+    pub cooler_fan_input_present: Option<bool>,
+    pub pump_input_present: Option<bool>,
     pub cooler_fan_rpm: Option<FanSpeed>,
     pub pump_rpm: Option<FanSpeed>,
     pub music_peaks: Option<bool>,
@@ -230,19 +247,39 @@ impl State {
             put("UnavailableReasons", owned(reasons.clone()));
         }
         if let Some(gpus) = &self.gpus {
-            let list: Vec<(String, String, String)> = gpus
+            let list: Vec<(String, String, String, u16, u16, bool)> = gpus
                 .iter()
-                .map(|g| (g.pci.clone(), g.driver.clone(), g.kind.as_str().to_owned()))
+                .map(|g| {
+                    (
+                        g.pci.clone(),
+                        g.driver.clone(),
+                        g.kind.as_str().to_owned(),
+                        g.vendor,
+                        g.device,
+                        g.has_rule,
+                    )
+                })
                 .collect();
             put("Gpus", owned(list));
         }
         if let Some(gpu) = &self.chosen_gpu {
             put("ChosenGpu", owned(gpu.as_str()));
         }
+        if let Some(gpu) = &self.gpu_in_use {
+            put("GpuInUse", owned(gpu.as_str()));
+        }
         if let Some(inputs) = &self.fan_inputs {
-            let list: Vec<(String, String, u32, String)> = inputs
+            let list: Vec<(String, String, u32, String, f64)> = inputs
                 .iter()
-                .map(|i| (i.chip.clone(), i.device.clone(), i.input, i.label.clone()))
+                .map(|i| {
+                    (
+                        i.chip.clone(),
+                        i.device.clone(),
+                        i.input,
+                        i.label.clone(),
+                        speed_number(i.rpm),
+                    )
+                })
                 .collect();
             put("FanInputs", owned(list));
         }
@@ -251,6 +288,12 @@ impl State {
         }
         if let Some(input) = &self.pump_input {
             put("PumpInput", owned(input_tuple(input)));
+        }
+        if let Some(present) = self.cooler_fan_input_present {
+            put("CoolerFanInputPresent", owned(present));
+        }
+        if let Some(present) = self.pump_input_present {
+            put("PumpInputPresent", owned(present));
         }
         if let Some(speed) = self.cooler_fan_rpm {
             put("CoolerFanRpm", owned(speed_number(speed)));
@@ -289,6 +332,15 @@ impl State {
             let Some(value) = dict.get(key) else {
                 return Ok(None);
             };
+            // Checked first: zbus 6 panics converting a structure with fewer fields than asked,
+            // such as another version's `FanInputs`.
+            let signature = STATE_KEYS
+                .iter()
+                .find(|(k, _)| *k == key)
+                .map(|(_, signature)| *signature);
+            if signature != Some(value.value_signature().to_string().as_str()) {
+                return Err(StateError::WrongType(key));
+            }
             let value = value.try_clone().map_err(|_| StateError::WrongType(key))?;
             T::try_from(value)
                 .map(Some)
@@ -317,21 +369,20 @@ impl State {
                 }),
             )
         }
+        fn rpm(key: &'static str, n: f64) -> Result<FanSpeed, StateError> {
+            if n.is_nan() {
+                Ok(FanSpeed::Unavailable)
+            } else if (0.0..=9999.0).contains(&n) && n.fract() == 0.0 {
+                Ok(FanSpeed::Rpm(n as u16))
+            } else {
+                Err(StateError::BadValue(key, n.to_string()))
+            }
+        }
         fn speed(
             dict: &HashMap<String, OwnedVariant>,
             key: &'static str,
         ) -> Result<Option<FanSpeed>, StateError> {
-            get::<f64>(dict, key)?
-                .map(|n| {
-                    if n.is_nan() {
-                        Ok(FanSpeed::Unavailable)
-                    } else if (0.0..=9999.0).contains(&n) && n.fract() == 0.0 {
-                        Ok(FanSpeed::Rpm(n as u16))
-                    } else {
-                        Err(StateError::BadValue(key, n.to_string()))
-                    }
-                })
-                .transpose()
+            get::<f64>(dict, key)?.map(|n| rpm(key, n)).transpose()
         }
         let rotation = get::<u8>(dict, "Rotation")?;
         if let Some(r) = rotation
@@ -339,28 +390,39 @@ impl State {
         {
             return Err(StateError::BadValue("Rotation", r.to_string()));
         }
-        let gpus = get::<Vec<(String, String, String)>>(dict, "Gpus")?
+        let gpus = get::<Vec<(String, String, String, u16, u16, bool)>>(dict, "Gpus")?
             .map(|list| {
                 list.into_iter()
-                    .map(|(pci, driver, kind)| {
+                    .map(|(pci, driver, kind, vendor, device, has_rule)| {
                         let kind =
                             GpuKind::parse(&kind).ok_or(StateError::BadValue("Gpus", kind))?;
-                        Ok(Gpu { pci, driver, kind })
+                        Ok(Gpu {
+                            pci,
+                            driver,
+                            kind,
+                            vendor,
+                            device,
+                            has_rule,
+                        })
                     })
                     .collect::<Result<Vec<_>, StateError>>()
             })
             .transpose()?;
-        let fan_inputs =
-            get::<Vec<(String, String, u32, String)>>(dict, "FanInputs")?.map(|list| {
+        let fan_inputs = get::<Vec<(String, String, u32, String, f64)>>(dict, "FanInputs")?
+            .map(|list| {
                 list.into_iter()
-                    .map(|(chip, device, input, label)| FanInput {
-                        chip,
-                        device,
-                        input,
-                        label,
+                    .map(|(chip, device, input, label, speed)| {
+                        Ok(FanInput {
+                            chip,
+                            device,
+                            input,
+                            label,
+                            rpm: rpm("FanInputs", speed)?,
+                        })
                     })
-                    .collect()
-            });
+                    .collect::<Result<Vec<_>, StateError>>()
+            })
+            .transpose()?;
         Ok(State {
             mode: get(dict, "Mode")?,
             rotation,
@@ -371,9 +433,12 @@ impl State {
             unavailable_reasons: get(dict, "UnavailableReasons")?,
             gpus,
             chosen_gpu: get(dict, "ChosenGpu")?,
+            gpu_in_use: get(dict, "GpuInUse")?,
             fan_inputs,
             cooler_fan_input: input(dict, "CoolerFanInput")?,
             pump_input: input(dict, "PumpInput")?,
+            cooler_fan_input_present: get(dict, "CoolerFanInputPresent")?,
+            pump_input_present: get(dict, "PumpInputPresent")?,
             cooler_fan_rpm: speed(dict, "CoolerFanRpm")?,
             pump_rpm: speed(dict, "PumpRpm")?,
             music_peaks: get(dict, "MusicPeaks")?,
@@ -403,9 +468,12 @@ impl State {
             unavailable_reasons,
             gpus,
             chosen_gpu,
+            gpu_in_use,
             fan_inputs,
             cooler_fan_input,
             pump_input,
+            cooler_fan_input_present,
+            pump_input_present,
             cooler_fan_rpm,
             pump_rpm,
             music_peaks,
@@ -437,9 +505,12 @@ impl State {
             unavailable_reasons,
             gpus,
             chosen_gpu,
+            gpu_in_use,
             fan_inputs,
             cooler_fan_input,
             pump_input,
+            cooler_fan_input_present,
+            pump_input_present,
             cooler_fan_rpm,
             pump_rpm,
             music_peaks,

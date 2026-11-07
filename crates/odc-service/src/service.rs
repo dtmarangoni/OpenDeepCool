@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use odc_device::{Connector, Link, Lp360, Reason, RecordingHandle};
 use odc_protocol::Frame;
-use odc_sensors::{Binding, FanInput, Gpu, Metric};
+use odc_sensors::{Binding, FanInput, Gpu, Metric, Reading};
 
 use crate::audio::PipeAudio;
 use crate::dbus::{self, Bus, Checks};
@@ -19,8 +19,8 @@ use crate::engine::{Apply, Drawn, Engine, Published, Requests};
 use crate::log::{Journal, Priority};
 use crate::pulse::Pulse;
 use crate::runtime::{
-    Device, DeviceEvent, Durations, Outputs, Progress, SensorLoop, SensorRequest, Sensors, Slot,
-    SystemTicker, forward, run_device, run_engine, run_sensors, sd_notify,
+    Device, DeviceEvent, Durations, FrameTap, Outputs, Progress, SensorLoop, SensorRequest,
+    Sensors, Slot, SystemTicker, forward, run_device, run_engine, run_sensors, sd_notify,
 };
 use crate::settings::{Settings, SettingsStore};
 use crate::status::{Status, first_readings};
@@ -98,6 +98,8 @@ fn binding_lines(bindings: &[(Metric, Binding)]) -> String {
 /// What the engine's loop sends out.
 struct EngineOutputs {
     frames: Arc<Slot<(u64, Frame)>>,
+    /// Each frame again for the D-Bus side's `Frame` watchers (Phase 10).
+    watched: FrameTap,
     sensors: Sender<SensorRequest>,
     status: Arc<RwLock<Status>>,
     pulse: Arc<Pulse>,
@@ -107,6 +109,7 @@ struct EngineOutputs {
 impl Outputs for EngineOutputs {
     fn frame(&mut self, tick: u64, frame: Frame) {
         self.frames.post((tick, frame));
+        self.watched.post(frame);
     }
 
     fn requests(&mut self, requests: Requests) {
@@ -155,6 +158,7 @@ impl Running {
         let apply = Arc::new(Slot::<Apply>::default());
         let published = Arc::new(Slot::<Published>::default());
         let frames = Arc::new(Slot::<(u64, Frame)>::default());
+        let watched = FrameTap::default();
         // The dev copy's durations, for the end-to-end run (owner, 2026-11-04).
         let durations = config.dev.as_ref().map(|_| Arc::new(Durations::default()));
         let mut sensors = SensorLoop::new(config.sensors);
@@ -189,13 +193,22 @@ impl Running {
                     Arc::clone(&progress),
                     Arc::clone(&stop),
                 );
-                let (status, journal) = (Arc::clone(&status), Arc::clone(&journal));
+                let (status, journal, pulse) = (
+                    Arc::clone(&status),
+                    Arc::clone(&journal),
+                    Arc::clone(&pulse),
+                );
                 move || {
-                    let mut on_bindings = |bindings: Vec<(Metric, Binding)>| {
+                    let mut on_read = |bindings: Vec<(Metric, Binding)>, rpms: Vec<Reading>| {
                         let mut status = write(&status);
                         if status.bindings != bindings {
                             journal.write(Priority::Info, &binding_lines(&bindings));
                             status.bindings = bindings;
+                        }
+                        if status.fan_rpms != rpms {
+                            status.fan_rpms = rpms;
+                            drop(status);
+                            pulse.send();
                         }
                     };
                     run_sensors(
@@ -203,7 +216,7 @@ impl Running {
                         &requests,
                         &published,
                         &progress,
-                        &mut on_bindings,
+                        &mut on_read,
                         &stop,
                     );
                 }
@@ -270,6 +283,7 @@ impl Running {
                 );
                 let mut outputs = EngineOutputs {
                     frames: Arc::clone(&frames),
+                    watched: watched.clone(),
                     sensors: requests_tx.clone(),
                     status: Arc::clone(&status),
                     pulse: Arc::clone(&pulse),
@@ -300,6 +314,8 @@ impl Running {
                 apply,
                 device: control_tx,
                 sensors: requests_tx,
+                frames: watched.frames,
+                frame_pulse: watched.pulse,
                 pulse,
                 journal,
                 dev: config

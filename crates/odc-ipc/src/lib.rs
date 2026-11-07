@@ -3,7 +3,10 @@
 //! tests and the settings app (Phase 10) use. Nothing is broadcast: the interface has no
 //! properties, and `StateChanged` is addressed to each watcher alone (owner, 2026-10-26).
 
+mod frame;
 mod state;
+
+pub use frame::{FRAME_PIXELS, frame_from_pixels, frame_pixels};
 
 pub use state::{
     CoolerState, FallStop, FanInput, FanSpeed, Gpu, GpuKind, Input, STATE_KEYS, State, StateError,
@@ -100,11 +103,19 @@ pub trait OpenDeepCool {
     /// Sends this caller `StateChanged` while it watches.
     async fn watch(&self) -> Result<(), Error>;
     async fn unwatch(&self) -> Result<(), Error>;
+    /// Sends this caller `Frame` while it watches frames: the cooler's picture at each change
+    /// (Phase 10). A frame watcher also gets `FanInputs` in `StateChanged`.
+    async fn watch_frames(&self) -> Result<(), Error>;
+    async fn unwatch_frames(&self) -> Result<(), Error>;
     /// Each metric, its bound source, and its state.
     async fn diagnostics(&self) -> Result<Vec<(String, String, String)>, Error>;
     /// The keys that changed, or the whole state after a watcher passes its check again.
     #[zbus(signal)]
     fn state_changed(&self, changes: HashMap<String, OwnedVariant>) -> zbus::Result<()>;
+    /// The frame the engine drew, rotation included: 196 bytes, each 0 or 1, row by row from the
+    /// top left, whether or not the cooler got it.
+    #[zbus(signal)]
+    fn frame(&self, pixels: Vec<u8>) -> zbus::Result<()>;
 }
 
 /// The dev interface (only with `--dev`): the readings and sound overrides and the test session.

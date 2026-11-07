@@ -25,7 +25,8 @@ use odc_device::fake::{FakeConnector, FakeLog, Presence};
 use odc_device::{Link, Lp360, Recording};
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, DevProxy, Error,
-    FallStop, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
+    FallStop, FanSpeed, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
+    frame_from_pixels,
 };
 use odc_protocol::{Frame, Message, decode};
 use odc_render::{Mode, WINDOW, draws};
@@ -198,11 +199,15 @@ fn gpus() -> Vec<Gpu> {
             pci: PciAddr::from_str("0000:0a:00.0").expect("an address"),
             driver: "amdgpu".to_owned(),
             kind: GpuKind::Dedicated,
+            vendor: Some(0x0abc),
+            device: Some(0x0def),
         },
         Gpu {
             pci: PciAddr::from_str("0000:00:02.0").expect("an address"),
             driver: "i915".to_owned(),
             kind: GpuKind::Integrated,
+            vendor: None,
+            device: None,
         },
     ]
 }
@@ -289,6 +294,9 @@ struct Harness {
     device: Receiver<DeviceControl>,
     /// What the sensor thread would be sent.
     sensors: Receiver<SensorRequest>,
+    /// The engine's frames for `Frame` watchers, which the test posts itself.
+    frames: Arc<Slot<Frame>>,
+    frame_pulse: Arc<Pulse>,
     journal: Arc<Recorded>,
     /// The threads' durations, which the test writes itself.
     durations: Arc<Durations>,
@@ -324,6 +332,7 @@ impl Harness {
         let journal = Arc::new(Recorded::default());
         let (device_tx, device) = mpsc::channel();
         let (sensors_tx, sensors) = mpsc::channel();
+        let (frames, frame_pulse) = (Arc::new(Slot::default()), Arc::new(Pulse::default()));
         let durations = Arc::new(Durations::default());
         let audio = Arc::new(PipeAudio::new());
         let side = Side::start(Parts {
@@ -338,6 +347,8 @@ impl Harness {
             apply: Arc::clone(&apply),
             device: device_tx,
             sensors: sensors_tx,
+            frames: Arc::clone(&frames),
+            frame_pulse: Arc::clone(&frame_pulse),
             pulse: Arc::new(Pulse::default()),
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
@@ -354,6 +365,8 @@ impl Harness {
             apply,
             device,
             sensors,
+            frames,
+            frame_pulse,
             journal,
             durations,
             audio,
@@ -370,6 +383,12 @@ impl Harness {
         let path = self.state.join("settings.toml");
         let inode = fs::metadata(&path).expect("the settings file").ino();
         (inode, fs::read_to_string(&path).expect("the settings file"))
+    }
+
+    /// Hands the D-Bus side a frame, as the engine does after each tick.
+    fn frame(&self, frame: Frame) {
+        self.frames.post(frame);
+        self.frame_pulse.send();
     }
 
     fn saved_settings(&self) -> Settings {
@@ -1416,7 +1435,13 @@ fn a_watcher_that_stops_passing_is_skipped_then_gets_the_whole_state() {
             .flatten()
             .expect("the whole state");
         let changes = signal.args().expect("its changes").changes;
-        assert_eq!(changes.len(), STATE_KEYS.len(), "every key in one signal");
+        // Every key in one signal, but FanInputs, which only a frame watcher gets (Phase 10).
+        assert_eq!(
+            changes.len(),
+            STATE_KEYS.len() - 1,
+            "every key in one signal"
+        );
+        assert!(!changes.contains_key("FanInputs"));
         assert_eq!(State::from_dict(&changes).expect("a state").mode, Some(3));
     });
 }
@@ -2344,5 +2369,265 @@ fn a_tone_through_the_pipe_draws_its_bar_and_a_closed_pipe_lets_it_fall() {
                 .iter()
                 .any(|(_, l)| l.contains("stopped, its writer closed it"))
         );
+    });
+}
+
+/// A frame with one pixel lit, a different one for each `n`.
+fn lit(n: usize) -> Frame {
+    let mut frame = Frame::blank();
+    frame.set(1 + (n / 14) % 14, 1 + n % 14, true);
+    frame
+}
+
+/// The next `Frame` a stream brings within `limit`, as a frame.
+async fn next_frame<S>(stream: &mut S, limit: Duration) -> Option<Frame>
+where
+    S: Stream<Item = odc_ipc::Frame> + Unpin,
+{
+    let signal = within(limit, next(stream)).await.flatten()?;
+    let pixels = signal.args().expect("its pixels").pixels;
+    assert_eq!(pixels.len(), 196, "196 bytes");
+    Some(frame_from_pixels(&pixels).expect("each byte 0 or 1"))
+}
+
+// Phase 10 plan, Task 2: `Frame` goes to each frame watcher alone, once per change; a newcomer
+// gets the next frame drawn; a connection with a match rule but no watch gets nothing; a second
+// WatchFrames() changes nothing; one leaving keeps the signal for the other.
+#[test]
+fn frames_go_to_each_frame_watcher_alone_once_per_change() {
+    let h = Harness::start(
+        "frames",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (watcher, bystander) = (h.client().await, h.client().await);
+        let mut seen = watcher.main.receive_frame().await.expect("a stream");
+        let mut unseen = bystander.main.receive_frame().await.expect("a stream");
+        h.frame(lit(0));
+        assert_eq!(
+            next_frame(&mut seen, QUIET).await,
+            None,
+            "no watcher, no frame"
+        );
+        watcher.main.watch_frames().await.expect("watches");
+        watcher
+            .main
+            .watch_frames()
+            .await
+            .expect("a second call changes nothing");
+        h.frame(lit(1));
+        assert_eq!(next_frame(&mut seen, WAIT).await, Some(lit(1)));
+        h.frame(lit(1));
+        assert_eq!(next_frame(&mut seen, QUIET).await, None, "unchanged");
+        h.frame(lit(2));
+        assert_eq!(next_frame(&mut seen, WAIT).await, Some(lit(2)));
+        assert_eq!(
+            next_frame(&mut unseen, QUIET).await,
+            None,
+            "a match rule without a watch"
+        );
+        // A newcomer gets the next frame drawn, unchanged or not; the first gets only changes.
+        let newcomer = h.client().await;
+        let mut fresh = newcomer.main.receive_frame().await.expect("a stream");
+        newcomer.main.watch_frames().await.expect("watches");
+        h.frame(lit(2));
+        assert_eq!(next_frame(&mut fresh, WAIT).await, Some(lit(2)));
+        assert_eq!(next_frame(&mut seen, QUIET).await, None);
+        drop(seen);
+        drop(watcher);
+        h.frame(lit(3));
+        assert_eq!(next_frame(&mut fresh, WAIT).await, Some(lit(3)), "kept");
+        newcomer.main.unwatch_frames().await.expect("stops");
+        h.frame(lit(4));
+        assert_eq!(
+            next_frame(&mut fresh, QUIET).await,
+            None,
+            "after UnwatchFrames"
+        );
+    });
+}
+
+// Only the active session's callers watch frames: a refused caller can't start, and a watcher
+// the check stops allowing gets none until it passes again, then the next frame.
+#[test]
+fn only_authorized_callers_get_frames_and_a_refused_watcher_waits_for_its_check() {
+    let h = Harness::start(
+        "frames-polkit",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (refused, watcher) = (h.client().await, h.client().await);
+        h.polkit.refuse(&refused.name());
+        assert!(matches!(
+            refused.main.watch_frames().await,
+            Err(Error::NotAuthorized(_))
+        ));
+        let mut frames = watcher.main.receive_frame().await.expect("a stream");
+        watcher.main.watch_frames().await.expect("watches");
+        h.frame(lit(5));
+        assert_eq!(next_frame(&mut frames, WAIT).await, Some(lit(5)));
+        // The check runs on the D-Bus side's one-second timer: its journal line says when.
+        let h = &h;
+        let until = |line: String| async move {
+            for _ in 0..30 {
+                if h.journal_has(&line) {
+                    return;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+            panic!("no journal line {line:?}");
+        };
+        h.polkit.refuse(&watcher.name());
+        until(format!("watcher {} no longer passes", watcher.name())).await;
+        h.frame(lit(6));
+        assert_eq!(next_frame(&mut frames, QUIET).await, None, "skipped");
+        h.polkit.allow(&watcher.name());
+        until(format!(
+            "watcher {} passes polkit's check again",
+            watcher.name()
+        ))
+        .await;
+        h.frame(lit(6));
+        assert_eq!(next_frame(&mut frames, WAIT).await, Some(lit(6)), "back");
+    });
+}
+
+// FanInputs, whose speeds change every second, reaches only callers that watch frames too;
+// GetState always has the speeds.
+#[test]
+fn fan_speeds_reach_only_frame_watchers_and_follow_the_readings() {
+    let h = Harness::start(
+        "fan-speeds",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (app, other) = (h.client().await, h.client().await);
+        app.main.watch().await.expect("watches");
+        app.main.watch_frames().await.expect("watches frames");
+        other.main.watch().await.expect("watches");
+        let mut app_changes = app.main.receive_state_changed().await.expect("a stream");
+        let mut other_changes = other.main.receive_state_changed().await.expect("a stream");
+        h.status.write().expect("the status").fan_rpms = vec![value(1234), value(12_345)];
+        let signal = within(WAIT, next(&mut app_changes))
+            .await
+            .flatten()
+            .expect("the speeds");
+        let changes =
+            State::from_dict(&signal.args().expect("its changes").changes).expect("a state");
+        let speeds: Vec<FanSpeed> = changes
+            .fan_inputs
+            .expect("FanInputs")
+            .iter()
+            .map(|i| i.rpm)
+            .collect();
+        assert_eq!(speeds, [FanSpeed::Rpm(1234), FanSpeed::Rpm(9999)], "capped");
+        assert!(
+            within(QUIET, next(&mut other_changes)).await.is_none(),
+            "not to a plain watcher"
+        );
+        let state =
+            State::from_dict(&other.main.get_state().await.expect("the state")).expect("a state");
+        assert_eq!(
+            state.fan_inputs.expect("FanInputs")[0].rpm,
+            FanSpeed::Rpm(1234)
+        );
+    });
+}
+
+// The GPU in use follows the choice, Automatic reading the first GPU; each GPU has its IDs and
+// rule flag; the present flags follow a chosen input vanishing.
+#[test]
+fn the_state_names_the_gpu_in_use_its_ids_and_whether_the_inputs_are_there() {
+    let h = Harness::start(
+        "gpu-in-use",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let caller = h.client().await;
+        let state = || async {
+            State::from_dict(&caller.main.get_state().await.expect("the state")).expect("a state")
+        };
+        let now = state().await;
+        assert_eq!(now.chosen_gpu.as_deref(), Some(""));
+        assert_eq!(now.gpu_in_use.as_deref(), Some("0000:0a:00.0"), "Automatic");
+        let gpus = now.gpus.expect("Gpus");
+        assert_eq!((gpus[0].vendor, gpus[0].device), (0x0abc, 0x0def));
+        assert_eq!((gpus[1].vendor, gpus[1].device), (0, 0), "none in sysfs");
+        assert!(
+            gpus.iter().all(|g| g.has_rule),
+            "amdgpu and i915 have rules"
+        );
+        assert_eq!(now.cooler_fan_input_present, Some(true));
+        assert_eq!(now.pump_input_present, Some(true), "none chosen");
+        caller
+            .main
+            .choose_gpu("0000:00:02.0")
+            .await
+            .expect("chosen");
+        assert_eq!(state().await.gpu_in_use.as_deref(), Some("0000:00:02.0"));
+        let gone = Snapshot::new(
+            |metric| value(11 + 10 * metric as i64),
+            Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)),
+            Fan::NotChosen,
+        );
+        h.status.write().expect("the status").snapshot = Some(gone);
+        assert_eq!(state().await.cooler_fan_input_present, Some(false));
+    });
+}
+
+// Phase 10 plan, Task 2, through the whole service: a value of 100 or more scrolls, so the frame
+// changes every tick: about ten `Frame` signals a second, each a frame of its cycle, none twice
+// in a row. They come with no cooler at all, so the preview shows what the cooler would (D20).
+#[test]
+fn a_scrolling_value_gives_ten_frames_a_second_even_with_no_cooler() {
+    let s = Service::start("frames-scroll", vec![Presence::Absent], true);
+    let reading = |m: Metric| {
+        if m == Metric::CpuUsage {
+            100
+        } else {
+            13 + 7 * m as i64
+        }
+    };
+    zbus::block_on(async {
+        let client = Client::on(&s.bus).await;
+        client.dev.begin_test().await.expect("the session");
+        let values: HashMap<String, (i64, u64)> = Metric::ALL
+            .into_iter()
+            .map(|m| (m.spec_name().to_owned(), (reading(m), 1)))
+            .collect();
+        client
+            .dev
+            .override_readings(values, HashMap::new())
+            .await
+            .expect("the override");
+        let mut frames = client.main.receive_frame().await.expect("a stream");
+        client.main.watch_frames().await.expect("watches");
+        let start = std::time::Instant::now();
+        let mut got = Vec::new();
+        while start.elapsed() < Duration::from_secs(2) {
+            if let Some(frame) = next_frame(&mut frames, Duration::from_millis(300)).await {
+                got.push(frame);
+            }
+        }
+        assert!(
+            (17..=23).contains(&got.len()),
+            "{} frames in 2 s",
+            got.len()
+        );
+        let snapshot = Snapshot::new(|m| value(reading(m)), Fan::NotChosen, Fan::NotChosen);
+        let mut engine = Engine::new(Settings::default(), snapshot);
+        let cycle: Vec<Frame> = (0..60)
+            .filter_map(|_| engine.tick(None, None, false).frame)
+            .collect();
+        assert!(got.iter().all(|f| cycle.contains(f)), "frames of the cycle");
+        assert!(got.windows(2).all(|w| w[0] != w[1]), "one per change");
     });
 }

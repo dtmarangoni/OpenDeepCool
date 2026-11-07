@@ -23,7 +23,7 @@ The names start with the project's public address, its GitHub repository, as the
 - **Every call is checked with polkit**, reads and changes alike, and every action is granted to the active local session only: `allow_active` yes, `allow_inactive` no, `allow_any` no. No remote or inactive session reads or changes anything, or feeds the service sound (owner, 2026-10-26).
 - **Sound** (Phase 9): `AttachAudio()` is checked for `feed-audio`, and the attached caller is checked again every second. When it no longer passes, when its connection leaves the bus, when a newer authorized caller attaches, or when the display leaves the Music modes, the service closes the pipe and the spectrum hears silence. The journal names each attach by the caller's Unix user and PID from `GetConnectionCredentials`, and each close with its reason, never with any sound (owner, 2026-10-27; solution review P9-11).
 - **No D-Bus properties.** Anyone may read a property through `org.freedesktop.DBus.Properties`, and `PropertiesChanged` reaches every local process. The state is read with `GetState()` instead, and changes come as `StateChanged`, a signal addressed to each watcher alone.
-- **Watchers:** `Watch()` registers the caller, at most 8 per Unix user and 32 in all. A watcher is dropped on `Unwatch()`, or when its connection leaves the bus. Each one is checked again every second: one that isn't the active local session any more gets nothing until it passes again, then the whole state in one `StateChanged`.
+- **Watchers:** `Watch()` registers the caller for `StateChanged`, and `WatchFrames()` for `Frame` (Phase 10); a caller doing both counts once, at most 8 per Unix user and 32 in all. A watcher is dropped on `Unwatch()`, or when its connection leaves the bus. Each one is checked again every second: one that isn't the active local session any more gets nothing until it passes again, then the whole state in one `StateChanged`.
 - **Arguments** are compared only with what the service found itself: a GPU must be listed in `Gpus`, a fan input in `FanInputs`. A string over its limit (64 bytes; 1024 for a device path) is refused before any lookup, and no file path is ever built from a caller's string (owner, 2026-10-26).
 - **The dev interface** exists only when the service starts with `--dev`, at its own object path. Its calls pass three checks: the D-Bus policy lets only group `opendeepcool` send to its path; each method checks the caller's `UnixGroupIDs` from `GetConnectionCredentials`, a missing list meaning no; and polkit's `change-settings` (owner, 2026-10-26).
 
@@ -73,11 +73,16 @@ The names start with the project's public address, its GitHub repository, as the
     </method>
     <method name="Watch"/>
     <method name="Unwatch"/>
+    <method name="WatchFrames"/>
+    <method name="UnwatchFrames"/>
     <method name="Diagnostics">
       <arg name="metrics" type="a(sss)" direction="out"/>
     </method>
     <signal name="StateChanged">
       <arg name="changes" type="a{sv}"/>
+    </signal>
+    <signal name="Frame">
+      <arg name="pixels" type="ay"/>
     </signal>
   </interface>
 </node>
@@ -96,9 +101,11 @@ The names start with the project's public address, its GitHub repository, as the
 | `SetMusicPeaks(b)` | `change-settings` | The peak dots on or off ([music.md](music.md#opendeepcools-spectrum-precisely) point 7); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `Failed` |
 | `SetMusicBarFall(s)`, `SetMusicPeakFall(s)` | `change-settings` | The bars' or the peaks' fall: `slower`, `slow`, `moderate`, `fast` or `faster` (point 4); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
-| `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller | `NotAuthorized`, `TooManyWatchers` |
+| `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller; a second `Watch()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
+| `WatchFrames()`, `UnwatchFrames()` | `use` | Starts or stops `Frame` for this caller (Phase 10); a second `WatchFrames()` changes nothing. A frame watcher that also watches the state gets `FanInputs` in `StateChanged`, about once a second | `NotAuthorized`, `TooManyWatchers` |
 | `Diagnostics() → a(sss)` | `use` | One entry per metric, in the order of [sensors.md](sensors.md)'s Metrics: its name as the spec writes it (`CPU Temperature`), its source as the service describes it, empty when none is bound, and its state, `ok` while it has a value, otherwise the one-line reason (`no device found`) (owner, 2026-10-29) | `NotAuthorized` |
-| `StateChanged(a{sv})` | `use`, checked every second | The keys that changed; the whole state after a watcher passes its check again | — |
+| `StateChanged(a{sv})` | `use`, checked every second | The keys that changed; the whole state after a watcher passes its check again. `FanInputs`, whose speeds change every second, goes only to watchers that also watch frames | — |
+| `Frame(ay)` | `use`, checked every second | The frame the engine drew, rotation included, each time it changes: 196 bytes, each 0 or 1, row by row from the top left. It's every frame drawn, whether or not the cooler got it, so a client keeps the picture while the cooler is away. Sent to each frame watcher alone, only while there is one | — |
 
 Choosing what is already set succeeds and changes nothing: nothing is saved, sent to the display or signalled.
 
@@ -115,11 +122,14 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `CoolerState` | `s` | `connected`, `not-found`, `no-access` or `write-failed`, from the last write (owner, 2026-10-27; solution review P5-02, P7-14); on the dev copy also `released`, while a test holds the cooler (owner, 2026-10-29) |
 | `AvailableModes` | `au` | The modes the service draws whose every metric can be read on this PC |
 | `UnavailableReasons` | `a{us}` | Each mode left out of `AvailableModes`, with a one-line reason |
-| `Gpus` | `a(sss)` | Each GPU, best first: PCI address, driver, and kind, `dedicated`, `integrated`, `unknown` or `query-failed`, the last ranked as unknown (owner, 2026-10-27; solution review P6-07) |
+| `Gpus` | `a(sssqqb)` | Each GPU, best first: PCI address, driver, and kind, `dedicated`, `integrated`, `unknown` or `query-failed`, the last ranked as unknown (owner, 2026-10-27; solution review P6-07); its PCI vendor and device ID, 0 when sysfs gives none, for the system's PCI ID list; and whether its driver has a reading rule ([sensors.md](sensors.md)) (Phase 10) |
 | `ChosenGpu` | `s` | The PCI address the user chose, empty for Automatic; the service clears it at start when a GPU was added or removed ([sensors.md](sensors.md#gpu-choice)) |
-| `FanInputs` | `a(ssus)` | Each fan input: chip, device path relative to the sysfs root (`devices/…`), input number, and the driver's label, empty when it gives none |
+| `GpuInUse` | `s` | The PCI address of the GPU the readings come from: the chosen one, or with Automatic the first in `Gpus`; empty when there's no GPU (Phase 10) |
+| `FanInputs` | `a(ssusd)` | Each fan input: chip, device path relative to the sysfs root (`devices/…`), input number, the driver's label, empty when it gives none, and its speed in whole RPM capped at 9999, NaN when it can't be read (Phase 10) |
 | `CoolerFanInput` | `(ssu)` | The input chosen for the cooler's fans: chip, device path and number, all empty when none is chosen |
 | `PumpInput` | `(ssu)` | The same, for the pump |
+| `CoolerFanInputPresent` | `b` | Whether the chosen input for the cooler's fans is there; true when none is chosen (Phase 10) |
+| `PumpInputPresent` | `b` | The same, for the pump |
 | `CoolerFanRpm` | `d` | The cooler's fans, in whole RPM capped at 9999 (owner, 2026-10-25); NaN when no input is chosen or it can't be read |
 | `PumpRpm` | `d` | The same, for the pump |
 | `MusicPeaks` | `b` | Whether the spectrum's peak dots are drawn (Phase 9) |
