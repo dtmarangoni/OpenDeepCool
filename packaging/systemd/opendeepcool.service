@@ -26,6 +26,10 @@ UMask=0077
 ProtectSystem=strict
 ProtectHome=yes
 PrivateTmp=yes
+# A user namespace of its own, with no capabilities outside it. Its account and group map to
+# themselves, so the cooler's node and the power counters (group opendeepcool) stay open to it
+# (Phase 11 plan, Task 2).
+PrivateUsers=yes
 NoNewPrivileges=yes
 CapabilityBoundingSet=
 ProtectKernelTunables=yes

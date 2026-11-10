@@ -347,6 +347,17 @@ The owner asked for "the most secure possible" (2026-11-10). One commit per unit
 **Validation**
 - `systemd-analyze security --offline=true` prints each unit under its ceiling; the scores go into the report.
 
+**As built** (2026-11-10):
+- Scores, before → after: the display service 0.5 → 0.4 (`PrivateUsers=yes`, the one setting left open that its job allows); the GPU helper 5.5 → 0.4; the detection 9.4 → 1.7; the sound helper 7.9 → 0.6.
+- The tests read the level `systemd-analyze security --offline=true` prints, for a copy of the unit under a name no drop-in matches (`odc_testkit::units`). On this PC the dev copy's drop-in (`UMask=0027`) had made the service's `UMask=` line fail; scored alone, it passes. `--threshold=` exists, but counts in tenths.
+- The GPU helper's NVIDIA wildcard became `nvidiactl`, `nvidia` and `nvidia-uvm`: NVIDIA's container library gives "compute" programs, CUDA's, UVM's devices besides the GPUs' (libnvidia-container, `nvc_mount.c`, read 2026-11-10).
+- The detection needs `i2c-dev` and `cpuid`, which register their device groups only once loaded, and systemd allows only groups that exist when a unit starts. A new one-shot, `opendeepcool-sensors-detect-modules.service`, loads both just before it, under its conditions (score 1.3). `modprobe@` units weren't used: a unit's `Wants=` are started even when its conditions skip it, so they would load at every boot.
+- The detection's and the helper's system calls are `@system-service`, without `@privileged` and `@resources`, with `@module` back. The sound helper keeps `@resources`, because PipeWire's client may change its threads' priority.
+- Checked on the owner's PC after `odc-dev setup` (owner's OK), 2026-11-10:
+  - the service and the sound helper run with `PrivateUsers=yes` and no restarts;
+  - `--only service --require dev-service` passed its 144 checks (timing mean 100.000 ms), and during its Music modes the owner's sandboxed helper captured and the service attached its sound (journal);
+  - `--only music --require dev-service,pipewire` passed on its third run (delay median 49.7 ms, p95 95.0 ms). **Open finding:** the first two runs each failed one check, differently. First "the capture stream isn't at 100 %", read perhaps before WirePlumber had set it. Then a frame 357 ms into the tone showed the tone's start, against the check's 300 ms margin with delays up to 124 ms. The check runs its own helper outside the unit, so the sandbox isn't involved; the check's margins are to be fixed before Task 9's parity run.
+
 ### 3. The Start at boot switch
 
 Three commits: the design, the program with its polkit action, the app.

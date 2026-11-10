@@ -110,6 +110,7 @@ fn the_unit_runs_as_its_own_account_in_its_sandbox() {
         ("ProtectSystem", "strict"),
         ("ProtectHome", "yes"),
         ("PrivateTmp", "yes"),
+        ("PrivateUsers", "yes"),
         ("NoNewPrivileges", "yes"),
         ("CapabilityBoundingSet", ""),
         ("ProtectKernelTunables", "yes"),
@@ -388,4 +389,16 @@ fn files_md_lists_what_the_package_installs() {
         assert!(programs.contains(&exec), "{unit}: {exec} isn't installed");
         assert!(exec.starts_with("/usr/lib/opendeepcool/"), "{unit}: {exec}");
     }
+}
+
+/// systemd's own score for the sandbox stays at 0.4 "SAFE" or better (0.5 before Phase 11).
+#[test]
+fn systemds_score_for_the_sandbox_stays_safe() {
+    let scratch = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("service-unit-score");
+    let level = odc_testkit::units::exposure(
+        &packaging(UNIT),
+        odc_testkit::units::Manager::System,
+        &scratch,
+    );
+    assert!(level <= 0.4, "exposure {level}");
 }
