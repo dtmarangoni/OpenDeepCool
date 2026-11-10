@@ -12,7 +12,7 @@ StartLimitIntervalSec=0
 [Service]
 Type=notify
 NotifyAccess=main
-ExecStart=/usr/bin/opendeepcoold
+ExecStart=/usr/lib/opendeepcool/opendeepcoold
 WatchdogSec=15
 Restart=on-failure
 RestartSec=1
@@ -54,6 +54,14 @@ SystemCallFilter=~@privileged @resources
 SystemCallErrorNumber=EPERM
 DevicePolicy=closed
 DeviceAllow=char-hidraw rw
+# NVIDIA's library (NVML) reads its GPUs through /dev/nvidiactl and /dev/nvidia<N>, whose device
+# groups NVIDIA's kernel driver registers as "nvidiactl" and "nvidia" (its open kernel modules,
+# kernel-open/nvidia/nv.c, read 2026-11-10). Named exactly, so the driver's other groups
+# (nvidia-uvm, nvidia-caps) stay closed. A group the driver hasn't registered when the service
+# starts isn't added (systemd.resource-control(5)), so these lines are harmless without NVIDIA's
+# driver. Untested on NVIDIA hardware (Phase 11 plan, Task 1).
+DeviceAllow=char-nvidiactl rw
+DeviceAllow=char-nvidia rw
 
 [Install]
 WantedBy=multi-user.target

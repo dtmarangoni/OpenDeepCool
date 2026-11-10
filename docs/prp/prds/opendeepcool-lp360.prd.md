@@ -535,7 +535,7 @@ Phases run one at a time, in order (owner, 2026-10-27; solution review P4-01): e
 
 ## System Footprint
 
-The owner asked for every installed or created item to be listed. Paths are proposed and get finalised in the Phase 11 plan.
+The owner asked for every installed or created item to be listed. The paths are final: [`packaging/FILES.md`](../../../packaging/FILES.md) holds the exact list, with owners and modes, and a test checks it against the repository (Phase 11 plan, Task 1).
 
 **Uninstalling removes everything** (owner, 2026-10-24). pacman removes the files the package installed. It doesn't remove what was created after install: accounts (`pacman -R` runs no `userdel`; Arch forum, unverified until the Phase 11 test) and saved data. The package's removal script removes those, in the "Removed by" column below. The package ships no enable links: the user makes them when turning OpenDeepCool on, and the removal script removes them (owner, 2026-11-10). An automated test installs and uninstalls in a throwaway system and requires it to end exactly as it started. Only three things outlast the uninstall:
 
@@ -545,7 +545,7 @@ The owner asked for every installed or created item to be listed. Paths are prop
 
 **Finished app**
 
-| Item | Path (proposed) | Why | Removed by |
+| Item | Path | Why | Removed by |
 |---|---|---|---|
 | The settings app, `opendeepcool` | `/usr/bin/` | The app | `pacman -R` |
 | The service (`opendeepcoold`), the sound helper (`opendeepcool-audio`, Phase 9), the one-shot helpers (`odc-gpu-rank`, `odc-sensors-detect`) and the Start at boot switch's program (`opendeepcool-boot`, Phase 11) | `/usr/lib/opendeepcool/`, off `PATH` (Arch package guidelines: "Use `/usr/lib/$pkgname/`") | Programs users don't run themselves | `pacman -R` |

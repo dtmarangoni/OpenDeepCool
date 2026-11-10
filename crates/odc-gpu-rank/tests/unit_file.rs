@@ -42,7 +42,10 @@ fn values(section: &str, key: &str) -> Vec<String> {
 fn a_one_shot_as_the_services_account_with_a_time_limit_and_its_state_directory() {
     assert_eq!(values("Service", "Type"), ["oneshot"]);
     assert_eq!(values("Service", "User"), ["opendeepcool"]);
-    assert_eq!(values("Service", "ExecStart"), ["/usr/bin/odc-gpu-rank"]);
+    assert_eq!(
+        values("Service", "ExecStart"),
+        ["/usr/lib/opendeepcool/odc-gpu-rank"]
+    );
     assert_eq!(values("Service", "TimeoutStartSec"), ["30"]);
     assert_eq!(values("Service", "StateDirectory"), ["opendeepcool"]);
 }

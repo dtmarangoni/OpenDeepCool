@@ -558,7 +558,7 @@ fn both_helper_units_have_their_time_limits_and_the_detection_doesnt_hold_up_the
     assert_eq!(values(&detect, "Service", "Type"), ["oneshot"]);
     assert_eq!(
         values(&detect, "Service", "ExecStart"),
-        ["/usr/bin/odc-sensors-detect"]
+        ["/usr/lib/opendeepcool/odc-sensors-detect"]
     );
     assert!(values(&detect, "Service", "User").is_empty(), "root");
     assert_eq!(values(&detect, "Service", "TimeoutStartSec"), ["120"]);

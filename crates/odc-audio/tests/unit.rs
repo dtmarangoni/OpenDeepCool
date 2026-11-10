@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const UNIT: &str = "../../packaging/systemd-user/opendeepcool-audio.service";
-const EXEC: &str = "/usr/bin/opendeepcool-audio";
+const EXEC: &str = "/usr/lib/opendeepcool/opendeepcool-audio";
 
 fn unit_text() -> String {
     fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join(UNIT)).expect("the unit")

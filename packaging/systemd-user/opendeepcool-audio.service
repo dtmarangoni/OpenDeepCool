@@ -7,7 +7,7 @@ Description=OpenDeepCool sound for the cooler display's Music modes
 ConditionUser=!@system
 
 [Service]
-ExecStart=/usr/bin/opendeepcool-audio
+ExecStart=/usr/lib/opendeepcool/opendeepcool-audio
 Restart=on-failure
 RestartSec=2
 # In a user unit these imply PrivateUsers=, which needs unprivileged user namespaces

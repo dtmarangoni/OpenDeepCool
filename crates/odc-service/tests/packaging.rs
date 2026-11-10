@@ -99,7 +99,10 @@ fn the_unit_waits_for_the_ranking_and_the_sensor_driver_never_the_detection() {
 
 #[test]
 fn the_unit_runs_as_its_own_account_in_its_sandbox() {
-    assert_eq!(values("Service", "ExecStart"), ["/usr/bin/opendeepcoold"]);
+    assert_eq!(
+        values("Service", "ExecStart"),
+        ["/usr/lib/opendeepcool/opendeepcoold"]
+    );
     for (key, value) in [
         ("User", "opendeepcool"),
         ("Group", "opendeepcool"),
@@ -124,11 +127,21 @@ fn the_unit_runs_as_its_own_account_in_its_sandbox() {
         // Fixed (owner, 2026-10-27): a call outside the filter fails, never kills the service.
         ("SystemCallErrorNumber", "EPERM"),
         ("DevicePolicy", "closed"),
-        ("DeviceAllow", "char-hidraw rw"),
     ] {
         assert_eq!(values("Service", key), [value], "{key}");
     }
     assert_eq!(values("Service", "SystemCallFilter")[0], "@system-service");
+}
+
+/// The only devices the service may open: the cooler's hidraw node, and the two device groups
+/// NVIDIA's library reads its GPUs through, named exactly so no other NVIDIA group opens (Phase 11
+/// plan, Task 1). No wildcard, which would let in every group whose name starts the same.
+#[test]
+fn the_unit_opens_the_cooler_and_nvidias_two_reading_devices_only() {
+    assert_eq!(
+        values("Service", "DeviceAllow"),
+        ["char-hidraw rw", "char-nvidiactl rw", "char-nvidia rw"]
+    );
 }
 
 /// Runs `program` with `args`; its exit status and both outputs.
@@ -152,8 +165,8 @@ fn systemd_accepts_the_unit() {
     let _ = fs::remove_dir_all(&root);
     let units = root.join("etc/systemd/system");
     fs::create_dir_all(&units).expect("a unit folder");
-    fs::create_dir_all(root.join("usr/bin")).expect("a bin folder");
-    let binary = root.join("usr/bin/opendeepcoold");
+    fs::create_dir_all(root.join("usr/lib/opendeepcool")).expect("a program folder");
+    let binary = root.join("usr/lib/opendeepcool/opendeepcoold");
     fs::write(&binary, "").expect("a stand-in");
     fs::set_permissions(&binary, fs::Permissions::from_mode(0o755)).expect("executable");
     let unit = units.join("opendeepcool.service");
@@ -280,4 +293,99 @@ fn the_dbus_policy_is_scoped_to_the_service() {
     );
     let group = block(&text, "<policy group=\"opendeepcool\">", "policy");
     assert!(group.contains(&format!("send_path=\"{DEV_PATH}\"")));
+}
+
+/// `packaging/FILES.md`'s first table, "Installed by the package": each row's path, kind and
+/// source, without the backticks.
+fn installed() -> Vec<(String, String, String)> {
+    let text = fs::read_to_string(packaging("FILES.md")).expect("packaging/FILES.md");
+    let table = text
+        .split("## Installed by the package")
+        .nth(1)
+        .and_then(|rest| rest.split("\n## ").next())
+        .expect("the section \"Installed by the package\"");
+    let bare = |cell: &str| cell.trim().trim_matches('`').to_owned();
+    table
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .map(|line| {
+            let cells: Vec<&str> = line.trim_matches('|').split('|').collect();
+            assert_eq!(cells.len(), 5, "{line}");
+            (bare(cells[0]), bare(cells[1]), bare(cells[4]))
+        })
+        .collect()
+}
+
+/// Every file under `dir`, relative to the repository, sorted.
+fn files_under(dir: &Path, root: &Path, found: &mut Vec<String>) {
+    for entry in fs::read_dir(dir).expect("a packaging folder") {
+        let path = entry.expect("an entry").path();
+        if path.is_dir() {
+            files_under(&path, root, found);
+        } else {
+            let relative = path.strip_prefix(root).expect("inside the repository");
+            found.push(relative.to_string_lossy().into_owned());
+        }
+    }
+}
+
+/// `FILES.md` matches the repository (Phase 11 plan, Task 1): every source it names exists,
+/// every file under `packaging/` is installed from it, programs live only in `/usr/bin` (the app)
+/// and `/usr/lib/opendeepcool/` (Arch package guidelines), and each unit starts a listed program.
+#[test]
+fn files_md_lists_what_the_package_installs() {
+    let root = packaging("..");
+    let rows = installed();
+    assert!(!rows.is_empty(), "no rows");
+    let mut sources = Vec::new();
+    for (path, kind, from) in &rows {
+        assert!(
+            path.starts_with("/usr/"),
+            "{path}: only /usr, never /etc or /usr/local"
+        );
+        assert!(!path.starts_with("/usr/local/"), "{path}");
+        match kind.as_str() {
+            "program" => {
+                assert!(
+                    path == "/usr/bin/opendeepcool" || path.starts_with("/usr/lib/opendeepcool/"),
+                    "{path}: the app in /usr/bin, every other program in /usr/lib/opendeepcool/"
+                );
+                let name = path.rsplit('/').next().expect("a name");
+                assert_eq!(from, &format!("target/release/{name}"), "{path}");
+            }
+            "file" => {
+                assert!(root.join(from).is_file(), "{from} doesn't exist");
+                sources.push(from.clone());
+            }
+            "folder" => assert_eq!(from, "-", "{path}"),
+            other => panic!("{path}: unknown kind {other:?}"),
+        }
+    }
+    let mut packaged = Vec::new();
+    files_under(&root.join("packaging"), &root, &mut packaged);
+    for file in packaged.iter().filter(|f| *f != "packaging/FILES.md") {
+        assert!(
+            sources.contains(file),
+            "{file} is in packaging/ but not in FILES.md"
+        );
+    }
+    let programs: Vec<&str> = rows
+        .iter()
+        .filter(|(_, kind, _)| kind == "program")
+        .map(|(path, _, _)| path.as_str())
+        .collect();
+    for unit in [
+        "systemd/opendeepcool.service",
+        "systemd/opendeepcool-gpu-rank.service",
+        "systemd/opendeepcool-sensors-detect.service",
+        "systemd-user/opendeepcool-audio.service",
+    ] {
+        let text = fs::read_to_string(packaging(unit)).expect("a unit");
+        let exec = text
+            .lines()
+            .find_map(|line| line.strip_prefix("ExecStart="))
+            .unwrap_or_else(|| panic!("{unit} has no ExecStart="));
+        assert!(programs.contains(&exec), "{unit}: {exec} isn't installed");
+        assert!(exec.starts_with("/usr/lib/opendeepcool/"), "{unit}: {exec}");
+    }
 }

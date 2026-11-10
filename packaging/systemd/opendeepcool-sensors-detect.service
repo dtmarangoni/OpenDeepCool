@@ -10,7 +10,7 @@ ConditionPathExists=!/etc/modprobe.d/lm_sensors.conf
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/odc-sensors-detect
+ExecStart=/usr/lib/opendeepcool/odc-sensors-detect
 # A one-shot has no start time limit by default (systemd.service); a probe that hangs ends.
 TimeoutStartSec=120
 StateDirectory=opendeepcool-detect
