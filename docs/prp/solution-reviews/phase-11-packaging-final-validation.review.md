@@ -334,11 +334,40 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 - **A privacy slip.** The plan's risk table named the make of a part in the owner's PC.
   - **Outcome:** fixed in the plan, which now points at `docs/local/` (rule 10).
 
+## Before Task 1 (2026-11-10)
+
+The plan was compared with what Phases 5–10 built (AGENTS.md, How to work). The owner then set the rule for this phase: the package follows Arch's official guidelines "in terms of security, system design, system philosophy and maintainability", and is "the most secure possible following Arch guidelines, Linux security best practices, software engineering security best practices". The outcomes below supersede the earlier ones they name (a later outcome supersedes an earlier one).
+
+**Differences from what was built, corrected in the plan:**
+- The four units and their four tests start the programs from `/usr/bin/`, while the plan puts the service's programs in `/usr/lib/opendeepcool/` (Arch package guidelines: "Use `/usr/lib/$pkgname/`"). Task 1 now lists the files and tests to change.
+- A unit enabled only by a link under `/usr/lib` shows as "disabled" in `systemctl is-enabled` (a scratch root, and an Arch timer linked that way, 2026-11-10). The old Task 3 check and `odc-e2e`'s start check would have failed. Since nothing is enabled by the package any more, both now see the user's own `enable`.
+- namcap reports an ELF file under `/usr/share` as an error (`elfpaths`), which ruled out the hook program's old path. There's no hook program any more.
+- `odc-e2e` against the package: the music check ran the dev helper's path, the printed fixes named only `odc-dev setup`, and the old Task 7 listed neither `display`, `gpu-rank` nor `baseline`. The new Task 9 covers them.
+- The README's install list was to be "generated … by a small script"; it's a Rust test now (rule 13), and the section takes AGENTS.md's name, "Installed on your system".
+- The removal didn't reset the CPU power counters: the udev rule changes their group with `chgrp` and `chmod` through `RUN`, which a udev reload can't undo. `post_remove` resets them now.
+- Checked and unchanged: the detection record's fields; Arch's `rust` 1:1.99.1 against the workspace's 1.99; unprivileged user namespaces and subordinate IDs; `StateDirectory=` re-owning the folder when the account is re-created (systemd.exec(5)).
+
+**Owner's decisions:**
+- **Nothing on at install** (supersedes the 2026-10-25/26 decision and OV-02's vendor links; P11-01, P11-04): Arch "does not enable most services on installation" (Arch Wiki, systemd). No enable links and no start hook; the install message prints `systemctl enable --now opendeepcool.service` and `systemctl --global enable opendeepcool-audio.service`. Upgrades restart a running service with the systemd package's `systemd-hook restart`, as openssh does. `pre_remove` stops and disables what the user turned on.
+- **A Start at boot switch in the settings app** (the owner's idea): it runs a small Rust root program, `opendeepcool-boot`, through `pkexec`, under its own polkit action, `auth_admin` at every change; it takes only `on` or `off`. Designed by the `ui-ux-designer` agent first.
+- **The package never touches the dev copy** (supersedes 2026-10-24's install-script removal, OV-02's dev-copy part and 2026-10-28's Rust hook program; closes P11-03): the owner runs `odc-dev teardown` before installing, and the saved settings go with it. pacman never deletes or rewrites an administrator's files (pacman(8)), and the dev copy exists on one PC only.
+- **No pacman step reaches into users' sessions** (supersedes P11-05's and P11-20's per-user restart and stop): the sound helper exits when its program file is replaced or removed, and its unit's `Restart=on-failure` starts the new one, the owner's 2026-10-27 fallback.
+- **Signed tags** (supersedes P11-06, 2026-10-27): "Sources should be verified using PGP signatures wherever possible" (Arch package guidelines). One long-lived PGP key the owner creates in Phase 12, named with the GitHub handle and no-reply address; `?signed` and `validpgpkeys` in the PKGBUILD; the mechanism tested now with throwaway keys.
+- **The most secure possible:** every unit hardened as far as its job allows, its options pinned and its `systemd-analyze security` score capped (today 0.5, 5.5, 9.4 and 7.9); namcap's binary checks (full RELRO, PIE, no executable stack, no RPATH) must pass; `overflow-checks` in release builds; a reproducibility check, two identical builds.
+- **The AUR copy's license is 0BSD,** as the AUR rules encourage; taken from "follow Arch's guidelines".
+- namcap 3.6.0 and shellcheck 0.11.0 are installed on the owner's PC (by the owner, 2026-11-10), so both run locally and in CI.
+- Arch's guidelines are silent on deleting the account and the saved data at uninstall, so AGENTS.md rule 7 stands.
+
+**Old task numbers → new:** 1 → 1; new 2 (hardening) and 3 (the switch); 2 → 4; 3 → 5; 4 → 6; 5 → 7; 6 → 8 (Phase 12); 7 → 9; 8 → 10. The findings above keep the old numbers.
+
+Where the changes went: Phase 11 plan (whole); PRD (Service model, Packaging, Phase 11, System Footprint, Decisions Log); project overview review (OV-02, OV-16, OV-18 outcomes).
+
 ## Questions for the owner
 
-1. Fix the install order through the scriptlet (a) or a shipped post-transaction hook (b) (P11-01)? **Answered 2026-10-26:** (b), a shipped hook (OV-02).
+1. Fix the install order through the scriptlet (a) or a shipped post-transaction hook (b) (P11-01)? **Answered 2026-10-26:** (b), a shipped hook (OV-02). **Superseded 2026-11-10:** nothing starts at install, so there's no order to fix.
 2. Add one "remove everything, install fresh from the AUR" check on the owner's PC (P11-09)? **Answered 2026-10-27:** yes, before the beta, before `v1.0.0` and before each later AUR release.
-3. Sign release tags (P11-06)? **Answered 2026-10-27:** no; the checksum only.
+3. Sign release tags (P11-06)? **Answered 2026-10-27:** no; the checksum only. **Superseded 2026-11-10:** yes, with one long-lived PGP key.
+4. How is the service turned on, and what about the dev copy and its settings? **Answered 2026-11-10:** see "Before Task 1".
 
 ## Sources
 
@@ -347,3 +376,4 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 - alpm-hooks(5), local man page, read 2026-10-26: "Hooks are run in alphabetical order of their file name, where the ordering ignores the suffix."
 - Arch developer manual, Rust package guidelines, read 2026-10-26.
 - systemd.resource-control(5), read 2026-10-26: `DeviceAllow=` group names, and groups "not resolvable … are not added".
+- Read 2026-11-10, before Task 1: Arch Wiki, systemd ("does not enable most services on installation"; `99-default.preset`); Arch package guidelines (`/usr/lib/$pkgname/`, `.install` messages, PGP-verified sources, direct dependencies, reproducible builds); Arch developer manual, Security and Rust package guidelines; AUR submission guidelines (license file, 0BSD encouraged); on this PC, `systemd-hook` (`restart` "For use by other packages"), openssh's restart hooks, systemd's polkit actions (`auth_admin_keep`), PKGBUILD(5) (`validpgpkeys`, `?signed`), pacman(8) ("Handling config files"), namcap 3.6.0's rules, and `systemd-analyze security --offline=true` on the four units.
