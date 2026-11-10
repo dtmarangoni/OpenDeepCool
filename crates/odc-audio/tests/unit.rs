@@ -1,7 +1,8 @@
 //! The sound helper's user unit (Phase 9 plan, Task 4): never for system accounts, started again
-//! on failure, enabled at login, the sandbox the plan lists, and systemd's own check. systemd's
-//! `--user` check can't take a scratch root, so it checks a copy whose `ExecStart` names a
-//! stand-in; everything else is the unit as written.
+//! on failure, enabled at login, the sandbox the plan lists (Phase 11 plan, Task 2: as tight as
+//! its job allows), its score, and systemd's own check. systemd's `--user` check can't take a
+//! scratch root, so it checks a copy whose `ExecStart` names a stand-in; everything else is the
+//! unit as written.
 
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
@@ -48,16 +49,50 @@ fn the_unit_runs_for_people_only_restarts_and_is_sandboxed() {
     assert_eq!(values("Service", "ExecStart"), [EXEC]);
     for (key, value) in [
         ("Restart", "on-failure"),
+        // Phase 11 plan, Task 2: every protection a user manager allows for the job.
+        ("PrivateUsers", "yes"),
         ("NoNewPrivileges", "yes"),
-        ("PrivateTmp", "yes"),
+        ("CapabilityBoundingSet", ""),
+        ("UMask", "0077"),
+        ("KeyringMode", "private"),
         ("ProtectSystem", "strict"),
+        ("ProtectHome", "read-only"),
+        ("PrivateTmp", "yes"),
+        ("PrivateDevices", "yes"),
+        ("PrivateNetwork", "yes"),
         ("RestrictAddressFamilies", "AF_UNIX"),
+        ("ProtectKernelTunables", "yes"),
+        ("ProtectKernelModules", "yes"),
+        ("ProtectKernelLogs", "yes"),
+        ("ProtectControlGroups", "yes"),
+        ("ProtectClock", "yes"),
+        ("ProtectHostname", "yes"),
+        ("ProtectProc", "invisible"),
+        ("ProcSubset", "pid"),
+        ("RestrictNamespaces", "yes"),
+        ("RestrictSUIDSGID", "yes"),
         ("LockPersonality", "yes"),
+        ("MemoryDenyWriteExecute", "yes"),
+        ("SystemCallArchitectures", "native"),
+        ("SystemCallErrorNumber", "EPERM"),
         // PipeWire's client may ask for realtime scheduling: unverified, so not restricted.
         ("RestrictRealtime", "no"),
     ] {
         assert_eq!(values("Service", key), [value], "{key}");
     }
+    assert_eq!(
+        values("Service", "SystemCallFilter"),
+        ["@system-service", "~@privileged"]
+    );
+}
+
+/// systemd's own score for the sandbox stays at 0.6 "SAFE" or better (7.9 before Phase 11).
+#[test]
+fn systemds_score_for_the_sandbox_stays_safe() {
+    let unit = Path::new(env!("CARGO_MANIFEST_DIR")).join(UNIT);
+    let scratch = PathBuf::from(env!("CARGO_TARGET_TMPDIR")).join("audio-unit-score");
+    let level = odc_testkit::units::exposure(&unit, odc_testkit::units::Manager::User, &scratch);
+    assert!(level <= 0.6, "exposure {level}");
 }
 
 #[test]

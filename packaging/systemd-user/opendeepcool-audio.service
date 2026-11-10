@@ -2,6 +2,10 @@
 # enabled for every user. While the display shows a Music mode, it hands the display service the
 # default output's sound through pw-record; otherwise it only waits for events. System accounts,
 # a display manager's greeter among them, never run it (owner, 2026-10-26).
+#
+# Its sandbox keeps only what that job needs (Phase 11 plan, Task 2; Arch's security package
+# guidelines): the system bus and the user's PipeWire, both sockets in the file system, and
+# pw-record, which reads PipeWire's client configuration, the user's own included.
 [Unit]
 Description=OpenDeepCool sound for the cooler display's Music modes
 ConditionUser=!@system
@@ -10,13 +14,41 @@ ConditionUser=!@system
 ExecStart=/usr/lib/opendeepcool/opendeepcool-audio
 Restart=on-failure
 RestartSec=2
-# In a user unit these imply PrivateUsers=, which needs unprivileged user namespaces
-# (systemd.exec(5), read 2026-10-27): the unit is tested as written (solution review P9-04).
+# In a user unit the namespace settings imply PrivateUsers=, which needs unprivileged user
+# namespaces (systemd.exec(5), read 2026-10-27): the unit is tested as written (solution review
+# P9-04). A user manager can't filter IP addresses or devices (systemd.resource-control(5)), so
+# PrivateNetwork= and PrivateDevices= close them instead.
+PrivateUsers=yes
 NoNewPrivileges=yes
-PrivateTmp=yes
+CapabilityBoundingSet=
+UMask=0077
+# It uses no kernel keyring, so it shares none.
+KeyringMode=private
 ProtectSystem=strict
+# Read-only, not hidden: PipeWire's socket is in /run/user, and a user's own PipeWire client
+# configuration in ~/.config/pipewire still applies.
+ProtectHome=read-only
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateNetwork=yes
 RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictSUIDSGID=yes
 LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+# Not without @resources: PipeWire's client may change its threads' priority (below).
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
 # PipeWire's client may ask for realtime scheduling (unverified), so it isn't restricted.
 RestrictRealtime=no
 
