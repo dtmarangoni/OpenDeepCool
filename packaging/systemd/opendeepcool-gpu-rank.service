@@ -1,7 +1,11 @@
 # OpenDeepCool's GPU rank helper (docs/spec/sensors.md, GPU choice): asks each GPU's driver once
 # whether the GPU is dedicated or integrated, writes gpu-rank.json into the display service's
 # state directory, and exits. The display service pulls it in and starts after it; it runs only
-# while no ranking exists. Phase 11 checks the sandbox again.
+# while no ranking exists.
+#
+# Its sandbox keeps only what that job needs (Phase 11 plan, Task 2; Arch's security package
+# guidelines): it reads /sys, asks each DRM render node for its kind, loads NVIDIA's CUDA library
+# on a PC with NVIDIA's driver, and writes one file.
 [Unit]
 Description=OpenDeepCool GPU ranking
 ConditionPathExists=!/var/lib/opendeepcool/gpu-rank.json
@@ -15,16 +19,50 @@ ExecStart=/usr/lib/opendeepcool/odc-gpu-rank
 TimeoutStartSec=30
 # Made for the service's account on a fresh install, before the display service ever ran.
 StateDirectory=opendeepcool
+UMask=0077
 ProtectSystem=strict
 ProtectHome=yes
-NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateUsers=yes
 PrivateNetwork=yes
+IPAddressDeny=any
+# CUDA may reach NVIDIA's own daemons through local sockets; nothing else is open.
+RestrictAddressFamilies=AF_UNIX
+NoNewPrivileges=yes
 CapabilityBoundingSet=
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+# Other processes are hidden. Not ProcSubset=pid, which would also hide /proc/driver/, where
+# NVIDIA's driver keeps its files (libnvidia-container, nvc_internal.h, read 2026-11-10).
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+RemoveIPC=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# A refused call fails instead of killing the helper: on an NVIDIA PC, CUDA's query then fails,
+# and the GPU's kind stays unknown, named in the journal (Phase 6; solution review P6-07).
+# CUDA inside this sandbox is untested on NVIDIA hardware.
+SystemCallErrorNumber=EPERM
 DevicePolicy=closed
+# The DRM render nodes, and the device groups NVIDIA's kernel driver registers for
+# /dev/nvidiactl, /dev/nvidia<N> and /dev/nvidia-uvm (its open kernel modules, nv.c and uvm.c,
+# read 2026-11-10). CUDA needs UVM besides the GPUs themselves: NVIDIA's container library gives
+# "compute" programs UVM's devices and "utility" ones only the GPUs' (libnvidia-container,
+# nvc_mount.c). Named exactly, so the driver's other groups stay closed; a group that isn't
+# registered when the helper starts isn't added (systemd.resource-control(5)).
 DeviceAllow=char-drm rw
-# NVIDIA's device groups in /proc/devices, for CUDA: unverified until checked on a PC with
-# NVIDIA's driver (Phase 11).
-DeviceAllow=char-nvidia* rw
+DeviceAllow=char-nvidiactl rw
+DeviceAllow=char-nvidia rw
+DeviceAllow=char-nvidia-uvm rw
 
 [Install]
 WantedBy=opendeepcool.service
