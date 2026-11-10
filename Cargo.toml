@@ -15,6 +15,9 @@ unsafe_code = "forbid"
 proptest = "1.12"
 
 # A panic in any thread ends the whole service, so systemd restarts it (Phase 7 plan, Task 8;
-# solution review OV-03).
+# solution review OV-03). An arithmetic overflow stops the program too, instead of wrapping
+# silently, as the tests already run (Phase 11 plan, Task 2; owner, 2026-11-10: "the most secure
+# possible"). Wrapping that is meant uses the `wrapping_` methods.
 [profile.release]
 panic = "abort"
+overflow-checks = true
