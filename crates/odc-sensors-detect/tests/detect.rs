@@ -12,8 +12,9 @@ use std::process::{self, Command, Output};
 
 use odc_testkit::fake_tree::FakeTree;
 use odc_testkit::fixtures::{BOARD_CHIP, amdgpu_dgpu, board_fans};
+use odc_testkit::units::{self, Manager};
 
-const TESTS: [(&str, fn()); 13] = [
+const TESTS: [(&str, fn()); 17] = [
     (
         "a_fresh_pc_runs_it_once_and_records_the_configuration",
         a_fresh_pc_runs_it_once_and_records_the_configuration,
@@ -66,6 +67,19 @@ const TESTS: [(&str, fn()); 13] = [
         "both_helper_units_have_their_time_limits_and_the_detection_doesnt_hold_up_the_service",
         both_helper_units_have_their_time_limits_and_the_detection_doesnt_hold_up_the_service,
     ),
+    (
+        "the_detections_sandbox_keeps_only_what_sensors_detect_needs",
+        the_detections_sandbox_keeps_only_what_sensors_detect_needs,
+    ),
+    (
+        "the_module_helper_loads_two_drivers_under_the_detections_conditions",
+        the_module_helper_loads_two_drivers_under_the_detections_conditions,
+    ),
+    (
+        "systemds_scores_for_both_sandboxes_stay_where_they_are",
+        systemds_scores_for_both_sandboxes_stay_where_they_are,
+    ),
+    ("systemd_accepts_both_units", systemd_accepts_both_units),
 ];
 
 fn main() {
@@ -575,12 +589,135 @@ fn both_helper_units_have_their_time_limits_and_the_detection_doesnt_hold_up_the
         ]
     );
     assert!(values(&detect, "Unit", "Before").is_empty());
-    assert!(values(&detect, "Unit", "After").is_empty());
+    // Only after the helper that loads the two drivers it probes through.
+    assert_eq!(
+        values(&detect, "Unit", "After"),
+        ["opendeepcool-sensors-detect-modules.service"]
+    );
+    assert_eq!(
+        values(&detect, "Unit", "Wants"),
+        ["opendeepcool-sensors-detect-modules.service"]
+    );
     assert_eq!(
         values(&detect, "Install", "WantedBy"),
         ["opendeepcool.service"]
     );
     for stream in ["StandardOutput", "StandardError"] {
         assert_eq!(values(&detect, "Service", stream), ["journal"], "{stream}");
+    }
+}
+
+/// Phase 11 plan, Task 2: the protections every service gets, as `(key, value)` pairs.
+const PROTECTIONS: [(&str, &str); 18] = [
+    ("NoNewPrivileges", "yes"),
+    ("ProtectSystem", "strict"),
+    ("ProtectHome", "yes"),
+    ("PrivateTmp", "yes"),
+    ("PrivateNetwork", "yes"),
+    ("IPAddressDeny", "any"),
+    ("ProtectKernelTunables", "yes"),
+    ("ProtectKernelLogs", "yes"),
+    ("ProtectControlGroups", "yes"),
+    ("ProtectClock", "yes"),
+    ("ProtectHostname", "yes"),
+    ("ProtectProc", "invisible"),
+    ("RestrictNamespaces", "yes"),
+    ("RestrictRealtime", "yes"),
+    ("RestrictSUIDSGID", "yes"),
+    ("LockPersonality", "yes"),
+    ("MemoryDenyWriteExecute", "yes"),
+    ("SystemCallArchitectures", "native"),
+];
+
+/// The system calls both units may make: the service set, without the privileged and resource
+/// calls, with module loading back, since loading drivers is their job.
+const SYSTEM_CALLS: [&str; 3] = ["@system-service", "~@privileged @resources", "@module"];
+
+/// Root with only the two rights its job needs, the configuration folders it writes, and only
+/// the devices `sensors-detect --auto` probes through (lm_sensors 3.6.2's script).
+fn the_detections_sandbox_keeps_only_what_sensors_detect_needs() {
+    let detect = unit("opendeepcool-sensors-detect.service");
+    for (key, value) in PROTECTIONS.into_iter().chain([
+        ("CapabilityBoundingSet", "CAP_SYS_MODULE CAP_SYS_RAWIO"),
+        ("ReadWritePaths", "/etc/conf.d /etc/modprobe.d"),
+        ("RestrictAddressFamilies", "AF_UNIX"),
+        ("SystemCallErrorNumber", "EPERM"),
+        ("UMask", "0022"),
+        ("DevicePolicy", "closed"),
+    ]) {
+        assert_eq!(values(&detect, "Service", key), [value], "{key}");
+    }
+    assert_eq!(values(&detect, "Service", "SystemCallFilter"), SYSTEM_CALLS);
+    assert_eq!(
+        values(&detect, "Service", "DeviceAllow"),
+        ["/dev/port rw", "char-i2c rw", "char-cpu/cpuid r"]
+    );
+    // Loading drivers is its job, so neither of these may be on.
+    assert!(values(&detect, "Service", "ProtectKernelModules").is_empty());
+    assert!(values(&detect, "Service", "PrivateUsers").is_empty());
+}
+
+/// The helper loads exactly i2c-dev and cpuid, under the detection's own conditions, so a boot
+/// that skips the detection loads nothing, and it has only modprobe's right.
+fn the_module_helper_loads_two_drivers_under_the_detections_conditions() {
+    let helper = unit("opendeepcool-sensors-detect-modules.service");
+    let detect = unit("opendeepcool-sensors-detect.service");
+    assert_eq!(
+        values(&helper, "Unit", "ConditionPathExists"),
+        values(&detect, "Unit", "ConditionPathExists")
+    );
+    assert_eq!(
+        values(&helper, "Service", "ExecStart"),
+        ["-/usr/bin/modprobe -a i2c-dev cpuid"]
+    );
+    for (key, value) in PROTECTIONS.into_iter().chain([
+        ("Type", "oneshot"),
+        ("TimeoutStartSec", "30"),
+        ("CapabilityBoundingSet", "CAP_SYS_MODULE"),
+        ("PrivateDevices", "yes"),
+        ("RestrictAddressFamilies", "none"),
+        ("SystemCallErrorNumber", "EPERM"),
+        ("UMask", "0077"),
+    ]) {
+        assert_eq!(values(&helper, "Service", key), [value], "{key}");
+    }
+    assert_eq!(values(&helper, "Service", "SystemCallFilter"), SYSTEM_CALLS);
+    assert!(
+        values(&helper, "Install", "WantedBy").is_empty(),
+        "pulled in only"
+    );
+}
+
+/// systemd's own scores: the detection 1.7 (9.4 before Phase 11), its helper 1.3.
+fn systemds_scores_for_both_sandboxes_stay_where_they_are() {
+    let scratch = Path::new(env!("CARGO_TARGET_TMPDIR")).join("detect-unit-scores");
+    for (name, ceiling) in [
+        ("opendeepcool-sensors-detect.service", 1.7),
+        ("opendeepcool-sensors-detect-modules.service", 1.3),
+    ] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packaging/systemd")
+            .join(name);
+        let level = units::exposure(&path, Manager::System, &scratch);
+        assert!(level <= ceiling, "{name}: exposure {level}");
+    }
+}
+
+fn systemd_accepts_both_units() {
+    let scratch = Path::new(env!("CARGO_TARGET_TMPDIR")).join("detect-unit-verify");
+    for (name, exec) in [
+        (
+            "opendeepcool-sensors-detect.service",
+            "/usr/lib/opendeepcool/odc-sensors-detect",
+        ),
+        (
+            "opendeepcool-sensors-detect-modules.service",
+            "/usr/bin/modprobe",
+        ),
+    ] {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../packaging/systemd")
+            .join(name);
+        units::verify(&path, exec, &scratch.join(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
     }
 }

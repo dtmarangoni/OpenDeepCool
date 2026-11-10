@@ -19,6 +19,7 @@ pacman installs these and `pacman -R` removes them. `target/release/` is the PKG
 | `/usr/lib/systemd/system/opendeepcool.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool.service` |
 | `/usr/lib/systemd/system/opendeepcool-gpu-rank.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-gpu-rank.service` |
 | `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-sensors-detect.service` |
+| `/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-sensors-detect-modules.service` |
 | `/usr/lib/systemd/user/opendeepcool-audio.service` | file | root:root | 0644 | `packaging/systemd-user/opendeepcool-audio.service` |
 | `/usr/lib/sysusers.d/opendeepcool.conf` | file | root:root | 0644 | `packaging/sysusers/opendeepcool.conf` |
 | `/usr/lib/udev/rules.d/70-opendeepcool.rules` | file | root:root | 0644 | `packaging/udev/70-opendeepcool.rules` |
@@ -52,13 +53,14 @@ With the settings app's Start at boot switch, or `systemctl enable --now opendee
 |---|---|---|
 | `/var/lib/opendeepcool/` (opendeepcool:opendeepcool, 0700), with `settings.toml` and `gpu-rank.json` | systemd, for the units' `StateDirectory=opendeepcool`; the service and the GPU-rank helper write the files | `post_remove`: `rm -rf` |
 | `/var/lib/opendeepcool-detect/` (root:root, 0700), with `sensors-detect.json` | systemd, for the detection unit's `StateDirectory=opendeepcool-detect`; the detection writes the record | `post_remove`: `rm -rf`, after the next row |
+| The drivers `i2c-dev` and `cpuid` loaded | `opendeepcool-sensors-detect-modules.service`, under the detection's conditions, just before it runs, so the detection may open their devices; `sensors-detect` would load both itself | Nothing: they stay loaded until the next boot (below) |
 | `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`, and `lm_sensors.service` enabled | The detection's `sensors-detect --auto`, only on a PC that has no lm-sensors configuration and no fan reading | `post_remove`, only what the root-only record's yes/no fields say the detection created |
 | The LP360's hidraw node: group `opendeepcool`, mode 0660 | The udev rule | systemd's `35-systemd-udev-reload.hook` reloads udev and triggers a change once the rule is gone |
 | The CPU's package energy counters (`energy_uj` of each powercap zone named `package-*`): group `opendeepcool`, the group's read added | The udev rule, through `chgrp` and `chmod` | `post_remove` gives the group back to root and takes the group's read away, which a udev reload can't undo |
 
 ## What outlasts the uninstall
 
-- A sensor driver loaded by lm-sensors stays loaded until the next boot.
+- A sensor driver loaded by lm-sensors stays loaded until the next boot, and so do `i2c-dev` and `cpuid` where the detection ran.
 - The journal's lines stay until journald rotates them.
 - A core dump of an OpenDeepCool program that crashed stays until systemd's cleanup, after two weeks by default.
 - pacman's own log and cache.

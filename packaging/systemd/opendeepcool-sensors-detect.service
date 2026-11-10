@@ -2,11 +2,22 @@
 # no lm-sensors setup, runs lm-sensors' sensors-detect once per motherboard, so the driver of the
 # board's sensor chip, which measures the cooler's fans and pump, loads at every boot. It records
 # what it created in its own root-only directory. The display service pulls it in but doesn't
-# wait for it. OpenDeepCool's only root part (PRD, Service model).
+# wait for it. OpenDeepCool's only root part that runs at every boot (PRD, Service model).
+#
+# Its sandbox keeps only what sensors-detect --auto needs (Phase 11 plan, Task 2; Arch's security
+# package guidelines; lm_sensors 3.6.2's script read 2026-11-10): it probes the Super I/O chips
+# through /dev/port, the SMBus adapters through i2c-dev and the CPU through cpuid, loads drivers
+# with modprobe, reads /proc, /sys and the board's DMI tables, writes /etc/conf.d/lm_sensors or
+# /etc/modprobe.d/lm_sensors.conf, and asks systemd to enable and start lm_sensors.service.
 [Unit]
 Description=OpenDeepCool sensor driver detection
 ConditionPathExists=!/etc/conf.d/lm_sensors
 ConditionPathExists=!/etc/modprobe.d/lm_sensors.conf
+# i2c-dev and cpuid register their device groups only once loaded, and a group that doesn't
+# exist when this unit starts can't be allowed (systemd.resource-control(5)), so a helper loads
+# them first, under the same conditions, never at a boot that skips the detection.
+Wants=opendeepcool-sensors-detect-modules.service
+After=opendeepcool-sensors-detect-modules.service
 
 [Service]
 Type=oneshot
@@ -17,6 +28,45 @@ StateDirectory=opendeepcool-detect
 StateDirectoryMode=0700
 StandardOutput=journal
 StandardError=journal
+# Root, because loading drivers and probing I/O ports need it, with only those two rights:
+# modprobe's CAP_SYS_MODULE, and CAP_SYS_RAWIO, which opening /dev/port needs. Every file it
+# reads or writes is root's own, so no right to override permissions is kept. Not PrivateUsers=,
+# which would give both rights only inside a namespace of its own, where they do nothing.
+CapabilityBoundingSet=CAP_SYS_MODULE CAP_SYS_RAWIO
+NoNewPrivileges=yes
+ProtectSystem=strict
+ReadWritePaths=/etc/conf.d /etc/modprobe.d
+ProtectHome=yes
+PrivateTmp=yes
+PrivateNetwork=yes
+IPAddressDeny=any
+# systemctl and udevadm settle talk to systemd and udev through local sockets.
+RestrictAddressFamilies=AF_UNIX
+ProtectKernelTunables=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+# Not ProtectKernelModules=, which would stop it loading the drivers it finds, nor
+# ProcSubset=pid, which would hide /proc/cpuinfo and /proc/modules, which it reads.
+ProtectProc=invisible
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+# Back from @privileged, which holds it: loading drivers is the job.
+SystemCallFilter=@module
+SystemCallErrorNumber=EPERM
+# The configuration it writes is read like any file in /etc.
+UMask=0022
+DevicePolicy=closed
+DeviceAllow=/dev/port rw
+DeviceAllow=char-i2c rw
+DeviceAllow=char-cpu/cpuid r
 
 [Install]
 WantedBy=opendeepcool.service
