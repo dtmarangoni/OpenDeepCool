@@ -356,7 +356,7 @@ The owner asked for "the most secure possible" (2026-11-10). One commit per unit
 - Checked on the owner's PC after `odc-dev setup` (owner's OK), 2026-11-10:
   - the service and the sound helper run with `PrivateUsers=yes` and no restarts;
   - `--only service --require dev-service` passed its 144 checks (timing mean 100.000 ms), and during its Music modes the owner's sandboxed helper captured and the service attached its sound (journal);
-  - `--only music --require dev-service,pipewire` passed on its third run (delay median 49.7 ms, p95 95.0 ms). **Open finding:** the first two runs each failed one check, differently. First "the capture stream isn't at 100 %", read perhaps before WirePlumber had set it. Then a frame 357 ms into the tone showed the tone's start, against the check's 300 ms margin with delays up to 124 ms. The check runs its own helper outside the unit, so the sandbox isn't involved; the check's margins are to be fixed before Task 9's parity run.
+  - `--only music --require dev-service,pipewire` passed on its third run (delay median 49.7 ms, p95 95.0 ms). **Open finding:** the first two runs each failed one check, differently. First "the capture stream isn't at 100 %", read perhaps before WirePlumber had set it. Then a frame 357 ms into the tone showed the tone's start, against the check's 300 ms margin with delays up to 124 ms. The check runs its own helper outside the unit, so the sandbox isn't involved. **Next** (owner, 2026-11-11): fix the check's margins, then run `--only music` again several times in a row, before Task 3.
 
 ### 3. The Start at boot switch
 
