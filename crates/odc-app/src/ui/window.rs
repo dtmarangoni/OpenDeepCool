@@ -1,7 +1,8 @@
 //! The window (`docs/design/settings-app.md`, Window): the header bar with the page switcher and
-//! Refresh, the banners, the preview column, and the pages; or, in a remote or inactive
-//! session, one message. It keeps what the app knows of the service and the window's own
-//! state, and shows the view model's [`View`] of them after every change.
+//! Refresh, the cooler banner, the preview column, and the pages, or the off screen while the
+//! service isn't running; or, in a remote or inactive session, one message. It keeps what the
+//! app knows of the service, of the Start at boot switch and of the window's own state, and
+//! shows the view model's [`View`] of them after every change.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -20,10 +21,12 @@ use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::{Names, group};
 use super::preview::Preview;
+use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
+use crate::boot::{self, Boot, Place};
 use crate::model::{
-    Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SERVICE_DOWN_PAGES, SendingFails,
-    Service, Speed, Ui, View, view,
+    Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Speed, Ui,
+    View, view,
 };
 use crate::pci_ids;
 use crate::theme::Tokens;
@@ -53,6 +56,8 @@ type Announcer = Box<dyn Fn(&str)>;
 /// What the view is made from.
 struct Inputs {
     service: Service,
+    /// The Start at boot switch.
+    boot: Boot,
     ui: Ui,
     sending: SendingFails,
     /// The PCI ID list's names of the GPUs listed now.
@@ -116,6 +121,17 @@ struct Inner {
     screens: gtk::Stack,
     pages: gtk::Stack,
     not_available: gtk::Box,
+    /// The off screen: its message, and the box the Startup card moves into.
+    off: gtk::Box,
+    off_message: gtk::Box,
+    off_heading: gtk::Label,
+    startup: StartupCard,
+    /// The switch had the focus when a flip began: it gets it back at the end.
+    flip_focus: Cell<bool>,
+    /// The off screen's switch took the first focus since the off screen was entered.
+    off_focused: Cell<bool>,
+    /// The switch's note last shown, so a new one is announced once.
+    note_said: RefCell<Option<String>>,
     column: ColumnWidgets,
     preview: Preview,
     display: DisplayPage,
@@ -220,12 +236,10 @@ impl Window {
         bar.pack_end(&refresh);
         window.set_titlebar(Some(&bar));
 
-        // The banners, then the screens.
+        // The banner, then the screens.
         let banners = Banners::new(&names);
         let content = vbox(0);
-        for banner in banners.widgets() {
-            content.append(banner);
-        }
+        content.append(banners.widget());
 
         // The preview column.
         let preview = Preview::new(tokens);
@@ -323,11 +337,33 @@ impl Window {
         pages.add_named(&scrolled(display_page.widget()), Some("display"));
         let config_page = ConfigPage::new(&names, Rc::clone(&send));
         pages.add_named(&scrolled(config_page.widget()), Some("config"));
-        let down = label(SERVICE_DOWN_PAGES, &["muted"]);
-        down.set_halign(gtk::Align::Center);
-        down.set_valign(gtk::Align::Center);
-        down.set_justify(gtk::Justification::Center);
-        pages.add_named(&down, Some("down"));
+        let startup = StartupCard::new(&names, Rc::clone(&send));
+
+        // The off screen (D10): the message, then the Startup card and the commands, centred.
+        let off = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(14)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::Center)
+            .margin_top(18)
+            .margin_bottom(18)
+            .margin_start(18)
+            .margin_end(18)
+            .build();
+        let off_message = group()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(6)
+            .build();
+        names.name(&off_message, "Service message");
+        let off_heading = label("", &["heading"]);
+        let off_text = label(boot::OFF_SCREEN_TEXT, &["muted"]);
+        for line in [&off_heading, &off_text] {
+            line.set_justify(gtk::Justification::Center);
+            line.set_xalign(0.5);
+            off_message.append(line);
+        }
+        off.append(&off_message);
+        pages.add_named(&scrolled(&off), Some("off"));
         let main = gtk::Box::builder().vexpand(true).build();
         main.append(&column_box);
         main.append(&pages);
@@ -408,6 +444,7 @@ impl Window {
             names,
             inputs: RefCell::new(Inputs {
                 service: Service::Down,
+                boot: Boot::default(),
                 ui: Ui::default(),
                 sending: SendingFails::default(),
                 products: HashMap::new(),
@@ -429,6 +466,13 @@ impl Window {
             screens,
             pages,
             not_available,
+            off,
+            off_message,
+            off_heading,
+            startup,
+            flip_focus: Cell::new(false),
+            off_focused: Cell::new(false),
+            note_said: RefCell::new(None),
             column: ColumnWidgets {
                 caption,
                 line,
@@ -539,6 +583,29 @@ impl Window {
         drop(inputs);
         self.stop_sending_timer();
         self.render();
+    }
+
+    /// The Start at boot switch: what systemd says, and the flip that runs. At a flip's start the
+    /// switch's focus is noted; at its end, screen readers hear the switch's state, and the
+    /// switch gets the focus back when it had it (A flip, step by step).
+    pub fn boot(&self, boot: Boot) {
+        let before = std::mem::replace(&mut self.0.inputs.borrow_mut().boot, boot.clone());
+        if !before.flipping() && boot.flipping() {
+            self.0.flip_focus.set(self.0.startup.switch().is_focus());
+        }
+        let ended = before.flipping() && !boot.flipping();
+        if ended {
+            let state = if boot.on() {
+                boot::NOW_ON
+            } else {
+                boot::NOW_OFF
+            };
+            (self.0.announcer.borrow())(state);
+        }
+        self.render();
+        if ended && self.0.flip_focus.replace(false) {
+            self.0.startup.switch().grab_focus();
+        }
     }
 
     /// The service refused `GetState()` with `NotAuthorized`.
@@ -662,7 +729,7 @@ impl Window {
         let shown = {
             let mut inputs = self.0.inputs.borrow_mut();
             inputs.ui.sending_failed_long = inputs.sending.lasted(Instant::now());
-            view(&inputs.service, inputs.ui, &inputs.products)
+            view(&inputs.service, inputs.ui, &inputs.products, &inputs.boot)
         };
         let inner = &self.0;
         let header = &inner.header;
@@ -671,25 +738,27 @@ impl Window {
                 inner.screens.set_visible_child_name("not-available");
                 header.switcher(false, false);
                 header.refresh.set_visible(false);
-                inner.banners.show(&inner.names, false, None);
+                inner.banners.show(&inner.names, None);
                 self.enable_actions(false);
+                inner.off_focused.set(false);
                 if !inner.announced.replace(true) {
                     (inner.announcer.borrow())(&format!(
                         "{NOT_AVAILABLE_HEADING}. {NOT_AVAILABLE_TEXT}"
                     ));
                 }
             }
-            View::ServiceDown(column) => {
+            View::ServiceDown(down) => {
                 inner.announced.set(false);
                 inner.screens.set_visible_child_name("main");
                 header.switcher(true, false);
                 header.refresh.set_visible(true);
                 header.refresh.set_sensitive(false);
-                inner.banners.show(&inner.names, true, None);
+                inner.banners.show(&inner.names, None);
                 self.enable_actions(false);
-                inner.pages.set_visible_child_name("down");
+                inner.pages.set_visible_child_name("off");
                 inner.preview.set_frame(None);
-                self.show_column(column);
+                self.show_column(&down.column);
+                self.show_off_screen(&down.screen);
             }
             View::Normal(normal) => {
                 inner.announced.set(false);
@@ -697,8 +766,9 @@ impl Window {
                 header.switcher(true, true);
                 header.refresh.set_visible(true);
                 header.refresh.set_sensitive(true);
-                inner.banners.show(&inner.names, false, normal.banner);
+                inner.banners.show(&inner.names, normal.banner);
                 self.enable_actions(true);
+                inner.off_focused.set(false);
                 let (page, toggle) = match normal.page {
                     Page::Display => ("display", &header.display),
                     Page::Configuration => ("config", &header.config),
@@ -712,9 +782,54 @@ impl Window {
                     .display
                     .show(&inner.names, &normal.display, normal.config.peaks);
                 inner.config.show(&inner.names, &normal.config);
+                inner.startup.place(Place::Card, inner.config.widget());
+                inner.startup.show(&inner.names, &normal.startup);
+                self.announce_note(normal.startup.note.as_ref());
             }
         }
         *inner.shown.borrow_mut() = Some(shown);
+    }
+
+    /// The off screen: its heading and text, then the Startup card and the commands; nothing
+    /// until the first read of systemd, so no heading flashes.
+    fn show_off_screen(&self, screen: &boot::OffScreen) {
+        let inner = &self.0;
+        let startup = &inner.startup;
+        startup.place(Place::OffScreen, &inner.off);
+        let Some(heading) = screen.heading else {
+            inner.off_message.set_visible(false);
+            startup.hide_all();
+            inner.names.describe(&inner.off_message, None);
+            return;
+        };
+        inner.off_message.set_visible(true);
+        inner.off_heading.set_text(heading);
+        inner.names.describe(
+            &inner.off_message,
+            Some(&format!("{heading}. {}", boot::OFF_SCREEN_TEXT)),
+        );
+        startup.show(&inner.names, &screen.switch);
+        if !screen.card {
+            startup.hide_card();
+            return;
+        }
+        self.announce_note(screen.switch.note.as_ref());
+        // The switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on.
+        if screen.switch.sensitive && !inner.off_focused.replace(true) {
+            startup.switch().grab_focus();
+        }
+    }
+
+    /// Announces the switch's note when a new one shows.
+    fn announce_note(&self, note: Option<&boot::Note>) {
+        let text = note.map(|note| note.text.clone());
+        let mut said = self.0.note_said.borrow_mut();
+        if text != *said {
+            if let Some(text) = &text {
+                (self.0.announcer.borrow())(text);
+            }
+            *said = text;
+        }
     }
 
     fn enable_actions(&self, on: bool) {
@@ -787,6 +902,21 @@ impl Window {
         &self.0.config
     }
 
+    pub fn startup(&self) -> &StartupCard {
+        &self.0.startup
+    }
+
+    /// The off screen's heading, while it shows.
+    pub fn off_heading(&self) -> Option<String> {
+        (self.screen().1 == "off" && self.0.off_message.is_visible())
+            .then(|| self.0.off_heading.text().to_string())
+    }
+
+    /// Whether the Startup card sits on the off screen.
+    pub fn startup_on_off_screen(&self) -> bool {
+        self.0.startup.card().parent().as_ref() == Some(self.0.off.upcast_ref())
+    }
+
     /// The feedback label's words, while it shows.
     pub fn feedback(&self) -> Option<String> {
         self.0
@@ -795,7 +925,7 @@ impl Window {
             .then(|| self.0.feedback_label.text().to_string())
     }
 
-    /// The screen shown: `main` or `not-available`; and the page: `display`, `config` or `down`.
+    /// The screen shown: `main` or `not-available`; and the page: `display`, `config` or `off`.
     pub fn screen(&self) -> (String, String) {
         let name = |stack: &gtk::Stack| {
             stack

@@ -3,7 +3,10 @@
 //!
 //! Every change is checked as the design's Refused changes asks: the control's action, then
 //! exactly one call at the fake, then the control still on the saved value until the driver,
-//! as the service, confirms the change with a new state, then the control on the new value.
+//! as the service, confirms the change with a new state, then the control on the new value. A
+//! Start at boot flip is checked the same way (Phase 11 plan, Task 3): the switch's action, then
+//! exactly one run of the fake `pkexec`, the switch changing until the driver, as the program,
+//! writes what the program leaves at the fake systemd and answers, then what the app does.
 //! Every expected word is typed here from the design, apart from the app's code. Each scenario
 //! starts from the first start's state, on the Display page, and leaves the app usable.
 
@@ -17,7 +20,9 @@ use atspi::State;
 
 use crate::Paths;
 use crate::driver::{Driver, Node, Result, wait};
-use crate::fake::{self, DEDICATED, Fake, INTEGRATED, NO_RULE, QUERY_FAILED, Service};
+use crate::fake::{
+    self, DEDICATED, Fake, INTEGRATED, NO_RULE, QUERY_FAILED, Service, Systemd, Units,
+};
 
 /// How long a control must stay on the saved value after its call, without the service's word.
 const HOLD: Duration = Duration::from_millis(250);
@@ -94,6 +99,35 @@ fn shown_metric(metric: &str) -> String {
     metric.replacen("Gpu", "GPU", 1)
 }
 
+/// The Start at boot switch's name, the arguments the app gives `pkexec` before `on` or `off`,
+/// and the sound's job as the fake systemd logs it (Start at boot).
+const BOOT: &str = "Start at boot";
+const PKEXEC_ARGS: &str = "--disable-internal-agent /usr/lib/opendeepcool/opendeepcool-boot";
+const START_SOUND: &str = "user StartUnit(\"opendeepcool-audio.service\", \"replace\")";
+const STOP_SOUND: &str = "user StopUnit(\"opendeepcool-audio.service\", \"replace\")";
+
+/// The terminal commands for each direction, and their lead-ins (The terminal commands).
+const ON_LINES: [&str; 3] = [
+    "sudo systemctl enable --now opendeepcool.service",
+    "sudo systemctl --global enable opendeepcool-audio.service",
+    "systemctl --user start opendeepcool-audio.service",
+];
+const OFF_LINES: [&str; 2] = [
+    "sudo systemctl disable --now opendeepcool.service",
+    "sudo systemctl --global disable opendeepcool-audio.service",
+];
+const FROM_A_TERMINAL: &str = "From a terminal instead:";
+
+/// The off screen's message, as its group describes it (The off screen).
+const IS_OFF: &str =
+    "OpenDeepCool is off. The cooler shows nothing until the display service runs.";
+const NOT_RUNNING: &str =
+    "OpenDeepCool isn't running. The cooler shows nothing until the display service runs.";
+
+/// The running flips' lines (States and their text).
+const TURNING_ON: &str = "Turning on… Your desktop asks for the administrator's password first.";
+const TURNING_OFF: &str = "Turning off… Your desktop asks for the administrator's password first.";
+
 /// A made-up light Omarchy theme.
 const COLORS: &str = r##"mode = "light"
 accent = "#8a4b16"
@@ -110,6 +144,7 @@ green = "#2f6b2a"
 pub struct Run {
     pub driver: Driver,
     pub fake: Fake,
+    pub systemd: Systemd,
     app_log: PathBuf,
     frame_log: PathBuf,
     omarchy_state: PathBuf,
@@ -140,6 +175,12 @@ impl Run {
         Ok(Run {
             driver: Driver::connect(&paths.a11y_bus)?,
             fake: Fake::new(&paths.fake),
+            systemd: Systemd::new(
+                paths
+                    .systemd
+                    .as_deref()
+                    .ok_or("--systemd is needed against the fake")?,
+            ),
             app_log: paths.app_log.clone(),
             frame_log: paths.frame_log.clone(),
             omarchy_state: paths.omarchy_state.clone(),
@@ -246,8 +287,13 @@ impl Run {
         self.node("toggle button", control).map(|_| ())
     }
 
-    /// The first start's state on the bus, every answer given, no list open, the Display page.
+    /// The first start's state on the bus, every answer given, no list open, the Display page;
+    /// systemd fully on (the app reads it at its next reason to).
     fn reset(&mut self) -> Result<()> {
+        if self.systemd.units != Units::all_on() {
+            self.systemd.units = Units::all_on();
+            self.systemd.write()?;
+        }
         self.fake.on_bus = true;
         self.fake.reads = true;
         self.fake.refuse = None;
@@ -379,6 +425,38 @@ impl Run {
 
     /// The window turns inactive and active again: another client's window takes the focus,
     /// then closes.
+    /// Writes systemd's state, then has the app read it: the window active again (Where its
+    /// state comes from: no polling).
+    fn units(&mut self, units: Units) -> Result<()> {
+        self.systemd.units = units;
+        self.systemd.write()?;
+        self.activate_again()
+    }
+
+    /// Waits until the switch's note reads `text`.
+    fn note(&self, text: &str) -> Result<()> {
+        self.expect_texts("group", "Start at boot status", &[text])?;
+        self.expect_description("switch", BOOT, text)
+    }
+
+    /// Waits until the terminal commands read `lead` and `lines`.
+    fn commands(&self, lead: &str, lines: &[&str]) -> Result<()> {
+        self.expect_description(
+            "group",
+            "Terminal commands",
+            &format!("{lead} {}", lines.join(" ")),
+        )
+    }
+
+    /// Flips the switch; returns once the fake `pkexec` runs with `to`, the only run since.
+    fn flip(&self, to: &str) -> Result<(usize, usize)> {
+        let mark = self.systemd.mark()?;
+        self.act("switch", BOOT, "Toggle")?;
+        self.systemd
+            .pkexec_ran(mark, &format!("{PKEXEC_ARGS} {to}"))?;
+        Ok(mark)
+    }
+
     fn activate_again(&self) -> Result<()> {
         let runtime = self
             .wayland_display
@@ -403,7 +481,7 @@ impl Run {
 
 pub type Scenario = fn(&mut Run) -> Result<String>;
 
-pub const ALL: [(&str, Scenario); 24] = [
+pub const ALL: [(&str, Scenario); 31] = [
     ("service_down", service_down),
     ("first_start", first_start),
     ("names", names),
@@ -427,28 +505,36 @@ pub const ALL: [(&str, Scenario); 24] = [
     ("music_sound", music_sound),
     ("service_stops", service_stops),
     ("not_available", not_available),
+    ("boot_on", boot_on),
+    ("boot_flip", boot_flip),
+    ("boot_refused", boot_refused),
+    ("boot_only_sound", boot_only_sound),
+    ("boot_partly", boot_partly),
+    ("boot_off_screen", boot_off_screen),
+    ("boot_remote", boot_remote),
     ("theme", theme),
 ];
 
 const NO_NOTE: Result<String> = Ok(String::new());
 
-/// Service not running, at the start: the fake hasn't taken the bus (Banners, Service).
+/// Service not running, at the start: the fake hasn't taken the bus, and systemd answers as a
+/// new install. The off screen, "OpenDeepCool is off", with the switch off and usable, and the
+/// commands to turn it on under it, `enable --now` first (The off screen; D10).
 fn service_down(run: &mut Run) -> Result<String> {
-    run.expect_description(
-        "group",
-        "Service banner",
-        "The OpenDeepCool service isn't running. The cooler shows nothing until it starts. \
-         Start it from a terminal: sudo systemctl start opendeepcool.service The app connects \
-         by itself once it runs.",
-    )?;
-    run.check_state("button", "Copy start command", State::Sensitive, true)?;
+    run.expect_description("group", "Service message", IS_OFF)?;
+    run.check_state("switch", BOOT, State::Sensitive, true)?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    run.expect_state("switch", BOOT, State::Focused, true)?;
+    run.gone("group", "Start at boot status")?;
+    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.check_state("button", "Copy terminal commands", State::Sensitive, true)?;
+    run.node("group", "Startup settings")?;
     for toggle in ["Display", "Configuration"] {
         run.check_state("toggle button", toggle, State::Sensitive, false)?;
     }
     run.check_state("button", "Refresh display", State::Sensitive, false)?;
-    run.node("label", "Settings appear here when the service runs")?;
     run.expect_texts("group", "Cooler status", &["Cooler: unknown"])?;
-    run.expect_texts("group", "Service status", &["Service not running"])?;
+    run.expect_texts("group", "Service status", &["Service off"])?;
     run.expect_texts("group", "Cooler fans speed", &["Cooler fans", "—"])?;
     run.expect_texts("group", "Pump speed", &["Pump", "—"])?;
     run.expect_description("image", "Cooler display preview", "No picture")?;
@@ -456,6 +542,22 @@ fn service_down(run: &mut Run) -> Result<String> {
     let calls = run.fake.calls_since(0)?;
     if !calls.is_empty() {
         return Err(format!("calls with no service: {calls:?}"));
+    }
+    // systemd read without a password: each unit's file state and run state, and the session.
+    let read = run.systemd.calls_since((0, 0))?;
+    for call in [
+        "system GetUnitFileState(\"opendeepcool.service\")",
+        "system LoadUnit(\"opendeepcool.service\")",
+        "user GetUnitFileState(\"opendeepcool-audio.service\")",
+        "user LoadUnit(\"opendeepcool-audio.service\")",
+        "GetSession(\"auto\")",
+    ] {
+        if !read.iter().any(|c| c == call) {
+            return Err(format!("{call} not read: {read:?}"));
+        }
+    }
+    if read.iter().any(|c| c.contains("Subscribe")) {
+        return Err(format!("subscribed with no job: {read:?}"));
     }
     // No Omarchy folder: the default theme (Theme).
     run.logged("opendeepcool: theme: the default theme")?;
@@ -474,7 +576,7 @@ fn first_start(run: &mut Run) -> Result<String> {
     if calls.get(..3) != Some(&["Watch()", "GetState()", "WatchFrames()"].map(String::from)[..]) {
         return Err(format!("the app's first calls: {calls:?}"));
     }
-    run.gone("group", "Service banner")?;
+    run.gone("group", "Service message")?;
     run.expect_texts("group", "Cooler status", &["Cooler connected"])?;
     run.expect_texts("group", "Service status", &["Service running"])?;
     run.gone("group", "Music sound status")?;
@@ -559,6 +661,8 @@ fn names(run: &mut Run) -> Result<String> {
         ("switch", "Peak dots"),
         ("slider", "Bar fall"),
         ("slider", "Peak fall"),
+        ("group", "Startup settings"),
+        ("switch", BOOT),
     ]);
     let check = |run: &Run, names: &[(&str, String)]| -> Result<()> {
         let tree = run.driver.tree()?;
@@ -1291,23 +1395,32 @@ fn music_sound(run: &mut Run) -> Result<String> {
     NO_NOTE
 }
 
-/// The service stops: its banner and the pages' message; it returns: the pages come back with
-/// no action (Banners, Service).
+/// The service crashes: systemd waits to restart it, and its name goes. The off screen, "isn't
+/// running", says it failed; it returns: the pages come back with no action (The window around
+/// a flip).
 fn service_stops(run: &mut Run) -> Result<String> {
     run.reset()?;
+    run.systemd.units.service = ("enabled", "activating", "auto-restart");
+    run.systemd.write()?;
     run.fake.on_bus = false;
     run.fake.write()?;
-    run.node("group", "Service banner")?;
-    run.node("label", "Settings appear here when the service runs")?;
+    run.expect_description("group", "Service message", NOT_RUNNING)?;
+    run.note(
+        "Not fully on: the display service failed. Turn it on to finish. The journal says why the \
+         service failed.",
+    )?;
+    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
     run.expect_state("toggle button", "Display", State::Sensitive, false)?;
     run.gone("grid cell", "Load: CPU")?;
     run.expect_texts("group", "Service status", &["Service not running"])?;
     run.expect_texts("group", "Cooler status", &["Cooler: unknown"])?;
     let mark = run.fake.mark()?;
+    run.systemd.units = Units::all_on();
+    run.systemd.write()?;
     run.fake.on_bus = true;
     run.fake.write()?;
     run.expect_state("grid cell", "Load: CPU", State::Selected, true)?;
-    run.gone("group", "Service banner")?;
+    run.gone("group", "Service message")?;
     let calls = run.fake.calls_since(mark)?;
     for call in ["Watch()", "GetState()"] {
         if !calls.iter().any(|c| c == call) {
@@ -1342,7 +1455,8 @@ fn not_available(run: &mut Run) -> Result<String> {
         ("image", "Cooler display preview"),
         ("grid cell", "Load: CPU"),
         ("group", "Cooler status"),
-        ("group", "Service banner"),
+        ("group", "Service message"),
+        ("switch", BOOT),
     ] {
         run.gone(role, name)?;
     }
@@ -1387,6 +1501,346 @@ fn not_available(run: &mut Run) -> Result<String> {
             return Err(format!("no {call} on activation: {calls:?}"));
         }
     }
+    NO_NOTE
+}
+
+/// Whether a fake systemd log line is a job or a subscription, not a read.
+fn is_job(call: &str) -> bool {
+    ["StartUnit(", "StopUnit(", "Subscribe()", "Unsubscribe()"]
+        .iter()
+        .any(|word| call.contains(word))
+}
+
+/// Fully on: the Startup card is the Configuration page's last, the switch on and usable, with
+/// no note and no commands (Configuration page, Startup).
+fn boot_on(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.units(Units::all_on())?;
+    run.page("Configuration")?;
+    run.node("group", "Startup settings")?;
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    run.check_state("switch", BOOT, State::Sensitive, true)?;
+    run.gone("group", "Start at boot status")?;
+    run.gone("group", "Terminal commands")?;
+    run.node(
+        "label",
+        "When it's on, the display service starts at every boot, and the sound for the Music \
+         options at every login. Each change asks for the administrator's password.",
+    )?;
+    run.page("Display")?;
+    NO_NOTE
+}
+
+/// A flip off from the Configuration page, then on from the off screen (A flip, step by step;
+/// The window around a flip): exactly one `pkexec` run each, with the program's path and the
+/// direction; the switch changing meanwhile; the sound in this session stopped or started
+/// after it; and, after `on`, the off screen kept until the service's name has an owner.
+fn boot_flip(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.units(Units::all_on())?;
+    run.page("Configuration")?;
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    let mark = run.flip("off")?;
+    run.expect_state("switch", BOOT, State::Sensitive, false)?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    run.note(TURNING_OFF)?;
+    thread::sleep(HOLD);
+    if run.systemd.calls_since(mark)?.iter().any(|c| is_job(c)) {
+        return Err("the sound moved before pkexec ended".to_owned());
+    }
+    // What the program leaves: both units disabled, the service stopped and its name gone.
+    run.systemd.units = Units {
+        sound: ("disabled", "active"),
+        ..Units::new_install()
+    };
+    run.systemd.write()?;
+    run.fake.on_bus = false;
+    run.fake.write()?;
+    run.systemd.answer(
+        0,
+        "opendeepcool-boot: turned off at boot, and the service stopped\n",
+    )?;
+    run.systemd.called(mark, &format!("{STOP_SOUND} done"))?;
+    run.systemd.units.sound.1 = "inactive";
+    run.expect_description("group", "Service message", IS_OFF)?;
+    run.expect_state("switch", BOOT, State::Sensitive, true)?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    run.gone("group", "Start at boot status")?;
+    run.expect_texts("group", "Service status", &["Service off"])?;
+    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+
+    // On, from the off screen.
+    let mark = run.flip("on")?;
+    run.expect_state("switch", BOOT, State::Sensitive, false)?;
+    run.check_state("switch", BOOT, State::Checked, true)?;
+    run.note(TURNING_ON)?;
+    // What the program leaves: both enabled, the service started. It takes its name just
+    // before it's ready, here after pkexec ends, so the flip waits for it.
+    run.systemd.units = Units {
+        service: ("enabled", "activating", "start"),
+        sound: ("enabled", "inactive"),
+        ..Units::new_install()
+    };
+    run.systemd.write()?;
+    run.systemd.answer(
+        0,
+        "opendeepcool-boot: turned on at boot, and the service started\n",
+    )?;
+    run.systemd.called(mark, &format!("{START_SOUND} done"))?;
+    run.systemd.units.sound.1 = "active";
+    thread::sleep(HOLD);
+    run.expect_description("group", "Service message", IS_OFF)?;
+    run.note(TURNING_ON)?;
+    run.check_state("switch", BOOT, State::Sensitive, false)?;
+    // The service owns its name: the pages come back on the page last shown, the switch on.
+    run.systemd.units.service = ("enabled", "active", "running");
+    run.systemd.write()?;
+    run.fake.on_bus = true;
+    run.fake.write()?;
+    run.expect_state("toggle button", "Configuration", State::Pressed, true)?;
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    run.expect_state("switch", BOOT, State::Sensitive, true)?;
+    run.gone("group", "Start at boot status")?;
+    run.gone("group", "Service message")?;
+    let calls = run.systemd.calls_since(mark)?;
+    let jobs: Vec<&str> = calls
+        .iter()
+        .map(String::as_str)
+        .filter(|c| is_job(c))
+        .collect();
+    let want = [
+        "user Subscribe()".to_owned(),
+        format!("{START_SOUND} done"),
+        "user Unsubscribe()".to_owned(),
+    ];
+    if jobs != want {
+        return Err(format!("the sound's start: {jobs:?}"));
+    }
+    if calls.iter().any(|c| c == "system Subscribe()") {
+        return Err("subscribed to the system manager".to_owned());
+    }
+    run.page("Display")?;
+    NO_NOTE
+}
+
+/// A flip that doesn't happen: the dialog closed (126), not authorized or no agent (127), and a
+/// failed step (1, the program's message). The switch goes back, usable, with the failure's
+/// note and the commands for the flip's direction; the app's own step is skipped. The note goes
+/// once systemd shows what the flip wanted (States and their text).
+fn boot_refused(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.units(Units::all_on())?;
+    run.page("Configuration")?;
+    for (code, stderr, note) in [
+        (126, "", "Not changed: the password dialog was closed."),
+        (
+            127,
+            "the fake pkexec: not authorized\n",
+            "Not changed: the password wasn't accepted, or no password dialog could open in this \
+             session.",
+        ),
+        (
+            1,
+            "Failed to disable unit: Access denied\nopendeepcool-boot: step 1 of 2, `systemctl \
+             --global disable opendeepcool-audio.service`, failed: exit status: 1\n",
+            "Didn't finish: step 1 of 2, `systemctl --global disable \
+             opendeepcool-audio.service`, failed: exit status: 1. The switch shows what's set \
+             now; the journal says more.",
+        ),
+    ] {
+        let mark = run.flip("off")?;
+        run.expect_state("switch", BOOT, State::Sensitive, false)?;
+        run.systemd.answer(code, stderr)?;
+        run.note(note)?;
+        run.expect_state("switch", BOOT, State::Sensitive, true)?;
+        run.check_state("switch", BOOT, State::Checked, true)?;
+        run.commands(FROM_A_TERMINAL, &OFF_LINES)?;
+        let calls = run.systemd.calls_since(mark)?;
+        if calls.iter().any(|c| c.contains("StopUnit")) {
+            return Err(format!("the sound stopped after exit {code}: {calls:?}"));
+        }
+    }
+    // Turned off in a terminal: the note and the commands go once the window is active again.
+    run.units(Units::new_install())?;
+    run.gone("group", "Start at boot status")?;
+    run.gone("group", "Terminal commands")?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    run.page("Display")?;
+    NO_NOTE
+}
+
+/// Only the sound in this session missing: a flip on starts it through the user's own manager,
+/// with no `pkexec` and no password; when it doesn't start, its note and the on commands.
+fn boot_only_sound(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    let missing = Units {
+        sound: ("enabled", "inactive"),
+        ..Units::all_on()
+    };
+    run.units(missing.clone())?;
+    run.page("Configuration")?;
+    run.note(
+        "Not fully on: the sound for Music isn't running in this session. Turn it on to start \
+         it, with no password.",
+    )?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    let mark = run.systemd.mark()?;
+    run.act("switch", BOOT, "Toggle")?;
+    run.systemd.called(mark, &format!("{START_SOUND} done"))?;
+    run.systemd.units.sound.1 = "active";
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    run.expect_state("switch", BOOT, State::Sensitive, true)?;
+    run.gone("group", "Start at boot status")?;
+    let runs = run.systemd.pkexec_since(mark)?;
+    if !runs.is_empty() {
+        return Err(format!("pkexec ran: {runs:?}"));
+    }
+    // The sound doesn't start: its note, and the on commands.
+    run.units(Units {
+        job: "failed",
+        ..missing
+    })?;
+    let mark = run.systemd.mark()?;
+    run.act("switch", BOOT, "Toggle")?;
+    run.systemd.called(mark, &format!("{START_SOUND} failed"))?;
+    run.note(
+        "Didn't finish: the sound for Music didn't start in this session. It starts at your next \
+         login; the journal says more.",
+    )?;
+    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.expect_state("switch", BOOT, State::Sensitive, true)?;
+    run.check_state("switch", BOOT, State::Checked, false)?;
+    // The note stays at a read that still misses the sound, and goes once a read shows it
+    // running: the state the flip wanted.
+    run.units(Units {
+        job: "failed",
+        ..missing
+    })?;
+    run.check_texts("group", "Start at boot status", &[
+        "Didn't finish: the sound for Music didn't start in this session. It starts at your next \
+         login; the journal says more.",
+    ])?;
+    run.units(Units::all_on())?;
+    run.gone("group", "Start at boot status")?;
+    run.gone("group", "Terminal commands")?;
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    run.page("Display")?;
+    NO_NOTE
+}
+
+/// Partly on: the note names what's missing, and a flip on runs `pkexec on` whatever it is
+/// (The note).
+fn boot_partly(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.page("Configuration")?;
+    for (units, note) in [
+        (
+            Units {
+                service: ("disabled", "active", "running"),
+                ..Units::new_install()
+            },
+            "Not fully on: the display service runs now, but doesn't start at boot, and the sound \
+             for Music is off. Turn it on to finish.",
+        ),
+        (
+            Units {
+                sound: ("disabled", "active"),
+                ..Units::all_on()
+            },
+            "Not fully on: the sound for Music runs here, but doesn't start at login. Turn it on \
+             to finish.",
+        ),
+    ] {
+        run.units(units)?;
+        run.note(note)?;
+        run.check_state("switch", BOOT, State::Checked, false)?;
+        run.check_state("switch", BOOT, State::Sensitive, true)?;
+        run.gone("group", "Terminal commands")?;
+    }
+    let mark = run.flip("on")?;
+    run.systemd.units = Units::all_on();
+    run.systemd.write()?;
+    run.systemd.answer(0, "")?;
+    run.systemd.called(mark, &format!("{START_SOUND} done"))?;
+    run.expect_state("switch", BOOT, State::Checked, true)?;
+    run.gone("group", "Start at boot status")?;
+    run.page("Display")?;
+    NO_NOTE
+}
+
+/// The off screen's states (Where its state comes from; States and their text): starting, a
+/// masked unit, a failed read and one that doesn't answer within 1 s; each insensitive, with its
+/// note, and the on commands under the card.
+fn boot_off_screen(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.systemd.units.service = ("enabled", "activating", "start");
+    run.systemd.write()?;
+    run.fake.on_bus = false;
+    run.fake.write()?;
+    run.expect_description("group", "Service message", NOT_RUNNING)?;
+    run.note("The display service is starting.")?;
+    run.expect_state("switch", BOOT, State::Sensitive, false)?;
+    for (units, note) in [
+        (
+            Units {
+                service: ("masked", "inactive", "dead"),
+                ..Units::all_on()
+            },
+            "Can't change it here: systemd reports opendeepcool.service as “masked”.",
+        ),
+        (
+            Units {
+                service: ("", "inactive", "dead"),
+                ..Units::all_on()
+            },
+            "Can't tell whether OpenDeepCool is on: reading it from systemd failed.",
+        ),
+        (
+            Units {
+                delay_ms: 1500,
+                ..Units::all_on()
+            },
+            "Can't tell whether OpenDeepCool is on: reading it from systemd failed.",
+        ),
+    ] {
+        run.units(units)?;
+        run.note(note)?;
+        run.expect_description("group", "Service message", NOT_RUNNING)?;
+        run.check_state("switch", BOOT, State::Sensitive, false)?;
+        run.check_state("switch", BOOT, State::Checked, false)?;
+        run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    }
+    run.systemd.units = Units::all_on();
+    run.systemd.write()?;
+    run.fake.on_bus = true;
+    run.fake.write()?;
+    run.expect_state("grid cell", "Load: CPU", State::Selected, true)?;
+    NO_NOTE
+}
+
+/// A session logind reports as remote: the off screen keeps its heading and the commands, but
+/// has no switch, since polkit would refuse the flip there (Who may flip it). logind's change
+/// is read when it comes.
+fn boot_remote(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    run.systemd.units = Units::new_install();
+    run.systemd.write()?;
+    run.fake.on_bus = false;
+    run.fake.write()?;
+    run.expect_description("group", "Service message", IS_OFF)?;
+    run.node("switch", BOOT)?;
+    run.systemd.units.session = (true, true);
+    run.systemd.write()?;
+    run.gone("switch", BOOT)?;
+    run.gone("group", "Startup settings")?;
+    run.expect_description("group", "Service message", IS_OFF)?;
+    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.systemd.units = Units::all_on();
+    run.systemd.write()?;
+    run.node("switch", BOOT)?;
+    run.fake.on_bus = true;
+    run.fake.write()?;
+    run.expect_state("grid cell", "Load: CPU", State::Selected, true)?;
     NO_NOTE
 }
 

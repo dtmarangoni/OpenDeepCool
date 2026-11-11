@@ -2,14 +2,16 @@
 //! expected-frame loader, the spectrum's test signals and expected rows, the picture diff, the
 //! capture-log reader, the research sweeps for the local layer 2 tests, the sysfs lookups, fake
 //! trees and their sensor fixtures, a private D-Bus daemon, a headless weston, a fake service
-//! for the settings app, systemd's sandbox score for a unit file, and the hardware probe that
-//! the tests and dev tools of every phase share (PRD, Testing Strategy).
+//! for the settings app, a fake systemd and logind and a fake `pkexec` (`odc-fake-pkexec`) for
+//! its Start at boot switch, systemd's sandbox score for a unit file, and the hardware probe
+//! that the tests and dev tools of every phase share (PRD, Testing Strategy).
 
 pub mod bus;
 pub mod capture;
 pub mod diff;
 pub mod expected;
 pub mod fake_service;
+pub mod fake_systemd;
 pub mod fake_tree;
 pub mod fixtures;
 pub mod hardware;

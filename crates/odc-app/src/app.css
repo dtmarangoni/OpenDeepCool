@@ -118,13 +118,13 @@ button.link label {
   color: var(--yellow);
 }
 
-.banner .command {
+/* The terminal commands under the Start at boot switch. */
+.command {
   font-family: monospace;
   background-color: var(--code-bg);
   padding: 4px 8px;
 }
 
-.banner .command selection,
 label selection {
   background-color: var(--selection);
   color: var(--fg);
@@ -222,6 +222,22 @@ switch:checked {
 
 switch > slider {
   background-color: var(--fg);
+}
+
+/* Insensitive: the normal fill and border and a muted slider, without opacity (decisions log
+   D43); the trough keeps systemd's state, so a running flip's "off / on" still shows (Start at
+   boot, The switch). */
+switch:disabled {
+  background-color: var(--ctl-normal-fill);
+  border-color: var(--ctl-normal-border);
+}
+
+switch:disabled:checked {
+  background-color: var(--accent);
+}
+
+switch:disabled > slider {
+  background-color: var(--muted);
 }
 
 .feedback {

@@ -398,6 +398,25 @@ Three commits: the design, the program with its polkit action, the app.
 - The library's constants, `PROGRAM`, `ACTION`, `REFUSED` and `FAILED`, are for the app to use (the third commit), so both sides name the program and its codes once.
 - The dev copy's polkit file now differs from the repository's (`odc-dev check` says so) until the next `odc-dev setup`, which brings the new action; the dev copy has no `opendeepcool-boot`, so the real switch runs only from the package (Task 7).
 
+**As built, the app** (2026-11-11):
+- **The model** is pure, in `crates/odc-app/src/boot.rs`: the four facts, every note and state of the design's tables, what a flip runs, and how `pkexec` ended. Its unit tests cover all 32 combinations of the four facts and every state of States and their text; the view model's tests and property tests carry the switch on both screens.
+- **The client's side** is `crates/odc-app/src/startup.rs`, on GLib's main loop, one read at a time, never polling:
+  - it reads systemd and logind at the client's own moments, which are at start, on window activation, when the service's bus name changes owner, and when logind's `Active` or `Remote` changes; each read has its 1 s limit;
+  - a flip holds the app (`g_application_hold`) until it ends;
+  - the sound's start or stop waits for its `JobRemoved`, with `Subscribe()` and `Unsubscribe()` around that one job on the user's own manager. The wait is at most 30 s; the unit is `Type=simple`, so its job ends at once;
+  - `pkexec` is `/usr/bin/pkexec`, polkit's (pacman, on the development PC). A `pkexec` that can't start ends the flip as a failed step, "pkexec can't start: …".
+- **logind:** when it can't be read, the off screen keeps its switch and polkit alone decides.
+- **One card, moved:** the Startup card and its commands are one set of widgets moved between the Configuration page and the off screen, so each name is one for AT-SPI (the design left this to the plan).
+- **Two test-only flags:** `--user-bus-address` (the user's own manager's bus) and `--pkexec` (the program run in its place, as the user).
+- **The fakes are on two private buses,** since the system manager and the user's own both own `org.freedesktop.systemd1`. On the first are the fake service, the fake system manager and logind; on the second, the fake user manager.
+- **The fake `pkexec`** is `odc-fake-pkexec`, in `odc-testkit`. The app reaches it through a link in the fake systemd's folder. It logs its arguments and waits for the driver's answer, so a scenario checks the switch while the flip runs, then writes what the program would leave and answers. The fake systemd never changes on its own, except that a done job moves the sound.
+- **The insensitive switch keeps its trough's colour,** with a muted slider, so a running flip's "off / on" shows. The design says so now.
+- **The off screen's commands after a failed off** are the off commands, by the owner's rule of 2026-11-11 (the commands for the flip's direction). The off screen shows the on commands otherwise.
+- **Checked:**
+  - `cargo test -p odc-app --features weston-tests`: 95 passed (68 unit tests, 10 of them the switch's model's; 27 in weston, the window's new check of the switch on both screens included), 1 ignored as before;
+  - `cargo test -p odc-testkit --test fake_systemd`: 4 passed;
+  - `cargo run -p odc-e2e -- --only app --require weston`: 38 passed, 31 against the fakes (7 new for the switch) and 7 against the dev service, which ran here.
+
 ### 4. The PKGBUILD, the `.install` file and the restart hook
 
 **Files and integration points**

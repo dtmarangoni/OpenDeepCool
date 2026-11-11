@@ -1,8 +1,9 @@
 //! The window in a headless weston (Phase 10 plan, Task 4; layer 3): the preview's pixels for
 //! the expected frames of modes 1, 10 and 13 in every rotation, no redraw for an unchanged frame,
-//! the banners and states in the design's order and words, the feedback label, the requests,
-//! and the accessible names. Against a fake client: the test gives the window the service's
-//! state and records what it asks.
+//! the banners and states in the design's order and words, the off screen and the Start at boot
+//! switch on both screens (Phase 11 plan, Task 3), the feedback label, the requests, and the
+//! accessible names. Against a fake client: the test gives the window the service's state and
+//! systemd's, and records what it asks.
 //! It runs in a headless weston through `common::run`. Behind the `weston-tests` feature.
 
 mod common;
@@ -13,7 +14,8 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
-use odc_app::model::{SERVICE_BANNER, View};
+use odc_app::boot::{self, Boot, Direction, Facts, Failure, Known, Run, UnitFile};
+use odc_app::model::View;
 use odc_app::theme::Tokens;
 use odc_app::ui::window::Window;
 use odc_app::ui::{Reason, Refused, Request, preview};
@@ -22,17 +24,18 @@ use odc_protocol::Frame;
 use odc_testkit::expected::load_mode;
 
 use common::{
-    Check, Renderer, base, close, dots_of, near, run_for, run_until, shown, shown_saying,
+    Check, Renderer, base, close, dots_of, near, run_for, run_until, save_png, shown, shown_saying,
 };
 
 fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 7] = [
+const CHECKS: [(&str, Check); 8] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
+    ("the_start_at_boot_switch_on_both_screens", start_at_boot),
     ("sending_fails_shows_after_2_s", sending_fails),
     ("the_feedback_label", feedback),
     ("the_window_s_requests", requests),
@@ -119,8 +122,28 @@ fn no_redraw(app: &gtk::Application) {
     close(window);
 }
 
-fn assert_banners(window: &Window, service: bool, cooler: Option<&str>, what: &str) {
-    assert_eq!(window.banners().service_shown(), service, "{what}");
+/// The four facts, in a [`Boot`] read from systemd.
+fn read(service_file: UnitFile, service: Run, sound_file: UnitFile, sound: bool) -> Boot {
+    Boot {
+        known: Known::Facts(Facts {
+            service_file,
+            service,
+            sound_file,
+            sound,
+        }),
+        ..Boot::default()
+    }
+}
+
+fn new_install() -> Boot {
+    read(UnitFile::Disabled, Run::Stopped, UnitFile::Disabled, false)
+}
+
+fn all_on() -> Boot {
+    read(UnitFile::Enabled, Run::Running, UnitFile::Enabled, true)
+}
+
+fn assert_banners(window: &Window, cooler: Option<&str>, what: &str) {
     assert_eq!(
         window.banners().cooler_text().as_deref(),
         cooler,
@@ -128,14 +151,18 @@ fn assert_banners(window: &Window, service: bool, cooler: Option<&str>, what: &s
     );
 }
 
-// The service banner, each cooler banner and the not-available screen, each in the design's
-// states and words; with the service gone, the service state first, whatever the session.
+// Each cooler banner, the off screen and the not-available screen, each in the design's states
+// and words; with the service gone, the off screen first, whatever the session.
 fn banners_and_states(app: &gtk::Application) {
     let ((window, _), said) = shown_saying(app);
-    // The window starts as the service down, until the client says otherwise.
+    // The window starts as the service down, until the client says otherwise; the off screen
+    // waits for systemd's first read, so no heading flashes.
     window.down();
-    assert_banners(&window, true, None, "service down");
-    assert_eq!(window.screen(), ("main".to_owned(), "down".to_owned()));
+    assert_banners(&window, None, "service down");
+    assert_eq!(window.screen(), ("main".to_owned(), "off".to_owned()));
+    assert_eq!(window.off_heading(), None, "not read yet");
+    assert!(!window.startup().card().is_visible());
+    assert_eq!(window.startup().commands(), None);
     assert_eq!(window.header(), [(true, false), (true, false)]);
     assert!(!window.actions_enabled());
     assert_eq!(
@@ -144,19 +171,33 @@ fn banners_and_states(app: &gtk::Application) {
             "No picture",
             "The service draws the picture",
             "Cooler: unknown",
-            "Service not running",
             "—",
             "—"
         ]
     );
+    window.boot(new_install());
+    assert_eq!(window.off_heading().as_deref(), Some("OpenDeepCool is off"));
+    assert_eq!(window.column_words()[3], "Service off");
     assert_eq!(
-        window.names().description("Service banner").as_deref(),
-        Some(SERVICE_BANNER.join(" ").as_str())
+        window.names().description("Service message").as_deref(),
+        Some("OpenDeepCool is off. The cooler shows nothing until the display service runs.")
     );
+    window.boot(read(
+        UnitFile::Enabled,
+        Run::Failed,
+        UnitFile::Enabled,
+        true,
+    ));
+    assert_eq!(
+        window.off_heading().as_deref(),
+        Some("OpenDeepCool isn't running")
+    );
+    assert_eq!(window.column_words()[3], "Service not running");
     assert_eq!(window.preview().frame(), None, "all unlit");
+    window.boot(all_on());
 
     window.state(base());
-    assert_banners(&window, false, None, "connected");
+    assert_banners(&window, None, "connected");
     assert_eq!(window.screen(), ("main".to_owned(), "display".to_owned()));
     assert_eq!(window.header(), [(true, true), (true, true)]);
     assert!(window.actions_enabled());
@@ -200,7 +241,7 @@ fn banners_and_states(app: &gtk::Application) {
         let mut state = base();
         state.cooler_state = cooler;
         window.state(state);
-        assert_banners(&window, false, Some(banner), &format!("{cooler:?}"));
+        assert_banners(&window, Some(banner), &format!("{cooler:?}"));
         let words = window.column_words();
         assert_eq!(words[1], line, "{cooler:?}");
         assert_eq!(words[2], status, "{cooler:?}");
@@ -217,6 +258,15 @@ fn banners_and_states(app: &gtk::Application) {
     window.state(state);
     assert_eq!(window.column_words()[4], "Sound connected");
 
+    // The off screen's note was announced when it showed (Accessible names).
+    assert_eq!(
+        said.borrow().first().map(String::as_str),
+        Some(
+            "Not fully on: the display service failed. Turn it on to finish. The journal says why \
+             the service failed."
+        )
+    );
+    said.borrow_mut().clear();
     // Not available in this session: only the message.
     window.refused();
     assert_eq!(
@@ -225,7 +275,7 @@ fn banners_and_states(app: &gtk::Application) {
         "only the not-available message"
     );
     assert_eq!(window.header(), [(false, false), (false, false)]);
-    assert_banners(&window, false, None, "not available");
+    assert_banners(&window, None, "not available");
     assert!(!window.actions_enabled());
     assert!(window.not_available().is_visible());
     assert_eq!(window.shown(), Some(View::NotAvailable));
@@ -238,10 +288,179 @@ fn banners_and_states(app: &gtk::Application) {
         ]
     );
 
-    // The service gone: the service state, whatever the session was.
+    // The service gone: the off screen, whatever the session was.
     window.down();
-    assert_banners(&window, true, None, "down after a refusal");
-    assert_eq!(window.screen().0, "main");
+    assert_banners(&window, None, "down after a refusal");
+    assert_eq!(window.screen(), ("main".to_owned(), "off".to_owned()));
+    close(window);
+}
+
+// The Start at boot switch (Start at boot): on the off screen without its heading and with the
+// commands under it, on the Configuration page as the last card with the commands inside it;
+// one switch, moved between them. A flip asks the client, keeps the trough at systemd's state,
+// and at its end screen readers hear the switch's state and the switch has the focus again.
+fn start_at_boot(app: &gtk::Application) {
+    let ((window, asked), said) = shown_saying(app);
+    let startup = window.startup();
+    let switch = startup.switch().clone();
+    window.down();
+    window.boot(new_install());
+    // The off screen: the card, no heading, the on commands under it, `enable --now` first.
+    assert!(window.startup_on_off_screen());
+    assert!(startup.card().is_visible());
+    assert!(!startup.heading_shown());
+    assert!(!startup.commands_inside());
+    assert_eq!(
+        startup.commands(),
+        Some((
+            "From a terminal instead:".to_owned(),
+            boot::ON_COMMANDS.join("\n")
+        ))
+    );
+    assert_eq!(startup.note(), None, "a new install has no note");
+    assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
+    run_until("the switch takes the first focus", || switch.is_focus());
+    let renderer = Renderer::new();
+    run_for(Duration::from_millis(100));
+    print!(
+        "{}; ",
+        save_png(&renderer.0, window.widget(), "off-screen").display()
+    );
+
+    // A flip: the client is asked, the trough stays off.
+    asked.borrow_mut().clear();
+    switch.set_active(true);
+    run_for(Duration::from_millis(20));
+    assert_eq!(*asked.borrow(), [Request::StartAtBoot(true)]);
+    assert!(!switch.state(), "the trough keeps systemd's state");
+    // The client's flip runs: the handle on, the trough off, insensitive, its line.
+    let mut flipping = new_install();
+    flipping.begin(Direction::On).expect("a flip");
+    window.boot(flipping.clone());
+    assert!(switch.is_active() && !switch.state() && !switch.is_sensitive());
+    assert_eq!(
+        startup.note().as_deref(),
+        Some("Turning on… Your desktop asks for the administrator's password first.")
+    );
+    assert_eq!(
+        window.names().description("Start at boot").as_deref(),
+        startup.note().as_deref()
+    );
+    // Closed dialog: back at off, sensitive, the failure's note; announced, focus back.
+    said.borrow_mut().clear();
+    flipping.end(Some(Failure::Dismissed(Direction::On)), false);
+    window.boot(flipping);
+    assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
+    assert_eq!(
+        startup.note().as_deref(),
+        Some("Not changed: the password dialog was closed.")
+    );
+    assert_eq!(
+        *said.borrow(),
+        [
+            "Start at boot is off.",
+            "Not changed: the password dialog was closed."
+        ]
+    );
+    run_until("the focus comes back", || switch.is_focus());
+
+    // A remote or inactive session: the heading and the commands, no card.
+    window.boot(Boot {
+        may_flip: false,
+        ..new_install()
+    });
+    assert!(!startup.card().is_visible());
+    assert!(startup.commands().is_some());
+    assert_eq!(window.off_heading().as_deref(), Some("OpenDeepCool is off"));
+
+    // The service runs: the card moves to the Configuration page, last, with its heading.
+    window.boot(read(
+        UnitFile::Disabled,
+        Run::Running,
+        UnitFile::Disabled,
+        false,
+    ));
+    window.state(base());
+    assert!(!window.startup_on_off_screen());
+    assert!(startup.card().is_visible() && startup.heading_shown());
+    let page = window.config_page().widget().clone();
+    assert_eq!(
+        page.last_child().as_ref(),
+        Some(startup.card().upcast_ref()),
+        "the last card"
+    );
+    assert_eq!(
+        startup.note().as_deref(),
+        Some(
+            "Not fully on: the display service runs now, but doesn't start at boot, and the sound \
+             for Music is off. Turn it on to finish."
+        )
+    );
+    assert_eq!(
+        startup.commands(),
+        None,
+        "none with the missing parts' note"
+    );
+    // A failed read: the commands inside the card, "To turn it on from a terminal:".
+    window.boot(Boot {
+        known: Known::Failed,
+        ..Boot::default()
+    });
+    assert!(startup.commands_inside());
+    assert_eq!(
+        startup.commands().map(|c| c.0).as_deref(),
+        Some("To turn it on from a terminal:")
+    );
+    assert!(!switch.is_sensitive());
+    // On: everything holds, no note, no commands.
+    window.boot(all_on());
+    assert!(switch.is_active() && switch.state() && switch.is_sensitive());
+    assert_eq!((startup.note(), startup.commands()), (None, None));
+    // A failed off: the off commands, inside the card.
+    let mut off = all_on();
+    off.begin(Direction::Off).expect("a flip");
+    window.boot(off.clone());
+    assert!(!switch.is_active() && switch.state() && !switch.is_sensitive());
+    off.end(Some(Failure::NotAuthorized(Direction::Off)), true);
+    window.boot(off);
+    assert_eq!(
+        startup.commands(),
+        Some((
+            "From a terminal instead:".to_owned(),
+            boot::OFF_COMMANDS.join("\n")
+        ))
+    );
+    WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page");
+    run_for(Duration::from_millis(100));
+    let page = save_png(
+        &renderer.0,
+        window.config_page().widget(),
+        "configuration-startup",
+    );
+    print!("{}; ", page.display());
+    drop(renderer);
+    let copy = startup.copy().clone();
+    copy.emit_clicked();
+    let text = glib::MainContext::default()
+        .block_on(copy.clipboard().read_text_future())
+        .expect("the clipboard");
+    assert_eq!(
+        text.as_deref(),
+        Some(boot::OFF_COMMANDS.join("\n").as_str())
+    );
+    // The app setting the switch itself asks nothing.
+    asked.borrow_mut().clear();
+    window.boot(new_install());
+    window.boot(all_on());
+    run_for(Duration::from_millis(20));
+    assert!(
+        !asked
+            .borrow()
+            .iter()
+            .any(|r| matches!(r, Request::StartAtBoot(_))),
+        "{:?}",
+        asked.borrow()
+    );
     close(window);
 }
 
@@ -251,9 +470,9 @@ fn sending_fails(app: &gtk::Application) {
     let mut state = base();
     state.cooler_state = Some(CoolerState::WriteFailed);
     window.state(state.clone());
-    assert_banners(&window, false, None, "under 2 s");
+    assert_banners(&window, None, "under 2 s");
     run_for(Duration::from_millis(1700));
-    assert_banners(&window, false, None, "still under 2 s");
+    assert_banners(&window, None, "still under 2 s");
     run_until("the 2 s pass", || window.banners().cooler_text().is_some());
     assert_eq!(
         window.banners().cooler_text().as_deref(),
@@ -264,10 +483,10 @@ fn sending_fails(app: &gtk::Application) {
     assert_eq!(window.column_words()[2], "Cooler: sending fails");
     // Connected again: the banner goes; failing again waits 2 s again.
     window.state(base());
-    assert_banners(&window, false, None, "connected again");
+    assert_banners(&window, None, "connected again");
     window.state(state);
     run_for(Duration::from_millis(500));
-    assert_banners(&window, false, None, "a new wait");
+    assert_banners(&window, None, "a new wait");
     close(window);
 }
 
@@ -346,9 +565,12 @@ fn requests(app: &gtk::Application) {
     ] {
         assert_eq!(app.accels_for_action(action), keys, "{action}");
     }
+    // The off screen's Copy copies every command, one a line.
+    window.down();
+    window.boot(new_install());
     let copy = window
         .names()
-        .find("Copy start command")
+        .find("Copy terminal commands")
         .and_then(|w| w.downcast::<gtk::Button>().ok())
         .expect("the copy button");
     copy.emit_clicked();
@@ -357,7 +579,11 @@ fn requests(app: &gtk::Application) {
         .expect("the clipboard");
     assert_eq!(
         text.as_deref(),
-        Some("sudo systemctl start opendeepcool.service")
+        Some(
+            "sudo systemctl enable --now opendeepcool.service\n\
+             sudo systemctl --global enable opendeepcool-audio.service\n\
+             systemctl --user start opendeepcool-audio.service"
+        )
     );
     close(window);
 }
@@ -400,8 +626,6 @@ fn names(app: &gtk::Application) {
         ("Configuration", R::ToggleButton),
         ("Refresh display", R::Button),
         ("Change feedback", R::Group),
-        ("Service banner", R::Group),
-        ("Copy start command", R::Button),
         ("Not available in this session", R::Group),
         ("Cooler banner", R::Group),
         ("Cooler display preview", R::Img),
@@ -439,6 +663,13 @@ fn names(app: &gtk::Application) {
         ("Peak dots", R::Switch),
         ("Bar fall", R::Slider),
         ("Peak fall", R::Slider),
+        // The Start at boot switch (Phase 11, Task 3) and the off screen.
+        ("Service message", R::Group),
+        ("Startup settings", R::Group),
+        ("Start at boot", R::Switch),
+        ("Start at boot status", R::Group),
+        ("Terminal commands", R::Group),
+        ("Copy terminal commands", R::Button),
     ];
     want.extend(TILE_NAMES.iter().map(|name| (*name, R::GridCell)));
     let labels: BTreeSet<String> = window.names().labels().into_iter().collect();

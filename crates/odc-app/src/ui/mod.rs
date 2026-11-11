@@ -9,6 +9,7 @@ pub mod dots;
 pub mod dropdowns;
 pub mod names;
 pub mod preview;
+pub mod startup;
 pub mod theme;
 pub mod tiles;
 pub mod window;
@@ -37,8 +38,12 @@ pub enum Request {
     Refresh,
     /// `WatchFrames()` or `UnwatchFrames()`: while the window is mapped.
     WatchFrames(bool),
-    /// `Watch()` and `GetState()` again: the window became active (Talking to the service).
+    /// `Watch()` and `GetState()` again, and systemd read again: the window became active
+    /// (Talking to the service; Start at boot).
     Reconnect,
+    /// The Start at boot switch's handle flipped to on or off: not the service's, the client's
+    /// own flip through systemd and `pkexec` (Start at boot).
+    StartAtBoot(bool),
 }
 
 /// What the service refused.

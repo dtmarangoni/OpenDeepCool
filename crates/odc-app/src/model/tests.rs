@@ -6,6 +6,29 @@ use std::collections::{BTreeMap, HashMap};
 use proptest::prelude::*;
 
 use super::*;
+use crate::boot::{Facts, Known, Place, Run, UnitFile};
+
+/// The Start at boot switch fully on: all four facts hold.
+fn startup_on() -> Boot {
+    Boot {
+        known: Known::Facts(Facts {
+            service_file: UnitFile::Enabled,
+            service: Run::Running,
+            sound_file: UnitFile::Enabled,
+            sound: true,
+        }),
+        ..Boot::default()
+    }
+}
+
+/// Its switch on the Startup card: on, sensitive, with no note.
+const STARTUP_ON: boot::Switch = boot::Switch {
+    handle: true,
+    trough: true,
+    sensitive: true,
+    note: None,
+    commands: None,
+};
 
 /// The design's tile table (Display page), typed here apart from the model's own.
 const TILES: [(u16, &str, &str); 23] = [
@@ -158,7 +181,12 @@ fn view_of(state: State) -> Normal {
 }
 
 fn view_with(state: State, ui: Ui) -> Normal {
-    match view(&Service::Up(Box::new(state)), ui, &products()) {
+    match view(
+        &Service::Up(Box::new(state)),
+        ui,
+        &products(),
+        &startup_on(),
+    ) {
         View::Normal(normal) => *normal,
         other => panic!("not the normal screens: {other:?}"),
     }
@@ -317,6 +345,7 @@ fn base_view() -> Normal {
             bar_fall: FallStop::Moderate,
             peak_fall: FallStop::Slow,
         },
+        startup: STARTUP_ON,
     }
 }
 
@@ -596,35 +625,88 @@ fn the_sending_fails_wait_on_a_fake_clock() {
     assert!(!wait.lasted(at(19_000)));
 }
 
-// Row "Service not running": the column says so, and nothing else is shown.
+// Rows "Service not running" and "Off" (D10): the off screen in place of the pages, the column
+// unlit, and the service's status as the off screen's heading says: off on purpose, hollow, or
+// not running, red; both wait for the first read of systemd.
 #[test]
 fn service_not_running() {
-    assert_eq!(
-        view(&Service::Down, Ui::default(), &products()),
-        View::ServiceDown(Column {
+    let column = |service: Option<(&'static str, Dot)>| {
+        let mut status = vec![Status {
+            name: "Cooler status",
+            text: "Cooler: unknown",
+            dot: Dot::Off,
+        }];
+        status.extend(service.map(|(text, dot)| Status {
+            name: "Service status",
+            text,
+            dot,
+        }));
+        Column {
             caption: "No picture".to_owned(),
             line: "The service draws the picture",
             reason: None,
-            status: vec![
-                Status {
-                    name: "Cooler status",
-                    text: "Cooler: unknown",
-                    dot: Dot::Off,
-                },
-                Status {
-                    name: "Service status",
-                    text: "Service not running",
-                    dot: Dot::Bad,
-                },
-            ],
+            status,
             fans: Speed::Unknown,
             pump: Speed::Unknown,
-        })
-    );
+        }
+    };
+    let new_install = Boot {
+        known: Known::Facts(Facts {
+            service_file: UnitFile::Disabled,
+            service: Run::Stopped,
+            sound_file: UnitFile::Disabled,
+            sound: false,
+        }),
+        ..Boot::default()
+    };
+    let failed = Boot {
+        known: Known::Facts(Facts {
+            service_file: UnitFile::Enabled,
+            service: Run::Failed,
+            sound_file: UnitFile::Enabled,
+            sound: true,
+        }),
+        ..Boot::default()
+    };
+    for (startup, status, heading) in [
+        (
+            &new_install,
+            Some(("Service off", Dot::Off)),
+            Some("OpenDeepCool is off"),
+        ),
+        (
+            &failed,
+            Some(("Service not running", Dot::Bad)),
+            Some("OpenDeepCool isn't running"),
+        ),
+        (&Boot::default(), None, None),
+    ] {
+        assert_eq!(
+            view(&Service::Down, Ui::default(), &products(), startup),
+            View::ServiceDown(Box::new(Down {
+                column: column(status),
+                screen: boot::off_screen(startup),
+            }))
+        );
+        assert_eq!(boot::off_screen(startup).heading, heading);
+    }
     assert_eq!(Speed::Unknown.text(), "—");
-    assert_eq!(
-        SERVICE_BANNER[2],
-        "sudo systemctl start opendeepcool.service"
+    // The Startup card follows the switch, on the normal screens too.
+    let normal = view(
+        &Service::Up(Box::new(base())),
+        Ui::default(),
+        &products(),
+        &failed,
+    );
+    let View::Normal(normal) = normal else {
+        panic!("not the normal screens");
+    };
+    assert_eq!(normal.startup, boot::switch(&failed, Place::Card));
+    assert!(
+        normal
+            .startup
+            .note
+            .is_some_and(|n| n.text.contains("failed"))
     );
 }
 
@@ -742,7 +824,7 @@ fn the_saved_mode_lost_a_reading() {
 #[test]
 fn not_available_in_this_session() {
     assert_eq!(
-        view(&Service::Refused, Ui::default(), &products()),
+        view(&Service::Refused, Ui::default(), &products(), &startup_on()),
         View::NotAvailable
     );
 }
@@ -955,6 +1037,51 @@ fn speeds_use_english_digit_grouping() {
 }
 
 /// Every text of a view.
+/// The switch's note and commands.
+fn switch_texts(switch: &boot::Switch) -> Vec<String> {
+    let mut out: Vec<String> = switch.note.iter().map(|n| n.text.clone()).collect();
+    if let Some(commands) = &switch.commands {
+        out.push(commands.lead.to_owned());
+        out.extend(commands.lines.iter().map(|l| (*l).to_owned()));
+    }
+    out
+}
+
+/// Some of the switch's states: not read, a failed read, on, a new install, partly on, flipping.
+fn startup_states() -> Vec<Boot> {
+    let facts = |service_file, service, sound_file, sound| {
+        Known::Facts(Facts {
+            service_file,
+            service,
+            sound_file,
+            sound,
+        })
+    };
+    let mut flipping = Boot {
+        known: facts(UnitFile::Disabled, Run::Stopped, UnitFile::Disabled, false),
+        ..Boot::default()
+    };
+    flipping.begin(boot::Direction::On);
+    vec![
+        Boot::default(),
+        Boot {
+            known: Known::Failed,
+            ..Boot::default()
+        },
+        startup_on(),
+        Boot {
+            known: facts(UnitFile::Disabled, Run::Stopped, UnitFile::Disabled, false),
+            ..Boot::default()
+        },
+        Boot {
+            known: facts(UnitFile::Disabled, Run::Running, UnitFile::Enabled, false),
+            may_flip: false,
+            ..Boot::default()
+        },
+        flipping,
+    ]
+}
+
 fn texts(view: &View) -> Vec<String> {
     let mut out = Vec::new();
     let mut column = |c: &Column| {
@@ -972,8 +1099,10 @@ fn texts(view: &View) -> Vec<String> {
                 NOT_AVAILABLE_TEXT.to_owned(),
             ];
         }
-        View::ServiceDown(c) => {
-            column(c);
+        View::ServiceDown(down) => {
+            column(&down.column);
+            out.extend(down.screen.heading.map(str::to_owned));
+            out.extend(switch_texts(&down.screen.switch));
             return out;
         }
         View::Normal(n) => {
@@ -1008,6 +1137,7 @@ fn texts(view: &View) -> Vec<String> {
                 }
             }
             out.push(n.config.inputs_hint.to_owned());
+            out.extend(switch_texts(&n.startup));
         }
     }
     out
@@ -1133,7 +1263,7 @@ proptest! {
     #[test]
     fn one_tile_per_mode(state in any_state(), long: bool) {
         let ui = Ui { sending_failed_long: long, ..Ui::default() };
-        let View::Normal(normal) = view(&Service::Up(Box::new(state.clone())), ui, &products()) else {
+        let View::Normal(normal) = view(&Service::Up(Box::new(state.clone())), ui, &products(), &startup_on()) else {
             panic!("not the normal screens");
         };
         let modes: Vec<u16> = normal.display.groups.iter().flat_map(|g| g.tiles.iter().map(|t| t.mode)).collect();
@@ -1148,7 +1278,7 @@ proptest! {
     // its mode shows; a CPU tile never maps to a GPU mode.
     #[test]
     fn every_tile_shows_its_own_metrics(state in any_state()) {
-        let View::Normal(normal) = view(&Service::Up(Box::new(state)), Ui::default(), &products()) else {
+        let View::Normal(normal) = view(&Service::Up(Box::new(state)), Ui::default(), &products(), &startup_on()) else {
             panic!("not the normal screens");
         };
         for tile in normal.display.groups.iter().flat_map(|g| &g.tiles) {
@@ -1171,7 +1301,7 @@ proptest! {
     // No view shows a hardware value but the cooler's fan and pump RPM: every RPM figure is one
     // of the fan speeds the service sent, and nothing shows a %, a temperature or a power.
     #[test]
-    fn only_the_cooler_s_rpm_is_shown(state in any_state(), long: bool, down: bool) {
+    fn only_the_cooler_s_rpm_is_shown(state in any_state(), long: bool, down: bool, startup in 0..6_usize) {
         let mut sent: Vec<u16> = state.fan_inputs.iter().flatten().filter_map(|f| match f.rpm {
             FanSpeed::Rpm(r) => Some(r),
             FanSpeed::Unavailable => None,
@@ -1183,7 +1313,7 @@ proptest! {
         }
         let service = if down { Service::Down } else { Service::Up(Box::new(state)) };
         let ui = Ui { sending_failed_long: long, ..Ui::default() };
-        for text in texts(&view(&service, ui, &products())) {
+        for text in texts(&view(&service, ui, &products(), &startup_states()[startup])) {
             prop_assert!(!text.contains('%') && !text.contains('°'), "{}", text);
             for rpm in rpms_in(&text) {
                 prop_assert!(sent.contains(&rpm), "{} isn't a speed the service sent: {}", rpm, text);

@@ -6,9 +6,10 @@ use std::process::ExitCode;
 
 use gtk::gio;
 use gtk::prelude::*;
-use odc_app::client::Client;
+use odc_app::client::{Client, Places};
 use odc_app::flags::{self, Flags};
 use odc_app::pci_ids;
+use odc_app::startup::PKEXEC;
 use odc_app::ui::theme::LiveTheme;
 use odc_app::ui::window::Window;
 
@@ -66,7 +67,17 @@ fn main() -> ExitCode {
         if let Some(live) = LiveTheme::follow(&window, state, theme.tokens, log) {
             window.keep(live);
         }
-        client.start(window.clone(), flags.service_address.clone());
+        client.start(
+            window.clone(),
+            Places {
+                system: flags.service_address.clone(),
+                user: flags.user_bus_address.clone(),
+                pkexec: flags
+                    .pkexec
+                    .clone()
+                    .unwrap_or_else(|| PathBuf::from(PKEXEC)),
+            },
+        );
         window.widget().present();
     });
     // GTK reads no arguments: the flags are the app's own.

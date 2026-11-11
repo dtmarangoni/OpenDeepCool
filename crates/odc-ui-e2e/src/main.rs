@@ -14,8 +14,8 @@ use std::process::ExitCode;
 use std::time::Instant;
 
 const USAGE: &str = "usage: odc-ui-e2e --a11y-bus ADDRESS --fake DIR --app-log FILE \
---frame-log FILE --omarchy-state DIR --wayland-display SOCKET --out DIR [--only NAME,...] \
-[--real]";
+--frame-log FILE --omarchy-state DIR --wayland-display SOCKET --out DIR [--systemd DIR] \
+[--only NAME,...] [--real]";
 
 /// Where everything the run needs is.
 pub struct Paths {
@@ -33,6 +33,8 @@ pub struct Paths {
     pub wayland_display: PathBuf,
     /// Where a failed scenario's tree is written.
     pub out: PathBuf,
+    /// The fake systemd's and the fake `pkexec`'s folder (the fake run).
+    pub systemd: Option<PathBuf>,
 }
 
 /// What the flags ask: where everything is, the scenarios to run (all when empty), and whether
@@ -52,6 +54,7 @@ fn parse(args: &[String]) -> Result<Asked, String> {
         "--omarchy-state",
         "--wayland-display",
         "--out",
+        "--systemd",
         "--only",
     ]
     .into_iter()
@@ -91,6 +94,7 @@ fn parse(args: &[String]) -> Result<Asked, String> {
         omarchy_state: need("--omarchy-state")?.into(),
         wayland_display: need("--wayland-display")?.into(),
         out: need("--out")?.into(),
+        systemd: take("--systemd").map(PathBuf::from),
     };
     let only = take("--only")
         .map(|list| list.split(',').map(str::to_owned).collect())

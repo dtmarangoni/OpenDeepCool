@@ -20,6 +20,9 @@ futures-core = "0.3"
 # 4.20: the CSS provider's colour scheme (design, Unverified points answered); 4.14:
 # accessible announcements.
 gtk = { package = "gtk4", version = "0.11", features = ["v4_20"] }
+# The Start at boot switch's program, its polkit action and its exit codes, named once (Phase 11
+# plan, Task 3); `std` only.
+odc-boot = { path = "../odc-boot" }
 odc-ipc = { path = "../odc-ipc" }
 odc-protocol = { path = "../odc-protocol" }
 odc-render = { path = "../odc-render" }

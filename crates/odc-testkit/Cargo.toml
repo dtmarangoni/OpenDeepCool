@@ -1,6 +1,6 @@
 [package]
 name = "odc-testkit"
-description = "Test support, only ever a dev-dependency: expected frames, picture diff, capture logs, the hardware probe"
+description = "Test support, only ever a dev-dependency: expected frames, picture diff, capture logs, the hardware probe, the settings app's fakes"
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true

@@ -12,6 +12,8 @@ use odc_ipc::{
 use odc_render::{Kind, Mode, mode_info};
 use odc_sensors::Metric;
 
+use crate::boot::{self, Boot};
+
 /// What the app knows of the service.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Service {
@@ -77,9 +79,9 @@ pub enum View {
     /// Not available in this session: the header bar keeps only the app name, and the body is
     /// [`NOT_AVAILABLE_HEADING`] and [`NOT_AVAILABLE_TEXT`]; nothing else.
     NotAvailable,
-    /// The service isn't running: the service banner, the switcher and Refresh insensitive, the
-    /// pages replaced by [`SERVICE_DOWN_PAGES`], the preview all unlit, and this column.
-    ServiceDown(Column),
+    /// The service isn't running: the off screen in place of the pages, the switcher and Refresh
+    /// insensitive, the preview all unlit (The off screen; D10).
+    ServiceDown(Box<Down>),
     /// The normal screens.
     Normal(Box<Normal>),
 }
@@ -87,15 +89,12 @@ pub enum View {
 pub const NOT_AVAILABLE_HEADING: &str = "OpenDeepCool can be used only from the session at the PC";
 pub const NOT_AVAILABLE_TEXT: &str = "This session is remote or not the active one.";
 
-/// The service banner's parts: what happened, in bold; the fix; the start command; and how the
-/// app goes on.
-pub const SERVICE_BANNER: [&str; 4] = [
-    "The OpenDeepCool service isn't running.",
-    "The cooler shows nothing until it starts. Start it from a terminal:",
-    "sudo systemctl start opendeepcool.service",
-    "The app connects by itself once it runs.",
-];
-pub const SERVICE_DOWN_PAGES: &str = "Settings appear here when the service runs";
+/// The window while the service isn't running.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Down {
+    pub column: Column,
+    pub screen: boot::OffScreen,
+}
 
 /// The normal screens.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +105,8 @@ pub struct Normal {
     pub column: Column,
     pub display: DisplayPage,
     pub config: ConfigPage,
+    /// The Configuration page's Startup card (Start at boot).
+    pub startup: boot::Switch,
 }
 
 /// A cooler banner, chosen by `CoolerState`.
@@ -335,12 +336,22 @@ pub struct InputEntry {
     pub rpm: String,
 }
 
-/// What the window shows for `service`, `ui`, and the products of the system's PCI ID list
-/// ([`crate::pci_ids::names`], by vendor and device ID).
-pub fn view(service: &Service, ui: Ui, products: &HashMap<(u16, u16), String>) -> View {
+/// What the window shows for `service`, `ui`, the products of the system's PCI ID list
+/// ([`crate::pci_ids::names`], by vendor and device ID), and the Start at boot switch.
+pub fn view(
+    service: &Service,
+    ui: Ui,
+    products: &HashMap<(u16, u16), String>,
+    startup: &Boot,
+) -> View {
     let state = match service {
         Service::Refused => return View::NotAvailable,
-        Service::Down => return View::ServiceDown(down_column()),
+        Service::Down => {
+            return View::ServiceDown(Box::new(Down {
+                column: down_column(startup),
+                screen: boot::off_screen(startup),
+            }));
+        }
         Service::Up(state) => state,
     };
     let mode = state
@@ -415,6 +426,7 @@ pub fn view(service: &Service, ui: Ui, products: &HashMap<(u16, u16), String>) -
         column,
         display,
         config,
+        startup: boot::switch(startup, boot::Place::Card),
     }))
 }
 
@@ -424,23 +436,29 @@ const SERVICE_RUNNING: Status = Status {
     dot: Dot::Good,
 };
 
-fn down_column() -> Column {
+/// The column while the service is down: the service off on purpose ("Service off", hollow) or
+/// not running (red), as the off screen's heading says; its status waits for the first read of
+/// systemd, as the heading does.
+fn down_column(startup: &Boot) -> Column {
+    let mut status = vec![Status {
+        name: "Cooler status",
+        text: "Cooler: unknown",
+        dot: Dot::Off,
+    }];
+    status.extend(boot::service_off(startup).map(|off| Status {
+        name: "Service status",
+        text: if off {
+            "Service off"
+        } else {
+            "Service not running"
+        },
+        dot: if off { Dot::Off } else { Dot::Bad },
+    }));
     Column {
         caption: "No picture".to_owned(),
         line: "The service draws the picture",
         reason: None,
-        status: vec![
-            Status {
-                name: "Cooler status",
-                text: "Cooler: unknown",
-                dot: Dot::Off,
-            },
-            Status {
-                name: "Service status",
-                text: "Service not running",
-                dot: Dot::Bad,
-            },
-        ],
+        status,
         fans: Speed::Unknown,
         pump: Speed::Unknown,
     }

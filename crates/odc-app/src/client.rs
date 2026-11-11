@@ -8,14 +8,16 @@
 //! It watches the state (`Watch()`), then reads all of it (`GetState()`), merges each
 //! `StateChanged` in the order they arrive, and does both again whenever the service's name gets
 //! a new owner, the window becomes active, or the app's logind session turns active, one at a
-//! time and never polling. Frames are watched while the window is mapped.
+//! time and never polling. Frames are watched while the window is mapped. The Start at boot
+//! switch reads systemd at the same moments ([`crate::startup`]), on the same system bus and on
+//! the user's own manager's.
 
 use std::cell::{Cell, OnceCell, RefCell};
 use std::collections::HashMap;
 use std::fs::{File, OpenOptions};
 use std::future::poll_fn;
 use std::io::{self, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::pin::{Pin, pin};
 use std::rc::Rc;
 use std::task::Poll;
@@ -32,12 +34,23 @@ use zbus::names::BusName;
 use zbus::wire::{OwnedObjectPath, OwnedVariant};
 use zbus::{Connection, MatchRule, Message, MessageStream};
 
+use crate::boot::{Boot, Known};
 use crate::model::reason_text;
+use crate::startup::{self, Startup};
 use crate::ui::window::Window;
 use crate::ui::{Reason, Refused, Request};
 
 const BUS_DRIVER: &str = "org.freedesktop.DBus";
 const LOGIND: &str = "org.freedesktop.login1";
+
+/// Where the client connects: the system bus, or `--service-address`; the user's own manager's
+/// bus, the session bus, or `--user-bus-address`; and `pkexec`, or `--pkexec` (the tests).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Places {
+    pub system: Option<String>,
+    pub user: Option<String>,
+    pub pkexec: PathBuf,
+}
 
 /// The service's proxy, which holds the connection.
 struct Bus {
@@ -60,6 +73,8 @@ pub struct Client {
     again: Cell<bool>,
     /// `--frame-log`: each frame the service sends is added to it (decisions log D84).
     frame_log: RefCell<Option<File>>,
+    /// The Start at boot switch's side.
+    startup: OnceCell<Rc<Startup>>,
 }
 
 /// How a state dictionary is read: as `odc-ipc` reads it, except that a `CoolerState` the app
@@ -111,7 +126,8 @@ fn no_service(error: &Error) -> bool {
     }
 }
 
-async fn next(stream: &mut MessageStream) -> Option<Message> {
+/// The next message `stream` brings, skipping any that couldn't be read; none once it ends.
+pub(crate) async fn next(stream: &mut MessageStream) -> Option<Message> {
     loop {
         match poll_fn(|cx| Pin::new(&mut *stream).poll_next(cx)).await {
             Some(Ok(message)) => return Some(message),
@@ -173,15 +189,20 @@ impl Client {
         Ok(())
     }
 
-    /// Connects, on the system bus or at `address`, and serves `window` from then on.
-    pub fn start(self: &Rc<Self>, window: Window, address: Option<String>) {
+    /// Connects where `places` says, and serves `window` from then on.
+    pub fn start(self: &Rc<Self>, window: Window, places: Places) {
         if self.window.set(window).is_err() {
             return;
         }
         let client = Rc::clone(self);
         glib::spawn_future_local(async move {
-            if let Err(error) = client.run(address).await {
+            if let Err(error) = client.run(places).await {
                 eprintln!("opendeepcool: the bus: {error}");
+                // Without the bus, systemd can't be read either.
+                client.window().boot(Boot {
+                    known: Known::Failed,
+                    ..Boot::default()
+                });
                 client.window().down();
             }
         });
@@ -201,6 +222,14 @@ impl Client {
             Request::Reconnect => {
                 let client = Rc::clone(self);
                 glib::spawn_future_local(async move { client.connect().await });
+                if let Some(startup) = self.startup.get() {
+                    startup.spawn_read();
+                }
+            }
+            Request::StartAtBoot(on) => {
+                if let Some(startup) = self.startup.get() {
+                    startup.flip(on);
+                }
             }
             Request::SetMode(mode) => {
                 self.change(move |service| async move { service.set_mode(mode).await })
@@ -264,8 +293,8 @@ impl Client {
         });
     }
 
-    async fn run(self: &Rc<Self>, address: Option<String>) -> zbus::Result<()> {
-        let conn = match address {
+    async fn run(self: &Rc<Self>, places: Places) -> zbus::Result<()> {
+        let conn = match places.system {
             Some(address) => {
                 zbus::connection::Builder::address(address.as_str())
                     .build()
@@ -299,7 +328,22 @@ impl Client {
             None,
         )
         .await?;
-        let mut session = self.session_stream(&conn).await;
+        let session_path = startup::session_path(&conn).await;
+        let mut session = match &session_path {
+            Some(path) => self.session_stream(&conn, path).await,
+            None => None,
+        };
+        let user = match places.user {
+            Some(address) => {
+                zbus::connection::Builder::address(address.as_str())
+                    .build()
+                    .await
+            }
+            None => Connection::session().await,
+        };
+        let user = user
+            .map_err(|e| eprintln!("opendeepcool: the session bus: {e}"))
+            .ok();
         let dbus = DBusProxy::new(&conn).await?;
         let owner = match BusName::try_from(BUS_NAME) {
             Ok(name) => dbus.get_name_owner(name).await.ok().map(|o| o.to_string()),
@@ -307,7 +351,19 @@ impl Client {
         };
         let service = OpenDeepCoolProxy::new(&conn).await?;
         let _ = self.bus.set(Bus { service });
+        let owned = owner.is_some();
         *self.owner.borrow_mut() = owner;
+        let startup = Startup::new(
+            self.window().clone(),
+            conn.clone(),
+            user,
+            session_path,
+            places.pkexec,
+        );
+        // The first read of systemd, together with the first connection (Where its state comes
+        // from).
+        startup.owner(owned);
+        let _ = self.startup.set(startup);
         self.connect().await;
         loop {
             let event = {
@@ -346,19 +402,12 @@ impl Client {
         }
     }
 
-    /// logind's PropertiesChanged on this app's session, on the system bus only.
-    async fn session_stream(&self, conn: &Connection) -> Option<MessageStream> {
-        let reply = conn
-            .call_method(
-                Some(LOGIND),
-                "/org/freedesktop/login1",
-                Some("org.freedesktop.login1.Manager"),
-                "GetSession",
-                &("auto",),
-            )
-            .await
-            .ok()?;
-        let path: OwnedObjectPath = reply.body().deserialize().ok()?;
+    /// logind's PropertiesChanged on this app's session, `path`, on the system bus only.
+    async fn session_stream(
+        &self,
+        conn: &Connection,
+        path: &OwnedObjectPath,
+    ) -> Option<MessageStream> {
         let rule = MatchRule::builder()
             .msg_type(Type::Signal)
             .sender(LOGIND)
@@ -512,11 +561,16 @@ impl Client {
         if name != BUS_NAME {
             return;
         }
-        *self.owner.borrow_mut() = (!new_owner.is_empty()).then_some(new_owner);
+        let owned = !new_owner.is_empty();
+        *self.owner.borrow_mut() = owned.then_some(new_owner);
+        if let Some(startup) = self.startup.get() {
+            startup.owner(owned);
+        }
         self.connect().await;
     }
 
-    /// The session's `Active` turned true: connect again.
+    /// The session's `Active` turned true: connect again. A change of `Active` or `Remote` reads
+    /// systemd and the session again, for the off screen's switch (Who may flip it).
     async fn session_changed(self: &Rc<Self>, message: &Message) {
         let Ok((interface, changed, _)) =
             message
@@ -532,6 +586,11 @@ impl Client {
             .get("Active")
             .and_then(|v| v.try_clone().ok())
             .and_then(|v| bool::try_from(v).ok());
+        if (active.is_some() || changed.contains_key("Remote"))
+            && let Some(startup) = self.startup.get()
+        {
+            startup.spawn_read();
+        }
         if active == Some(true) {
             self.connect().await;
         }

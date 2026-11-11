@@ -358,3 +358,168 @@ impl Fake {
         })
     }
 }
+
+/// The fake systemd's files (`odc_testkit::fake_systemd`; Phase 11 plan, Task 3): its state
+/// file and its call log, and the fake `pkexec`'s call log and answer, in one folder.
+pub const SYSTEMD_FILE: &str = "systemd.toml";
+pub const SYSTEMD_LOG: &str = "systemd.log";
+pub const PKEXEC_LOG: &str = "pkexec.log";
+pub const PKEXEC_ANSWER: &str = "pkexec.answer";
+
+/// The two units and the session, as the driver means them: each value as systemd gives it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Units {
+    /// `opendeepcool.service`: its file state ("" fails the read), `ActiveState`, `SubState`,
+    /// and how long its file state takes to answer.
+    pub service: (&'static str, &'static str, &'static str),
+    pub delay_ms: u64,
+    /// `opendeepcool-audio.service`: its file state and `ActiveState`, and its jobs' result
+    /// ("" fails the call).
+    pub sound: (&'static str, &'static str),
+    pub job: &'static str,
+    /// logind's session: active, and remote.
+    pub session: (bool, bool),
+}
+
+impl Units {
+    /// A new install: what the fake answers before its first file.
+    pub fn new_install() -> Units {
+        Units {
+            service: ("disabled", "inactive", "dead"),
+            delay_ms: 0,
+            sound: ("disabled", "inactive"),
+            job: "done",
+            session: (true, false),
+        }
+    }
+
+    /// OpenDeepCool ready to use: all four facts hold.
+    pub fn all_on() -> Units {
+        Units {
+            service: ("enabled", "active", "running"),
+            sound: ("enabled", "active"),
+            ..Units::new_install()
+        }
+    }
+
+    fn text(&self, serial: u64) -> String {
+        format!(
+            "serial = {serial}\n\n[service]\nfile = {:?}\nactive = {:?}\nsub = {:?}\n\
+             delay_ms = {}\n\n[sound]\nfile = {:?}\nactive = {:?}\njob = {:?}\n\n\
+             [session]\nactive = {}\nremote = {}\n",
+            self.service.0,
+            self.service.1,
+            self.service.2,
+            self.delay_ms,
+            self.sound.0,
+            self.sound.1,
+            self.job,
+            self.session.0,
+            self.session.1
+        )
+    }
+}
+
+/// The fake systemd and the fake `pkexec`.
+pub struct Systemd {
+    dir: PathBuf,
+    serial: u64,
+    pub units: Units,
+}
+
+impl Systemd {
+    /// The fake whose files are in `dir`; it answers as a new install until [`Systemd::write`].
+    pub fn new(dir: &Path) -> Systemd {
+        Systemd {
+            dir: dir.to_owned(),
+            serial: 0,
+            units: Units::new_install(),
+        }
+    }
+
+    /// Writes the state file, then waits until the fake has taken it.
+    pub fn write(&mut self) -> Result<()> {
+        self.serial += 1;
+        let next = self.dir.join(format!("{SYSTEMD_FILE}.new"));
+        fs::write(&next, self.units.text(self.serial))
+            .map_err(|e| format!("{}: {e}", next.display()))?;
+        fs::rename(&next, self.dir.join(SYSTEMD_FILE))
+            .map_err(|e| format!("the systemd file: {e}"))?;
+        let taken = format!("state {}", self.serial);
+        wait(&format!("the fake systemd taking {taken}"), || {
+            let log = self.log(SYSTEMD_LOG)?;
+            if let Some(error) = log.iter().rev().find(|l| l.starts_with("state error")) {
+                return Err(error.clone());
+            }
+            Ok(log.contains(&taken).then_some(()))
+        })
+    }
+
+    fn log(&self, name: &str) -> Result<Vec<String>> {
+        let path = self.dir.join(name);
+        match fs::read_to_string(&path) {
+            Ok(text) => Ok(text.lines().map(str::to_owned).collect()),
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(Vec::new()),
+            Err(e) => Err(format!("{}: {e}", path.display())),
+        }
+    }
+
+    /// Where the systemd and `pkexec` logs end now.
+    pub fn mark(&self) -> Result<(usize, usize)> {
+        Ok((self.log(SYSTEMD_LOG)?.len(), self.log(PKEXEC_LOG)?.len()))
+    }
+
+    /// The systemd calls logged since `mark`, the fake's own `state` lines left out.
+    pub fn calls_since(&self, mark: (usize, usize)) -> Result<Vec<String>> {
+        Ok(self
+            .log(SYSTEMD_LOG)?
+            .into_iter()
+            .skip(mark.0)
+            .filter(|line| !line.starts_with("state "))
+            .collect())
+    }
+
+    /// The `pkexec` runs logged since `mark`.
+    pub fn pkexec_since(&self, mark: (usize, usize)) -> Result<Vec<String>> {
+        Ok(self.log(PKEXEC_LOG)?.into_iter().skip(mark.1).collect())
+    }
+
+    /// Waits until `pkexec` ran with `args` after `mark`, and is the only run since.
+    pub fn pkexec_ran(&self, mark: (usize, usize), args: &str) -> Result<()> {
+        let want = format!("pkexec {args}");
+        wait(&format!("{want:?} at the fake pkexec"), || {
+            let runs = self.pkexec_since(mark)?;
+            match runs.as_slice() {
+                [] => Ok(None),
+                [run] if *run == want => Ok(Some(())),
+                _ => Err(format!("the fake pkexec ran {runs:?}")),
+            }
+        })
+    }
+
+    /// Waits until `call` is logged after `mark`.
+    pub fn called(&self, mark: (usize, usize), call: &str) -> Result<()> {
+        wait(&format!("{call} at the fake systemd"), || {
+            Ok(self
+                .calls_since(mark)?
+                .iter()
+                .any(|c| c == call)
+                .then_some(()))
+        })
+        .map_err(|e| {
+            let calls = self.calls_since(mark).unwrap_or_default();
+            format!("{e}; calls since: {calls:?}")
+        })
+    }
+
+    /// Ends the waiting fake `pkexec` with `code`, writing `stderr`.
+    pub fn answer(&self, code: i32, stderr: &str) -> Result<()> {
+        let next = self.dir.join(format!("{PKEXEC_ANSWER}.new"));
+        fs::write(&next, format!("exit {code}\n{stderr}"))
+            .map_err(|e| format!("{}: {e}", next.display()))?;
+        fs::rename(&next, self.dir.join(PKEXEC_ANSWER)).map_err(|e| format!("the answer: {e}"))?;
+        wait("the fake pkexec taking its answer", || {
+            Ok((!self.dir.join(PKEXEC_ANSWER).exists()).then_some(()))
+        })
+    }
+}

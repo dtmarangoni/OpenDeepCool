@@ -3,7 +3,9 @@
 //! its own. Both binaries are built first, from the code being tested.
 //!
 //! - **Against the fake service** on a private bus, every time: every scenario of the design's
-//!   coverage check and States table.
+//!   coverage check and States table; the Start at boot switch against a fake systemd and logind
+//!   on that bus and on a second private bus as the user's own, and a fake `pkexec` (Phase 11
+//!   plan, Task 3).
 //! - **Against the real dev service**, on the system bus, when it runs here (decisions log D83):
 //!   the app's own changes, which the service must confirm, with no test session held; then, in
 //!   a test session at fixed readings, the frames the service wrote to the cooler against those
@@ -34,6 +36,7 @@ use odc_protocol::Message;
 use odc_sensors::{Exact, Metric};
 use odc_testkit::bus::PrivateBus;
 use odc_testkit::fake_service::FakeService;
+use odc_testkit::fake_systemd::{FakeSystemd, PKEXEC_LINK};
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 use odc_testkit::weston::Weston;
 
@@ -41,13 +44,14 @@ use crate::plays::{FLUSHED_WITHIN, message, override_args, recording_lines};
 use crate::service::Restore;
 use crate::session::Session;
 
-/// The app and the driver, built next to this program.
+/// The app, the driver and the fake `pkexec`, built next to this program.
 struct Programs {
     app: PathBuf,
     driver: PathBuf,
+    fake_pkexec: PathBuf,
 }
 
-/// Builds both with the profile this program was built with (decisions log D77).
+/// Builds the three with the profile this program was built with (decisions log D77).
 fn build() -> Result<Programs, String> {
     let cargo = std::env::var_os("CARGO").unwrap_or_else(|| "cargo".into());
     let workspace = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
@@ -60,6 +64,8 @@ fn build() -> Result<Programs, String> {
             "odc-app",
             "-p",
             "odc-ui-e2e",
+            "-p",
+            "odc-testkit",
             "--bins",
         ])
         .current_dir(workspace);
@@ -70,7 +76,9 @@ fn build() -> Result<Programs, String> {
         .status()
         .map_err(|e| format!("cargo can't start: {e}"))?;
     if !status.success() {
-        return Err(format!("building the app and the driver failed: {status}"));
+        return Err(format!(
+            "building the app, the driver and the fake pkexec failed: {status}"
+        ));
     }
     let bin = std::env::current_exe()
         .map_err(|e| format!("this program's path: {e}"))?
@@ -80,6 +88,7 @@ fn build() -> Result<Programs, String> {
     Ok(Programs {
         app: bin.join("opendeepcool"),
         driver: bin.join("odc-ui-e2e"),
+        fake_pkexec: bin.join("odc-fake-pkexec"),
     })
 }
 
@@ -248,13 +257,23 @@ pub fn run(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
     against_the_service(&stage, roots, summary);
 }
 
-/// Every scenario against the fake service (Task 8).
+/// Every scenario against the fake service (Task 8), and the Start at boot switch's against the
+/// fake systemd and `pkexec` (Phase 11 plan, Task 3). The app is given the fake `pkexec` through
+/// a link in the fake systemd's folder, which the fake finds its files by.
 fn against_the_fake(stage: &Stage, summary: &mut Summary) -> Result<(), String> {
     let bus = PrivateBus::start(&stage.dir.join("service-bus"))
         .map_err(|e| format!("the fake's bus: {e}"))?;
+    let user_bus = PrivateBus::start(&stage.dir.join("user-bus"))
+        .map_err(|e| format!("the fake user bus: {e}"))?;
     let fake_dir = folder(&stage.dir.join("fake"))?;
     let _fake = FakeService::start(bus.address(), &fake_dir)
         .map_err(|e| format!("the fake service: {e}"))?;
+    let systemd_dir = folder(&stage.dir.join("systemd"))?;
+    let _systemd = FakeSystemd::start(bus.address(), user_bus.address(), &systemd_dir)
+        .map_err(|e| format!("the fake systemd: {e}"))?;
+    let pkexec = systemd_dir.join(PKEXEC_LINK);
+    std::os::unix::fs::symlink(&stage.programs.fake_pkexec, &pkexec)
+        .map_err(|e| format!("{}: {e}", pkexec.display()))?;
     let omarchy = stage.dir.join("fake").join("omarchy");
     let frames = stage.dir.join("fake.frames.log");
     let _app = stage.app(
@@ -266,9 +285,16 @@ fn against_the_fake(stage: &Stage, summary: &mut Summary) -> Result<(), String> 
             omarchy.as_os_str(),
             OsStr::new("--frame-log"),
             frames.as_os_str(),
+            OsStr::new("--user-bus-address"),
+            OsStr::new(user_bus.address()),
+            OsStr::new("--pkexec"),
+            pkexec.as_os_str(),
         ],
     )?;
-    stage.driver("fake", &fake_dir, &[], summary)
+    let systemd = systemd_dir
+        .to_str()
+        .ok_or("the fake systemd's folder isn't UTF-8")?;
+    stage.driver("fake", &fake_dir, &["--systemd", systemd], summary)
 }
 
 /// What says the installed dev copy is older than this build: a state without the GPU in use,
