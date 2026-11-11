@@ -15,19 +15,23 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use odc_e2e::music::{
-    HELPER_UNIT, Harness, Tools, capture_at_full_volume, delays, fake_capture, has_node,
-    leftover_sinks, module_index, quantile, repair,
+    FALL_TICKS, HELPER_UNIT, Harness, Tools, capture_volume, delays, fake_capture, full_volume,
+    has_node, leftover_sinks, module_index, quantile, repair,
 };
 use odc_protocol::Frame;
-use odc_render::Mode;
+use odc_render::{COLUMNS, Column, Mode, MusicSettings, Spectrum, spectrum_height};
 use odc_testkit::hardware::{Capability, Probe, Roots, Summary, probe};
 
 type Test = (&'static str, fn());
 
-const TESTS: [Test; 7] = [
+const TESTS: [Test; 8] = [
     (
         "the_tools_outputs_are_read_as_pipewire_prints_them",
         the_tools_outputs_are_read_as_pipewire_prints_them,
+    ),
+    (
+        "a_dot_at_the_top_falls_to_the_floor_in_fall_ticks",
+        a_dot_at_the_top_falls_to_the_floor_in_fall_ticks,
     ),
     (
         "the_start_repairs_what_a_killed_run_left",
@@ -189,17 +193,47 @@ fn the_tools_outputs_are_read_as_pipewire_prints_them() {
              node.name = \"opendeepcool-audio\"\n"
         )
     };
-    assert_eq!(capture_at_full_volume(&outputs("100%")), Some(true));
-    assert_eq!(capture_at_full_volume(&outputs("91%")), Some(false));
-    assert_eq!(capture_at_full_volume("Source Output #1\n"), None);
+    let full = outputs("100%");
+    assert_eq!(
+        capture_volume(&full),
+        Some("front-left: 65536 / 100% / 0.00 dB,   front-right: 65536 / 100% / 0.00 dB")
+    );
+    assert!(capture_volume(&full).is_some_and(full_volume));
+    assert!(!capture_volume(&outputs("91%")).is_some_and(full_volume));
+    assert_eq!(capture_volume("Source Output #1\n"), None);
     // Not known yet: the stream has only just joined.
     let joining = "Source Output #4380\n\tVolume: (invalid)\n\tProperties:\n\t\t\
                    node.name = \"opendeepcool-audio\"\n";
-    assert_eq!(capture_at_full_volume(joining), None);
+    assert_eq!(capture_volume(joining), None);
+    assert!(!full_volume("(invalid)"), "no channel at all isn't full");
+    // Another program's stream doesn't count.
+    let other = "Source Output #12\n\tVolume: mono: 65536 / 100% / 0.00 dB\n\tProperties:\n\t\t\
+                 node.name = \"a-level-meter\"\n";
+    assert_eq!(
+        capture_volume(&format!("{other}{}", outputs("91%"))).map(full_volume),
+        Some(false)
+    );
     let sorted: Vec<f64> = (1..=200).map(f64::from).collect();
     assert_eq!(quantile(&sorted, 0.5), 100.0);
     assert_eq!(quantile(&sorted, 0.95), 190.0);
     assert_eq!(quantile(&sorted, 0.99), 198.0);
+}
+
+// The capture check waits `FALL_TICKS` after the tone's start and end (Phase 11 plan, Task 2):
+// the click there may set a peak anywhere up to the top, and levels never go above it, so this is
+// the longest a click shows in mode 13's area at the default settings (`music.md` point 6).
+fn a_dot_at_the_top_falls_to_the_floor_in_fall_ticks() {
+    let h = spectrum_height(Mode::new(13).expect("mode 13")).expect("a spectrum");
+    let settings = MusicSettings::default();
+    let floor = [Column { bar: 1, dot: None }; COLUMNS];
+    let mut spectrum = Spectrum::at([1.0; COLUMNS], [1.0; COLUMNS]);
+    let mut ticks = 0;
+    while spectrum.draw(h, settings.peaks) != floor {
+        assert!(ticks < 100, "the dots never reach the floor");
+        spectrum.update(&[0.0; COLUMNS], &settings);
+        ticks += 1;
+    }
+    assert_eq!(ticks, FALL_TICKS);
 }
 
 fn the_start_repairs_what_a_killed_run_left() {

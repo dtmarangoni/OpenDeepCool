@@ -43,6 +43,18 @@ const TONE_AMPLITUDE: f64 = 0.1;
 
 /// The delay target (owner, 2026-10-25; `music.md` point 9): at most 150 ms for 95 % of frames.
 const DELAY_TARGET_MS: f64 = 150.0;
+/// The capture check takes a frame to show a sample at most 300 ms after it was written, twice
+/// the delay target.
+const LATE_MS: u64 = 300;
+/// The ticks a peak dot at the top of mode 13's area takes to come down to the floor at the
+/// default peak fall (`music.md` point 6; `music_tools` checks it against the spectrum's rule).
+pub const FALL_TICKS: u64 = 15;
+/// How long the tone's start and its end may still show in the capture check, 1.8 s: each clicks,
+/// and a click may set any column's peak dot up to the top, which then falls for `FALL_TICKS`.
+/// On the development PC, 2026-11-10, a frame 357 ms into the tone still showed its start.
+const SETTLE_MS: u64 = LATE_MS + FALL_TICKS * TICK_MS;
+/// The service's tick.
+const TICK_MS: u64 = 100;
 /// 200 bursts of 100 ms, 405 ms apart (Phase 9 plan, Task 5): each starts 5 ms later in the
 /// service's 100 ms tick than the one before, at 20 points of it 10 times each, so the delays show
 /// their whole spread, not one point of the tick (owner, 2026-11-06). A burst starts on a 5 ms
@@ -129,27 +141,33 @@ pub fn has_node(dump: &str, name: &str) -> bool {
     dump.contains(&format!("\"node.name\": \"{name}\""))
 }
 
-/// Whether the helper's capture stream, in `pactl list source-outputs`, is at 100 % on every
-/// channel: a volume WirePlumber restored for it would scale every level. `None` while the stream
-/// isn't listed, or its volume isn't known yet: the service says the sound is connected as soon as
-/// the helper attaches, before `pw-record` has joined PipeWire (seen on the development PC,
-/// 2026-11-05).
-pub fn capture_at_full_volume(list: &str) -> Option<bool> {
+/// The helper's capture stream's volume in `pactl list source-outputs`: its `Volume:` line, once
+/// that gives each channel's percentage. `None` while the stream isn't listed, or its volume isn't
+/// known yet: the service says the sound is connected as soon as the helper attaches, before
+/// `pw-record` has joined PipeWire (seen on the development PC, 2026-11-05).
+pub fn capture_volume(list: &str) -> Option<&str> {
     let block = list
         .split("Source Output #")
         .find(|block| block.contains(&format!("node.name = \"{HELPER_NODE}\"")))?;
     let volume = block
         .lines()
-        .find_map(|line| line.trim().strip_prefix("Volume:"))?;
-    let percents: Vec<&str> = volume
+        .find_map(|line| line.trim().strip_prefix("Volume:"))?
+        .trim();
+    percents(volume).next().is_some().then_some(volume)
+}
+
+/// Whether a `Volume:` line puts every channel at 100 %: a volume WirePlumber restored for the
+/// stream would scale every level.
+pub fn full_volume(volume: &str) -> bool {
+    let mut percents = percents(volume).peekable();
+    percents.peek().is_some() && percents.all(|p| p == "100%")
+}
+
+fn percents(volume: &str) -> impl Iterator<Item = &str> {
+    volume
         .split('/')
         .map(str::trim)
         .filter(|part| part.ends_with('%'))
-        .collect();
-    if percents.is_empty() {
-        return None;
-    }
-    Some(percents.iter().all(|p| *p == "100%"))
 }
 
 /// Before the checks: a null sink a killed run left is unloaded, and the owner's helper, which a
@@ -515,6 +533,11 @@ fn frames_since(from: u64) -> Result<Vec<(u64, Frame)>, String> {
     Ok(frames)
 }
 
+/// The helper's capture stream's `Volume:` line now, if `pactl` lists one.
+fn volume_now(tools: &Tools) -> Result<Option<String>, String> {
+    Ok(capture_volume(&tools.output("pactl", &["list", "source-outputs"])?).map(str::to_owned))
+}
+
 /// Mode 13, upright, with the sound connected and the capture stream at full volume.
 fn ready(tools: &Tools, session: &Session) -> Result<(), String> {
     zbus::block_on(session.main().set_rotation(0)).map_err(|e| format!("SetRotation: {e}"))?;
@@ -525,15 +548,19 @@ fn ready(tools: &Tools, session: &Session) -> Result<(), String> {
     if !connected {
         return Err("in mode 13 the dev helper's sound didn't connect within 3 s".into());
     }
-    let mut full = None;
+    // The volume may still change after pactl first lists it: one run on the development PC,
+    // 2026-11-10, read it below 100 % and the next didn't (why is unverified). So wait until it's
+    // at 100 %, and the capture reads it again once the tone has played.
+    let mut seen = None;
     soon(CONNECT_WITHIN, || {
-        full = capture_at_full_volume(&tools.output("pactl", &["list", "source-outputs"])?);
-        Ok(full.is_some())
+        seen = volume_now(tools)?;
+        Ok(seen.as_deref().is_some_and(full_volume))
     })?;
-    match full {
-        Some(true) => Ok(()),
-        Some(false) => Err(format!(
-            "the {HELPER_NODE} capture stream isn't at 100 %: set it back in a mixer"
+    match seen {
+        Some(volume) if full_volume(&volume) => Ok(()),
+        Some(volume) => Err(format!(
+            "the {HELPER_NODE} capture stream stayed at {volume:?} for 3 s, not at 100 %: set it \
+             back in a mixer"
         )),
         None => Err(format!(
             "within 3 s pactl lists no {HELPER_NODE} capture stream with a volume"
@@ -541,15 +568,16 @@ fn ready(tools: &Tools, session: &Session) -> Result<(), String> {
     }
 }
 
-/// The real capture (Phase 9 plan, Task 5): two seconds of a steady tone at column 7's centre,
-/// after a second of silence and before three. Every frame while it plays shows `expected.txt`'s rows for it, and the
-/// floor line before it and once the bars and the dots have fallen after it.
+/// The real capture (Phase 9 plan, Task 5): four seconds of a steady tone at column 7's centre,
+/// after a second of silence and before three. The frames from `SETTLE_MS` into the tone to its
+/// end show `expected.txt`'s rows for it, and the frames before it and from `SETTLE_MS` after it
+/// the floor line (Phase 11 plan, Task 2).
 fn capture(tools: &Tools, session: &Session) -> Result<String, String> {
     ready(tools, session)?;
     let second = RATE;
-    let samples: Vec<f32> = (0..6 * second)
+    let samples: Vec<f32> = (0..8 * second)
         .map(|n| {
-            if (second..3 * second).contains(&n) {
+            if (second..5 * second).contains(&n) {
                 tone(n)
             } else {
                 0.0
@@ -557,7 +585,14 @@ fn capture(tools: &Tools, session: &Session) -> Result<String, String> {
         })
         .collect();
     let begin = monotonic_ns();
-    let stamps = play(tools, &samples, &[second, 3 * second])?;
+    let stamps = play(tools, &samples, &[second, 5 * second])?;
+    let after = volume_now(tools)?;
+    if !after.as_deref().is_some_and(full_volume) {
+        return Err(format!(
+            "the {HELPER_NODE} capture stream's volume changed while the tone played: now {}",
+            after.as_deref().unwrap_or("not listed")
+        ));
+    }
     thread::sleep(FLUSHED_WITHIN);
     let (on, off) = (stamps[0], stamps[1]);
     let ms = |n: u64| n * 1_000_000;
@@ -570,10 +605,10 @@ fn capture(tools: &Tools, session: &Session) -> Result<String, String> {
         if !rows_1_2_off {
             return Err(format!("a frame at {ns} ns lights rows 1–2"));
         }
-        let want = if *ns >= on + ms(300) && *ns <= off {
+        let want = if *ns >= on + ms(SETTLE_MS) && *ns <= off {
             toned += 1;
             &steady
-        } else if *ns + ms(200) < on || *ns >= off + ms(1800) {
+        } else if *ns + ms(200) < on || *ns >= off + ms(SETTLE_MS) {
             floored += 1;
             &floor()
         } else {
