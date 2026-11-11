@@ -2,7 +2,7 @@
 
 The exact list behind the PRD's System Footprint and the README's "Installed on your system" (Phase 11 plan, Task 1). The package follows Arch's package guidelines: the settings app in `/usr/bin`, every program users don't run themselves in `/usr/lib/opendeepcool/`, nothing in `/usr/local`, and nothing in `/etc` from the package itself.
 
-A test (`crates/odc-service/tests/packaging.rs`) checks this file against the repository: every source below exists, every file under `packaging/` is listed, and every unit's `ExecStart=` names an installed program. Task 4 adds the pacman hook and the PKGBUILD's own files.
+A test (`crates/odc-service/tests/packaging.rs`) checks this file against the repository: every source below exists, every file under `packaging/` is listed, and every unit's `ExecStart=` names an installed program. It also checks that the PKGBUILD's `package()` installs exactly the first table, and that its `build()` builds exactly the crates whose programs that table lists.
 
 ## Installed by the package
 
@@ -28,10 +28,22 @@ pacman installs these and `pacman -R` removes them. `target/release/` is the PKG
 | `/usr/share/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy` | file | root:root | 0644 | `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy` |
 | `/usr/share/applications/io.github.dtmarangoni.OpenDeepCool.desktop` | file | root:root | 0644 | `packaging/applications/io.github.dtmarangoni.OpenDeepCool.desktop` |
 | `/usr/share/icons/hicolor/scalable/apps/io.github.dtmarangoni.OpenDeepCool.svg` | file | root:root | 0644 | `packaging/icons/io.github.dtmarangoni.OpenDeepCool.svg` |
+| `/usr/share/libalpm/hooks/opendeepcool-restart.hook` | file | root:root | 0644 | `packaging/arch/hooks/opendeepcool-restart.hook` |
 | `/usr/share/licenses/opendeepcool/` | folder | root:root | 0755 | - |
 | `/usr/share/licenses/opendeepcool/LICENSE` | file | root:root | 0644 | `LICENSE` |
 
 The package ships no enable links: nothing is enabled or started at install (Arch Wiki, systemd: Arch "does not enable most services on installation").
+
+## The PKGBUILD's own files
+
+They build the package and aren't installed. From `v1.0.0` they are also the AUR repository (Phase 12).
+
+| File | What it is |
+|---|---|
+| `packaging/arch/PKGBUILD` | The build: the signed release tag through git, by Arch's package and Rust package guidelines |
+| `packaging/arch/opendeepcool.install` | pacman's scriptlets: the install message, and on removal the disable, the stop and the clean-up in the tables below |
+| `packaging/arch/.SRCINFO` | The PKGBUILD's metadata, as `makepkg --printsrcinfo` writes it |
+| `packaging/arch/LICENSE` | These files' own license, the 0BSD text Arch publishes for package sources (AUR submission guidelines). The program stays MIT |
 
 ## Created by systemd's pacman hooks at install
 

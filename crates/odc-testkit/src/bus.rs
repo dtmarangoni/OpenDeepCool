@@ -1,6 +1,7 @@
 //! A private D-Bus daemon for the tests (Phase 7 plan, Task 7; owner, 2026-10-29), and the two
-//! waits they need without an async library: `dbus-daemon` with its own socket in a test
-//! directory and a minimal policy that lets every connection own any name and call any other,
+//! waits they need without an async library: `dbus-daemon` with its configuration in a test
+//! directory, its socket in a short folder of its own, and a minimal policy that lets every
+//! connection own any name and call any other,
 //! with no eavesdropping, as on the system bus. Started without root; stopped when dropped. The
 //! same daemon, with the AT-SPI registry on it, is the settings app's accessibility bus in its
 //! end-to-end run (Phase 10 plan, Task 8).
@@ -8,9 +9,12 @@
 use std::fs;
 use std::future::{Future, poll_fn};
 use std::io::{self, BufRead, BufReader};
+use std::os::unix::fs::DirBuilderExt;
 use std::path::Path;
+use std::path::PathBuf;
 use std::pin::pin;
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::task::{Poll, Waker};
 use std::thread;
@@ -50,10 +54,35 @@ pub struct PrivateBus {
     address: String,
     /// The AT-SPI registry, on an accessibility bus.
     registry: Option<Child>,
+    /// The socket's folder, removed with the bus.
+    socket_dir: PathBuf,
+}
+
+/// The longest path a Unix socket may have, its terminating zero included (`sun_path`, unix(7)).
+const SOCKET_PATH_MAX: usize = 108;
+
+/// A fresh folder for a socket, `<temp dir>/odc-bus-<pid>-<n>`, 0700: a test folder under cargo's
+/// target folder can be deeper than a socket's path may be long, as in makepkg's build folder
+/// (Phase 11 plan, Task 4: "Socket name too long").
+fn socket_dir() -> io::Result<PathBuf> {
+    static NEXT: AtomicU32 = AtomicU32::new(0);
+    loop {
+        let n = NEXT.fetch_add(1, Ordering::Relaxed);
+        let dir = std::env::temp_dir().join(format!("odc-bus-{}-{n}", std::process::id()));
+        match fs::DirBuilder::new().mode(0o700).create(&dir) {
+            Ok(()) => return Ok(dir),
+            // A killed test's, with the same process ID: removed, then tried again.
+            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {
+                fs::remove_dir_all(&dir)?;
+            }
+            Err(e) => return Err(e),
+        }
+    }
 }
 
 impl PrivateBus {
-    /// Starts a daemon whose socket and configuration live in `dir`; returns once it listens.
+    /// Starts a daemon whose configuration lives in `dir`, with its socket in a short folder of
+    /// its own, removed with the bus; returns once it listens.
     ///
     /// # Errors
     ///
@@ -120,10 +149,14 @@ impl PrivateBus {
 
     fn start_with(dir: &Path, mut daemon: Command) -> io::Result<PrivateBus> {
         fs::create_dir_all(dir)?;
-        let socket = dir.join("bus");
-        match fs::remove_file(&socket) {
-            Err(e) if e.kind() != io::ErrorKind::NotFound => return Err(e),
-            _ => {}
+        let socket_dir = socket_dir()?;
+        let socket = socket_dir.join("bus");
+        if socket.as_os_str().len() >= SOCKET_PATH_MAX {
+            let _ = fs::remove_dir_all(&socket_dir);
+            return Err(io::Error::other(format!(
+                "{}: longer than a socket's path may be; set TMPDIR to a shorter folder",
+                socket.display()
+            )));
         }
         let config = dir.join("bus.conf");
         fs::write(
@@ -142,12 +175,14 @@ impl PrivateBus {
         if address.is_empty() {
             let _ = child.kill();
             let _ = child.wait();
+            let _ = fs::remove_dir_all(&socket_dir);
             return Err(io::Error::other("dbus-daemon printed no address"));
         }
         Ok(PrivateBus {
             child,
             address,
             registry: None,
+            socket_dir,
         })
     }
 
@@ -163,6 +198,7 @@ impl Drop for PrivateBus {
             let _ = child.kill();
             let _ = child.wait();
         }
+        let _ = fs::remove_dir_all(&self.socket_dir);
     }
 }
 

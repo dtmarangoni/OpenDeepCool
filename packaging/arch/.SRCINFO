@@ -1,0 +1,28 @@
+pkgbase = opendeepcool
+	pkgdesc = Drives the DeepCool LP360 cooler display, with a settings app
+	pkgver = 1.0.0alpha.1
+	pkgrel = 1
+	url = https://github.com/dtmarangoni/OpenDeepCool
+	install = opendeepcool.install
+	arch = x86_64
+	license = MIT
+	makedepends = cargo
+	makedepends = git
+	depends = cairo
+	depends = dbus
+	depends = glib2
+	depends = glibc
+	depends = gtk4
+	depends = hicolor-icon-theme
+	depends = hwdata
+	depends = libgcc
+	depends = lm_sensors
+	depends = pango
+	depends = pipewire-audio
+	depends = polkit
+	depends = systemd
+	optdepends = nvidia-utils: GPU readings and GPU kind on NVIDIA cards
+	source = opendeepcool::git+https://github.com/dtmarangoni/OpenDeepCool.git?signed#tag=v1.0.0-alpha.1
+	sha256sums = SKIP
+
+pkgname = opendeepcool

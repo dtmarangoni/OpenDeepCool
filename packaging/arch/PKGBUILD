@@ -1,0 +1,104 @@
+# Maintainer: dtmarangoni <47564279+dtmarangoni@users.noreply.github.com>
+#
+# OpenDeepCool, built from its signed release tag through git, by Arch's package and Rust package
+# guidelines. packaging/FILES.md lists every file it installs. Until the first release's tag
+# (Phase 12) carries the signing key's fingerprint and the source's checksum, a release candidate
+# is built from a temporary copy of this file pointed at the committed HEAD (odc-pkg-test).
+
+pkgname=opendeepcool
+# The release's version without its hyphen, which pacman forbids: v1.0.0-alpha.1 is 1.0.0alpha.1,
+# which vercmp orders before 1.0.0, as it does alpha.2 before alpha.10 and beta.1.
+pkgver=1.0.0alpha.1
+_tag=v1.0.0-alpha.1
+pkgrel=1
+pkgdesc='Drives the DeepCool LP360 cooler display, with a settings app'
+arch=('x86_64')
+url='https://github.com/dtmarangoni/OpenDeepCool'
+license=('MIT')
+# The libraries the programs link, the icon theme whose folders hold the app's icon, and the
+# programs and data they use: pci.ids, sensors-detect, pw-record, pkexec, the bus and systemctl.
+depends=(
+  'cairo'
+  'dbus'
+  'glib2'
+  'glibc'
+  'gtk4'
+  'hicolor-icon-theme'
+  'hwdata'
+  'libgcc'
+  'lm_sensors'
+  'pango'
+  'pipewire-audio'
+  'polkit'
+  'systemd'
+)
+makedepends=('cargo' 'git')
+optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')
+install=opendeepcool.install
+source=("$pkgname::git+$url.git?signed#tag=$_tag")
+# Phase 12: the release key's full fingerprint, and the checksum makepkg computes over the tag.
+validpgpkeys=()
+sha256sums=('SKIP')
+
+prepare() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  cargo fetch --locked --target host-tuple
+}
+
+build() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  # Only the crates whose programs ship: no test crate is built.
+  cargo build --frozen --release \
+    -p odc-app -p odc-service -p odc-audio -p odc-gpu-rank -p odc-sensors-detect -p odc-boot
+}
+
+check() {
+  cd "$pkgname"
+  export RUSTUP_TOOLCHAIN=stable
+  export CARGO_TARGET_DIR=target
+  # The tests that need no cooler, no display and no throwaway root; never --all-features, which
+  # would start the app's weston tests.
+  cargo test --frozen --workspace --exclude odc-e2e --exclude odc-ui-e2e --exclude odc-pkg-test
+}
+
+package() {
+  cd "$pkgname"
+  local _id=io.github.dtmarangoni.OpenDeepCool
+  install -Dm0755 target/release/opendeepcool "$pkgdir/usr/bin/opendeepcool"
+  install -Dm0755 target/release/opendeepcoold "$pkgdir/usr/lib/opendeepcool/opendeepcoold"
+  install -Dm0755 target/release/opendeepcool-audio \
+    "$pkgdir/usr/lib/opendeepcool/opendeepcool-audio"
+  install -Dm0755 target/release/odc-gpu-rank "$pkgdir/usr/lib/opendeepcool/odc-gpu-rank"
+  install -Dm0755 target/release/odc-sensors-detect \
+    "$pkgdir/usr/lib/opendeepcool/odc-sensors-detect"
+  install -Dm0755 target/release/opendeepcool-boot \
+    "$pkgdir/usr/lib/opendeepcool/opendeepcool-boot"
+  install -Dm0644 packaging/systemd/opendeepcool.service \
+    "$pkgdir/usr/lib/systemd/system/opendeepcool.service"
+  install -Dm0644 packaging/systemd/opendeepcool-gpu-rank.service \
+    "$pkgdir/usr/lib/systemd/system/opendeepcool-gpu-rank.service"
+  install -Dm0644 packaging/systemd/opendeepcool-sensors-detect.service \
+    "$pkgdir/usr/lib/systemd/system/opendeepcool-sensors-detect.service"
+  install -Dm0644 packaging/systemd/opendeepcool-sensors-detect-modules.service \
+    "$pkgdir/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service"
+  install -Dm0644 packaging/systemd-user/opendeepcool-audio.service \
+    "$pkgdir/usr/lib/systemd/user/opendeepcool-audio.service"
+  install -Dm0644 packaging/sysusers/opendeepcool.conf \
+    "$pkgdir/usr/lib/sysusers.d/opendeepcool.conf"
+  install -Dm0644 packaging/udev/70-opendeepcool.rules \
+    "$pkgdir/usr/lib/udev/rules.d/70-opendeepcool.rules"
+  install -Dm0644 "packaging/dbus/${_id}1.conf" \
+    "$pkgdir/usr/share/dbus-1/system.d/${_id}1.conf"
+  install -Dm0644 "packaging/polkit/${_id}1.policy" \
+    "$pkgdir/usr/share/polkit-1/actions/${_id}1.policy"
+  install -Dm0644 "packaging/applications/$_id.desktop" \
+    "$pkgdir/usr/share/applications/$_id.desktop"
+  install -Dm0644 "packaging/icons/$_id.svg" \
+    "$pkgdir/usr/share/icons/hicolor/scalable/apps/$_id.svg"
+  install -Dm0644 packaging/arch/hooks/opendeepcool-restart.hook \
+    "$pkgdir/usr/share/libalpm/hooks/opendeepcool-restart.hook"
+  install -Dm0644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}

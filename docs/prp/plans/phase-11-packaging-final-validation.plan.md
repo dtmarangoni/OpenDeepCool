@@ -460,6 +460,36 @@ Three commits: the design, the program with its polkit action, the app.
 **Validation**
 - `cd packaging/arch && makepkg -f && namcap PKGBUILD *.pkg.tar.zst`: builds and reports no errors.
 
+**As built, the package files** (2026-11-11):
+- **Dependencies:** `cairo`, `glib2`, `glibc`, `gtk4`, `libgcc` and `pango` are what the six programs link (`readelf -d`, then `pacman -Qo`). Arch's Rust guidelines now name `libgcc` where this plan said `gcc-libs`. `hicolor-icon-theme` owns the folders the icon goes in, which namcap asked for. `dbus`, `hwdata`, `lm_sensors`, `pipewire-audio`, `polkit` and `systemd` are what the programs run or read. namcap calls those six "may not be needed", since it sees only linked libraries.
+- **Version:** `pkgver=1.0.0alpha.1` and `_tag=v1.0.0-alpha.1` are the template's; Phase 12 sets them, the key's fingerprint and the checksum. Until then `validpgpkeys=()` and `sha256sums=('SKIP')`, so the template builds nothing unsigned. Arch's package guidelines say both that a version "may contain letters, numbers, and periods only" and that a hyphen "must be replaced with an underscore". The plan's form follows the first, and only it orders correctly (`vercmp`, checked again: `1.0.0alpha.1` < `1.0.0` < `1.0.0_alpha.1`). A test checks that `pkgver` is `_tag` without its `v` and hyphen.
+- **`post_upgrade`** is left out, since there's nothing to say yet.
+- **`post_remove`'s lm-sensors step:** it disables `lm_sensors.service` only when the record says the detection created `/etc/conf.d/lm_sensors` and the service wasn't enabled before. `sensors-detect` enables its service only when it writes that file, so an uninstall never disables an lm-sensors setup the user made later (the Recommendation said "unless `lm_sensors_enabled_before`").
+- **The scriptlets' static check** therefore allows one `disable` outside `pre_remove`: `lm_sensors.service`, in `post_remove`'s detection step.
+- **The record is read in POSIX sh:** the exact ten-line layout the detection writes, matched line by line, never evaluated. Anything else leaves lm-sensors' files alone and says so.
+- **The checks** are in two places. As text, in `crates/odc-service/tests/packaging.rs`, which the PKGBUILD's `check()` also runs:
+  - `package()` installs exactly `FILES.md`'s first table;
+  - `build()`'s `-p` list is exactly the crates whose programs ship;
+  - the PKGBUILD's fields, and `.SRCINFO`'s version and dependencies;
+  - the scriptlets;
+  - the hook's order and command;
+  - the 0BSD text.
+- **Through Arch's own tools,** in `crates/odc-e2e/tests/arch_tools.rs`, which `check()` leaves out, since these tools aren't build dependencies:
+  - `.SRCINFO` against `makepkg --printsrcinfo`, which as root (CI's container) runs as `nobody` with its folders in `/tmp`;
+  - shellcheck on the scriptlets, and on the PKGBUILD with makepkg's variables declared and SC2164 left out, since makepkg runs functions with errexit;
+  - namcap on the PKGBUILD;
+  - the workspace's `rust-version` against `pacman -Si rust`.
+
+  CI's test job installs shellcheck and namcap.
+- **The private buses' sockets** moved to a short folder of their own under the temporary folder (`odc_testkit::bus`). The first real build's `check()` failed with dbus-daemon's "Socket name too long": a socket path under makepkg's build folder can pass the 108 bytes of `sun_path`.
+- **Checked:** a build by makepkg from a throwaway clone of the working tree, the PKGBUILD's copy pointed at its commit:
+  - run with `-d`, since this PC's cargo is rustup's, with the 1.99.1 toolchain's own `bin` first on `PATH`, as Arch's `rust` package has no rustup. Task 5 builds with the real dependencies;
+  - `check()`: 620 passed;
+  - namcap on the PKGBUILD: nothing;
+  - namcap on the package: no error. Its warnings were the loader every Rust binary names (`ld-linux-x86-64.so.2` "unused") and the six run-time dependencies above. The shadow-stack warning (`elfnoshstk`) this plan expected didn't appear with namcap 3.6.0;
+  - the files and modes are `FILES.md`'s, all root:root;
+  - makepkg also made `opendeepcool-debug`, from its `debug` option.
+
 ### 5. `odc-pkg-test`: build twice, install and uninstall both ways, in a rootless throwaway root
 
 **Files and integration points**

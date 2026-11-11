@@ -1,0 +1,15 @@
+# Restarts the OpenDeepCool display service after an upgrade if it runs, as openssh's hook does
+# for sshd: systemd's own script runs `systemctl try-restart`, and skips its work in a chroot or
+# when the root isn't booted. pacman runs hooks in the alphabetical order of their file names
+# (alpm-hooks(5)), so this one runs after systemd's numbered hooks and dbus-reload.hook: the new
+# unit, udev rule and D-Bus policy are in place first.
+
+[Trigger]
+Operation = Upgrade
+Type = Package
+Target = opendeepcool
+
+[Action]
+Description = Restart a running opendeepcool.service
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/systemd-hook restart opendeepcool.service

@@ -1,0 +1,124 @@
+# shellcheck shell=sh
+#
+# OpenDeepCool's pacman scriptlets (Phase 11 plan, Task 4). They enable and start nothing: the
+# user turns OpenDeepCool on (Arch Wiki, systemd: Arch "does not enable most services on
+# installation"). systemd's own pacman hooks create the account, and reload systemd, udev and
+# D-Bus after each transaction. No step reaches into users' sessions: the sound helper ends by
+# itself when its program is replaced or removed.
+
+post_install() {
+	cat <<'EOF'
+==> OpenDeepCool is installed. Nothing is turned on yet.
+    Turn it on with "Start at boot" in the OpenDeepCool app, or from a terminal:
+      sudo systemctl enable --now opendeepcool.service
+      sudo systemctl --global enable opendeepcool-audio.service
+      systemctl --user start opendeepcool-audio.service
+    Its first start runs lm-sensors' detection once, on a PC that has no lm-sensors
+    configuration and no fan reading yet.
+EOF
+}
+
+# Whether systemd runs this root: not a chroot, and booted by systemd, the checks systemd's own
+# hook script makes.
+_odc_live() {
+	! systemd-detect-virt --chroot >/dev/null 2>&1 && systemd-notify --booted >/dev/null 2>&1
+}
+
+pre_remove() {
+	# Stopped first, so no process of its account outlives it.
+	if _odc_live; then
+		systemctl stop opendeepcool.service
+	fi
+	# Both work on the files alone, without a running systemd.
+	systemctl --global disable opendeepcool-audio.service
+	systemctl disable opendeepcool.service
+}
+
+# A yes/no line of the detection's record: line $1, key $2, and $3 a comma or nothing. Prints
+# true or false; anything else fails.
+_odc_flag() {
+	case $(sed -n "${1}p" "$_odc_record") in
+	"  \"$2\": true$3") echo true ;;
+	"  \"$2\": false$3") echo false ;;
+	*) return 1 ;;
+	esac
+}
+
+# What the sensor detection created, undone from its record's yes/no facts alone: never a path
+# from it. The record is read only from a root-only folder, as root's own regular file, never
+# through a link, and only in the exact layout the detection writes (solution review OV-01).
+_odc_undo_detection() {
+	_odc_dir=/var/lib/opendeepcool-detect
+	_odc_record=$_odc_dir/sensors-detect.json
+	if [ ! -d "$_odc_dir" ] || [ -L "$_odc_dir" ] || [ ! -e "$_odc_record" ]; then
+		return 0
+	fi
+	if [ "$(stat -c '%u %a' "$_odc_dir")" != "0 700" ] || [ -L "$_odc_record" ] ||
+		[ ! -f "$_odc_record" ] || [ "$(stat -c '%u %h' "$_odc_record")" != "0 1" ] ||
+		[ "$(wc -l <"$_odc_record")" -ne 10 ] ||
+		[ "$(sed -n 1p "$_odc_record")" != "{" ] ||
+		[ "$(sed -n 2p "$_odc_record")" != '  "version": 1,' ] ||
+		[ "$(sed -n 10p "$_odc_record")" != "}" ]; then
+		echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
+			"lm-sensors' files are left as they are" >&2
+		return 0
+	fi
+	for _odc_line in 3:board_vendor 4:board_name 5:board_version 6:date; do
+		case $(sed -n "${_odc_line%%:*}p" "$_odc_record") in
+		"  \"${_odc_line#*:}\": \""*"\",") ;;
+		*)
+			echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
+				"lm-sensors' files are left as they are" >&2
+			return 0
+			;;
+		esac
+	done
+	if ! _odc_conf_d=$(_odc_flag 7 created_conf_d ,) ||
+		! _odc_modprobe_d=$(_odc_flag 8 created_modprobe_d ,) ||
+		! _odc_before=$(_odc_flag 9 lm_sensors_enabled_before ''); then
+		echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
+			"lm-sensors' files are left as they are" >&2
+		return 0
+	fi
+	if [ "$_odc_conf_d" = true ]; then
+		rm -f /etc/conf.d/lm_sensors
+	fi
+	if [ "$_odc_modprobe_d" = true ]; then
+		rm -f /etc/modprobe.d/lm_sensors.conf
+	fi
+	# lm-sensors' detection enables its service when it writes the configuration.
+	if [ "$_odc_conf_d" = true ] && [ "$_odc_before" = false ]; then
+		systemctl disable lm_sensors.service
+	fi
+}
+
+# The CPU's package energy counters back to root alone: the udev rule gave them to the group
+# with chgrp and chmod, which a udev reload can't undo. Never in a chroot, whose /sys is the
+# host's.
+_odc_power_counters() {
+	if systemd-detect-virt --chroot >/dev/null 2>&1; then
+		return 0
+	fi
+	for _odc_zone in /sys/class/powercap/intel-rapl:*; do
+		case $(cat "$_odc_zone/name" 2>/dev/null) in
+		package-*)
+			chgrp root "$_odc_zone/energy_uj"
+			chmod g-r "$_odc_zone/energy_uj"
+			;;
+		esac
+	done
+}
+
+post_remove() {
+	# Files first, then the account, so nothing is left owned by a number a later account could
+	# be given.
+	_odc_undo_detection
+	_odc_power_counters
+	rm -rf /var/lib/opendeepcool-detect /var/lib/opendeepcool
+	if getent passwd opendeepcool >/dev/null; then
+		userdel opendeepcool
+	fi
+	if getent group opendeepcool >/dev/null; then
+		groupdel opendeepcool
+	fi
+}

@@ -1,9 +1,13 @@
 //! The service's packaging (Phase 7 plan, Task 8): the unit's supervision, ordering, account and
 //! sandbox; systemd's own check of the unit; the polkit actions, each for the active local
 //! session only and owned by the service's account; and the D-Bus policy, scoped to the service.
+//! And the Arch package's own files (Phase 11 plan, Task 4), read as text: `package()` installs
+//! exactly `FILES.md`, `build()` builds exactly the crates whose programs ship, the scriptlets
+//! enable and start nothing, and the restart hook runs after systemd's and D-Bus's.
 //! pacman brings `systemd-analyze` (systemd) and `xmllint` (libarchive's libxml2), so every Arch
 //! system has both, CI's container included.
 
+use std::collections::BTreeSet;
 use std::fs;
 use std::os::unix::fs::PermissionsExt;
 use std::path::{Path, PathBuf};
@@ -297,9 +301,9 @@ fn the_dbus_policy_is_scoped_to_the_service() {
     assert!(group.contains(&format!("send_path=\"{DEV_PATH}\"")));
 }
 
-/// `packaging/FILES.md`'s first table, "Installed by the package": each row's path, kind and
-/// source, without the backticks.
-fn installed() -> Vec<(String, String, String)> {
+/// `packaging/FILES.md`'s first table, "Installed by the package": each row's path, kind, mode
+/// and source, without the backticks.
+fn installed() -> Vec<(String, String, String, String)> {
     let text = fs::read_to_string(packaging("FILES.md")).expect("packaging/FILES.md");
     let table = text
         .split("## Installed by the package")
@@ -313,8 +317,28 @@ fn installed() -> Vec<(String, String, String)> {
         .map(|line| {
             let cells: Vec<&str> = line.trim_matches('|').split('|').collect();
             assert_eq!(cells.len(), 5, "{line}");
-            (bare(cells[0]), bare(cells[1]), bare(cells[4]))
+            (
+                bare(cells[0]),
+                bare(cells[1]),
+                bare(cells[3]),
+                bare(cells[4]),
+            )
         })
+        .collect()
+}
+
+/// `FILES.md`'s "The PKGBUILD's own files": the files that build the package, never installed.
+fn pkgbuild_files() -> Vec<String> {
+    let text = fs::read_to_string(packaging("FILES.md")).expect("packaging/FILES.md");
+    let table = text
+        .split("## The PKGBUILD's own files")
+        .nth(1)
+        .and_then(|rest| rest.split("\n## ").next())
+        .expect("the section \"The PKGBUILD's own files\"");
+    table
+        .lines()
+        .filter(|line| line.starts_with("| `"))
+        .filter_map(|line| line.split('`').nth(1).map(str::to_owned))
         .collect()
 }
 
@@ -340,7 +364,7 @@ fn files_md_lists_what_the_package_installs() {
     let rows = installed();
     assert!(!rows.is_empty(), "no rows");
     let mut sources = Vec::new();
-    for (path, kind, from) in &rows {
+    for (path, kind, _, from) in &rows {
         assert!(
             path.starts_with("/usr/"),
             "{path}: only /usr, never /etc or /usr/local"
@@ -363,18 +387,23 @@ fn files_md_lists_what_the_package_installs() {
             other => panic!("{path}: unknown kind {other:?}"),
         }
     }
+    let own = pkgbuild_files();
+    assert_eq!(own.len(), 4, "{own:?}");
+    for file in &own {
+        assert!(root.join(file).is_file(), "{file} doesn't exist");
+    }
     let mut packaged = Vec::new();
     files_under(&root.join("packaging"), &root, &mut packaged);
     for file in packaged.iter().filter(|f| *f != "packaging/FILES.md") {
         assert!(
-            sources.contains(file),
+            sources.contains(file) || own.contains(file),
             "{file} is in packaging/ but not in FILES.md"
         );
     }
     let programs: Vec<&str> = rows
         .iter()
-        .filter(|(_, kind, _)| kind == "program")
-        .map(|(path, _, _)| path.as_str())
+        .filter(|(_, kind, _, _)| kind == "program")
+        .map(|(path, _, _, _)| path.as_str())
         .collect();
     for unit in [
         "systemd/opendeepcool.service",
@@ -402,4 +431,392 @@ fn systemds_score_for_the_sandbox_stays_safe() {
         &scratch,
     );
     assert!(level <= 0.4, "exposure {level}");
+}
+
+/// The PKGBUILD, or another file of the Arch package's.
+fn arch(name: &str) -> String {
+    fs::read_to_string(packaging(&format!("arch/{name}"))).unwrap_or_else(|e| panic!("{name}: {e}"))
+}
+
+/// The body of shell function `name` in `text`: its lines after `name() {`, up to the `}` that
+/// closes it at a line's start.
+fn function<'a>(text: &'a str, name: &str) -> Vec<&'a str> {
+    let start = format!("{name}() {{");
+    let mut lines = text.lines().skip_while(|line| *line != start);
+    assert!(lines.next().is_some(), "no {name}()");
+    lines.take_while(|line| *line != "}").collect()
+}
+
+/// The commands of `body`: lines joined at a trailing backslash, comments and blank lines left
+/// out.
+fn commands(body: &[&str]) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut current = String::new();
+    for line in body {
+        let line = line.trim();
+        if line.is_empty() || line.starts_with('#') {
+            continue;
+        }
+        match line.strip_suffix('\\') {
+            Some(start) => {
+                current.push_str(start.trim_end());
+                current.push(' ');
+            }
+            None => {
+                current.push_str(line);
+                out.push(std::mem::take(&mut current));
+            }
+        }
+    }
+    out
+}
+
+/// A PKGBUILD variable's value, as `name=value` gives it at a line's start, unquoted.
+fn variable(text: &str, name: &str) -> String {
+    let prefix = format!("{name}=");
+    let value = text
+        .lines()
+        .find_map(|line| line.strip_prefix(prefix.as_str()))
+        .unwrap_or_else(|| panic!("no {name}="));
+    value.trim_matches(|c| c == '\'' || c == '"').to_owned()
+}
+
+/// What `package()` installs: each `install -Dm<mode> <from> <to>` as (to, mode, from), with
+/// `$pkgdir` left out and its own variables written out; anything else in it fails.
+fn package_installs() -> BTreeSet<(String, String, String)> {
+    let text = arch("PKGBUILD");
+    let pkgname = variable(&text, "pkgname");
+    let body = commands(&function(&text, "package"));
+    let id = body
+        .iter()
+        .find_map(|command| command.strip_prefix("local _id="))
+        .expect("package()'s _id")
+        .to_owned();
+    let expand = |word: &str| {
+        word.trim_matches('"')
+            .replace("${_id}", &id)
+            .replace("$_id", &id)
+            .replace("$pkgname", &pkgname)
+            .replace("$pkgdir", "")
+    };
+    let mut installs = BTreeSet::new();
+    for command in &body {
+        if command == "cd \"$pkgname\"" || command.starts_with("local _id=") {
+            continue;
+        }
+        let words: Vec<&str> = command.split_whitespace().collect();
+        match words.as_slice() {
+            ["install", mode, from, to] if mode.starts_with("-Dm") => {
+                let mode = mode.trim_start_matches("-Dm").to_owned();
+                assert!(
+                    installs.insert((expand(to), mode, expand(from))),
+                    "{command}: installed twice"
+                );
+            }
+            _ => panic!("package() runs {command:?}: only `install -Dm` is expected"),
+        }
+    }
+    installs
+}
+
+/// `package()` installs exactly `FILES.md`'s first table, each file with its mode, from its
+/// source; and nothing that enables a unit.
+#[test]
+fn package_installs_exactly_files_md() {
+    let want: BTreeSet<(String, String, String)> = installed()
+        .into_iter()
+        .filter(|(_, kind, _, _)| kind != "folder")
+        .map(|(path, _, mode, from)| (path, mode, from))
+        .collect();
+    let got = package_installs();
+    assert_eq!(got, want);
+    for (to, _, _) in &got {
+        assert!(
+            !to.contains(".wants/") && !to.contains(".requires/") && !to.starts_with("/etc/"),
+            "{to}: the package enables nothing and ships nothing in /etc"
+        );
+    }
+}
+
+/// The workspace crates whose programs are `names`, by each crate's `[[bin]]` names (or its own
+/// name, for a `src/main.rs` with none).
+fn crates_of(names: &BTreeSet<String>) -> BTreeSet<String> {
+    let crates = packaging("../crates");
+    let mut found = BTreeSet::new();
+    for entry in fs::read_dir(&crates).expect("crates/") {
+        let dir = entry.expect("an entry").path();
+        let Ok(text) = fs::read_to_string(dir.join("Cargo.toml")) else {
+            continue;
+        };
+        let manifest: toml::Table = text.parse().expect("a Cargo.toml");
+        let package = manifest
+            .get("package")
+            .and_then(|p| p.get("name"))
+            .and_then(toml::Value::as_str)
+            .expect("a package name")
+            .to_owned();
+        let mut bins: Vec<String> = manifest
+            .get("bin")
+            .and_then(toml::Value::as_array)
+            .map(|bins| {
+                bins.iter()
+                    .filter_map(|bin| bin.get("name").and_then(toml::Value::as_str))
+                    .map(str::to_owned)
+                    .collect()
+            })
+            .unwrap_or_default();
+        if bins.is_empty() && dir.join("src/main.rs").is_file() {
+            bins.push(package.clone());
+        }
+        if bins.iter().any(|bin| names.contains(bin)) {
+            found.insert(package);
+        }
+    }
+    found
+}
+
+/// `build()` builds exactly the crates whose programs `package()` installs, so no test crate is
+/// built on a user's PC; the functions follow Arch's Rust package guidelines, without
+/// `--all-features`, which would start the app's weston tests.
+#[test]
+fn build_names_exactly_the_crates_whose_programs_ship() {
+    let text = arch("PKGBUILD");
+    let programs: BTreeSet<String> = installed()
+        .into_iter()
+        .filter(|(_, kind, _, _)| kind == "program")
+        .map(|(path, _, _, _)| path.rsplit('/').next().expect("a name").to_owned())
+        .collect();
+    let build = commands(&function(&text, "build"));
+    let cargo = build
+        .iter()
+        .find(|command| command.starts_with("cargo build "))
+        .expect("build()'s cargo build");
+    assert!(
+        cargo.starts_with("cargo build --frozen --release -p "),
+        "{cargo}"
+    );
+    let words: Vec<&str> = cargo.split_whitespace().collect();
+    let built: BTreeSet<String> = words
+        .windows(2)
+        .filter(|pair| pair[0] == "-p")
+        .map(|pair| pair[1].to_owned())
+        .collect();
+    assert_eq!(built.len(), words.iter().filter(|w| **w == "-p").count());
+    assert_eq!(built, crates_of(&programs));
+    assert_eq!(built.len(), 6, "{built:?}");
+
+    let prepare = commands(&function(&text, "prepare"));
+    assert!(prepare.contains(&"cargo fetch --locked --target host-tuple".to_owned()));
+    let check = commands(&function(&text, "check"));
+    assert!(
+        check.contains(
+            &"cargo test --frozen --workspace --exclude odc-e2e --exclude odc-ui-e2e --exclude \
+          odc-pkg-test"
+                .to_owned()
+        )
+    );
+    for (name, body) in [("prepare", &prepare), ("build", &build), ("check", &check)] {
+        assert!(
+            body.contains(&"export RUSTUP_TOOLCHAIN=stable".to_owned()),
+            "{name}()"
+        );
+        assert!(
+            body.iter().all(|c| !c.contains("--all-features")),
+            "{name}()"
+        );
+    }
+    for (name, body) in [("build", &build), ("check", &check)] {
+        assert!(
+            body.contains(&"export CARGO_TARGET_DIR=target".to_owned()),
+            "{name}()"
+        );
+    }
+}
+
+/// The PKGBUILD's fields: the release's signed tag through git, its version that tag's without
+/// the hyphen, no `pkgver()` (a release candidate is built from a temporary copy), and the
+/// scriptlets' file; `.SRCINFO` holds the same version and dependencies.
+#[test]
+fn the_pkgbuild_builds_the_signed_tag() {
+    let text = arch("PKGBUILD");
+    assert_eq!(variable(&text, "pkgname"), "opendeepcool");
+    assert_eq!(variable(&text, "arch"), "('x86_64')");
+    assert_eq!(variable(&text, "license"), "('MIT')");
+    assert_eq!(variable(&text, "install"), "opendeepcool.install");
+    assert_eq!(variable(&text, "makedepends"), "('cargo' 'git')");
+    assert!(!text.contains("pkgver()"), "no pkgver()");
+    assert_eq!(
+        variable(&text, "source"),
+        "(\"$pkgname::git+$url.git?signed#tag=$_tag\")"
+    );
+    let pkgver = variable(&text, "pkgver");
+    let tag = variable(&text, "_tag");
+    assert_eq!(
+        tag.strip_prefix('v').map(|t| t.replace('-', "")),
+        Some(pkgver.clone()),
+        "pkgver is the tag without its v and its hyphen"
+    );
+    assert!(
+        pkgver
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '.'),
+        "letters, numbers and periods only (Arch package guidelines)"
+    );
+    let srcinfo = arch(".SRCINFO");
+    assert!(srcinfo.contains(&format!("\tpkgver = {pkgver}\n")));
+    let depends: Vec<String> = text
+        .split("depends=(\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\n)").next())
+        .expect("depends=( … )")
+        .lines()
+        .map(|line| line.trim().trim_matches('\'').to_owned())
+        .collect();
+    let listed: Vec<String> = srcinfo
+        .lines()
+        .filter_map(|line| line.strip_prefix("\tdepends = "))
+        .map(str::to_owned)
+        .collect();
+    assert_eq!(listed, depends);
+}
+
+/// The scriptlets enable, start, restart and reload nothing. OpenDeepCool's units are stopped
+/// and disabled only in `pre_remove`; `post_remove` may disable only `lm_sensors.service`, when
+/// the detection's record says the detection set it up.
+#[test]
+fn the_scriptlets_enable_and_start_nothing() {
+    let text = arch("opendeepcool.install");
+    // The install message prints its commands as text, between `cat <<'EOF'` and `EOF`.
+    let mut message = false;
+    let run: Vec<&str> = text
+        .lines()
+        .filter(|line| {
+            let inside = message;
+            if line.trim_start().starts_with("cat <<'EOF'") {
+                message = true;
+            } else if *line == "EOF" {
+                message = false;
+            }
+            !inside
+        })
+        .collect();
+    for word in [
+        "enable", "start", "restart", "reload", "--now", "preset", "link", "mask",
+    ] {
+        for line in run
+            .iter()
+            .filter(|l| l.trim_start().starts_with("systemctl"))
+        {
+            assert!(
+                !line.split_whitespace().any(|w| w == word),
+                "{line}: the scriptlets never {word}"
+            );
+        }
+    }
+    let code = run.join("\n");
+    let systemctl = |name: &str| -> Vec<String> {
+        function(&code, name)
+            .iter()
+            .map(|line| line.trim())
+            .filter(|line| line.starts_with("systemctl"))
+            .map(str::to_owned)
+            .collect()
+    };
+    assert_eq!(
+        systemctl("pre_remove"),
+        [
+            "systemctl stop opendeepcool.service",
+            "systemctl --global disable opendeepcool-audio.service",
+            "systemctl disable opendeepcool.service",
+        ]
+    );
+    assert_eq!(
+        systemctl("_odc_undo_detection"),
+        ["systemctl disable lm_sensors.service"]
+    );
+    for name in ["post_install", "post_remove", "_odc_power_counters"] {
+        assert!(systemctl(name).is_empty(), "{name}()");
+    }
+    let message: String = function(&text, "post_install").join("\n");
+    for command in [
+        "sudo systemctl enable --now opendeepcool.service",
+        "sudo systemctl --global enable opendeepcool-audio.service",
+        "systemctl --user start opendeepcool-audio.service",
+    ] {
+        assert!(
+            message.contains(command),
+            "the install message prints {command}"
+        );
+    }
+}
+
+/// The restart hook: after an upgrade of this package, systemd's own script restarts the service
+/// if it runs; its file name sorts after systemd's numbered hooks and `dbus-reload.hook`, and,
+/// on an Arch system, after every systemd and D-Bus hook installed (alpm-hooks(5): hooks run in
+/// the alphabetical order of their file names).
+#[test]
+fn the_restart_hook_runs_after_systemds_and_dbus_s() {
+    let hooks: Vec<String> = fs::read_dir(packaging("arch/hooks"))
+        .expect("packaging/arch/hooks")
+        .map(|entry| {
+            entry
+                .expect("an entry")
+                .file_name()
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    assert_eq!(hooks, ["opendeepcool-restart.hook"]);
+    let name = hooks[0].as_str();
+    let text = arch(&format!("hooks/{name}"));
+    let lines: Vec<&str> = text
+        .lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    assert_eq!(
+        lines,
+        [
+            "[Trigger]",
+            "Operation = Upgrade",
+            "Type = Package",
+            "Target = opendeepcool",
+            "[Action]",
+            "Description = Restart a running opendeepcool.service",
+            "When = PostTransaction",
+            "Exec = /usr/share/libalpm/scripts/systemd-hook restart opendeepcool.service",
+        ]
+    );
+    // systemd's hooks are numbered; D-Bus's is `dbus-reload.hook`.
+    for before in ["99-", "dbus-reload.hook"] {
+        assert!(name > before, "{name} runs before {before}…");
+    }
+    if let Ok(hooks) = fs::read_dir("/usr/share/libalpm/hooks") {
+        for hook in hooks.flatten() {
+            let other = hook.file_name().to_string_lossy().into_owned();
+            if other.contains("systemd") || other.contains("dbus") {
+                assert!(name > other.as_str(), "{other} runs after {name}");
+            }
+        }
+    }
+}
+
+/// The package sources' own license is the 0BSD text Arch publishes for them, word for word
+/// (Arch package guidelines, Package sources licenses; AUR submission guidelines).
+#[test]
+fn the_package_sources_license_is_arch_s_0bsd() {
+    assert_eq!(
+        arch("LICENSE"),
+        "Copyright Arch Linux Contributors\n\
+         \n\
+         Permission to use, copy, modify, and/or distribute this software for\n\
+         any purpose with or without fee is hereby granted.\n\
+         \n\
+         THE SOFTWARE IS PROVIDED “AS IS” AND THE AUTHOR DISCLAIMS ALL\n\
+         WARRANTIES WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES\n\
+         OF MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE\n\
+         FOR ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY\n\
+         DAMAGES WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN\n\
+         AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT\n\
+         OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.\n"
+    );
 }
