@@ -506,6 +506,11 @@ Three commits: the design, the program with its polkit action, the app.
   - users' home folders, which Arch's package guidelines keep packages out of; OpenDeepCool's programs write nothing there. What a user makes there is their own, and WirePlumber's remembered volume is keyed by `pw-record`, which every `pw-record` capture shares (read on the development PC);
   - `/usr/local`, where an administrator installs software, such as the development copy.
 - **The development copy** keeps its `/etc` files under the same names, so the uninstall would remove them if both were installed. Task 7's teardown before the install keeps them apart, and the dev teardown reports a missing file as "already gone".
+- **Why it can't remove anything else** (the owner asked, 2026-11-11):
+  - every path is written out in the scriptlet under OpenDeepCool's names, with no wildcard and nothing read from a file or a user;
+  - `rm -rf` removes a symbolic link, never what it points to, nor anything a link inside a removed folder points to (checked in a scratch folder);
+  - every folder it touches is root's, mode 0755 (read on the development PC), so only root can put a file or a link there;
+  - pacman runs `pre_remove` only when the package is removed, never on an upgrade (libalpm `remove.c`: an upgrade calls `_alpm_remove_single_package` with the new package, which skips both removal scripts). Another package that replaces this one, through `conflicts` or `replaces`, does remove it with its scripts; none exists.
 - **Test:** `the_removal_undoes_every_change_under_opendeepcools_names` runs the real `pre_remove` in bash, with `rm`, `systemctl` and systemd's two checks replaced by shell functions and nothing on `PATH`. For a live system, a chroot and an unbooted root, it compares the removed paths with the list derived from `FILES.md`'s first table, and the `systemctl` calls in order. A new kind of packaged file fails until its override folders are decided.
 
 **As built, the sound helper's ending** (2026-11-11, its own commit):
@@ -598,6 +603,7 @@ Three commits: the design, the program with its polkit action, the app.
 - `tools/dev/` (`odc-dev`'s `setup` and `install-root`): UPDATE, a `--test-access` mode (owner, 2026-10-27).
   - It adds the owner's account to the package's group and installs the reconnect rule (`71-opendeepcool-dev-reconnect.rules`).
   - It records only those two entries, in a new dev manifest. There's no group entry, because the group belongs to the package, so `odc-dev teardown` never deletes it.
+  - The full `setup` refuses while the package is installed (`pacman -Q opendeepcool` succeeds), changes nothing, and says to remove the package first with `sudo pacman -R opendeepcool` (owner, 2026-11-11). The dev copy's files in `/etc` carry the package's names, so they would override the package's files, and the package's uninstall would delete them. `--test-access` is meant for the installed package and runs as before. A test covers both.
 
 **Implementation** (the owner approves each privileged step, rule 7)
 1. Build the package from the release candidate (the temporary PKGBUILD pinned to the committed HEAD, Task 4).
