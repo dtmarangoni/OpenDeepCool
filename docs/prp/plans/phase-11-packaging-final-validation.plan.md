@@ -21,9 +21,10 @@
 
 **User outcome:**
 - **Installing:** `yay -S opendeepcool` (or any AUR helper), or `git clone` plus `makepkg -si`, installs OpenDeepCool. Like every Arch package, it turns nothing on by itself (Arch Wiki, systemd: Arch "does not enable most services on installation").
-- **Turning it on, once:** the settings app's **Start at boot** switch, which asks for the administrator's password, or two commands the install message prints:
+- **Turning it on, once:** the settings app's **Start at boot** switch, which asks for the administrator's password, or the commands the install message prints:
   - `sudo systemctl enable --now opendeepcool.service`, the display service, now and at every boot;
-  - `sudo systemctl --global enable opendeepcool-audio.service`, the sound helper for the Music modes, at every user's login.
+  - `sudo systemctl --global enable opendeepcool-audio.service`, the sound helper for the Music modes, at every user's login;
+  - `systemctl --user start opendeepcool-audio.service`, no `sudo`, the sound helper in the session that's open now, so Music has sound before the next login (owner, 2026-11-11).
 
   From then on the cooler shows the saved mode from boot, until someone turns it off with the switch or `systemctl disable`.
 - **Uninstalling:** `pacman -R opendeepcool` removes everything OpenDeepCool installed or created: files, the account and group, enable links, udev access, the CPU power counters' group, saved settings, and an lm-sensors configuration that OpenDeepCool's detection created.
@@ -42,7 +43,7 @@
 **Approach:**
 - **The package:** one PKGBUILD in `packaging/arch/`, an `.install` file, and one pacman hook:
   - systemd's own pacman hooks create the account and reload systemd, udev and D-Bus;
-  - the package ships no enable links and starts nothing; the install message prints the two commands;
+  - the package ships no enable links and starts nothing; the install message prints the three commands;
   - on upgrade, one hook restarts a running service with Arch's own `systemd-hook restart`, as openssh does;
   - `pre_remove` stops and disables what the user turned on; `post_remove` deletes what the detection's root-only record says it created, resets the CPU power counters, then the state directories and the account.
 - **The switch:** a small Rust root program, `opendeepcool-boot`, run through `pkexec` under its own polkit action, which asks for the administrator's password at every change. It takes only `on` or `off`.
@@ -99,7 +100,7 @@ All of them are `When = PostTransaction`. Because nothing starts at install, the
 - **No pacman step reaches into users' sessions** (owner, 2026-11-10). The sound helper moves to its new program by itself instead: when its program file is replaced or removed, it exits with a failure, and its unit's `Restart=on-failure` starts the new one after an upgrade, while after an uninstall there's no unit left to start (Task 4). This was the owner's fallback of 2026-10-27 (solution review P11-05, P11-20); it's now the design.
 
 **The `.install` file keeps only what is specific to this package,** minimal as the Arch dev blog advises ("On scripts and hooks", 2026: "it is probably advisable to minimize the custom code in the scripts as much as possible"):
-- **`post_install`:** prints the two commands, that the app's switch does the same, and that the first start runs the sensor detection when the PC has no lm-sensors configuration yet. It enables and starts nothing.
+- **`post_install`:** prints the three commands (the third, `systemctl --user start opendeepcool-audio.service`, starts the session's sound at once; owner, 2026-11-11), that the app's switch does the same, and that the first start runs the sensor detection when the PC has no lm-sensors configuration yet. It enables and starts nothing.
 - **`post_upgrade`:** a message only when there's something to say. Upgrades never delete the account or the settings. A later version that renames or removes a unit or a polkit action cleans up the old one here, and the upgrade test covers that path (solution review P11-05).
 - **`pre_remove`** (AGENTS.md rule 7: uninstalling removes the enabled units too):
   - `systemctl --global disable opendeepcool-audio.service` and `systemctl disable opendeepcool.service`, which work on the files without a running systemd (spike, 2026-10-25);
@@ -124,10 +125,10 @@ All of them are `When = PostTransaction`. Because nothing starts at install, the
   - `systemctl` by its full path, `/usr/bin/systemctl`, with an emptied environment; no path, unit name or option ever comes from its caller.
 - **The polkit action** `io.github.dtmarangoni.OpenDeepCool1.start-at-boot`, in the package's policy file: `allow_any` and `allow_inactive` `no`, `allow_active` `auth_admin`, the administrator's password at every change, stricter than systemd's own `auth_admin_keep` for its unit actions (read on this PC); `org.freedesktop.policykit.exec.path` names the program, so `pkexec` runs nothing else under it.
 - **The app:**
-  - it reads the switch's state from systemd over D-Bus (`GetUnitFileState`), which needs no password, so a change made in a terminal shows too;
-  - a flip runs `pkexec /usr/lib/opendeepcool/opendeepcool-boot on|off`, then starts or stops the sound helper in the user's own session through the user's service manager, which needs no password;
-  - with no polkit agent in the session, or a refused password, the switch goes back and the app shows the two commands;
-  - the service-not-running banner shows `sudo systemctl enable --now opendeepcool.service` in place of today's `start`.
+  - it reads the switch's state from systemd over D-Bus, which needs no password, so a change made in a terminal shows too: each unit's enablement (`GetUnitFileState`, the system manager's for the service and the user's own for the sound helper, which reports a `--global` link as `enabled`) and whether it runs (its `ActiveState`). The switch is on only when both units are enabled and both run, the sound helper in this session; otherwise it's off, with a note saying what's missing, and a flip on finishes the setup and starts what isn't running (owner, 2026-11-11: the switch shows whether OpenDeepCool is ready to use, and there's no separate start button). The one-shot helpers the service pulls in (`Wants=`) don't count, since they run and exit;
+  - a flip runs `pkexec --disable-internal-agent /usr/lib/opendeepcool/opendeepcool-boot on|off`, then starts or stops the sound helper in the user's own session through the user's service manager, which needs no password. When the only part missing is the sound helper in this session, a flip on just starts it, with no `pkexec` and no password, since nothing changes for the whole PC (owner, 2026-11-11). The option makes a missing polkit agent fail at once, instead of `pkexec` asking in a terminal where nobody looks (pkexec(1); owner, 2026-11-11);
+  - with no polkit agent in the session, a refused password, a closed dialog or a failed step, the switch goes back and the app shows the commands for that direction: to turn on, the two `sudo` commands and `systemctl --user start opendeepcool-audio.service` for this session's sound; to turn off, `sudo systemctl disable --now opendeepcool.service` and `sudo systemctl --global disable opendeepcool-audio.service` (owner, 2026-11-11);
+  - while the service isn't running, the window shows the off screen (headed "OpenDeepCool is off" or "OpenDeepCool isn't running") with the switch and the terminal commands, `sudo systemctl enable --now opendeepcool.service` first; it replaces Phase 10's red service-not-running banner, since the switch itself can now start a stopped service (design D10, 2026-11-11).
 - **Its look** comes from the `ui-ux-designer` agent first, then the design document and the mockups, then the code (CLAUDE.md; owner, 2026-11-06: UI details delegated).
 
 **The throwaway system is rootless, so the test stays unattended.**
@@ -235,7 +236,7 @@ flowchart LR
 | `odc-dev` (`tools/dev/`) and `odc-manifest` (Phase 5 Task 8) | The dev copy the teardown removes before the package, and the test access Task 7 adds back |
 | `packaging/` (Phases 5–10) | Every file the package ships: unit files, sysusers, udev, D-Bus and polkit policy, user unit, desktop entry, icon |
 | Phase 6 plan Tasks 6–7 | What the detection unit creates and records |
-| `docs/design/settings-app.md` and `crates/odc-app/` | Where the switch goes, and the banner's command |
+| `docs/design/settings-app.md` and `crates/odc-app/` | Where the switch goes, and the off screen that replaces the service-not-running banner |
 | Arch Wiki and developer manual: Arch package guidelines, Security and Rust package guidelines, AUR submission guidelines, PKGBUILD, `.install` scriptlets | The packaging rules the package follows |
 
 ### Existing patterns and primitives
@@ -252,7 +253,7 @@ flowchart LR
 - `packaging/systemd/*.service`, `packaging/systemd-user/opendeepcool-audio.service`: UPDATE, the paths, the hardening, NVIDIA device access.
 - `packaging/polkit/`: UPDATE, the `start-at-boot` action.
 - `crates/odc-boot/`: CREATE, the switch's root program.
-- `crates/odc-app/`, `crates/odc-ui-e2e/`, `docs/design/`: UPDATE, the switch and the banner's command.
+- `crates/odc-app/`, `crates/odc-ui-e2e/`, `docs/design/`: UPDATE, the switch and the off screen.
 - `crates/odc-audio/`: UPDATE, it exits when its program file is replaced or removed.
 - `Cargo.toml`: UPDATE, `overflow-checks` in the release profile.
 - `tools/dev/` (`odc-dev`'s `setup` and `install-root`): UPDATE, the `--test-access` mode (Task 7).
@@ -368,10 +369,10 @@ The owner asked for "the most secure possible" (2026-11-10). One commit per unit
 Three commits: the design, the program with its polkit action, the app.
 
 **Files and integration points**
-- `docs/design/settings-app.md`, `tools/mockups/src/lib.rs`, `docs/design/mockups/`: UPDATE, from the `ui-ux-designer` agent's design (CLAUDE.md): where the switch sits, its states (off, on, changing, refused, no polkit agent), and the service-not-running banner, whose command becomes `sudo systemctl enable --now opendeepcool.service`.
+- `docs/design/settings-app.md`, `tools/mockups/src/lib.rs`, `docs/design/mockups/`: UPDATE, from the `ui-ux-designer` agent's design (CLAUDE.md): where the switch sits, its states (off, on, changing, refused, no polkit agent), and the service-not-running banner, whose command becomes `sudo systemctl enable --now opendeepcool.service`. As designed (2026-11-11): the switch is the last card of Configuration, **Startup**, and while the service isn't running it sits on the off screen, which replaces the banner (D9–D11); 22 mockups.
 - `crates/odc-boot/` (binary `opendeepcool-boot`): CREATE, `std` only, `#![forbid(unsafe_code)]` (Recommendation).
 - `packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy`: UPDATE, the `start-at-boot` action.
-- `crates/odc-app/`: UPDATE, the switch, the state read from systemd, the flip through `pkexec`, the helper in the user's session, the banner's command.
+- `crates/odc-app/`: UPDATE, the switch, the state read from systemd, the flip through `pkexec`, the helper in the user's session, the off screen in place of the service-not-running banner.
 - `crates/odc-ui-e2e/`, `crates/odc-testkit/` (the fake service and private buses): UPDATE, a fake systemd on the private system bus and a fake program in place of `pkexec`, chosen by a test-only app flag (flags, never environment variables; owner, 2026-10-24).
 - `docs/prp/solution-reviews/project-overview.review.md`, the entry-points table: UPDATE, the new entry point and what it refuses (AGENTS.md rule 5).
 
@@ -384,7 +385,7 @@ Three commits: the design, the program with its polkit action, the app.
 **Tests**
 - The program's refusals, each one; the commands it would run for `on` and `off`, through a fake `systemctl` (a Rust test program, rule 13).
 - The policy file: the action, its `exec.path` annotation equal to the installed path, `allow_active` `auth_admin`, `allow_any` and `allow_inactive` `no`; the other three actions unchanged.
-- The app, through AT-SPI in the headless weston (Phase 10): the switch shows the fake systemd's state; a flip runs the fake `pkexec` with exactly the program's path and `on` or `off`; a refusal sets the switch back and shows the commands; the banner shows `enable --now`.
+- The app, through AT-SPI in the headless weston (Phase 10): the switch shows the fake systemd's state; a flip runs the fake `pkexec` with exactly the program's path and `on` or `off`; a refusal sets the switch back and shows the commands; the off screen shows `enable --now` first; a state with only the session's sound helper missing flips without the fake `pkexec`.
 
 **Validation**
 - `cargo test -p odc-boot`, `cargo test -p odc-app --features weston-tests`, `cargo run -p odc-e2e -- --only app --require weston` pass; `cargo run -p odc-mockups -- docs/design/mockups` changes nothing after the design commit.
@@ -496,7 +497,7 @@ Three commits: the design, the program with its polkit action, the app.
 - `README.md`:
   - Install: from GitHub (`git clone …; cd OpenDeepCool/packaging/arch; makepkg -si`), and from the AUR (`yay -S opendeepcool` or any helper) once `v1.0.0` is published (Phase 12);
   - importing the signing key once, from Phase 12;
-  - **Turning it on:** the app's Start at boot switch, or the two commands; turning it off the same ways;
+  - **Turning it on:** the app's Start at boot switch, or the three commands; turning it off the same ways;
   - Uninstall: `sudo pacman -R opendeepcool`;
   - "Installed on your system", the section AGENTS.md rule 7 names, today headed "What it will install": every path of `FILES.md`, checked by a Rust test, like the oracle's and the mockups' checks (rule 13), so it can't drift;
   - that, on a PC with no lm-sensors configuration and no fan reading yet, the first start runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02);
@@ -628,7 +629,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 | Decision or risk | Recommendation | Evidence / mitigation | Consequence if different |
 |---|---|---|---|
 | AUR plus GitHub clone, tested in a container; no boot tests (owner, 2026-10-25) | Done: the PRD records them | Decisions Log | — |
-| Nothing on at install; the user turns it on with the switch or two commands (owner, 2026-11-10) | Done: Arch's convention, and `systemctl` reports the truth | Arch Wiki, systemd; `99-default.preset` | A user who misses the message sees the app's banner with the command and the switch |
+| Nothing on at install; the user turns it on with the switch or the install message's commands (owner, 2026-11-10) | Done: Arch's convention, and `systemctl` reports the truth | Arch Wiki, systemd; `99-default.preset` | A user who misses the message sees the app's banner with the command and the switch |
 | A root program of our own for the switch | `std` only, no unsafe, two fixed actions, `pkexec` with `exec.path`, `auth_admin` at every change, refusal tests, an entry in the entry-points table | Phase 6's `odc-sensors-detect` pattern; systemd's own actions use `auth_admin_keep` | A bug there runs as root: the smallest program that can do the job, and nothing from its caller but one word |
 | The sound helper follows its program file instead of being restarted by pacman | It exits on replacement or removal; `Restart=on-failure` brings the new one (owner, 2026-11-10; the 2026-10-27 fallback) | Phase 9's helper waits for events; inotify checked first in Task 4 | An old helper would run until the next login, possibly against a newer service |
 | Hardening may refuse something a program does (NVML above all) | Each option checked against the program's job; `SystemCallErrorNumber=EPERM` so a refused call fails instead of killing; each option left open has its reason | Security package guidelines; systemd.exec(5); P6-06 | NVIDIA readings could fail with a named cause until fixed; NVIDIA is untested anyway |

@@ -2,7 +2,7 @@
 
 The design of OpenDeepCool's GTK4 settings app (PRD, Phase 10): its structure, each screen's purpose, its GTK4 widgets, its states, its theme, keyboard use and accessible names, and the coverage check. The mockups are in [mockups/](mockups/); each one has a theme switch (a sample Omarchy theme and the default theme, dark and light). `odc-mockups` (`tools/mockups/`) writes them from the states they show and the style sheet and script in [mockups-src/](mockups-src/), and its tests check the palettes against the contrast tables below.
 
-Sources: [settings.md](../spec/settings.md) "What the settings app must offer", [display.md](../spec/display.md), [music.md](../spec/music.md), [sensors.md](../spec/sensors.md), the PRD (Phase 10, Technical Approach → Theme, Decisions Log) and the designer brief (`.claude/agents/ui-ux-designer.md`). Every reading, chip name, GPU name and PCI address in this document and in the mockups is made up.
+Sources: [settings.md](../spec/settings.md) "What the settings app must offer", [display.md](../spec/display.md), [music.md](../spec/music.md), [sensors.md](../spec/sensors.md), the PRD (Phase 10, Technical Approach → Theme, Decisions Log), the Phase 11 plan (Recommendation, "The Start at boot switch", and Task 3) and the designer brief (`.claude/agents/ui-ux-designer.md`). Every reading, chip name, GPU name and PCI address in this document and in the mockups is made up.
 
 Widget names are GTK 4 classes. Anything not checked against docs.gtk.org is marked **unverified**; the Phase 10 plan checks those first.
 
@@ -28,6 +28,9 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D6 | Apply model | **Instant apply.** Every choice goes to the service, and so to the cooler, when it's made. There is no Apply button and no unsaved state | Fewest clicks; the preview simply mirrors the cooler (settings.md, Changes apply at once) |
 | D7 | Toolkit | Plain GTK4 through gtk4-rs, no libadwaita (PRD Decisions Log) | Every widget needed exists in GTK4, and libadwaita's look would mostly be overridden for Omarchy anyway |
 | D8 | Theming | CSS custom properties in one `GtkCssProvider` at APPLICATION priority, generated from `colors.toml` and the `shell.toml` `[controls]` alphas. A `GFileMonitor` on `current/` triggers a live reload: Omarchy keeps `current/` and replaces only `current/theme` inside it (its `omarchy-theme-set`, read 2026-10-27; solution review P10-06) | [Theme](#theme) |
+| D9 | Where the Start at boot switch sits (2026-11-11) | The last card of the Configuration page, **Startup**, and, while the service isn't running, the window's body, where the pages would be | Configuration already holds every setting but mode and unit, and the switch is flipped about once per PC, so it needn't take the header. While the service is down, Configuration can't be reached, and the body is where the user looks ([Start at boot](#start-at-boot)) |
+| D10 | The window while the service isn't running (2026-11-11, revised the same day) | One screen, the **off screen**, with no banner: the heading "OpenDeepCool is off" (the display service doesn't start at boot) or "OpenDeepCool isn't running" (it does, but it's stopped, failed or starting), the Startup card with its note, and the terminal commands. The red service banner is gone | The switch now reads off whenever OpenDeepCool isn't ready, and a flip on starts a stopped service, so the switch is the fix in every case. A banner would say the same thing as the note, and its terminal command would come before the app's own control. The heading and the status dot ("Service off", hollow, or "Service not running", red) still tell a deliberate off from a fault |
+| D11 | What the switch reads (2026-11-11, revised the same day: "on means ready to use", owner) | **On** only when the display service starts at boot and runs, and the sound starts at every login and runs in this session. Anything else reads **off**, with **one note** built from what's missing: at most one phrase for the display service and one for the sound ([The note](#the-note)) | A flip on always finishes the setup and starts what isn't running, so off-with-a-note is always one flip from ready. One composed note needs 7 phrases, against 15 combinations to word one by one, and still says exactly what's missing |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -35,7 +38,7 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 - **Remote or inactive session** (owner, 2026-10-26, replacing pass 1's view-only session): the window shows one message and nothing else ([Not available in this session](#not-available-in-this-session)). No control is ever shown disabled for lack of rights.
 - **Rotation:** four direct choices.
 - **Temperature unit:** once, at the top of the Display page.
-- **Service not running:** the app explains, shows the start command, and has no start button.
+- **Service not running:** the app explains, shows the start command, and has no start button. Since 2026-11-10, the [Start at boot](#start-at-boot) switch on the [off screen](#the-off-screen) turns OpenDeepCool on, and since 2026-11-11 it also starts a service that's set to start but stopped; it's the only control that changes the system (owner, 2026-11-11: no separate start button).
 - **Window background:** opaque. The `shell.toml` alphas apply to controls only.
 - **Default theme:** dark and light variants. Outside Omarchy in v1, the dark one is used.
 - **Preview dots:** lit dots in the foreground colour, unlit dots in a low-alpha foreground.
@@ -52,6 +55,28 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
 - **Sending to the cooler fails** (`write-failed`): a warning banner, shown only once the state has lasted 2 s. Before that, the window looks as if the cooler were connected, so unplugging the cooler doesn't flash a second banner.
 - **A GPU whose kind query failed** (`query-failed`): listed as "Unknown type · <name>", with the muted note "driver couldn't be asked" in the open list.
 
+Answers decided on 2026-11-11, under the same delegation, for the Start at boot switch (Phase 11 plan, Task 3; [Start at boot](#start-at-boot)). Each choice, with the options weighed:
+
+- **Where it sits (D9):**
+  - (a) the header bar, next to the app name or Refresh: always in view, but it gives a once-per-PC, password-gated action the window's most visible place; next to the name it reads as a display on/off, a hidden setting that is out of scope; and at the 720 px minimum the header has no room for a labelled switch;
+  - (b) the preview column, under the service status: always in view too, but it mixes a control into read-only status, and the 226 px column can't hold the terminal commands of a failure;
+  - (c) **chosen:** a Startup card on the Configuration page, plus the window's body while the service is down. One switch is visible at a time, with its hint and its notes beside it.
+- **The window while the service is down (D10, revised after the owner's "on means ready to use", 2026-11-11):**
+  - (a) the red banner in every case, with the switch added to the body: a new install opens on an error;
+  - (b) the first pass's split: an off screen while the display service doesn't start at boot, and the red banner while it does but isn't running. The switch can now start that service itself, so the banner would repeat the note and put its terminal command ahead of the app's own control;
+  - (c) a banner only for a failed service: a third rule for one case that the note already names, with the journal;
+  - (d) **chosen:** the off screen in every case, with no banner. Its heading tells "is off" from "isn't running", the status dot tells a fault (red) from a choice (hollow), the note names what's wrong, and the terminal commands, `enable --now` first, stay under the card.
+- **What the switch reads (D11, revised the same day):** on only when all four facts hold (owner). For what's missing:
+  - (a) one note per combination of the four facts: 15 texts to word and test;
+  - (b) one fixed "Not fully on" note: it doesn't say what's missing, which the owner asked for;
+  - (c) **chosen:** one note built from at most two phrases, one for the display service (4: runs but doesn't start at boot, stopped, failed, starting) and one for the sound (3: off, runs here but doesn't start at login, not running in this session), with one of two endings.
+  - A partly-on setup can't be turned off in one flip: from off, a flip always turns it on (owner: a flip on finishes everything). Turning it off then takes a second flip, after it's on.
+- **The display service starting:** (a) a sensitive switch: a flip asks for the password to start a service that's starting anyway; (b) **chosen:** insensitive, with "The display service is starting." It lasts until the service is ready or fails, then the switch follows. A failed start ends in `failed` or a restart, which the switch shows.
+- **While a flip runs:** (a) a `GtkSpinner` beside the switch: it moves for as long as the password dialog stays open, against the no-motion rule; (b) **chosen:** GtkSwitch's delayed state (the handle at the new position, the trough at systemd's) and one line of text, with the switch insensitive.
+- **Where a failure shows:** (a) a banner at the top: far from the switch on the Configuration page, and it would stack with the cooler banners; (b) the change-feedback label: it lasts 5 s, too short for copying commands; (c) **chosen:** a note under the switch, with the commands and Copy, kept until the next flip or until systemd shows the change made.
+- **State unknown:** (a) the switch sensitive at off, a flip running `on`: safe, since `on` repeats nothing harmful, but the switch's position would say nothing true; (b) **chosen:** insensitive at off, with the reason and the commands.
+- **When the state is read again:** (a) systemd's `UnitFilesChanged` signal after `Subscribe()`: live for the display service, but `Subscribe()` makes the system manager send its signals on the bus while the app runs, and a `--global` change (made on the files, `systemctl --global`) sends nothing at all; (b) **chosen:** at start, after each flip, whenever the window becomes active, and when the service's bus name gets or loses an owner. Someone who types the commands in a terminal comes back to the window, which turns it active. No polling.
+
 ## Window
 
 ```
@@ -62,7 +87,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
 ├──────────────────────┬─────────────────────────────────────────────────────┤
 │ Preview column       │ GtkStack (transition: none)                         │
 │  GtkDrawingArea      │  page "display": unit + tile gallery                │
-│  caption, status,    │  page "config":  Display / Cooler / Music sections  │
+│  caption, status,    │  page "config":  Display / Cooler / Music / Startup │
 │  fan and pump RPM    │  (each page in a GtkScrolledWindow)                 │
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```
@@ -94,7 +119,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
 - **Reason line**, when the saved mode has lost a reading: a warning icon and `<metric>: <reason>. The cooler shows dashes until it's back.` The reason text comes from the service (`UnavailableReasons`).
 - **Status line:** a `GtkBox` of up to three items. Each is a coloured dot plus words, never colour alone:
   - cooler, from `CoolerState`: "Cooler connected" (green), "Cooler not connected" (yellow), "Cooler: no access" (red) or "Cooler: sending fails" (yellow), with the same 2 s rule as the caption. While the service is down it says "Cooler: unknown" (hollow dot);
-  - service: "Service running" or "Service not running";
+  - service: "Service running" (green); while it's down, on the [off screen](#the-off-screen), "Service off" (hollow dot: it doesn't start at boot, off on purpose) or "Service not running" (red: it's set to start but stopped, failed or starting);
   - Music sound, **only while a Music mode is chosen** (`AudioConnected`): "Sound connected" or "No sound: spectrum is silent".
 - **Fan and pump RPM:** two rows, "Cooler fans" and "Pump". Speeds are capped at 9,999 RPM, like every value in OpenDeepCool (settings.md); the same holds for the RPM in the input pickers. Each value is one of:
   - `1,180 RPM`;
@@ -146,7 +171,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
 
 ## Configuration page
 
-**Purpose:** every other setting, on one screen (settings.md, A configuration screen). There are three sections, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right.
+**Purpose:** every other setting, on one screen (settings.md, A configuration screen). There are four sections, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The fourth, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot).
 
 ### Display
 
@@ -190,18 +215,23 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
   - Snapping to whole stops during a drag (with `round-digits` 0 and a `change-value` handler) is **unverified**.
 - **Hint:** "For every Music option except Dancer. Changes show on the next frame." In a mode without a spectrum, the change is only saved (music.md, point 7).
 
+### Startup
+
+- **Start at boot:** "For the whole PC". A `GtkSwitch`, on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password."
+- It's the last card, because it's flipped about once per PC. Its states, texts and flows are in [Start at boot](#start-at-boot).
+
 ## Banners
 
 A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `GtkLabel`, and an optional button. GtkInfoBar is deprecated since GTK 4.10, and GTK's docs suggest exactly this construction (verified). Banners stack in this order:
 
 | Banner | When | Text | Effect on the window |
 |---|---|---|---|
-| Service (error) | the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner | "The OpenDeepCool service isn't running. The cooler shows nothing until it starts. Start it from a terminal:" `sudo systemctl start opendeepcool.service` (a selectable monospace label) "The app connects by itself once it runs." A "Copy" button copies the command | The switcher and Refresh are insensitive. The pages are replaced by a centred message: "Settings appear here when the service runs". The preview is all unlit, and the status says "Cooler: unknown" and "Service not running". The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll |
 | Cooler not connected (warning) | `CoolerState` is `not-found` | "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back." | Nothing is disabled. The preview keeps mirroring the service's picture, captioned "Not on the cooler: it isn't connected". Status "Cooler not connected" |
 | Cooler, no access (error) | `CoolerState` is `no-access`: the service finds the cooler but can't open its device node, a permissions problem such as a missing udev rule (settings.md, Status; solution review P5-02) | "**The cooler is plugged in, but the service can't open it.** The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." | Nothing is disabled, and changes are saved. The preview keeps mirroring the service's picture, captioned "Not on the cooler: the service can't open it". Status "Cooler: no access", with a red dot. There's no button and no command, because both fixes are the user's own and the app can't do either |
 | Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. Caption "Not on the cooler: sending it fails". Status "Cooler: sending fails", with a yellow dot |
 
-- **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service banner shows, there's no cooler banner, because the cooler's state is unknown then.
+- **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the switcher and Refresh are insensitive, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
+- **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service is down, there's no cooler banner, because the cooler's state is unknown then.
 - **Why the fix for `no-access` reads as it does:**
   - At boot, udev applies its rules to every device: systemd's `systemd-udev-trigger.service`, "Coldplug All udev Devices", runs `udevadm trigger --type=all --action=add` (systemd's unit source, read 2026-11-06). So a restart applies a rule that's installed but wasn't applied.
   - Reinstalling puts the rule file back, and the systemd package's pacman hook reloads udev and replays its events (`35-systemd-udev-reload.hook`, as the Phase 11 review read it on 2026-10-26).
@@ -229,6 +259,179 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
   - Screen readers get the same text (`gtk_accessible_announce`, since GTK 4.14, verified).
 - There's no separate state for it. An administrator's own polkit rule that allows reading but refuses changes simply ends every change this way.
 
+## Start at boot
+
+**Purpose:** turn OpenDeepCool on or off for the whole PC (settings.md, Start at boot; owner, 2026-11-10). The package turns nothing on at install, as Arch's packages don't. The switch isn't a setting of the service: it shows and changes systemd's own state for two units, the display service `opendeepcool.service` and the sound helper `opendeepcool-audio.service`, which runs in each user's session. It's on only when OpenDeepCool is ready to use (owner, 2026-11-11), and a flip on always finishes the setup and starts what isn't running.
+
+### Where it sits
+
+- On the Configuration page, in the last card, **Startup** (D9).
+- While the service isn't running, on the [off screen](#the-off-screen), where the pages would be (D10). Configuration can't be reached then, and a new install is exactly that state.
+- Never when the app is [not available in this session](#not-available-in-this-session). While the service is down in a session that logind reports as remote or inactive, the off screen has no Startup card ([Who may flip it](#who-may-flip-it)).
+- Exactly one Start at boot switch is visible at a time. One row widget moved between the card and the body keeps one name for AT-SPI, which is simpler for the tests than two bound to one model; the plan chooses.
+
+### Where its state comes from
+
+- **Four facts** (owner, 2026-11-11: on means ready to use), read from systemd without a password: "Read access is generally granted to all clients" (org.freedesktop.systemd1(5), read 2026-11-11). None goes through the OpenDeepCool service, so the switch works while it's down.
+
+  | Fact | Read with | Holds when |
+  |---|---|---|
+  | The display service starts at boot | `GetUnitFileState("opendeepcool.service")` on the system manager (system bus) | `enabled` |
+  | The display service runs | the unit's `ActiveState` (and `SubState`) on the system manager, through `LoadUnit`: `GetUnit` fails for a unit systemd hasn't loaded, and `LoadUnit` "will load the unit from disk if possible" (org.freedesktop.systemd1(5)) | `active` or `reloading`; or `activating` while its bus name already has an owner (below) |
+  | The sound starts at every login | `GetUnitFileState("opendeepcool-audio.service")` on the user's own manager (session bus), which reports a `--global` link as `enabled` | `enabled` |
+  | The sound runs in this session | the unit's `ActiveState` on the user's own manager | `active` or `reloading` |
+
+- **On** when all four hold. **Off** otherwise, with a [note](#the-note) saying what's missing (D11).
+- **Unknown** when a read fails or doesn't answer, or when a unit-file state is neither `enabled` nor `disabled` (`masked`, `enabled-runtime`, `linked`, `bad` and so on; systemctl(1), is-enabled). A unit that isn't installed fails the read ("No such file or directory").
+- **Only these two units count.** The one-shot helpers the display service starts (`Wants=`: the GPU ranking and the sensor detection) run and exit, so they don't count (settings.md, Start at boot).
+- **How "not running" reads,** for the display service's note, from its `ActiveState` (values: org.freedesktop.systemd1(5), Table 1) and `SubState` (strings: systemd's `src/basic/unit-def.c`):
+  - **stopped:** `inactive`, `deactivating` or `maintenance`;
+  - **failed:** `failed`, or `activating` with `SubState` `auto-restart` or `auto-restart-queued`. That's a service waiting to restart after a failure, which systemd reports as `activating` (`src/core/service.c`, its state table; read 2026-11-11). With `Restart=` and no start limit (the unit's `StartLimitIntervalSec=0`), a crashing service cycles through it and never stays `failed`;
+  - **starting:** `activating` with any other `SubState`;
+  - `refreshing` is a kind of `active`, and counts as running.
+- **Activating, with its name already owned:** the service takes its bus name just before it reports ready (`READY=1`; `crates/odc-service/src/dbus.rs`). So a read made right after the name's change can find it `activating` for a moment. It counts as running then; otherwise the switch would stay off, reading "starting", until the next trigger.
+- **When it's read:** at start, together with the first connection to the service; after each flip; whenever the window becomes active (`notify::is-active`); and whenever the service's bus name gets or loses an owner (`NameOwnerChanged`). A service that stops shows through its name's change.
+  - After the app starts or stops the sound in this session, it reads again once systemd's job has ended. `StartUnit` and `StopUnit` return a job, whose end is the `JobRemoved` signal ("sent out each time a new job is queued or dequeued"). A manager sends its signals only once some client has called `Subscribe()` (org.freedesktop.systemd1(5)). The plan chooses how the app waits; `Subscribe()` on the user's own manager, for that job alone, is the documented way.
+  - There's no polling, and no `Subscribe()` on the system manager ([Decisions](#decisions)). A change made in a terminal shows once the user is back in the window. A sound helper that stops or restarts by itself in this session shows at the next trigger.
+- **At start,** while the service is down, the off screen's heading and note wait for the four reads, so neither flashes. A read that hasn't answered within 1 s counts as failed.
+- The user's own manager reports a `--global` link (in `/etc/systemd/user/`) as `enabled`: checked on the development PC, 2026-11-11, with the dev copy's sound helper, whose link is in `/etc/systemd/user/default.target.wants/` (`GetUnitFileState` on the user bus answered `enabled`). The package's layout, with the unit file under `/usr/lib/systemd/user/`, is checked again on the owner's PC in Phase 11 Task 7. Had it not, the app would need another read of the global state, and the design would stay the same.
+
+### The switch
+
+- A `GtkSwitch` with GTK's delayed state, as the peak dots switch has (decisions log D63). Its `active` property is the handle, the user's latest flip; its `state` property is the trough's colour, systemd's state. GTK's docs: "the slider position indicates the user's recent change", "the trough color indicates the present underlying state" (docs.gtk.org, GtkSwitch, read 2026-11-11).
+  - GTK's source (`gtk/gtkswitch.c`, read 2026-11-11): `gtk_switch_set_state` sets or clears the `:checked` state, which the app's stylesheet draws with the `--accent` trough; `gtk_switch_set_active` emits `state-set` and sets the accessible checked state, so a screen reader reads the handle.
+  - The `state-set` handler starts the flip and returns `TRUE` (stop), so the trough keeps systemd's state ("The signal handler should return TRUE to prevent the default handler from running", docs.gtk.org, GtkSwitch::state-set). When the flip ends, the app sets `state` and `active` from what systemd reports. Setting `active` from the app emits `state-set` again, so the app ignores the signal while it sets the switch itself, as it does for the peak dots switch.
+- **The trough** (`state`) is on only when all four facts hold; **the handle** (`active`) is the latest flip. A flip from off always goes to on, and from on to off.
+- **Insensitive** while a flip runs, while the state is unknown, and while the display service is starting. The stylesheet draws an insensitive switch with the normal fill and border and a `--muted` slider, without `opacity` (decisions log D43).
+- The handle's slide is GTK's own and follows the user's `gtk-enable-animations` setting, as the peak dots switch does.
+- **Row:** the label "Start at boot", the muted subtitle "For the whole PC", and the switch at the right (`valign` center). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password."
+
+### The note
+
+When the switch reads off and something is set up, one note under the row says what's missing (D11). It's built from at most two phrases, one for each unit:
+
+| The display service | Phrase |
+|---|---|
+| starts at boot and runs | none |
+| neither starts at boot nor runs | none, and no note at all: OpenDeepCool is off, which the off screen's heading says |
+| runs, but doesn't start at boot | "the display service runs now, but doesn't start at boot" |
+| starts at boot, stopped | "the display service is stopped" |
+| starts at boot, failed or waiting to restart | "the display service failed" |
+| starts at boot, starting | none: the note is "The display service is starting." alone, in the information style, and the switch is insensitive until it has started or failed |
+
+| The sound | Phrase |
+|---|---|
+| starts at every login and runs in this session | none |
+| neither | "the sound for Music is off" |
+| runs in this session, but doesn't start at login | "the sound for Music runs here, but doesn't start at login" |
+| starts at every login, but isn't running in this session | "the sound for Music isn't running in this session" |
+
+- **The sentence:** "Not fully on: ‹phrase›." or "Not fully on: ‹display phrase›, and ‹sound phrase›.", then one ending:
+  - "Turn it on to start it, with no password." when the only phrase is "the sound for Music isn't running in this session": the flip then only starts it ([A flip, step by step](#a-flip-step-by-step));
+  - "Turn it on to finish." otherwise.
+  - After "the display service failed", one more sentence: "The journal says why the service failed."
+- **Examples:**
+  - after only `sudo systemctl start opendeepcool.service`: "Not fully on: the display service runs now, but doesn't start at boot, and the sound for Music is off. Turn it on to finish.";
+  - a crashing service, set up in full: "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed.";
+  - after only the two `sudo` commands, until the next login: "Not fully on: the sound for Music isn't running in this session. Turn it on to start it, with no password."
+- **When the display service is off** and only the sound is set up (someone ran just the `--global` command), there's no note: the off screen says OpenDeepCool is off, and a flip sets everything up.
+- **In the warning style** (`--yellow`, the warning icon), as the other "something's missing" hints, except "The display service is starting.", which is information (`--muted`, the information icon).
+
+### States and their text
+
+| State | Handle / trough / sensitive | Note under the row | Terminal commands |
+|---|---|---|---|
+| On | on / on / yes | none | none |
+| Off, nothing set up (a new install, or turned off) | off / off / yes | none: the off screen's heading says "OpenDeepCool is off" | on the off screen, the on commands always under the card |
+| Not fully on | off / off / yes | warning: [the note](#the-note) | none in the card (on the off screen, always under it) |
+| The display service starting | off / off / no | information: "The display service is starting." | none |
+| Unknown: a read failed | off / off / no | information: "Can't tell whether OpenDeepCool is on: reading it from systemd failed." | "To turn it on from a terminal:", the on commands |
+| Unknown: another unit state | off / off / no | information: "Can't change it here: systemd reports opendeepcool.service as “masked”." (the unit and its state as systemd gives them) | none: `enable` fails on a masked unit, and an administrator who set such a state knows its command |
+| Turning on | on / off / no | "Turning on… Your desktop asks for the administrator's password first." (foreground, no icon) | none |
+| Turning on, only the sound in this session missing | on / off / no | "Turning on… Starting the sound for Music in this session." | none |
+| Turning off (only from on) | off / on / no | "Turning off… Your desktop asks for the administrator's password first." | none |
+| Not changed: dialog dismissed (pkexec 126) | systemd's state / sensitive | warning: "Not changed: the password dialog was closed." | "From a terminal instead:", the commands for the flip's direction |
+| Not changed: not authorized, or no polkit agent (pkexec 127) | systemd's state / sensitive | warning: "Not changed: the password wasn't accepted, or no password dialog could open in this session." | the same |
+| Didn't finish: a step failed (the program's exit 1; any exit code but 0, 126 and 127 alike) | systemd's state / sensitive | warning: "Didn't finish: ‹the program's message›. The switch shows what's set now; the journal says more." | the same |
+| Didn't finish: the sound didn't start in this session (the app's own step, after `on` or as the flip without a password) | off (the sound isn't running here) / sensitive | warning: "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more." | the on commands |
+| Turned off, but the sound didn't stop in this session | off / sensitive | warning: "Off, but the sound for Music didn't stop in this session. It stops when you log out." | none: the change for the whole PC was made |
+
+- **Which note shows,** when more than one applies: a running flip's line, then a failure's note, then unknown, then "starting", then the missing parts. A failure's note replaces the missing-parts note, which comes back when the failure's note goes.
+
+- **The commands:**
+  - to turn on (settings.md): `sudo systemctl enable --now opendeepcool.service`, `sudo systemctl --global enable opendeepcool-audio.service`, and `systemctl --user start opendeepcool-audio.service`, which starts the sound for Music in this session at once, without a password (owner, 2026-11-11: the third line, so Music isn't silent until the next login);
+  - to turn off: `sudo systemctl disable --now opendeepcool.service` and `sudo systemctl --global disable opendeepcool-audio.service` (owner, 2026-11-11: the commands for the flip's direction, since the on commands would undo what the user wanted).
+- **How long a note stays:** a failure's note stays until the next flip, or until a read shows the state the failed flip wanted (the user typed the commands), and then goes. The missing-parts, starting and unknown notes follow the state.
+- **pkexec's codes** (pkexec(1), read 2026-11-11): 126 is only "the user dismissed the authentication dialog"; 127 is "not authorized, or an authorization could not be obtained through authentication, or an error occurred", so a refused password, no polkit agent and any other pkexec error all end with 127. The 127 sentence covers every one of those causes, so no text depends on pkexec's messages, whose wording is **unverified**. Its stderr goes to the app's log only.
+- **The program's codes** (Phase 11 plan, Task 3): `opendeepcool-boot` exits 2 when it refuses its arguments or its caller, and 1 when a `systemctl` step fails, naming the step in one line on stderr. The app shows that line after "Didn't finish:", without the program's name in front and without a trailing period. The program's commit set the wording: "step 3 of 3, `systemctl start opendeepcool.service`, failed: exit status: 1", or, when one of systemd's two checks can't run, the check's path and the error. An exit 2 can come only from a fault in the app, and shows the same way.
+- **No toast on success:** the switch and the window are the confirmation. Screen readers get "Start at boot is on." or "Start at boot is off." at the end of a flip, and a note's text when one appears (`gtk_accessible_announce`, since GTK 4.14, verified).
+
+### The terminal commands
+
+- A `GtkBox` (group "Terminal commands") with a muted `GtkLabel` ("From a terminal instead:" or "To turn it on from a terminal:"), a selectable monospace `GtkLabel` holding the commands, one a line (three to turn on, two to turn off), on the `--code-bg` fill, which wraps in a narrow window, and a "Copy" `GtkButton` that copies every line (`clipboard().set_text`, as the Phase 10 service banner's Copy did).
+- On the Configuration page it shows under a failure's note and with the unknown note. On the off screen it's always under the card, with the on commands and "From a terminal instead:", so a note there shows only its sentence.
+
+### A flip, step by step
+
+1. The user flips the switch (a click, or Space). The `state-set` handler makes the switch insensitive, leaves the trough at systemd's state, and shows the line for the flip ([States and their text](#states-and-their-text)). The app holds itself (`g_application_hold`, docs.gtk.org, read 2026-11-11) until the flip ends, so a closed window doesn't cut it short.
+2. **On** (from off, whatever is missing):
+   - when the only part missing is the sound running in this session, the app starts it through the user's own manager (`StartUnit`), with no `pkexec` and no password, since nothing changes for the whole PC (owner, 2026-11-11);
+   - otherwise it runs `pkexec --disable-internal-agent /usr/lib/opendeepcool/opendeepcool-boot on` as a subprocess, without blocking the main loop. The program enables both units and starts the display service, which does nothing to a part already set (Phase 11 plan). The desktop's polkit agent shows its own password dialog, which the app doesn't draw; the app sets no time limit on it. When pkexec ends with 0, the app starts the sound in this session.
+
+   **Off** (only from on): `pkexec --disable-internal-agent /usr/lib/opendeepcool/opendeepcool-boot off`, which disables both units and stops the display service; when it ends with 0, the app stops the sound in this session.
+3. When pkexec ends with any code but 0, the failure's note appears, and the app's own step is skipped.
+4. The app reads the four facts again, once the app's own step's job has ended, and the switch takes what systemd reports, sensitive again.
+5. Focus goes back to the switch when it had it, or, when the window changed screens meanwhile, to the switch on the new screen.
+
+- **`--disable-internal-agent`** (owner, 2026-11-11): pkexec(1) says that with no agent, pkexec otherwise "will register its own textual authentication agent". That agent would ask on the terminal the app was started from, if it has one, where nobody looks, and the switch would wait there; that terminal behaviour is **unverified**, and the option avoids it either way. With it, a missing agent ends at once with 127. The fake `pkexec` of the layer 4 tests expects the argument.
+
+### The window around a flip
+
+- **While the service isn't running,** the window shows the off screen. Its heading is "OpenDeepCool is off" while the display service doesn't start at boot or a flip toward off runs, and "OpenDeepCool isn't running" otherwise. So:
+  - **turning on from the off screen:** the off screen stays, with the switch changing, while the dialog is open and the program runs. The unit is `Type=notify`, so the program's `systemctl start` returns once the service says it's ready. The service's bus name gets an owner, the app connects by itself, and the normal window appears on the page last shown, the Display page after a new install. After a successful `on`, the flip counts as running until the bus name has an owner or 5 s have passed, so the heading and the note can't flash to "isn't running" in between;
+  - **turning off from the Configuration page:** the service stops while the program runs. The window turns to the off screen at once, headed "OpenDeepCool is off", and the switch finishes changing there;
+  - **a service that stops or crashes** while the window shows the pages: its name loses its owner, the window turns to the off screen headed "OpenDeepCool isn't running", and the note says "stopped" or "failed". A crashing service comes back by itself (`Restart=on-failure`), and the window with it.
+- Refresh and the page switcher stay insensitive while the service is down, as before.
+
+### The off screen
+
+```
+┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
+│ GtkHeaderBar   [OpenDeepCool]    [ Display | Configuration ]   [⟳ Refresh] │  (insensitive)
+├──────────────────────┬─────────────────────────────────────────────────────┤
+│ Preview, all unlit   │      OpenDeepCool is off  (or: … isn't running)     │
+│ No picture           │   The cooler shows nothing until the display        │
+│ ○ Cooler: unknown    │   service runs.                                     │
+│ ○ Service off        │  ┌───────────────────────────────────────────────┐  │
+│   (● Service not     │  │ Start at boot                       ( ○    )  │  │
+│    running, red)     │  │ For the whole PC                              │  │
+│ Cooler fans  —       │  │ ⚠ Not fully on: the display service failed. … │  │
+│ Pump         —       │  │ When it's on, the display service starts …    │  │
+│                      │  └───────────────────────────────────────────────┘  │
+│                      │  From a terminal instead:                           │
+│                      │  sudo systemctl enable --now opendeepcool.service   │
+│                      │  sudo systemctl --global enable opendeepcool-aud…   │
+│                      │  systemctl --user start opendeepcool-audio.service  │
+│                      │                                          [Copy]     │
+└──────────────────────┴─────────────────────────────────────────────────────┘
+```
+
+- **When:** the service's bus name has no owner, in every case (D10). A new install opens on it.
+- **Heading,** one of two:
+  - "OpenDeepCool is off" while the display service doesn't start at boot, or a flip toward off runs. The status reads "Service off", with a hollow dot: off on purpose, not a fault;
+  - "OpenDeepCool isn't running" otherwise: it's set to start at boot but is stopped, failed or starting, or the state is unknown. The status reads "Service not running", with a red dot.
+- **Text** under the heading, in `--muted`, the same for both: "The cooler shows nothing until the display service runs."
+- **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:".
+- **No banner.** The note says what's wrong, and the switch is the fix.
+- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The header bar and the preview column are as before while the service is down.
+- **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on.
+
+### Who may flip it
+
+- Only the user of the active local session, as with every change: the polkit action `io.github.dtmarangoni.OpenDeepCool1.start-at-boot` has `allow_active` `auth_admin` (the administrator's password at every change, no keep) and `allow_any` and `allow_inactive` `no` (Phase 11 plan). It's the only password in the app.
+- When the app is [not available in this session](#not-available-in-this-session), the window shows the message alone, as before.
+- While the service is down, the app can't ask it about the session, but logind can tell: its session's `Active` and `Remote` properties (org.freedesktop.login1(5), read 2026-11-11). The app already follows `Active` to connect again ([Unverified points](#unverified-points-answered-phase-10-task-1-2026-11-06)). In a session that isn't both active and local, the off screen has no Startup card, since polkit would refuse the flip there: only its heading, its text and the terminal commands.
+
 ## Not available in this session
 
 **When:** the service refuses `GetState()` with `NotAuthorized`, because the app runs in a remote or inactive session (owner, 2026-10-26). The service refuses such a session every read, change and preview frame (polkit `allow_active` only), so the app has nothing to show. This state replaces the view-only state, which no longer exists.
@@ -249,11 +452,11 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 - **Text:** the heading "OpenDeepCool can be used only from the session at the PC", and under it, in `--muted`, "This session is remote or not the active one."
 - **Widgets**, all plain GTK4 (no libadwaita, so no `AdwStatusPage`):
   - the same `GtkHeaderBar`, with only the app name. The switcher and Refresh are hidden (`visible` false), not just insensitive. The window buttons stay, following the desktop's decoration layout;
-  - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the service state's "Settings appear here when the service runs";
+  - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the off screen's heading and text;
   - nothing else: no banner, no preview column, no pages, no status, no RPM, nothing that could show a value.
 - **Keyboard and screen readers:** nothing in the content takes focus. Ctrl+W and Ctrl+Q still close the window; the page and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
 - **Trying again,** without polling: when the window becomes active again (`notify::is-active` on `GtkWindow:is-active`, verified) and when the service's bus name gets a new owner (`NameOwnerChanged`). If `GetState()` succeeds then, the normal screens appear with the current state.
-- **The service not running comes first.** Without the service, the app can't tell whether this session may use OpenDeepCool, so it shows the service state, which holds no settings and no picture.
+- **The service not running comes first.** Without the service, the app can't tell whether this session may use OpenDeepCool, so it shows the service state, which holds no settings and no picture. In a session logind reports as remote or inactive, that state, the off screen, has no Start at boot switch ([Who may flip it](#who-may-flip-it)).
 - **An administrator's own polkit rule** might allow reading but refuse changes. That's no separate state: the app shows the normal screens, and each change fails with `NotAuthorized`, shown like any [refused change](#refused-changes).
 
 ## Talking to the service
@@ -261,7 +464,7 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 The D-Bus system bus (settings.md, Status). Only the user of the active local session can use OpenDeepCool: the service refuses every other session each read, watch and change (polkit `allow_active` only; owner, 2026-10-26). It offers no D-Bus properties, and nothing is broadcast.
 
 - **Connecting:** the app starts watching the state (`Watch()`) and reads all of it (`GetState()`). The plan fixes the order, so that no change falls between the two. Then the window shows:
-  - the [service banner](#banners), when the bus name has no owner;
+  - the [off screen](#the-off-screen), when the bus name has no owner;
   - [not available in this session](#not-available-in-this-session), when the service refuses with `NotAuthorized`;
   - otherwise, the normal screens with that state.
 - **Connecting again,** one call at a time and never polling: whenever the bus name gets a new owner (`NameOwnerChanged`), and whenever the window becomes active (`notify::is-active`). This also renews any watch the service dropped meanwhile, for example while this session was inactive.
@@ -269,6 +472,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 - **State names:** `CoolerState`, `AudioConnected`, `UnavailableReasons`, `FanInputs`, `Gpus` and `ChosenGpu` in this document are the names in the Phase 7–9 contract, and `GpuInUse` is the Phase 10 plan's (Task 2). They come in `GetState()` and `StateChanged`, not as properties, and the Phase 10 plan sets their final shape.
   - The cooler's part of the window follows `CoolerState` (`connected`, `not-found`, `no-access`, `write-failed`; [Banners](#banners)). `CoolerConnected` stays in the state, but the app doesn't read it.
   - The GPU row reads `Gpus` (its kinds include `query-failed`), `ChosenGpu` (empty for Automatic) and `GpuInUse` ([Display](#display)).
+- **Start at boot** reads systemd, not the service, so it works while the service is down ([Where its state comes from](#where-its-state-comes-from)).
 - **Back from standby** (owner, 2026-10-26): no screen of its own, and nothing for the user to do. While the monitor is off or the screen is locked, the session stays active, so nothing changes for the app. After a sleep, the service takes up the cooler again by itself (PRD, Service model), and the preview follows the cooler as soon as frames come back. If the cooler or the sound takes a moment to return, the cooler banner and the sound status show it as usual.
 
 ## States
@@ -286,7 +490,21 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; caption "Not on the cooler: the service can't open it"; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
 | Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; caption "Not on the cooler: sending it fails"; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
 | Sending fails, under 2 s (one bad write, or the cooler being unplugged) | As connected: no banner, until the state changes or 2 s pass | (as display) |
-| Service not running | Service banner with the command; pages replaced by a message; nothing changeable | [service-not-running.html](mockups/service-not-running.html) |
+| Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the terminal commands under the card; nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
+| The same, just stopped | As above, with "the display service is stopped" and no journal sentence | (as service-not-running) |
+| The display service starting (at boot or login, before it's ready) | As above, with "The display service is starting." and the switch insensitive | (as service-not-running) |
+| OpenDeepCool is off (a new install, or turned off) | The off screen headed "OpenDeepCool is off": no banner, "Service off", the switch off with no note, the terminal commands under it. Flip it in the mockup to see the window turn on | [boot-off.html](mockups/boot-off.html) |
+| Turning on (the password dialog is open, or the program runs) | The handle on, the trough off, the switch insensitive; "Turning on… Your desktop asks for the administrator's password first." | [boot-changing.html](mockups/boot-changing.html) |
+| Turning on, only the sound in this session missing | As boot-changing, in the Configuration card, with "Turning on… Starting the sound for Music in this session."; no password | (as boot-changing) |
+| Turning off | The same, the other way; the window turns to the off screen as the service stops | (as boot-changing) |
+| Not turned on: password not accepted, or no polkit agent (127) | The switch back at off; the reason under it; the commands below | [boot-not-changed.html](mockups/boot-not-changed.html) |
+| Not changed: dialog closed (126) | As 127, with "Not changed: the password dialog was closed." | (as boot-not-changed) |
+| A step failed (exit 1) | The switch at systemd's state; "Didn't finish: …" under it; the commands for the flip's direction | (as boot-not-changed, or in the Configuration card with the commands under the note) |
+| Not fully on, the service running (the Configuration page) | The switch off, with the note naming what's missing; one flip finishes it | [boot-partly.html](mockups/boot-partly.html) |
+| Not fully on: only the sound in this session | The note ends "Turn it on to start it, with no password." | (as boot-partly) |
+| Start at boot unknown | The switch insensitive at off; the reason; the on commands | [boot-unknown.html](mockups/boot-unknown.html) |
+| Start at boot on, normal window | The Startup card, last on the Configuration page | [configuration.html](mockups/configuration.html) |
+| Service down in a remote or inactive session | The off screen without the Startup card: its heading, text and the terminal commands | (as service-not-running, without the card) |
 | Metric unavailable | Tiles disabled with "Unavailable"; each group lists its reasons once | [unavailable-metric.html](mockups/unavailable-metric.html) |
 | The saved mode lost a reading | Tile still selected with "Reading lost"; dashes in the preview; reason under the preview | [reading-lost.html](mockups/reading-lost.html) |
 | Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no Refresh | [not-available.html](mockups/not-available.html) |
@@ -384,13 +602,13 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 
 ## Keyboard
 
-- **Tab order:** header switcher → Refresh → banner button (when present) → page content → preview column links. On the Display page: the unit toggles, then each tile group in turn. On the Configuration page: rotation, GPU, cooler fans, pump, peak dots, bar fall, peak fall.
+- **Tab order:** header switcher → Refresh → banner button (when present) → page content → preview column links. On the Display page: the unit toggles, then each tile group in turn. On the Configuration page: rotation, GPU, cooler fans, pump, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
 - **Insensitive tiles can't take focus.** Their reasons are visible text under the group heading.
 - **Toggle groups** (unit, rotation, switcher): Tab reaches them; Enter or Space toggles. Arrow keys between the buttons of a group are **unverified** for grouped `GtkToggleButton`s; if GTK doesn't do it, each button is a Tab stop.
 - **Dropdowns:** Enter or Space opens; arrows move; Enter chooses; Escape closes.
 - **Scales:** Left and Right move one stop; Home and End go to Slower and Faster.
-- **Switch:** Space toggles.
+- **Switches:** Space toggles. Start at boot is insensitive while a flip runs, so it can't be flipped twice; focus comes back to it when the flip ends. It's also insensitive while its state is unknown and while the display service is starting; Tab then goes straight to Copy.
 - **Not available in this session:** nothing in the window takes focus but the window buttons, and only Ctrl+W and Ctrl+Q work; the page and Refresh actions are disabled.
 - **Shortcuts** (`GtkApplication` accelerators):
 
@@ -417,20 +635,19 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Page switcher buttons | two grouped `GtkToggleButton`s (toggle button; decisions log D50) | `Display`, `Configuration` | pressed; insensitive while the service isn't running |
 | Refresh | `GtkButton` (button) | `Refresh display` | insensitive while the service isn't running; absent when not available in this session |
 | Refresh and refusal label | `GtkBox` (group) in the `GtkOverlay`, around the `GtkLabel` | `Change feedback` | its label's text ("Refreshed", or "Not changed." and the reason) |
-| Service banner | `GtkBox` (group) in `GtkRevealer` | `Service banner` | description: its text |
-| Copy command | `GtkButton` (button) | `Copy start command` | — |
+| Off screen message | `GtkBox` (group) holding the heading and text `GtkLabel`s | `Service message` | description: its text ("OpenDeepCool is off" or "OpenDeepCool isn't running", then the text). It replaces Phase 10's `Service banner` and its `Copy start command` (D10) |
 | Not-available message | `GtkBox` (group) holding two `GtkLabel`s | `Not available in this session` | description: its text |
 | Cooler banner | `GtkBox` (group) in `GtkRevealer` | `Cooler banner` | description: its text: not connected, no access or sending fails ([Banners](#banners)) |
 | Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
 | Reason under the preview | `GtkBox` (group) around the icon and the `GtkLabel` | `Unavailable reading` | its label's text |
-| Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown") |
+| Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown"; `Service status`: "Service running", "Service not running" or "Service off") |
 | Fan and pump speed rows | `GtkBox` (group) around the row | `Cooler fans speed`, `Pump speed` | their labels' text: the row's title and the value (RPM, "Input not found", …), or the choose-input link |
 | Choose-input links | `GtkButton` (button) | `Choose cooler fans input`, `Choose pump input` | — |
 | Unit toggles | `GtkToggleButton` (toggle button) | `Celsius`, `Fahrenheit` | pressed |
 | Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
 | Group reason lines | `GtkBox` (group) around the `GtkLabel` | `Load unavailable reasons` (and so on per group) | its label's text |
 | Tiles | `GtkFlowBoxChild` (grid cell), its picture an image of the same name | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode; action `tile.activate` while sensitive |
-| Configuration cards | `GtkBox` (group) | `Display settings`, `Cooler settings`, `Music settings`, as the mockups label their sections (decisions log D62) | — |
+| Configuration cards | `GtkBox` (group) | `Display settings`, `Cooler settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
 | Rotation | `GtkToggleButton` (toggle button) | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | pressed |
 | GPU | `GtkDropDown` (combo box) | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
 | GPU in use | `GtkBox` (group) around the `GtkLabel` under the GPU dropdown | `GPU in use` | its label's text ("Using Dedicated · Contoso Graphics R870."); present only while Automatic is chosen |
@@ -440,6 +657,10 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Peak dots | `GtkSwitch` (switch) | `Peak dots` | checked: the switch's handle, which moves at the press (decisions log D63, D79) |
 | Bar fall | `GtkScale` (slider) | `Bar fall` | value 0–4; value text the stop's name (`Moderate`) |
 | Peak fall | `GtkScale` (slider) | `Peak fall` | the same (`Slow`) |
+| Start at boot | `GtkSwitch` (switch) | `Start at boot` | checked: the handle (`active`; GTK sets the accessible checked state from it, `gtk/gtkswitch.c`); disabled while a flip runs, while the state is unknown and while the display service is starting; description: the note's text when one shows ("Turning on… Your desktop asks for the administrator's password first.", "Not fully on: …", "Not changed: …") |
+| Start at boot note | `GtkBox` (group) around the icon and the `GtkLabel` under the row | `Start at boot status` | its label's text; present only while a note applies |
+| Terminal commands | `GtkBox` (group) around the muted label, the selectable command label and Copy | `Terminal commands` | its labels' text: the lead-in and the commands |
+| Copy terminal commands | `GtkButton` (button) | `Copy terminal commands` | — (it copies every line) |
 
 A scale's value text reaches AT-SPI as its Value interface's text, the stop's name (`GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT`; the layer 4 run reads "Moderate").
 
@@ -450,6 +671,7 @@ A scale's value text reaches AT-SPI as its Value interface's text, the stop's na
 - Reasons come from the service and aren't rewritten. The service puts the metric in front by the spec's name ("Gpu usage: …", "Memory Load: …"); the app writes that name as the display does ("GPU usage: …", "RAM usage: …") and keeps the rest (decisions log D35).
 - A banner that needs the user's action says what happened in bold, then the fix in one sentence. Details, such as device paths and error codes, go to the journal, and the banner says "The journal says more."
 - Numbers use English digit grouping (`1,180 RPM`) and tabular figures.
+- Terminal commands are shown whole, in a selectable monospace label with a Copy button, never inside a sentence. Users read "the sound for Music", never "sound helper" or a unit name, except where systemd's own answer names a unit.
 
 ## What the Phase 10 plan must add to the D-Bus contract
 
@@ -500,7 +722,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Status: cooler connected | Status line; cooler banner | cooler-disconnected |
 | Status: the cooler found but not usable (`no-access`), told apart from not connected, with the fix | Its own error banner; status line; caption | cooler-no-access |
 | Status: sending to the cooler fails (`write-failed`), passing or lasting | Banner after 2 s, nothing before | cooler-write-failed |
-| Status: service running | Status line; service banner | service-not-running |
+| Status: service running | Status line; the off screen's heading and status dot | service-not-running, boot-off |
 | Status: Music sound (`AudioConnected`) | Status line, Music modes only | display-music |
 | Availability: disabled with a one-line reason; device vs single metric | Tiles plus group reason lines | unavailable-metric |
 | The saved mode losing a reading: stays selected, dashes, reason | Tile flag, preview, reason line | reading-lost |
@@ -512,6 +734,19 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Omarchy theme followed live; opacity and blur untouched; `shell.toml` alphas on controls | Theme | every mockup's theme switch |
 | Default theme, dark and light | Theme | every mockup's theme switch |
 | First-start defaults | Opens with the service's settings | first-start |
+| Start at boot: one switch turns OpenDeepCool on or off for the whole PC, both units | Configuration → Startup; the off screen | configuration, boot-off, service-not-running |
+| On only when ready to use: the display service enabled and running, the sound enabled for every user and running in this session; the one-shot helpers don't count | [Where its state comes from](#where-its-state-comes-from): four facts | configuration (on), boot-partly, service-not-running |
+| Anything else reads off, with a note saying what's missing, a stopped or failed service included | [The note](#the-note) | boot-partly, service-not-running |
+| A flip on finishes the setup and starts what isn't running; no separate start button | [A flip, step by step](#a-flip-step-by-step); the off screen has no banner and no start button (D10) | boot-off (flip it), service-not-running |
+| Only the sound missing in this session: a flip on starts it, without a password | A flip, step by step; the note's ending | (text: boot-partly's state with only the sound not running) |
+| Off: neither starts any more, and both stop | A flip, step by step | configuration (flip it) |
+| Every change asks for the administrator's password, and nothing else in the app does | The card's hint; the changing line | boot-changing |
+| The switch shows systemd's state, a terminal change and a stopped service included | Read at start, after a flip, on window activation and on the bus name's changes | boot-partly, service-not-running |
+| It works while the service isn't running | The off screen holds the switch | boot-off, service-not-running |
+| A change that doesn't happen: the switch goes back to systemd's state, and the commands for the flip's direction show (three lines to turn on, two to turn off) | The note under the switch: dialog dismissed (126), not authorized or no agent (127, `--disable-internal-agent`), a step failed (the program's code) | boot-not-changed |
+| Unknown | Insensitive at off, with the reason and the commands | boot-unknown |
+| The service-not-running command is `sudo systemctl enable --now opendeepcool.service` | The off screen's terminal commands, first line | boot-off, service-not-running |
+| Only the user at the PC may flip it | polkit `allow_active` only; no switch when not available, nor on the off screen in a remote or inactive session | not-available |
 | English only, no app-only settings | — | — |
 
 **Out of scope, confirmed absent.** The design has no:
@@ -524,8 +759,8 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 - theme-source setting;
 - Creative mode;
 - static or scrolling option;
-- language or start-at-login setting;
-- button that changes the system, such as starting the service or applying the udev rule: the banners name the fix, and the user carries it out.
+- language or start-at-login setting for the app itself (Start at boot is systemd's state for OpenDeepCool's units, not an app setting);
+- control that changes the system other than the Start at boot switch (owner, 2026-11-10): no separate start button (owner, 2026-11-11: the switch does it) and no udev fix. The banners name that fix, and the user carries it out.
 
 ## Unverified points, answered (Phase 10 Task 1, 2026-11-06)
 
@@ -545,3 +780,21 @@ Each point the design left open, with its answer and source, or the fallback the
 | Hyprland and the window's minimum size | **Unverified**: it can be seen only in the owner's session, and no test opens a window there. The app sets its minimum size as designed; the optional attended tour looks at it | Window |
 | `GtkWindow:is-active` after a session switch | **Unverified** under Hyprland, for the same reason. The app also follows logind's `Active` property of its own session (org.freedesktop.login1), a third trigger for connecting again, still without polling. The reconnect on activation itself is checked in headless weston, where another window takes the focus and closes (Phase 10 Task 8, decisions log D78) | Not available in this session |
 | glib's one-shot timer name | `glib::timeout_add_local_once`, in glib 0.22, gtk4 0.11's (its source, `src/source.rs`, read 2026-11-06) | Banners, `write-failed` |
+
+The Start at boot design's own points (2026-11-11):
+
+| Point | Answer | Source, or the fallback |
+|---|---|---|
+| `GtkSwitch`'s delayed state | Verified: `active` is the handle, `state` the trough; `state-set` returning `TRUE` stops the default handler; `gtk_switch_set_state` sets `:checked`; the accessible checked state follows `active` | docs.gtk.org, GtkSwitch and GtkSwitch::state-set; GTK's source, `gtk/gtkswitch.c` |
+| pkexec's exit codes | Verified: 126 is only a dismissed dialog; 127 is every other refusal or error, a missing agent included | pkexec(1) |
+| pkexec's messages on stderr | **Unverified**, and not relied on: one sentence covers every 127 | [States and their text](#states-and-their-text) |
+| pkexec's text agent on the app's terminal | **Unverified**; `--disable-internal-agent` avoids it either way (owner, 2026-11-11) | pkexec(1) documents the option |
+| The user's manager reading a `--global` link as `enabled` | Verified with the dev copy's layout (2026-11-11): `GetUnitFileState` on the user bus answered `enabled`; the package's layout is checked again in Phase 11 Task 7 | [Where its state comes from](#where-its-state-comes-from) |
+| `GetUnitFileState` for a unit that isn't installed | Verified (2026-11-11, system and user bus): the call fails ("No such file or directory"), so the switch reads unknown | `busctl call … GetUnitFileState` on the development PC |
+| `systemctl start` returning only once the service owns its bus name | Verified from the code: the unit is `Type=notify`, and the service sends `READY=1` only once it owns its bus name (`crates/odc-service/src/dbus.rs`, the D-Bus side's start), so `systemctl start` returns after the name has an owner. The 5 s wait after a successful `on` stays, for the app to see the name's new owner | `packaging/systemd/opendeepcool.service`; [The window around a flip](#the-window-around-a-flip) |
+| logind's `Active` and `Remote` | Verified: both are properties of the session object | org.freedesktop.login1(5) |
+| `ActiveState`'s values | Verified: `active`, `reloading`, `inactive`, `failed`, `activating`, `deactivating`, `maintenance`, `refreshing`; `failed` covers "too many restarts" too | org.freedesktop.systemd1(5), Table 1 |
+| A service waiting to restart | Verified: `SubState` `auto-restart` and `auto-restart-queued` map to `activating` | systemd's source, `src/core/service.c` (its state tables) and `src/basic/unit-def.c` (the strings), read 2026-11-11 |
+| Reading a unit's `ActiveState` | Verified: `GetUnit` fails for a unit not loaded; `LoadUnit` loads it from disk; `StartUnit` returns a job whose end is `JobRemoved`, sent only once some client has called `Subscribe()` | org.freedesktop.systemd1(5) |
+| `Restart=` of the display service | The unit says `Restart=on-failure` (`packaging/systemd/opendeepcool.service`, read 2026-11-11), with `StartLimitIntervalSec=0`. The design reads `failed` and the restart wait alike, so it holds for `Restart=always` too | the unit file |
+| `g_application_hold` | Verified: "Increases the use count of application", to say it "has a reason to continue to run" | docs.gtk.org, GApplication.hold |

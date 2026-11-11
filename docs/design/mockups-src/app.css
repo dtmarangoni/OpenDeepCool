@@ -128,6 +128,18 @@ button { font: inherit; color: inherit; }
 .switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
 .switch.on span { left: 21px; background: var(--bg); }
+/* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
+.switch.state-on { background: var(--accent); border-color: var(--accent); }
+.switch.state-on span { background: var(--bg); }
+.switch.handle-on span { left: 21px; }
+/* The Startup card in the window's body while the service is down, and the terminal commands */
+.empty .boot-card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin: 18px auto 0;
+  width: 560px; max-width: 100%; text-align: left; }
+.off-screen { width: 560px; max-width: 100%; }
+.terminal { margin-top: 10px; text-align: left; }
+.terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
+.terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px ui-monospace, monospace; padding: 4px 8px;
+  background: color-mix(in srgb, var(--fg) 8%, transparent); }
 .scale { width: 340px; }
 .scale input { width: 100%; accent-color: var(--accent); }
 .marks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }

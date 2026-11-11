@@ -72,6 +72,16 @@ Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/pr
 - **The tiles (Task 5):** the boxes select nothing themselves; the saved mode's tile is marked by the app, so focus never shows a tile as chosen; an unavailable tile's lit dots are muted (D55, D56).
 - **The Configuration page (Task 6):** a saved input never found stands last in its picker with "not found"; a scale follows the drag and asks once a stop, back to the saved stop when refused; the peak dots switch keeps its state until confirmed; the three cards are named Display, Cooler and Music settings; the scale's knob is GTK's own (D59, D61–D64).
 
+## Design brief (owner, 2026-11-10)
+
+- **A Start at boot switch.** The package turns nothing on at install, as Arch's packages don't, so the app gains one switch that turns OpenDeepCool on or off for the whole PC (`docs/spec/settings.md`, Start at boot). On: the display service starts at every boot and now, and the sound helper at every user's login and now in this session. Off: neither starts any more, and both stop.
+  - Each change asks for the administrator's password, every time, through the desktop's polkit dialog; it's the only thing in the app that asks for one.
+  - The switch shows systemd's state, so a change made in a terminal shows too.
+  - **On means ready to use** (owner, 2026-11-11): the switch is on only when the display service is enabled at boot and running, and the sound helper is enabled for every user and running in this session. Anything else, a stopped service included, shows it off with a note saying what's missing; a flip on finishes the setup and starts what isn't running. No separate start button. When only the session's sound helper is missing, a flip on just starts it, without a password.
+  - It must be usable while the service isn't running: that's how a new install is turned on.
+  - When the change doesn't happen (password refused or dialog closed, no polkit agent in the session, or a step failed), the switch goes back and the app shows the terminal commands that do the same for that direction: to turn on, the two `sudo` commands plus `systemctl --user start opendeepcool-audio.service` for this session's sound; to turn off, the two `disable` commands (owner, 2026-11-11). The app runs `pkexec --disable-internal-agent`, so a missing polkit agent fails at once (owner, 2026-11-11).
+  - The service-not-running message's command becomes `sudo systemctl enable --now opendeepcool.service`.
+
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–23; 23 is OpenDeepCool's Music → Dancer) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).

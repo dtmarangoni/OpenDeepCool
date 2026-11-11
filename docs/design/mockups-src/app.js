@@ -14,7 +14,26 @@
 //   norule (no reading rule for its driver) and queryFailed (its kind query failed: Gpus kind "query-failed",
 //   shown as "Unknown type" with a note).
 // - gpus[i].missing is no longer read: a saved GPU can't be missing since the owner's change of 2026-11-04.
+//
+// CONFIG keys of the Start at boot design (2026-11-11, revised the same day: on means ready to use;
+// docs/design/settings-app.md "Start at boot"); all optional. The switch is on only when all four facts hold:
+// - boot: a preset for the facts below: "on" (the default: both units enabled, the sound running in this session),
+//   "off" (nothing enabled, nothing running), or "unknown" (a read from systemd failed; the facts aren't read).
+// - serviceEnabled, soundEnabled (booleans): opendeepcool.service enabled at boot; opendeepcool-audio.service
+//   enabled for every user (--global). The preset's value when absent.
+// - serviceRun: the display service while the service is down (service false): "stopped" (the default), "failed"
+//   (failed, or waiting to restart after a failure) or "starting". While service is true, it runs.
+// - soundRun (boolean): the sound helper runs in this session. The preset's value when absent.
+// - bootOther (with boot "unknown"): {unit, state} when systemd answered with another unit-file state, such as
+//   "masked"; without it, "unknown" means a read failed.
+// - bootFlip: "on" or "off" while a flip toward that state runs: the polkit dialog is open or the program runs,
+//   or, when only the sound in this session is missing, while the app starts it.
+// - bootFailed: the last flip that didn't happen or didn't finish: {to: "on" or "off", exit: 126 (the dialog was
+//   dismissed), 127 (not authorized, or no polkit agent), the program's own code (1: a step failed), or "sound"
+//   (the app's own step in this session failed), message: the program's one-line message, for its own codes}.
+// - The first pass's "partly", bootPartly and bootSound are no longer read.
 const S = JSON.parse(JSON.stringify(CONFIG));
+if (S.boot === undefined) S.boot = "on";
 
 const METRIC = {
   cpu_usage: "CPU usage", gpu_usage: "GPU usage", ram: "RAM usage",
@@ -236,17 +255,116 @@ const COOLER = {
   "write-failed": ["warn", "Cooler: sending fails", "Not on the cooler: sending it fails"]
 };
 
+// ---------- Start at boot (design, Start at boot) ----------
+const BOOT_CMDS = {
+  on: ["sudo systemctl enable --now opendeepcool.service", "sudo systemctl --global enable opendeepcool-audio.service",
+    "systemctl --user start opendeepcool-audio.service"],
+  off: ["sudo systemctl disable --now opendeepcool.service", "sudo systemctl --global disable opendeepcool-audio.service"]
+};
+// The four facts the switch reads (design, Where its state comes from), or null when they're unknown.
+function bootFacts() {
+  if (S.boot === "unknown") return null;
+  const preset = S.boot !== "off";
+  const or = (k, d) => (S[k] === undefined ? d : S[k]);
+  return {
+    serviceEnabled: or("serviceEnabled", preset),
+    serviceRun: S.service ? "active" : or("serviceRun", "stopped"),
+    soundEnabled: or("soundEnabled", preset),
+    soundRun: or("soundRun", preset)
+  };
+}
+// On means ready to use: all four facts hold (owner, 2026-11-11).
+function bootOn() {
+  const f = bootFacts();
+  return !!f && f.serviceEnabled && f.serviceRun === "active" && f.soundEnabled && f.soundRun;
+}
+function serviceStarting() { const f = bootFacts(); return !!f && f.serviceEnabled && f.serviceRun === "starting"; }
+// Only the sound in this session is missing: a flip on just starts it, without pkexec or a password.
+function onlySoundHere() {
+  const f = bootFacts();
+  return !!f && f.serviceEnabled && f.serviceRun === "active" && f.soundEnabled && !f.soundRun;
+}
+// The off screen's heading: "OpenDeepCool is off" while the display service doesn't start at boot or a flip
+// toward off runs; "OpenDeepCool isn't running" otherwise (set to start, but stopped, failed or starting; or unknown).
+function offHeading() { const f = bootFacts(); return S.bootFlip === "off" || (!!f && !f.serviceEnabled); }
+
+// The note saying what's missing (design, The note): at most one phrase per unit, then one ending.
+function missingNote() {
+  const f = bootFacts();
+  if (!f || bootOn()) return null;
+  const runs = f.serviceRun === "active";
+  if (!f.serviceEnabled && !runs) return null; // OpenDeepCool is off, which the off screen's heading says
+  if (serviceStarting()) return { kind: "info", cmds: null, text: "The display service is starting." };
+  const d = !f.serviceEnabled ? "the display service runs now, but doesn't start at boot"
+    : f.serviceRun === "stopped" ? "the display service is stopped"
+    : f.serviceRun === "failed" ? "the display service failed" : null;
+  const a = !f.soundEnabled && !f.soundRun ? "the sound for Music is off"
+    : !f.soundEnabled ? "the sound for Music runs here, but doesn't start at login"
+    : !f.soundRun ? "the sound for Music isn't running in this session" : null;
+  const end = onlySoundHere() ? "Turn it on to start it, with no password." : "Turn it on to finish.";
+  const journal = d === "the display service failed" ? " The journal says why the service failed." : "";
+  return { kind: "warn", cmds: null, text: `Not fully on: ${[d, a].filter(Boolean).join(", and ")}. ${end}${journal}` };
+}
+function bootFailText(f) {
+  if (f.exit === 126) return "Not changed: the password dialog was closed.";
+  if (f.exit === 127) return "Not changed: the password wasn't accepted, or no password dialog could open in this session.";
+  if (f.exit === "sound") return f.to === "off"
+    ? "Off, but the sound for Music didn't stop in this session. It stops when you log out."
+    : "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more.";
+  const m = (f.message || `opendeepcool-boot ended with code ${f.exit}`).replace(/\.$/, "");
+  return `Didn't finish: ${m}. The switch shows what's set now; the journal says more.`;
+}
+// The note under the switch, if any: {kind: "" (foreground) | "warn" | "info", text, cmds: null | "on" | "off", lead}.
+// Which shows: a running flip's line, then a failure's note, then unknown, then starting or what's missing.
+function bootNote() {
+  if (S.bootFlip) return { kind: "", cmds: null, text: S.bootFlip === "on" && onlySoundHere()
+    ? "Turning on… Starting the sound for Music in this session."
+    : `Turning ${S.bootFlip}… Your desktop asks for the administrator's password first.` };
+  if (S.bootFailed) {
+    // Turned off, but the sound in this session didn't stop: the change for the whole PC was made, so no commands.
+    const done = S.bootFailed.exit === "sound" && S.bootFailed.to === "off";
+    return { kind: "warn", text: bootFailText(S.bootFailed), cmds: done ? null : S.bootFailed.to, lead: "From a terminal instead:" };
+  }
+  if (S.boot === "unknown") {
+    if (S.bootOther) return { kind: "info", text: `Can't change it here: systemd reports ${S.bootOther.unit} as “${S.bootOther.state}”.`, cmds: null };
+    return { kind: "info", text: "Can't tell whether OpenDeepCool is on: reading it from systemd failed.", cmds: "on", lead: "To turn it on from a terminal:" };
+  }
+  return missingNote();
+}
+function terminalBlock(to, lead) {
+  return `<div class="terminal" role="group" aria-label="Terminal commands"><div class="muted small">${lead}</div>
+    <div class="cmds"><code>${BOOT_CMDS[to].join("\n")}</code>
+    <button class="btn" aria-label="Copy terminal commands" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div></div>`;
+}
+// The switch: its trough shows systemd's state (GtkSwitch:state, CSS :checked), on only when OpenDeepCool is
+// ready to use; its handle the latest flip (GtkSwitch:active, which is also what assistive technology reads).
+function bootSwitch(note) {
+  const state = bootOn();
+  const handle = S.bootFlip ? S.bootFlip === "on" : state;
+  const insensitive = !!S.bootFlip || S.boot === "unknown" || serviceStarting();
+  return `<button class="switch${state ? " state-on" : ""}${handle ? " handle-on" : ""}" role="switch" aria-checked="${handle}"
+    aria-label="Start at boot"${note ? ` aria-description="${esc(note.text)}"` : ""}${insensitive ? " disabled" : ""} onclick="flipBoot()"><span></span></button>`;
+}
+// The Startup card: "config" on the Configuration page (with its heading, and a note's commands inside it), or
+// "off" on the off screen (whose terminal commands sit under the card, so a note there shows only its sentence).
+function bootCard(where) {
+  const note = bootNote();
+  const icon = note && note.kind === "warn" ? ICON.warn : note && note.kind === "info" ? ICON.info : "";
+  const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
+  return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
+    <div class="row"><div class="row-l"><span>Start at boot</span><span class="muted small">For the whole PC</span></div>
+      <div class="row-r">${bootSwitch(note)}</div></div>
+    ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
+    ${note && note.cmds && where === "config" ? terminalBlock(note.cmds, note.lead) : ""}
+    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password.</span></div>
+  </section>`;
+}
+
 function banners() {
   let out = "";
-  if (!S.service) {
-    out += `<div class="banner error" role="alert" aria-label="Service banner">${ICON.error}
-      <div class="banner-text"><strong>The OpenDeepCool service isn't running.</strong>
-      The cooler shows nothing until it starts. Start it from a terminal:
-      <code>sudo systemctl start opendeepcool.service</code>
-      The app connects by itself once it runs.</div>
-      <button class="btn" aria-label="Copy start command" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div>`;
-    return out;
-  }
+  // No service banner (design, D10): while the service is down the off screen says what's wrong, and its switch
+  // and terminal commands fix it. No cooler banner either: the cooler's state is unknown then.
+  if (!S.service) return out;
   // One cooler banner at a time, from CoolerState.
   const cs = coolerState();
   if (cs === "not-found") out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
@@ -280,7 +398,8 @@ function side() {
   const dot = (cls, text, name) => `<li aria-label="${name}"><span class="dot ${cls}"></span>${text}</li>`;
   let status = "";
   if (!S.service) {
-    status += dot("off", "Cooler: unknown", "Cooler status") + dot("bad", "Service not running", "Service status");
+    status += dot("off", "Cooler: unknown", "Cooler status")
+      + (offHeading() ? dot("off", "Service off", "Service status") : dot("bad", "Service not running", "Service status"));
   } else {
     const [cls, text] = COOLER[coolerState()];
     status += dot(cls, text, "Cooler status");
@@ -427,11 +546,17 @@ function configPage() {
       ${slider("peak", "Peak fall", S.peakFall)}
       <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>
     </section>
+    ${bootCard("config")}
   </div>`;
 }
+// While the service isn't running: the off screen, in every case (design, D10). Its heading says whether
+// OpenDeepCool is off or set to start but not running; the card's note says what's missing.
 function emptyPage() {
-  return `<div class="page empty"><div><h2>Settings appear here when the service runs</h2>
-    <p class="muted">The service keeps the settings for the whole PC; the app only shows and changes them.</p></div></div>`;
+  return `<div class="page empty"><div class="off-screen">
+    <div role="group" aria-label="Service message"><h2>${offHeading() ? "OpenDeepCool is off" : "OpenDeepCool isn't running"}</h2>
+      <p class="muted">The cooler shows nothing until the display service runs.</p></div>
+    ${bootCard("off")}
+    ${terminalBlock("on", "From a terminal instead:")}</div></div>`;
 }
 // Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
 // and nothing else: no banner, no preview column, no pages, no status, no RPM, no controls.
@@ -482,6 +607,19 @@ function choose(which, i) {
     });
   } else { S[which] = i; S.missing[which] = false; }
   S.open = null; render();
+}
+// Start at boot: from off (whatever is missing) a flip goes to on, and from on to off. In the app the desktop's
+// polkit dialog opens now and the program runs (or, with only the sound here missing, the app just starts it);
+// the mockup skips the dialog and succeeds after a moment. Turned on, everything is set up and running and the
+// normal window appears; turned off, nothing is, and the off screen appears.
+function flipBoot() {
+  if (S.bootFlip || S.boot === "unknown" || serviceStarting()) return;
+  const to = bootOn() ? "off" : "on";
+  S.bootFailed = null; S.bootFlip = to; S.open = null; render();
+  setTimeout(() => {
+    ["serviceEnabled", "serviceRun", "soundEnabled", "soundRun"].forEach(k => delete S[k]);
+    S.bootFlip = null; S.boot = to; S.service = to === "on"; render();
+  }, 1500);
 }
 function flash(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
 function copied(b) { b.querySelector("span").textContent = "Copied"; }

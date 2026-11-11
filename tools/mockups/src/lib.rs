@@ -238,7 +238,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the cooler's fan and pump inputs, the Music settings. Rotation is 90°, and the preview turns with it.",
+            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the cooler's fan and pump inputs, the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -305,8 +305,39 @@ pub fn pages() -> Vec<Page> {
         page(
             "service-not-running.html",
             "Service not running",
-            "The app can't read or change anything. It shows the start command (no start button: it's a privileged system action) and connects by itself once the service runs.",
-            base().with("service", Json::Bool(false)),
+            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. A flip on starts it again; the terminal commands sit under the card.",
+            base()
+                .with("service", Json::Bool(false))
+                .with("serviceRun", s("failed")),
+        ),
+        page(
+            "boot-off.html",
+            "OpenDeepCool off, a new install",
+            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch and, under it, the terminal commands to turn it on. Flip the switch: the mockup skips the password dialog, then shows the normal window.",
+            base()
+                .with("service", Json::Bool(false))
+                .with("boot", s("off")),
+        ),
+        page(
+            "boot-changing.html",
+            "Turning on",
+            "Start at boot was flipped on. The desktop's own polkit dialog asks for the administrator's password (not drawn), then the program runs. The handle shows the flip, the trough systemd's state (still off), and the switch is insensitive until the program ends. Turning off looks the same the other way.",
+            base()
+                .with("service", Json::Bool(false))
+                .with("boot", s("off"))
+                .with("bootFlip", s("on")),
+        ),
+        page(
+            "boot-not-changed.html",
+            "Not turned on",
+            "pkexec ended with 127: the password wasn't accepted, or no polkit agent runs in this session; the app doesn't tell them apart, since pkexec's messages are unverified. The switch is back at systemd's state, off, and the reason shows under it. A dismissed dialog (126) looks the same, with its own sentence.",
+            base()
+                .with("service", Json::Bool(false))
+                .with("boot", s("off"))
+                .with(
+                    "bootFailed",
+                    obj(&[("to", s("on")), ("exit", Json::Int(127))]),
+                ),
         ),
         page(
             "unavailable-metric.html",
@@ -358,6 +389,21 @@ pub fn pages() -> Vec<Page> {
                 .with("fans", Json::Array(Vec::new()))
                 .with("fan", Json::Null)
                 .with("pump", Json::Null),
+        ),
+        page(
+            "boot-partly.html",
+            "Start at boot not fully on",
+            "The display service runs, but someone only started it (sudo systemctl start): it doesn't start at boot, and the sound for Music is off. The switch is on only when OpenDeepCool is ready to use, so it reads off, with one note naming both missing parts. One flip finishes the setup.",
+            config()
+                .with("serviceEnabled", Json::Bool(false))
+                .with("soundEnabled", Json::Bool(false))
+                .with("soundRun", Json::Bool(false)),
+        ),
+        page(
+            "boot-unknown.html",
+            "Start at boot unknown",
+            "Reading the units' state from systemd failed. The switch can't show on or off truthfully, so it's insensitive at off, with the reason and the commands to turn it on from a terminal.",
+            config().with("boot", s("unknown")),
         ),
     ]
 }
