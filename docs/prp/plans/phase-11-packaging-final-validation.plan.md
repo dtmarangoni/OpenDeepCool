@@ -423,7 +423,7 @@ Three commits: the design, the program with its polkit action, the app.
 - `packaging/arch/PKGBUILD`: CREATE.
   - `# Maintainer:` the project's GitHub handle and its no-reply address, never the owner's name (AUR submission guidelines; rule 10);
   - `pkgname=opendeepcool`, `arch=(x86_64)`, `license=(MIT)`;
-  - `pkgver` is the release's version without its hyphen: `1.0.0-alpha.1` is written `1.0.0alpha.1`, because pacman forbids hyphens. `vercmp` then orders `alpha.2` < `alpha.10` < `beta.1` < `1.0.0` (checked 2026-10-27); a dot or an underscore before `alpha` would sort after `1.0.0`;
+  - `pkgver` is the release's version, its tag without the `v`: `0.1.z` for the alpha, `0.9.z` for the beta, `1.0.0` the first release (owner, 2026-11-11; PRD Decisions Log, Version numbers). Until then it was `1.0.0-alpha.1` written `1.0.0alpha.1`, because pacman forbids hyphens;
   - `depends=` every library the binaries link directly, found with namcap's `sodepends` and `ldd`, `gcc-libs` and `glibc` among them, plus the programs they run: `hwdata`, `lm_sensors`, `pipewire-audio`, `polkit`, `dbus`, `systemd` (Arch package guidelines: "Do not rely on transitive dependencies"). `makedepends=(cargo git)`; `optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')`, the package that ships NVML and CUDA (solution review P11-12);
   - `source=` the published tag through git, `git+<repository URL>?signed#tag=v<version>`, with `validpgpkeys=` the owner's key's full fingerprint, and the `sha256sums` makepkg computes over the tag's files (`git archive`).
     - GitHub's generated archive isn't used: GitHub may change its compression, with six months' notice (solution review P11-06, P11-17).
@@ -462,7 +462,10 @@ Three commits: the design, the program with its polkit action, the app.
 
 **As built, the package files** (2026-11-11):
 - **Dependencies:** `cairo`, `glib2`, `glibc`, `gtk4`, `libgcc` and `pango` are what the six programs link (`readelf -d`, then `pacman -Qo`). Arch's Rust guidelines now name `libgcc` where this plan said `gcc-libs`. `hicolor-icon-theme` owns the folders the icon goes in, which namcap asked for. `dbus`, `hwdata`, `lm_sensors`, `pipewire-audio`, `polkit` and `systemd` are what the programs run or read. namcap calls those six "may not be needed", since it sees only linked libraries.
-- **Version:** `pkgver=1.0.0alpha.1` and `_tag=v1.0.0-alpha.1` are the template's; Phase 12 sets them, the key's fingerprint and the checksum. Until then `validpgpkeys=()` and `sha256sums=('SKIP')`, so the template builds nothing unsigned. Arch's package guidelines say both that a version "may contain letters, numbers, and periods only" and that a hyphen "must be replaced with an underscore". The plan's form follows the first, and only it orders correctly (`vercmp`, checked again: `1.0.0alpha.1` < `1.0.0` < `1.0.0_alpha.1`). A test checks that `pkgver` is `_tag` without its `v` and hyphen.
+- **Version:**
+  - The template's `pkgver` is `0.1.0`, the alpha's, and the source is the tag `v$pkgver`. Phase 12 sets the version, the key's fingerprint and the checksum. Until then `validpgpkeys=()` and `sha256sums=('SKIP')`, so the template builds nothing unsigned.
+  - It was first written `1.0.0alpha.1`, with a `_tag` of `v1.0.0-alpha.1`. Arch's package guidelines say both that a version "may contain letters, numbers, and periods only" and that a hyphen "must be replaced with an underscore", and `vercmp` ranks `1.0.0_alpha.1` above `1.0.0`.
+  - The owner then chose 0.y.z for the alpha and the beta (2026-11-11), which needs no translation. A test checks that `pkgver` is `major.minor.patch` in digits.
 - **`post_upgrade`** is left out, since there's nothing to say yet.
 - **`post_remove`'s lm-sensors step:** it disables `lm_sensors.service` only when the record says the detection created `/etc/conf.d/lm_sensors` and the service wasn't enabled before. `sensors-detect` enables its service only when it writes that file, so an uninstall never disables an lm-sensors setup the user made later (the Recommendation said "unless `lm_sensors_enabled_before`").
 - **The scriptlets' static check** therefore allows one `disable` outside `pre_remove`: `lm_sensors.service`, in `post_remove`'s detection step.
@@ -597,7 +600,7 @@ Three commits: the design, the program with its polkit action, the app.
 
 The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 12). Its plan, written when this phase is done, takes over what this task held:
 - **The signing key** (owner, 2026-11-10): one PGP key, created once by the owner, named with the project's GitHub handle and no-reply address (rule 10), with a passphrase and an end date that is extended rather than replaced, so its fingerprint never changes; its revocation certificate and a backup kept offline; its public key on the owner's GitHub account. Every release tag is signed with it (`git tag -s`), and the PKGBUILD's `validpgpkeys` holds its fingerprint;
-- the versions (`1.0.0-alpha.N`, `1.0.0-beta.N`, `1.0.0`), `CHANGELOG.md` and the tags on `main`, pushed only with the owner's explicit OK, over HTTPS with the gh login (see `docs/local/`);
+- the versions (`0.1.z` for the alpha, `0.9.z` for the beta, `1.0.0`; owner, 2026-11-11), `CHANGELOG.md` and the tags on `main`, pushed only with the owner's explicit OK, over HTTPS with the gh login (see `docs/local/`);
 - the alpha and the beta as GitHub pre-releases, each for one month and until every open bug is fixed with its test; then `v1.0.0` on GitHub and the AUR;
 - after each tag, the PKGBUILD's checksum committed and `.SRCINFO` regenerated;
 - the release notes are the CHANGELOG's section for the version, so the guard has checked them before they're published (solution review P11-14);

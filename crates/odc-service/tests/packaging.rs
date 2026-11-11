@@ -633,8 +633,9 @@ fn build_names_exactly_the_crates_whose_programs_ship() {
     }
 }
 
-/// The PKGBUILD's fields: the release's signed tag through git, its version that tag's without
-/// the hyphen, no `pkgver()` (a release candidate is built from a temporary copy), and the
+/// The PKGBUILD's fields: the release's signed tag through git, `v` and the version, a plain
+/// `major.minor.patch` (0.1.z the alpha, 0.9.z the beta, 1.0.0 the first release; owner,
+/// 2026-11-11), with no `pkgver()` (a release candidate is built from a temporary copy), and the
 /// scriptlets' file; `.SRCINFO` holds the same version and dependencies.
 #[test]
 fn the_pkgbuild_builds_the_signed_tag() {
@@ -647,20 +648,16 @@ fn the_pkgbuild_builds_the_signed_tag() {
     assert!(!text.contains("pkgver()"), "no pkgver()");
     assert_eq!(
         variable(&text, "source"),
-        "(\"$pkgname::git+$url.git?signed#tag=$_tag\")"
+        "(\"$pkgname::git+$url.git?signed#tag=v$pkgver\")"
     );
     let pkgver = variable(&text, "pkgver");
-    let tag = variable(&text, "_tag");
-    assert_eq!(
-        tag.strip_prefix('v').map(|t| t.replace('-', "")),
-        Some(pkgver.clone()),
-        "pkgver is the tag without its v and its hyphen"
-    );
+    let parts: Vec<&str> = pkgver.split('.').collect();
     assert!(
-        pkgver
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '.'),
-        "letters, numbers and periods only (Arch package guidelines)"
+        parts.len() == 3
+            && parts
+                .iter()
+                .all(|p| !p.is_empty() && p.bytes().all(|b| b.is_ascii_digit())),
+        "{pkgver}: major.minor.patch, digits only, so git, Cargo and pacman agree"
     );
     let srcinfo = arch(".SRCINFO");
     assert!(srcinfo.contains(&format!("\tpkgver = {pkgver}\n")));

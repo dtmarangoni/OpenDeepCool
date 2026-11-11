@@ -6,10 +6,9 @@
 # is built from a temporary copy of this file pointed at the committed HEAD (odc-pkg-test).
 
 pkgname=opendeepcool
-# The release's version without its hyphen, which pacman forbids: v1.0.0-alpha.1 is 1.0.0alpha.1,
-# which vercmp orders before 1.0.0, as it does alpha.2 before alpha.10 and beta.1.
-pkgver=1.0.0alpha.1
-_tag=v1.0.0-alpha.1
+# The release's version, its tag without the v: 0.1.z for the alpha, 0.9.z for the beta, 1.0.0 the
+# first release (owner, 2026-11-11), the same in git, Cargo and pacman.
+pkgver=0.1.0
 pkgrel=1
 pkgdesc='Drives the DeepCool LP360 cooler display, with a settings app'
 arch=('x86_64')
@@ -35,7 +34,7 @@ depends=(
 makedepends=('cargo' 'git')
 optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')
 install=opendeepcool.install
-source=("$pkgname::git+$url.git?signed#tag=$_tag")
+source=("$pkgname::git+$url.git?signed#tag=v$pkgver")
 # Phase 12: the release key's full fingerprint, and the checksum makepkg computes over the tag.
 validpgpkeys=()
 sha256sums=('SKIP')
