@@ -8,11 +8,17 @@
 //! new active session. A refused call is tried again on the next such change, or by a fallback
 //! timer while the service wants sound, from 2 s doubling up to 60 s. It logs only changes of what
 //! it's doing, never each try, and never any sound.
+//!
+//! It also ends when its own program file is replaced or removed (Phase 11 plan, Task 4), with a
+//! failure, so its unit's `Restart=on-failure` starts the new program after an upgrade, and after
+//! an uninstall there's no unit left to start: no pacman step reaches into users' sessions.
 
 use std::future::{Future, poll_fn};
-use std::io::ErrorKind;
+use std::io::{self, ErrorKind};
+use std::mem::MaybeUninit;
 use std::os::fd::OwnedFd;
-use std::path::PathBuf;
+use std::os::unix::ffi::OsStrExt;
+use std::path::{Path, PathBuf};
 use std::pin::{Pin, pin};
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
@@ -22,6 +28,7 @@ use std::time::{Duration, Instant};
 
 use futures_core::Stream;
 use odc_ipc::{BUS_NAME, Error, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, State};
+use rustix::fs::inotify::{self, CreateFlags, ReadFlags, WatchFlags};
 use zbus::fdo::DBusProxy;
 use zbus::message::Type;
 use zbus::names::BusName;
@@ -621,6 +628,131 @@ pub async fn run(
     }
     helper.stop_recorder();
     Ok(())
+}
+
+/// What a [`program_replaced`] watch says.
+type Watched = Arc<Mutex<(Option<Result<(), String>>, Option<Waker>)>>;
+
+/// Completes once `program`, the helper's own file, is replaced or removed: a file created or
+/// moved in under its name, its name removed or moved away, or its folder removed or moved. A
+/// thread of its own waits on inotify for the folder's events, never polling (owner,
+/// 2026-10-26). The future gives `Err` when the watch itself ends, its reason, and the helper
+/// then keeps running.
+///
+/// # Errors
+///
+/// When `program` has no folder or no name, or inotify can't watch the folder.
+pub fn program_replaced(
+    program: &Path,
+) -> io::Result<impl Future<Output = Result<(), String>> + Send + 'static> {
+    let invalid = || io::Error::new(ErrorKind::InvalidInput, format!("{}", program.display()));
+    let dir = program
+        .parent()
+        .filter(|dir| !dir.as_os_str().is_empty())
+        .ok_or_else(invalid)?;
+    let name = program.file_name().ok_or_else(invalid)?.as_bytes().to_vec();
+    let fd = inotify::init(CreateFlags::CLOEXEC)?;
+    inotify::add_watch(
+        &fd,
+        dir,
+        WatchFlags::CREATE
+            | WatchFlags::DELETE
+            | WatchFlags::MOVED_FROM
+            | WatchFlags::MOVED_TO
+            | WatchFlags::DELETE_SELF
+            | WatchFlags::MOVE_SELF,
+    )?;
+    let watched: Watched = Arc::new(Mutex::new((None, None)));
+    let shared = Arc::clone(&watched);
+    thread::Builder::new()
+        .name("program-watch".to_owned())
+        .spawn(move || {
+            let mut buf = [MaybeUninit::uninit(); 4096];
+            let mut events = inotify::Reader::new(fd, &mut buf);
+            let result = loop {
+                match events.next() {
+                    Ok(event) => {
+                        let ours = event.file_name().is_some_and(|n| n.to_bytes() == name);
+                        // The folder itself gone, its watch dropped, or events lost: the
+                        // program may be gone too.
+                        let folder = event.events().intersects(
+                            ReadFlags::DELETE_SELF
+                                | ReadFlags::MOVE_SELF
+                                | ReadFlags::IGNORED
+                                | ReadFlags::QUEUE_OVERFLOW,
+                        );
+                        if ours || folder {
+                            break Ok(());
+                        }
+                    }
+                    Err(rustix::io::Errno::INTR) => {}
+                    Err(e) => break Err(format!("reading its program's watch: {e}")),
+                }
+            };
+            let mut state = shared.lock().unwrap_or_else(|p| p.into_inner());
+            state.0 = Some(result);
+            if let Some(waker) = state.1.take() {
+                waker.wake();
+            }
+        })?;
+    Ok(poll_fn(move |cx| {
+        let mut state = watched.lock().unwrap_or_else(|p| p.into_inner());
+        match state.0.take() {
+            Some(result) => Poll::Ready(result),
+            None => {
+                state.1 = Some(cx.waker().clone());
+                Poll::Pending
+            }
+        }
+    }))
+}
+
+/// Why the helper ended.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Ending {
+    /// Its program file was replaced or removed.
+    ProgramReplaced,
+    /// The bus connection ended.
+    BusEnded,
+    /// The bus refused a subscription.
+    BusError(String),
+}
+
+/// The helper on `conn` until its program file at `program` is replaced or removed, or the
+/// connection ends; without a watch (`None`, or one that can't start or stops), until the
+/// connection ends, its reason logged. Every ending is a failure for its unit, which starts it
+/// again (`main`).
+pub async fn helper(
+    conn: &Connection,
+    config: &Config,
+    log: &dyn Log,
+    program: Option<&Path>,
+) -> Ending {
+    let watch = program.map(program_replaced);
+    let replaced = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let flag = Arc::clone(&replaced);
+    let until = async move {
+        match watch {
+            Some(Ok(changed)) => match changed.await {
+                Ok(()) => {
+                    flag.store(true, std::sync::atomic::Ordering::SeqCst);
+                    return;
+                }
+                Err(e) => log.write(Priority::Warning, &e),
+            },
+            Some(Err(e)) => log.write(
+                Priority::Warning,
+                &format!("its program file can't be watched: {e}"),
+            ),
+            None => {}
+        }
+        std::future::pending::<()>().await;
+    };
+    match run(conn, config, log, until).await {
+        Ok(()) if replaced.load(std::sync::atomic::Ordering::SeqCst) => Ending::ProgramReplaced,
+        Ok(()) => Ending::BusEnded,
+        Err(e) => Ending::BusError(e.to_string()),
+    }
 }
 
 #[cfg(test)]

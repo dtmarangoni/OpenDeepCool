@@ -10,6 +10,9 @@ publish.workspace = true
 [dependencies]
 futures-core = "0.3"
 odc-ipc = { path = "../odc-ipc" }
+# inotify on the helper's own program file (Phase 11 plan, Task 4); already in the tree through
+# zbus and the app, with no unsafe code of this crate's.
+rustix = { version = "1", features = ["fs"] }
 zbus = "6"
 
 [dev-dependencies]

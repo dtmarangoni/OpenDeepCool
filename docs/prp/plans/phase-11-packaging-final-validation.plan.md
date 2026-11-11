@@ -490,6 +490,16 @@ Three commits: the design, the program with its polkit action, the app.
   - the files and modes are `FILES.md`'s, all root:root;
   - makepkg also made `opendeepcool-debug`, from its `debug` option.
 
+**As built, the sound helper's ending** (2026-11-11, its own commit):
+- **The watch:** `odc_audio::program_replaced` watches the helper's own program file, found with `current_exe()`.
+  - It uses inotify on the file's folder: created, removed or moved, in or away, under its name, or the folder itself gone.
+  - A thread of its own blocks on the read, so nothing polls.
+  - The unit's `SystemCallFilter=@system-service` includes `@file-system`, which lists the inotify calls (`systemd-analyze syscall-filter`, on the development PC).
+- **The ending:** `odc_audio::helper` says why the helper ended. A replaced program is logged as a notice; a bus that ended or refused, as an error. `main` turns every ending into a failure, so `Restart=on-failure` starts the new program.
+- **A watch that can't start or stops** is logged as a warning, and the helper keeps running.
+- **pacman's own way of replacing a file isn't assumed:** a new file moved over the old one, and the old one removed first, both end it.
+- **Tests:** the watch fires for each of those changes and the folder's removal, never for another file of the folder. A helper whose program is replaced ends with `ProgramReplaced` and stops its recorder.
+
 ### 5. `odc-pkg-test`: build twice, install and uninstall both ways, in a rootless throwaway root
 
 **Files and integration points**

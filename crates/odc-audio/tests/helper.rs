@@ -3,7 +3,8 @@
 //! links that name to it in the case's folder and gives the helper the link, and it plays the
 //! recorder as the folder's `mode` file tells it, logging each start to `runs`. The fake service
 //! reads the pipe with the service's own `PipeAudio`. Nothing here touches PipeWire, the system
-//! bus or the real service.
+//! bus or the real service. The watch on the helper's own program file (Phase 11 plan, Task 4)
+//! watches a made-up file in the case's folder.
 
 use std::collections::HashMap;
 use std::fs::{self, OpenOptions};
@@ -17,10 +18,10 @@ use std::sync::{Arc, Mutex};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use odc_audio::{Config, Log, Priority, pw_record_args, run};
+use odc_audio::{Config, Ending, Log, Priority, helper, program_replaced, pw_record_args, run};
 use odc_ipc::{BUS_NAME, Error, INTERFACE, OBJECT_PATH, State};
 use odc_service::audio::{AudioSource, PipeAudio};
-use odc_testkit::bus::{PrivateBus, sleep};
+use odc_testkit::bus::{PrivateBus, sleep, within as resolved_within};
 use zbus::message::Header;
 use zbus::object_server::SignalEmitter;
 use zbus::wire::{OwnedFd, OwnedVariant, Variant};
@@ -28,7 +29,7 @@ use zbus::{Connection, connection};
 
 type Test = (&'static str, fn());
 
-const TESTS: [Test; 9] = [
+const TESTS: [Test; 11] = [
     (
         "samples_reach_the_service_and_a_closed_pipe_is_attached_again_only_while_wanted",
         samples_reach_the_service_and_a_closed_pipe_is_attached_again_only_while_wanted,
@@ -64,6 +65,14 @@ const TESTS: [Test; 9] = [
     (
         "a_state_change_from_another_connection_is_ignored",
         a_state_change_from_another_connection_is_ignored,
+    ),
+    (
+        "the_program_watch_fires_for_its_own_file_only",
+        the_program_watch_fires_for_its_own_file_only,
+    ),
+    (
+        "the_helper_ends_when_its_program_is_replaced_and_its_recorder_stops",
+        the_helper_ends_when_its_program_is_replaced_and_its_recorder_stops,
     ),
 ];
 
@@ -694,4 +703,81 @@ fn a_state_change_from_another_connection_is_ignored() {
     thread::sleep(Duration::from_millis(500));
     assert_eq!(service.attaches(), 0);
     assert!(runs(&dir).is_empty());
+}
+
+// Phase 11 plan, Task 4: the watch on the helper's own program file fires when a new file is
+// moved over it (an upgrade), when it's removed (an uninstall, or an extraction that unlinks
+// first) or moved away, and when its folder goes; never for another file of its folder.
+fn the_program_watch_fires_for_its_own_file_only() {
+    let dir = case("program-watch");
+    let folder = dir.join("lib");
+    for how in ["replaced", "removed", "moved away", "folder removed"] {
+        fs::create_dir_all(&folder).expect("the folder");
+        let program = folder.join("opendeepcool-audio");
+        fs::write(&program, "old").expect("the program");
+        let mut watch = Box::pin(program_replaced(&program).expect("a watch"));
+        // Another file of its folder written, renamed and removed: nothing.
+        let other = folder.join("opendeepcoold");
+        fs::write(&other, "x").expect("another file");
+        fs::rename(&other, folder.join("opendeepcoold.new")).expect("renamed");
+        fs::remove_file(folder.join("opendeepcoold.new")).expect("removed");
+        let early = zbus::block_on(resolved_within(Duration::from_millis(300), watch.as_mut()));
+        assert!(early.is_none(), "{how}: fired for another file: {early:?}");
+        match how {
+            "replaced" => {
+                let new = folder.join("opendeepcool-audio.new");
+                fs::write(&new, "new").expect("the new program");
+                fs::rename(&new, &program).expect("moved over it");
+            }
+            "removed" => fs::remove_file(&program).expect("removed"),
+            "moved away" => fs::rename(&program, dir.join("away")).expect("moved away"),
+            _ => fs::remove_dir_all(&folder).expect("the folder removed"),
+        }
+        let fired = zbus::block_on(resolved_within(SECOND, watch.as_mut()));
+        assert_eq!(fired, Some(Ok(())), "{how}");
+        let _ = fs::remove_dir_all(&folder);
+        let _ = fs::remove_file(dir.join("away"));
+    }
+    // A file with no folder or name can't be watched.
+    assert!(program_replaced(Path::new("/")).is_err());
+}
+
+// Phase 11 plan, Task 4: a helper whose program file is replaced ends, saying why, and stops its
+// recorder first; `main` turns every ending into a failure, so its unit starts the new program.
+fn the_helper_ends_when_its_program_is_replaced_and_its_recorder_stops() {
+    let dir = case("program-replaced");
+    let bus = bus(&dir);
+    let _service = FakeService::start(&bus, true);
+    let program = dir.join("opendeepcool-audio");
+    fs::write(&program, "old").expect("the program");
+    let config = config(&dir, Duration::from_millis(300), 3 * SECOND);
+    let log = Recorded::default();
+    let (address, lines, watched) = (bus.address().to_owned(), log.clone(), program.clone());
+    let (done, ended) = std::sync::mpsc::channel();
+    let thread = thread::spawn(move || {
+        let ending = zbus::block_on(async {
+            let conn = connection::Builder::address(address.as_str())
+                .build()
+                .await
+                .expect("a connection");
+            helper(&conn, &config, &lines, Some(&watched)).await
+        });
+        let _ = done.send(ending);
+    });
+    assert!(
+        within(3 * SECOND, || runs(&dir).len() == 1),
+        "the recorder runs"
+    );
+    let recorder = runs(&dir)[0].0;
+    thread::sleep(Duration::from_millis(300));
+    assert!(
+        ended.try_recv().is_err(),
+        "ended before its program changed"
+    );
+    let new = dir.join("opendeepcool-audio.new");
+    fs::write(&new, "new").expect("the new program");
+    fs::rename(&new, &program).expect("moved over it");
+    assert_eq!(ended.recv_timeout(2 * SECOND), Ok(Ending::ProgramReplaced));
+    assert!(within(SECOND, || gone(recorder)), "the recorder stopped");
+    thread.join().expect("the helper's thread");
 }
