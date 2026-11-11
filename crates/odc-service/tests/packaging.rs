@@ -3,7 +3,8 @@
 //! session only and owned by the service's account; and the D-Bus policy, scoped to the service.
 //! And the Arch package's own files (Phase 11 plan, Task 4), read as text: `package()` installs
 //! exactly `FILES.md`, `build()` builds exactly the crates whose programs ship, the scriptlets
-//! enable and start nothing, and the restart hook runs after systemd's and D-Bus's.
+//! enable and start nothing, their removal undoes every change under OpenDeepCool's names, and
+//! the restart hook runs after systemd's and D-Bus's.
 //! pacman brings `systemd-analyze` (systemd) and `xmllint` (libarchive's libxml2), so every Arch
 //! system has both, CI's container included.
 
@@ -712,26 +713,21 @@ fn the_scriptlets_enable_and_start_nothing() {
     }
     let code = run.join("\n");
     let systemctl = |name: &str| -> Vec<String> {
-        function(&code, name)
-            .iter()
-            .map(|line| line.trim())
+        commands(&function(&code, name))
+            .into_iter()
             .filter(|line| line.starts_with("systemctl"))
-            .map(str::to_owned)
             .collect()
     };
-    assert_eq!(
-        systemctl("pre_remove"),
-        [
-            "systemctl stop opendeepcool.service",
-            "systemctl --global disable opendeepcool-audio.service",
-            "systemctl disable opendeepcool.service",
-        ]
-    );
     assert_eq!(
         systemctl("_odc_undo_detection"),
         ["systemctl disable lm_sensors.service"]
     );
-    for name in ["post_install", "post_remove", "_odc_power_counters"] {
+    for name in [
+        "post_install",
+        "post_remove",
+        "_odc_power_counters",
+        "_odc_overrides",
+    ] {
         assert!(systemctl(name).is_empty(), "{name}()");
     }
     let message: String = function(&text, "post_install").join("\n");
@@ -744,6 +740,141 @@ fn the_scriptlets_enable_and_start_nothing() {
             message.contains(command),
             "the install message prints {command}"
         );
+    }
+}
+
+/// Each `rm` and `systemctl` that `pre_remove` runs, with its arguments, in a root that is a
+/// chroot or not, booted by systemd or not: bash sources the scriptlets with both commands, and
+/// the two checks systemd's hook script makes, replaced by shell functions, and a `PATH` with
+/// nothing in it, so nothing is removed or disabled.
+fn pre_remove_runs(chroot: bool, booted: bool) -> Vec<String> {
+    let script = format!(
+        "rm() {{ echo rm \"$@\"; }}\n\
+         systemctl() {{ echo systemctl \"$@\"; }}\n\
+         systemd-detect-virt() {{ return {}; }}\n\
+         systemd-notify() {{ return {}; }}\n\
+         . \"$1\"\n\
+         pre_remove\n",
+        u8::from(!chroot),
+        u8::from(!booted)
+    );
+    let out = Command::new("/usr/bin/bash")
+        .args(["-c", &script, "pre_remove"])
+        .arg(packaging("arch/opendeepcool.install"))
+        .env_clear()
+        .env("PATH", "/nonexistent")
+        .output()
+        .expect("bash");
+    let said = |bytes: &[u8]| String::from_utf8_lossy(bytes).into_owned();
+    assert!(
+        out.status.success() && out.stderr.is_empty(),
+        "pre_remove: {}",
+        said(&out.stderr)
+    );
+    said(&out.stdout).lines().map(str::to_owned).collect()
+}
+
+/// Every path where the system reads a file under the same name as one the package installs,
+/// in front of it or beside it, in `/etc` and, outside a chroot, `/run`: a unit's copy or mask
+/// and its drop-in folders (systemd.unit(5), the load path; `set-property` writes
+/// `system.control`), and the same name for the account, udev, polkit, D-Bus and pacman's hooks
+/// (sysusers.d(5), udev(7), polkit(8), dbus-daemon(1), alpm-hooks(5); the last two read no
+/// folder in `/run`). A new kind of file fails until it's decided.
+fn overrides(chroot: bool) -> BTreeSet<String> {
+    let dirs: &[&str] = if chroot { &["/etc"] } else { &["/etc", "/run"] };
+    let mut found = BTreeSet::new();
+    for (path, kind, _, _) in installed() {
+        if kind == "folder" {
+            continue;
+        }
+        let (folder, name) = path.rsplit_once('/').expect("a full path");
+        let under: Vec<String> = match folder {
+            "/usr/lib/systemd/system" => ["system/{n}", "system/{n}.d", "system.control/{n}.d"]
+                .iter()
+                .map(|place| format!("systemd/{place}"))
+                .collect(),
+            "/usr/lib/systemd/user" => vec!["systemd/user/{n}".into(), "systemd/user/{n}.d".into()],
+            "/usr/lib/sysusers.d" => vec!["sysusers.d/{n}".into()],
+            "/usr/lib/udev/rules.d" => vec!["udev/rules.d/{n}".into()],
+            "/usr/share/polkit-1/actions" => vec!["polkit-1/actions/{n}".into()],
+            "/usr/share/dbus-1/system.d" => {
+                found.insert(format!("/etc/dbus-1/system.d/{name}"));
+                vec![]
+            }
+            "/usr/share/libalpm/hooks" => {
+                found.insert(format!("/etc/pacman.d/hooks/{name}"));
+                vec![]
+            }
+            // Programs, and files read only from /usr/local and home folders besides /usr.
+            "/usr/bin"
+            | "/usr/lib/opendeepcool"
+            | "/usr/share/applications"
+            | "/usr/share/icons/hicolor/scalable/apps"
+            | "/usr/share/licenses/opendeepcool" => vec![],
+            _ => panic!("{path}: where does the system read a file of the same name before it?"),
+        };
+        for dir in dirs {
+            for place in &under {
+                found.insert(format!("{dir}/{}", place.replace("{n}", name)));
+            }
+        }
+    }
+    found
+}
+
+/// The removal undoes every change made to OpenDeepCool's units and files under its names
+/// (owner, 2026-11-11): first the files an administrator made (copies, masks and drop-ins, and
+/// same-named overrides), since `systemctl disable` skips a masked unit, then every link to the
+/// units. In a chroot nothing in `/run` is touched, nor is the service stopped; and the service
+/// is stopped only where systemd runs.
+#[test]
+fn the_removal_undoes_every_change_under_opendeepcools_names() {
+    let names = |folder: &str| -> String {
+        installed()
+            .into_iter()
+            .filter_map(|(path, ..)| {
+                path.strip_prefix(folder)
+                    .filter(|name| !name.contains('/'))
+                    .map(str::to_owned)
+            })
+            .collect::<Vec<_>>()
+            .join(" ")
+    };
+    let (system, user) = (
+        names("/usr/lib/systemd/system/"),
+        names("/usr/lib/systemd/user/"),
+    );
+    for (chroot, booted) in [(false, true), (false, false), (true, false), (true, true)] {
+        let runs = pre_remove_runs(chroot, booted);
+        let removed: BTreeSet<String> = runs
+            .iter()
+            .filter_map(|line| line.strip_prefix("rm -rfv "))
+            .flat_map(|paths| paths.split(' ').map(str::to_owned))
+            .collect();
+        assert_eq!(removed, overrides(chroot), "chroot {chroot}");
+        let mut wanted = Vec::new();
+        if !chroot && booted {
+            wanted.push("systemctl stop opendeepcool.service".to_owned());
+        }
+        wanted.push(format!("systemctl -q --global disable {user}"));
+        wanted.push(format!("systemctl -q disable {system}"));
+        if !chroot {
+            wanted.push(format!("systemctl -q --global --runtime disable {user}"));
+            wanted.push(format!("systemctl -q --runtime disable {system}"));
+        }
+        let rest: Vec<String> = runs
+            .iter()
+            .filter(|line| !line.starts_with("rm -rfv "))
+            .cloned()
+            .collect();
+        assert_eq!(rest, wanted, "chroot {chroot}, booted {booted}");
+        // The stop comes before anything is removed, and every removal before the links.
+        let first_link = runs.iter().position(|l| l.contains(" disable ")).unwrap();
+        let last_rm = runs.iter().rposition(|l| l.starts_with("rm ")).unwrap();
+        assert!(last_rm < first_link, "{runs:#?}");
+        if !chroot && booted {
+            assert!(runs[0].starts_with("systemctl stop"), "{runs:#?}");
+        }
     }
 }
 

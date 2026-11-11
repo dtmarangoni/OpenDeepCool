@@ -493,6 +493,21 @@ Three commits: the design, the program with its polkit action, the app.
   - the files and modes are `FILES.md`'s, all root:root;
   - makepkg also made `opendeepcool-debug`, from its `debug` option.
 
+**As built, administrators' files under OpenDeepCool's names** (owner, 2026-11-11, its own commit): "removing the package should remove all services, configurations, etc. It should leave the system clean", then "Removing everything is better than keeping some stuff", without a notice. pacman never deletes a file it didn't install, and a file left in `/etc` would change the next install, since `/etc` comes before `/usr` (a mask would stop it starting at all).
+- **What:** every file under OpenDeepCool's names where the system reads it in front of, or beside, the package's own, in `/etc` and `/run`:
+  - each unit's copy or mask, its drop-in folder and its `system.control` drop-in folder, from `systemctl edit` (`--full` makes a copy), `set-property` and `mask` (systemd.unit(5), the load path);
+  - the sound helper's `--global` ones in `systemd/user`;
+  - same-named files for the account, the udev rule and the polkit action (sysusers.d(5), udev(7), polkit(8)), and for the D-Bus policy and the pacman hook in `/etc` only (dbus-daemon(1), alpm-hooks(5): neither reads `/run`).
+- **Links made by hand** (`add-wants`, `enable --runtime`) go with `systemctl disable` and `systemctl --runtime disable` of all five units. `disable` alone leaves a runtime link (checked in a scratch root with `--root`).
+- **Order:** `pre_remove` stops the service, removes those files, then disables, because `disable` skips a masked unit. A link made while a unit was masked was left until then.
+- **Never `/run` in a chroot:** `arch-chroot` without `-N` binds the host's `/run`. `/run` empties at every boot.
+- **Not `systemctl revert`:** it does the same for the units, in a scratch root, but always in `/run` too, chroot or not.
+- **Not touched:**
+  - users' home folders, which Arch's package guidelines keep packages out of; OpenDeepCool's programs write nothing there. What a user makes there is their own, and WirePlumber's remembered volume is keyed by `pw-record`, which every `pw-record` capture shares (read on the development PC);
+  - `/usr/local`, where an administrator installs software, such as the development copy.
+- **The development copy** keeps its `/etc` files under the same names, so the uninstall would remove them if both were installed. Task 7's teardown before the install keeps them apart, and the dev teardown reports a missing file as "already gone".
+- **Test:** `the_removal_undoes_every_change_under_opendeepcools_names` runs the real `pre_remove` in bash, with `rm`, `systemctl` and systemd's two checks replaced by shell functions and nothing on `PATH`. For a live system, a chroot and an unbooted root, it compares the removed paths with the list derived from `FILES.md`'s first table, and the `systemctl` calls in order. A new kind of packaged file fails until its override folders are decided.
+
 **As built, the sound helper's ending** (2026-11-11, its own commit):
 - **The watch:** `odc_audio::program_replaced` watches the helper's own program file, found with `current_exe()`.
   - It uses inotify on the file's folder: created, removed or moved, in or away, under its name, or the folder itself gone.
@@ -532,6 +547,13 @@ Three commits: the design, the program with its polkit action, the app.
   - the install message was printed, with both commands;
   - the installed rank helper unit has `StateDirectory=opendeepcool`, so its first run works on a fresh system, and both helper units have `TimeoutStartSec=` (unit inspection, since nothing boots here; solution review P6-03, P6-14).
 - **The switch's program, inside the root:** `opendeepcool-boot on` run as root with `PKEXEC_UID` set creates exactly the two enable links and starts nothing (no systemd runs here); `off` removes them; `on` again before the uninstall, so the uninstall must remove them. Run without `PKEXEC_UID`, or with another argument, it refuses and changes nothing.
+- **An administrator's changes, before the uninstall** (owner, 2026-11-11):
+  - a drop-in, a `set-property` drop-in and a link made by hand for the service;
+  - a `--full` copy of the GPU helper's unit and a mask of the detection's;
+  - a `--global` drop-in for the sound helper;
+  - same-named files in `/etc/sysusers.d`, `/etc/udev/rules.d`, `/etc/polkit-1/actions`, `/etc/dbus-1/system.d` and `/etc/pacman.d/hooks`.
+
+  All must be gone afterwards. A file in the build user's `~/.config/systemd/user/` stays. `arch-chroot -N` reports a chroot, so `/run` is left alone here; the stubbed test covers it.
 - **Uninstall:** `pacman -R --noconfirm opendeepcool`.
 - **Then the root must equal the snapshot.** The only allowed differences are a fixed, commented list:
   - `/var/log/pacman.log`;
@@ -589,6 +611,8 @@ Three commits: the design, the program with its polkit action, the app.
    - The restart hook restarts the service on the new binary: its main PID changes, and the settings survive.
    - The owner's sound helper exits by itself and is started again on its new program within its `RestartSec=`: its main PID changes. If it doesn't, the owner decides before Task 9.
 7. The start check reads the recorded frames, and the UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so both run within Task 9's runtime drop-in.
+
+**Returning to the dev copy later** (owner, 2026-11-11: "its better to always build from source again when needed. So we get a clean install dev copy"): `sudo pacman -R opendeepcool`, then `odc-dev setup`, which builds and installs it from the repository. Nothing is saved in between: the settings are chosen again, and the GPU helper ranks again at the first start.
 
 **Validation**
 - `pacman -Qk opendeepcool` reports no missing files.
@@ -664,7 +688,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 ## Acceptance
 
 1. **AC1 — Installs both ways, on only when the user says so:** the AUR way (from a local copy of the files the AUR will hold) and the GitHub way build the same package and install every file of `FILES.md` with its owner and mode; nothing is enabled or started by the install; the message prints both commands; the switch's program, and on the owner's PC the app's switch, turns both units on and off (Tasks 3, 4, 5, 7).
-2. **AC2 — Uninstall leaves nothing:** after install, turning on and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the enable links, the account, the detection record and the settings, and restarts only a running service; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 5).
+2. **AC2 — Uninstall leaves nothing:** after install, turning on, an administrator's changes under OpenDeepCool's names (owner, 2026-11-11) and uninstall, both ways, the throwaway root equals its snapshot except the listed, commented exceptions; an upgrade keeps the enable links, the account, the detection record and the settings, and restarts only a running service; the lm-sensors configuration is removed only when OpenDeepCool's detection created it, according to its root-only record, whose fields are yes/no facts; a forged record removes nothing (Task 5).
 3. **AC3 — The package touches only its own files:** no scriptlet or hook deletes or changes a file the package didn't install, apart from what the detection's record names and the enable links the user made; on the owner's PC, `odc-dev teardown` removes every path of the dev manifest before the install (Tasks 4, 5, 7).
 4. **AC4 — Packaging rules:** nothing in `/usr/local`, and nothing in `/etc` from the package; `namcap` reports no errors, and full RELRO, PIE, no executable stack and no RPATH on every binary; `.SRCINFO` is current; the files for the AUR hold no binaries and no personal identity, with a 0BSD license (Tasks 1, 4).
 5. **AC5 — Parity at 100 %:** the full unattended run passes against the installed package; every checklist row is proven by a test, replaced by a recorded owner decision, or the cooler's own behaviour (its OpenDeepCool column); the runtime drop-in is gone afterwards (Task 9).

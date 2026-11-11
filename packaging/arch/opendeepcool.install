@@ -18,10 +18,44 @@ post_install() {
 EOF
 }
 
+# Whether this root is a chroot, whose /run may be the host's: arch-chroot binds it.
+_odc_chroot() {
+	systemd-detect-virt --chroot >/dev/null 2>&1
+}
+
 # Whether systemd runs this root: not a chroot, and booted by systemd, the checks systemd's own
 # hook script makes.
 _odc_live() {
-	! systemd-detect-virt --chroot >/dev/null 2>&1 && systemd-notify --booted >/dev/null 2>&1
+	! _odc_chroot && systemd-notify --booted >/dev/null 2>&1
+}
+
+# Every file an administrator made under OpenDeepCool's names where the system reads it in front
+# of, or beside, the package's own, so none changes a later install (owner, 2026-11-11): the
+# units' copies, masks and drop-ins from systemctl edit, set-property and mask (systemd.unit(5),
+# the load path), and same-named files for the udev rule, the account, the D-Bus policy, the
+# polkit action and the pacman hook (udev(7), sysusers.d(5), dbus-daemon(1), polkit(8),
+# alpm-hooks(5)). In /etc, and in /run outside a chroot. Users' own changes in their home
+# folders stay theirs.
+_odc_overrides() {
+	_odc_dirs=/etc
+	if ! _odc_chroot; then
+		_odc_dirs='/etc /run'
+	fi
+	for _odc_dir in $_odc_dirs; do
+		for _odc_unit in opendeepcool.service opendeepcool-gpu-rank.service \
+			opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service; do
+			rm -rfv "$_odc_dir/systemd/system/$_odc_unit" "$_odc_dir/systemd/system/$_odc_unit.d" \
+				"$_odc_dir/systemd/system.control/$_odc_unit.d"
+		done
+		rm -rfv "$_odc_dir/systemd/user/opendeepcool-audio.service" \
+			"$_odc_dir/systemd/user/opendeepcool-audio.service.d" \
+			"$_odc_dir/sysusers.d/opendeepcool.conf" \
+			"$_odc_dir/udev/rules.d/70-opendeepcool.rules" \
+			"$_odc_dir/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy"
+	done
+	# D-Bus and pacman read no folder in /run.
+	rm -rfv /etc/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf \
+		/etc/pacman.d/hooks/opendeepcool-restart.hook
 }
 
 pre_remove() {
@@ -29,9 +63,20 @@ pre_remove() {
 	if _odc_live; then
 		systemctl stop opendeepcool.service
 	fi
-	# Both work on the files alone, without a running systemd.
-	systemctl --global disable opendeepcool-audio.service
-	systemctl disable opendeepcool.service
+	# Before the links, since systemctl disable skips a masked unit.
+	_odc_overrides
+	# Every link to the units, from turning OpenDeepCool on or made by hand. They work on the
+	# files alone, without a running systemd. -q drops systemctl's hint that the modules unit has
+	# no [Install] section.
+	systemctl -q --global disable opendeepcool-audio.service
+	systemctl -q disable opendeepcool.service opendeepcool-gpu-rank.service \
+		opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service
+	# And the links made for this boot only, in /run.
+	if ! _odc_chroot; then
+		systemctl -q --global --runtime disable opendeepcool-audio.service
+		systemctl -q --runtime disable opendeepcool.service opendeepcool-gpu-rank.service \
+			opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service
+	fi
 }
 
 # A yes/no line of the detection's record: line $1, key $2, and $3 a comma or nothing. Prints
@@ -96,7 +141,7 @@ _odc_undo_detection() {
 # with chgrp and chmod, which a udev reload can't undo. Never in a chroot, whose /sys is the
 # host's.
 _odc_power_counters() {
-	if systemd-detect-virt --chroot >/dev/null 2>&1; then
+	if _odc_chroot; then
 		return 0
 	fi
 	for _odc_zone in /sys/class/powercap/intel-rapl:*; do
