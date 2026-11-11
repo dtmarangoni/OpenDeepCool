@@ -1064,6 +1064,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "odc-boot"
+version = "0.0.0"
+
+[[package]]
 name = "odc-dev"
 version = "0.0.0"
 dependencies = [

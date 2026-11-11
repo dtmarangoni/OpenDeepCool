@@ -2,7 +2,7 @@
 
 The exact list behind the PRD's System Footprint and the README's "Installed on your system" (Phase 11 plan, Task 1). The package follows Arch's package guidelines: the settings app in `/usr/bin`, every program users don't run themselves in `/usr/lib/opendeepcool/`, nothing in `/usr/local`, and nothing in `/etc` from the package itself.
 
-A test (`crates/odc-service/tests/packaging.rs`) checks this file against the repository: every source below exists, every file under `packaging/` is listed, and every unit's `ExecStart=` names an installed program. Task 3 adds the Start at boot switch's program, and Task 4 the pacman hook and the PKGBUILD's own files.
+A test (`crates/odc-service/tests/packaging.rs`) checks this file against the repository: every source below exists, every file under `packaging/` is listed, and every unit's `ExecStart=` names an installed program. Task 4 adds the pacman hook and the PKGBUILD's own files.
 
 ## Installed by the package
 
@@ -16,6 +16,7 @@ pacman installs these and `pacman -R` removes them. `target/release/` is the PKG
 | `/usr/lib/opendeepcool/opendeepcool-audio` | program | root:root | 0755 | `target/release/opendeepcool-audio` |
 | `/usr/lib/opendeepcool/odc-gpu-rank` | program | root:root | 0755 | `target/release/odc-gpu-rank` |
 | `/usr/lib/opendeepcool/odc-sensors-detect` | program | root:root | 0755 | `target/release/odc-sensors-detect` |
+| `/usr/lib/opendeepcool/opendeepcool-boot` | program | root:root | 0755 | `target/release/opendeepcool-boot` |
 | `/usr/lib/systemd/system/opendeepcool.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool.service` |
 | `/usr/lib/systemd/system/opendeepcool-gpu-rank.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-gpu-rank.service` |
 | `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-sensors-detect.service` |

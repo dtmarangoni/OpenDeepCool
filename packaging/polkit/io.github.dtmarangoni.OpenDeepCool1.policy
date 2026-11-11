@@ -4,9 +4,9 @@
 <!--
   OpenDeepCool's polkit actions (docs/spec/dbus.md, Names; Phase 7 plan, Task 8). Only the
   active local session may read or change anything, or send the Music modes its sound (owner,
-  2026-10-26; Phase 9 plan, Task 3). Each action names the service's account as its owner, so
-  the service, which isn't root, may ask polkit about its callers (polkit(8), Declaring actions;
-  owner, 2026-10-29).
+  2026-10-26; Phase 9 plan, Task 3). Each action the service checks names the service's account
+  as its owner, so the service, which isn't root, may ask polkit about its callers (polkit(8),
+  Declaring actions; owner, 2026-10-29). The last one is pkexec's, for the Start at boot switch.
 -->
 <policyconfig>
   <vendor>OpenDeepCool</vendor>
@@ -44,5 +44,21 @@
       <allow_active>yes</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.owner">unix-user:opendeepcool</annotate>
+  </action>
+
+  <!--
+    Phase 11: the settings app's Start at boot switch runs opendeepcool-boot through pkexec,
+    which picks this action by the program's full path (pkexec(1)). The administrator's password
+    at every change, stricter than systemd's own auth_admin_keep for its unit actions.
+  -->
+  <action id="io.github.dtmarangoni.OpenDeepCool1.start-at-boot">
+    <description>Turn the cooler display on or off at boot</description>
+    <message>Authentication is required to turn the cooler display on or off at boot</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/opendeepcool/opendeepcool-boot</annotate>
   </action>
 </policyconfig>

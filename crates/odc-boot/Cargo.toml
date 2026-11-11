@@ -1,0 +1,20 @@
+[package]
+name = "odc-boot"
+description = "The settings app's Start at boot switch: turns OpenDeepCool's units on or off with systemctl, run as root through pkexec, taking only on or off"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "opendeepcool-boot"
+path = "src/main.rs"
+
+# The tests' own binary also plays the fake systemctl, systemd-detect-virt and systemd-notify
+# (AGENTS.md rule 13), so it has its own main instead of the test harness.
+[[test]]
+name = "boot"
+harness = false
+
+[lints]
+workspace = true

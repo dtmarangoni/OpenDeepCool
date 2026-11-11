@@ -199,7 +199,7 @@ All of them are `When = PostTransaction`. Because nothing starts at install, the
 - **Enabling at install, by links the package ships** (the owner's choice of 2026-10-25/26): against Arch's convention, and `systemctl is-enabled` then calls the unit "disabled", as it does any unit enabled only by a link under `/usr/lib` (checked in a scratch root and with an Arch timer linked that way, 2026-11-10). Superseded on 2026-11-10.
 - **The package removing the dev copy from its manifest** (2026-10-24, OV-02): a root deletion driven by a file on every user's PC (P11-03), for a copy that exists on one. Superseded on 2026-11-10.
 - **Restarting each user's sound helper from a pacman hook** (`systemctl --user --machine=<user>@.host`, 2026-10-27): reaches into users' sessions, which no Arch package does. Superseded on 2026-11-10 by the helper following its own program file.
-- **The switch through systemd's D-Bus API** (`EnableUnitFiles`, no program of ours): systemd has no D-Bus call for `--global`, which `systemctl` does on the files itself, so the sound helper would still need root code, and two polkit actions would mean two password prompts. *Unverified:* that `--global` never goes through the manager; Task 3 checks it before building the program.
+- **The switch through systemd's D-Bus API** (`EnableUnitFiles`, no program of ours): systemd has no D-Bus call for `--global`, which `systemctl` does on the files itself, so the sound helper would still need root code, and two polkit actions would mean two password prompts. Checked before Task 3 (2026-11-11): in systemd 262, `install_client_side()` returns `INSTALL_CLIENT_SIDE_GLOBAL_SCOPE` whenever the scope is global, so `--global` always works on the files (`src/systemctl/systemctl-util.c`, tag `v262`), and the manager's calls (`EnableUnitFiles`, `EnableUnitFilesWithFlags`) act on its own scope, their flags only runtime, force and portable (org.freedesktop.systemd1(5), this PC's systemd 262.1).
 - **The switch enabling the sound helper for the current user only** (`systemctl --user enable`, no password): the link lands in the user's home folder, which no package script may touch, so the uninstall couldn't remove it (rule 7).
 - **Signing with an SSH key:** git can, but makepkg checks `?signed` sources with GnuPG and `validpgpkeys`; an SSH key needs custom code in the PKGBUILD (Arch package guidelines). A PGP key is makepkg's own path.
 - **`makerepropkg` (devtools) for the reproducibility check:** Arch's own tool, but it builds through `arch-nspawn`, which needs root. Two rootless builds in the throwaway root compare the same thing unattended.
@@ -376,7 +376,7 @@ Three commits: the design, the program with its polkit action, the app.
 - `docs/prp/solution-reviews/project-overview.review.md`, the entry-points table: UPDATE, the new entry point and what it refuses (AGENTS.md rule 5).
 
 **Implementation**
-- First, check that `systemctl --global enable` works on the files without asking the manager, the reason for a program of our own (Alternatives); if systemd has a D-Bus call for it after all, stop and bring the simpler design back to the owner (rule 2).
+- First, check that `systemctl --global enable` works on the files without asking the manager, the reason for a program of our own (Alternatives); if systemd has a D-Bus call for it after all, stop and bring the simpler design back to the owner (rule 2). Checked 2026-11-11: it works on the files, and systemd has no such call (Alternatives), so the program stays.
 - The program refuses, before doing anything: not root; no `PKEXEC_UID`; no argument, two arguments, or one other than `on` or `off`. Every refusal names its cause and exits non-zero.
 - It never takes a path, a unit or an option from its caller, and runs `/usr/bin/systemctl` with an emptied environment. A failed step stops it, and it reports which step failed.
 - In a chroot or without a running systemd it enables or disables only (the links), and starts or stops nothing, like `systemd-hook`. The package test uses that (Task 5).
@@ -388,6 +388,14 @@ Three commits: the design, the program with its polkit action, the app.
 
 **Validation**
 - `cargo test -p odc-boot`, `cargo test -p odc-app --features weston-tests`, `cargo run -p odc-e2e -- --only app --require weston` pass; `cargo run -p odc-mockups -- docs/design/mockups` changes nothing after the design commit.
+
+**As built, the program** (2026-11-11):
+- It takes no flag at all, not even a test one: under `pkexec` the caller chooses the arguments, so a `--systemctl <path>` like the detection's would run any program as root. Its rules sit in `odc-boot`'s library, which the tests run with fake programs, and `main` fixes `/usr/bin/systemctl`, `/usr/bin/systemd-detect-virt` and `/usr/bin/systemd-notify`.
+- "In a chroot or without a running systemd" is `systemd-hook`'s own two checks, run the same way: `systemd-detect-virt --chroot` exits 0 in a chroot, then `systemd-notify --booted` exits 0 when systemd booted the root (their manuals; the script, read 2026-11-11).
+- Exit codes: 2 for a refusal, 1 for a failed check or step, never `pkexec`'s own 126 (the dialog dismissed) and 127 (not authorised, or an error such as no agent; pkexec(1)). So the app tells a dismissed dialog from the rest by the code, and a refused password from a missing agent only by `pkexec`'s message.
+- `PKEXEC_UID` must be digits only, because Rust's parser also takes a leading `+`.
+- The library's constants, `PROGRAM`, `ACTION`, `REFUSED` and `FAILED`, are for the app to use (the third commit), so both sides name the program and its codes once.
+- The dev copy's polkit file now differs from the repository's (`odc-dev check` says so) until the next `odc-dev setup`, which brings the new action; the dev copy has no `opendeepcool-boot`, so the real switch runs only from the package (Task 7).
 
 ### 4. The PKGBUILD, the `.install` file and the restart hook
 
