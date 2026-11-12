@@ -30,7 +30,12 @@ pub fn exposure(unit: &Path, manager: Manager, scratch: &Path) -> f64 {
     let mut command = Command::new("systemd-analyze");
     command.args(["security", "--offline=true", "--no-pager"]);
     if manager == Manager::User {
-        command.arg("--user");
+        // A user manager needs a runtime folder, which a login session sets in XDG_RUNTIME_DIR.
+        // A build outside one has none: a clean chroot, CI's container, the package test's root
+        // (Phase 11 plan, Task 5). It gets one of its own.
+        let runtime = scratch.join("runtime");
+        fs::create_dir_all(&runtime).expect("a runtime folder");
+        command.arg("--user").env("XDG_RUNTIME_DIR", &runtime);
     }
     let out = command
         .arg(&copy)
@@ -46,9 +51,10 @@ pub fn exposure(unit: &Path, manager: Manager, scratch: &Path) -> f64 {
                 String::from_utf8_lossy(&out.stderr)
             )
         });
-    line.rsplit(':')
-        .next()
-        .and_then(|rest| rest.split_whitespace().next())
+    // The number follows the unit's name. The line's end is an emoji, or without a terminal
+    // (`TERM` unset, as in a build outside a session) an ASCII face such as `:-}`.
+    line.split_once(&format!("odc-check-{name}: "))
+        .and_then(|(_, rest)| rest.split_whitespace().next())
         .and_then(|level| level.parse().ok())
         .unwrap_or_else(|| panic!("{line}: no number"))
 }
