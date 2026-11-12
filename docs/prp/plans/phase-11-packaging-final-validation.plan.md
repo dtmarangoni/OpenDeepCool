@@ -564,9 +564,9 @@ Three commits: the design, the program with its polkit action, the app.
   - `/var/log/pacman.log`;
   - pacman's cache and sync database;
   - the build user's home and the build directory, which are removed and checked;
-  - the `-` backup files `passwd-`, `group-`, `shadow-` and `gshadow-`, whose content must equal the snapshot's originals;
+  - the `-` backup files `passwd-`, `group-`, `shadow-` and `gshadow-`, whose content must equal the snapshot's originals, or what the file held just before the uninstall: as built, `userdel` saves the file as it was before the account went, so the backups keep the `opendeepcool` lines (FILES.md, What outlasts the uninstall);
   - the packages makepkg installed as build dependencies, which are removed with `pacman -Rns` and checked;
-  - caches that pacman's hooks rebuild, such as the icon theme cache and the desktop database: compared by content after both runs rebuilt them, and one that still differs is listed with its reason (solution review P11-10).
+  - caches that pacman's hooks rebuild, such as the icon theme cache and the desktop database: compared by content after both runs rebuilt them, and one that still differs is listed with its reason (solution review P11-10). As built, one: `ldconfig`'s auxiliary cache, `/var/cache/ldconfig/aux-cache`, which records each file's inode and change time (glibc, `elf/cache.c`), so it differs after any reinstall.
   - Any other difference fails with a diff.
 - **Upgrade check** (solution review P11-05): install the previous published version, then the candidate; before Phase 12's first tag, the candidate, then the same build with a raised `pkgrel`.
   - The enable links the switch made, the account, the detection record and `settings.toml` survive.
@@ -579,6 +579,41 @@ Three commits: the design, the program with its polkit action, the app.
 
 **Validation**
 - `cargo run -p odc-e2e -- --only package --require container`: passes both ways and prints every check.
+
+**As built** (2026-11-11):
+- **The program:** `crates/odc-pkg-test/`, a dev-only binary.
+  - `candidate.rs`: the committed HEAD of a tree with nothing uncommitted or untracked, the PKGBUILD's copy, and what `FILES.md` and `.SRCINFO` list.
+  - `root.rs`: the root, and commands inside it.
+  - `snapshot.rs`: the snapshot and the comparison, with unit tests.
+  - `run.rs`: the steps, each one line, `ok`/`FAILED <name> <seconds> <note>`, as the settings app's driver reports.
+  - `odc-e2e --only package` builds it and turns each line into a check. The area runs only when named, like the baseline, since it takes about ten minutes and downloads the crates. The `container` capability is in `odc_testkit::hardware`, and fails with its fix.
+- **The candidate's source:** the PKGBUILD's one `source=` line becomes `git+file:///srv/opendeepcool.git#commit=<HEAD>`, a bare clone of the repository inside the root. The AUR repository holds `FILES.md`'s "The PKGBUILD's own files", with that copy and the `.SRCINFO` that `makepkg --printsrcinfo` writes for it.
+- **The root:** `pacstrap -N -c` with base, base-devel, git and `.SRCINFO`'s 15 dependencies. `cargo` gets pacman's default provider, `rust`. That's 323 packages, 2.3 GB and about 70,600 paths, taking about 45 s.
+- **Five things the spike (2026-10-25) hadn't met, each put right in the test's root, not in the package:**
+  - **DNS:** `arch-chroot -N` binds the host's `resolv.conf`, then bind-mounts the root on itself, which hides that bind. The root gets the host's resolver in its own file.
+  - **`/proc`:** `arch-chroot -N` mounts `/proc` for its first PID namespace and runs the command in a second one. A process's PID wasn't in `/proc`, which failed a sound helper test's `/proc/<pid>` check. The build user's commands mount a `/proc` of their own and get `/run/systemd`, which every running system has and system-mode `systemd-analyze` creates.
+  - **Chroot detection:** with that fresh `/proc`, PID 1 is inside the root, so every command gets `SYSTEMD_IN_CHROOT=1`, systemd's own override, and `sudo` keeps it for `makepkg -si`.
+  - **git:** a plain path to a repository root owns is refused as "dubious ownership", so the build user clones through `file://`, as makepkg does.
+  - **GTK's icon cache:** `gtk-update-icon-cache` removes a theme's cache when no icon is left, but not in the same second the cache was written (its up-to-date check). An uninstall in the install's second left a cache naming OpenDeepCool's icon (checked in the root). Each uninstall waits a second, which a person always does.
+- **Two real bugs found, fixed in their own commit (`62ee406`):** the unit score's helper (`odc_testkit::units::exposure`) failed in `check()` outside a login session:
+  - a user manager needs `XDG_RUNTIME_DIR`;
+  - without `TERM`, systemd ends the line with `:-}`, which the parser read as the number.
+
+  CI's container and clean chroot builds have neither. With both fixed, all 623 of `check()`'s tests pass in the root.
+- **The snapshot** runs inside the user namespace that owns the root's files (`unshare` with `pacstrap -N`'s mapping, this program again as `--snapshot`). The comparison has no time in it.
+  - **SHA-256:** the `sha2` crate, without default features, optimised in the dev profile (`[profile.dev.package.sha2]`). Unoptimised, a snapshot took 30 s; optimised, 1.6 s.
+  - **Accepted differences:**
+    - pacman's log and package cache, which keeps empty `download-*` folders;
+    - `ldconfig`'s `aux-cache`, whose entries are each file's inode, change time, size and device (glibc, `elf/cache.c`);
+    - the account files' backups.
+  - **The backups:** the plan expected them to equal the originals. In fact `userdel` saves each file as it was just before the account went, so the backups keep the `opendeepcool` lines. They're accepted holding either content; FILES.md and the PRD list them under what outlasts the uninstall.
+- **Reproducible:**
+  - `.BUILDINFO` records the options and the packages installed during the build. A second build with `--nocheck`, or with the first build's packages installed, differed there and only there.
+  - So the second build runs after the AUR way's uninstall, with the first one's options: `makepkg -fC`, `check()` included.
+- **The debug package:** Arch's default `makepkg.conf` has `debug` in `OPTIONS`, so `makepkg -si` also builds and installs `opendeepcool-debug`, which `pacman -R opendeepcool` leaves. The test uninstalls every installed `opendeepcool*` package. Whether the PKGBUILD keeps it is the owner's decision (asked 2026-11-11).
+- **The signed tags** are checked with `makepkg --verifysource`: the download and the signature check, without the build the AUR way already made.
+- **The two ways' packages** differ only in `.BUILDINFO`, which records the folder the package was built in and the one makepkg ran from (BUILDINFO(5)), and in `.MTREE`, which lists it: the installed files are the same byte for byte, though built in another folder.
+- **Checked,** 2026-11-11, against the candidate `62ee406`: 32 checks passed in 10.5 minutes, each build about 3 minutes with `check()`. The last comparison accepted only `ldconfig`'s aux cache, pacman's log and its 10 empty download folders, and the 6 account backups, and the host's power counters were as before.
 
 ### 6. Documentation
 

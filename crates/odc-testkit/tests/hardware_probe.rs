@@ -272,12 +272,35 @@ fn capability_names_are_what_require_takes() {
         ("gpu-nvidia", Capability::GpuNvidia),
         ("gpu-other", Capability::GpuOther),
         ("dev-service", Capability::DevService),
+        ("container", Capability::Container),
     ] {
         assert_eq!(Capability::from_name(name), Some(capability));
         assert_eq!(capability.name(), name);
     }
     assert_eq!(Capability::from_name("lp36"), None);
     assert_eq!(Capability::from_name("gpu"), None);
+}
+
+/// The package test's root (Phase 11 plan, Task 5): without arch-install-scripts its fix names
+/// them; with them, `unshare` decides, here `true` or `false` in its place.
+#[test]
+fn a_container_needs_arch_install_scripts_and_a_user_namespace() {
+    let t = tree("container");
+    let unusable = |fix: &str| match probe(Capability::Container, &t.roots()) {
+        Probe::Unusable { fix: given, .. } => assert!(given.contains(fix), "{given}"),
+        other => panic!("{other:?}"),
+    };
+    unusable("arch-install-scripts");
+    for tool in ["bin/pacstrap", "bin/arch-chroot"] {
+        t.file(tool, "").expect("a stand-in");
+        t.mode(tool, 0o755).expect("executable");
+    }
+    let unshare = t.roots().bin.join("unshare");
+    std::os::unix::fs::symlink("/usr/bin/false", &unshare).expect("false as unshare");
+    unusable("subordinate ID");
+    fs::remove_file(&unshare).expect("the stand-in");
+    std::os::unix::fs::symlink("/usr/bin/true", &unshare).expect("true as unshare");
+    assert_eq!(probe(Capability::Container, &t.roots()), Probe::Real);
 }
 
 #[test]

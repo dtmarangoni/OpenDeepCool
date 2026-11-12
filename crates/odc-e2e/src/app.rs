@@ -510,8 +510,9 @@ fn compare(written: &[Timed], logged: &[Timed]) -> Result<String, String> {
     ))
 }
 
-/// A driver's line: `ok <name> <seconds> [<note>]` or `FAILED <name> <seconds> <why>`.
-fn scenario(line: &str) -> Option<(String, Result<String, String>)> {
+/// A driver's line: `ok <name> <seconds> [<note>]` or `FAILED <name> <seconds> <why>`; the
+/// package test's lines are the same (`package`).
+pub(crate) fn scenario(line: &str) -> Option<(String, Result<String, String>)> {
     let (verdict, rest) = line.split_once(' ')?;
     let mut parts = rest.splitn(3, ' ');
     let name = parts.next()?.to_owned();

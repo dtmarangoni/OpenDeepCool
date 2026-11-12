@@ -45,6 +45,14 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         Ok(Some(Area::Baseline))
     );
     assert_eq!(
+        parse_args(&args(&["--only", "package", "--require", "container"])),
+        Ok(Some(Options {
+            require: vec![Capability::Container],
+            only: Some(Area::Package),
+            ..Options::default()
+        }))
+    );
+    assert_eq!(
         parse_args(&args(&["--only", "service", "--require", "dev-service"])),
         Ok(Some(Options {
             require: vec![Capability::DevService],
@@ -183,6 +191,8 @@ fn with_no_cooler_every_check_but_the_app_s_runs_against_fakes_and_passes() {
     // The dev service's checks, in process (Phase 7 plan, Task 9); the baseline only when named.
     assert!(table.contains("dev-service      fake"), "{table}");
     assert!(!table.contains("baseline"), "{table}");
+    // Check names start their line; "package" also appears in the CPU power zone's note.
+    assert!(!table.lines().any(|l| l.starts_with("package")), "{table}");
     for check in [
         "service_start",
         "service_timing",

@@ -8,15 +8,13 @@
 //! only its account may use (owner, 2026-10-26; solution review OV-01). Its paths come from
 //! flags, so the tests run it on fake roots with a fake `sensors-detect`.
 
-mod record;
-
 use std::fs::{self, DirBuilder, File, OpenOptions};
 use std::io::{ErrorKind, Write};
 use std::os::unix::fs::{DirBuilderExt, MetadataExt};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-use record::{Board, RECORD, Record, today};
+use odc_sensors_detect::record::{Board, RECORD, Record, today};
 
 const USAGE: &str = "usage: odc-sensors-detect [--etc <dir>] [--sys <dir>] [--state-dir <dir>]
                           [--sensors-detect <path>] [--systemctl <path>]

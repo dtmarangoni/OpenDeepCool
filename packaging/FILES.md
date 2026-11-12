@@ -91,5 +91,6 @@ The development copy keeps its files in `/etc` under these names, so `odc-dev te
 - The journal's lines stay until journald rotates them.
 - A core dump of an OpenDeepCool program that crashed stays until systemd's cleanup, after two weeks by default.
 - pacman's own log and cache.
+- shadow-utils' backups of the account files, `/etc/passwd-`, `/etc/group-`, `/etc/shadow-` and `/etc/gshadow-`: `userdel` saves each file as it was just before the account went, so they keep the `opendeepcool` lines until the next change to any account on the PC (the package test, 2026-11-11). The account files themselves no longer have them.
 - Users' home folders, which Arch's package guidelines keep packages out of. OpenDeepCool's programs write nothing there. A user's own `systemctl --user` changes to the sound helper stay theirs, and WirePlumber's remembered volume is kept for `pw-record`, which every `pw-record` capture shares.
 - Software an administrator installs in `/usr/local`, such as the development copy, which `odc-dev teardown` removes.

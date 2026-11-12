@@ -56,13 +56,18 @@ pub enum Capability {
     /// Task 3); without it, they fail with the fix, since a UI test without a display proves
     /// nothing.
     Weston,
+    /// A rootless throwaway Arch root (Phase 11 plan, Task 5): `pacstrap` and `arch-chroot`
+    /// (arch-install-scripts), and a user namespace with this account's subordinate IDs, as
+    /// their `-N` uses. Without it the package test fails with the fix: a package test needs a
+    /// system to install into.
+    Container,
 }
 
 /// The drivers with a kind signal (`docs/spec/sensors.md`, GPU choice).
 const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
 
 impl Capability {
-    pub const ALL: [Capability; 17] = [
+    pub const ALL: [Capability; 18] = [
         Capability::Lp360,
         Capability::Lp360Reconnect,
         Capability::CpuTemp,
@@ -80,6 +85,7 @@ impl Capability {
         Capability::DevService,
         Capability::PipeWire,
         Capability::Weston,
+        Capability::Container,
     ];
 
     /// The name `--require` takes.
@@ -102,6 +108,7 @@ impl Capability {
             Capability::DevService => "dev-service",
             Capability::PipeWire => "pipewire",
             Capability::Weston => "weston",
+            Capability::Container => "container",
         }
     }
 
@@ -285,6 +292,54 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
         Capability::DevService => dev_service(roots),
         Capability::PipeWire => pipewire(roots),
         Capability::Weston => tool(roots, "weston", "install weston: `sudo pacman -S weston`"),
+        Capability::Container => container(roots),
+    }
+}
+
+const CONTAINER_TOOLS_FIX: &str =
+    "install arch-install-scripts: `sudo pacman -S arch-install-scripts`";
+
+const NAMESPACE_FIX: &str = "enable unprivileged user namespaces, and give this account \
+                             subordinate ID ranges in /etc/subuid and /etc/subgid \
+                             (`usermod --add-subuids` and `--add-subgids`)";
+
+/// The tools in `<bin>`, then a user namespace with `pacstrap -N`'s own mapping: this account as
+/// root and its first block of subordinate IDs (arch-install-scripts 31, read 2026-11-11).
+fn container(roots: &Roots) -> Probe {
+    for name in ["pacstrap", "arch-chroot"] {
+        if tool(roots, name, "") != Probe::Real {
+            return Probe::Unusable {
+                reason: format!("no {name} in {}", roots.bin.display()),
+                fix: CONTAINER_TOOLS_FIX.to_owned(),
+            };
+        }
+    }
+    let unshare = roots.bin.join("unshare");
+    match Command::new(&unshare)
+        .args([
+            "--map-auto",
+            "--map-root-user",
+            "--setuid",
+            "0",
+            "--setgid",
+            "0",
+            "--",
+            "true",
+        ])
+        .output()
+    {
+        Ok(out) if out.status.success() => Probe::Real,
+        Ok(out) => Probe::Unusable {
+            reason: format!(
+                "no user namespace with subordinate IDs: {}",
+                String::from_utf8_lossy(&out.stderr).trim()
+            ),
+            fix: NAMESPACE_FIX.to_owned(),
+        },
+        Err(e) => Probe::Unusable {
+            reason: format!("{}: {e}", unshare.display()),
+            fix: NAMESPACE_FIX.to_owned(),
+        },
     }
 }
 

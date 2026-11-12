@@ -21,3 +21,9 @@ proptest = "1.12"
 [profile.release]
 panic = "abort"
 overflow-checks = true
+
+# The package test's snapshot hashes every file of a 2.3 GB root about twenty times a run; an
+# unoptimised SHA-256 took 30 s a snapshot (Phase 11 plan, Task 5). Only the hash is optimised in
+# the dev profile.
+[profile.dev.package.sha2]
+opt-level = 3

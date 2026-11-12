@@ -543,6 +543,7 @@ The owner asked for every installed or created item to be listed. The paths are 
 - old journal lines stay until the journal rotates them (they can't be deleted without deleting everyone's logs);
 - a core dump of an OpenDeepCool program that crashed stays until systemd's cleanup removes it, after two weeks by default (systemd's tmpfiles rule for `/var/lib/systemd/coredump`, read 2026-10-27; found at the Phase 11 review's cross-check);
 - pacman's own log and cache;
+- shadow-utils' backups of the account files (`/etc/passwd-` and the like), which `userdel` writes as the files were just before the account went, so they keep the `opendeepcool` lines until the next change to any account (found by the Phase 11 package test);
 - users' home folders, which Arch's package guidelines keep packages out of: OpenDeepCool's programs write nothing there, and what a user makes there stays theirs;
 - software an administrator installs in `/usr/local`, such as the development copy, which `odc-dev teardown` removes.
 
