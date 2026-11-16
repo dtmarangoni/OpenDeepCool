@@ -10,8 +10,8 @@ use std::path::Path;
 use odc_manifest::{Entry, GROUP, Manifest, SystemHost, UNIT, USER, USER_UNIT};
 
 use crate::system::{
-    APP_FILES, BINARIES, DIRS, FILES, Install, SERVICE_FILES, Tool, effective_uid, lp360_node,
-    lp360_usb_device, package_zones, user_name,
+    APP_FILES, BINARIES, DIRS, FILES, Install, RECONNECT_RULE, SERVICE_FILES, Tool, effective_uid,
+    lp360_node, lp360_usb_device, package_zones, user_name,
 };
 
 /// Refuses to run unless the effective user is root.
@@ -124,6 +124,62 @@ pub fn install_root(repo: &Path) -> Result<(), String> {
     record(&mut manifest, Entry::EnabledForEveryUser)?;
     println!("enabled {USER_UNIT} for every user");
     Ok(())
+}
+
+/// The root step of `setup --test-access` (Phase 11 plan, Task 7): the installed package's tests
+/// need the user in the package's group, and the dev-only reconnect rule, and nothing else. It
+/// records only those two, so `teardown` removes only those. There's no group entry, because the
+/// group belongs to the package: `teardown` never deletes it, and the package's removal does.
+/// It refuses while a full development copy is installed, whose files in `/etc` would override
+/// the package's.
+pub fn test_access_root(repo: &Path) -> Result<(), String> {
+    require_root(effective_uid()?)?;
+    let uid = std::env::var("PKEXEC_UID")
+        .ok()
+        .and_then(|u| u.parse::<u32>().ok())
+        .ok_or("PKEXEC_UID isn't set: run `odc-dev setup --test-access` instead")?;
+    let user = user_name(uid)?;
+    let member = Entry::member(&user)?;
+    let mut manifest = load_manifest()?.unwrap_or_default();
+    only_test_access(&manifest)?;
+    let (_, members) = odc_manifest::group_entry(GROUP)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| format!("there's no group {GROUP}: install the package first"))?;
+
+    install(&mut manifest, repo, RECONNECT_RULE, 0o644)?;
+    if members.contains(&user) {
+        println!("{user} is in {GROUP} already");
+    } else {
+        Tool::Gpasswd.run(&["-a", &user, GROUP])?;
+        println!("added {user} to {GROUP}: it takes effect at the next login");
+    }
+    record(&mut manifest, member)?;
+    Tool::Udevadm.run(&["control", "--reload"])?;
+    retrigger()
+}
+
+/// Refuses a manifest that lists more than the test access makes: the reconnect rule and a
+/// membership. Anything else is a development copy, which must go first.
+pub fn only_test_access(manifest: &Manifest) -> Result<(), String> {
+    let others = manifest
+        .entries()
+        .iter()
+        .filter(|entry| match entry {
+            Entry::File(path) => path != Path::new(RECONNECT_RULE.target),
+            Entry::Member(_) => false,
+            _ => true,
+        })
+        .count();
+    if others == 0 {
+        Ok(())
+    } else {
+        Err(format!(
+            "{} lists {others} entries that aren't the test access: a development copy is \
+             installed, and its files in /etc would override the package's. Nothing was \
+             changed. Run `odc-dev teardown` first",
+            odc_manifest::PATH
+        ))
+    }
 }
 
 /// Tells the system bus to read its policies again (the bus driver's `ReloadConfig`), polkit its
@@ -281,5 +337,34 @@ mod tests {
     fn the_root_steps_refuse_to_run_without_root() {
         assert!(require_root(0).is_ok());
         assert!(require_root(1000).is_err());
+    }
+
+    fn manifest(text: &str) -> Manifest {
+        Manifest::parse(text).expect("a manifest")
+    }
+
+    #[test]
+    fn the_test_access_takes_no_manifest_but_its_own() {
+        let rule = "file /etc/udev/rules.d/71-opendeepcool-dev-reconnect.rules\n";
+        let member = "member opendeepcool someone\n";
+        assert!(only_test_access(&Manifest::default()).is_ok());
+        assert!(only_test_access(&manifest(&format!("{rule}{member}"))).is_ok());
+        assert!(only_test_access(&manifest(rule)).is_ok());
+        // A development copy's entries each refuse it: another file, the group, the account,
+        // the saved data, an enabled unit.
+        for other in [
+            "file /etc/udev/rules.d/70-opendeepcool.rules\n",
+            "group opendeepcool\n",
+            "user opendeepcool\n",
+            "state /var/lib/opendeepcool\n",
+            "enabled opendeepcool.service\n",
+            "enabled-for-every-user opendeepcool-audio.service\n",
+            "dir /etc/dbus-1\n",
+        ] {
+            let refused =
+                only_test_access(&manifest(&format!("{rule}{member}{other}"))).expect_err(other);
+            assert!(refused.contains("odc-dev teardown"), "{refused}");
+            assert!(refused.contains("Nothing was changed"), "{refused}");
+        }
     }
 }

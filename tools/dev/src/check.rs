@@ -8,9 +8,11 @@ use std::path::Path;
 use odc_manifest::{GROUP, Manifest, STATE_DIR, UNIT, USER, USER_UNIT};
 use odc_sensors::{PciAddr, RANK_FILE, RankedKind, Ranking, display_devices};
 
+use crate::install::only_test_access;
 use crate::system::{
-    APP_FILES, BINARIES, BUS_NAME, FILES, SERVICE_FILES, Tool, effective_uid, lp360_node,
-    lp360_usb_device, package_zones, parse_groups, process_status, repo_root, user_name,
+    APP_FILES, BINARIES, BUS_NAME, FILES, RECONNECT_RULE, SERVICE_FILES, Tool, effective_uid,
+    lp360_node, lp360_usb_device, package_installed, package_zones, parse_groups, process_status,
+    repo_root, user_name,
 };
 
 /// Reports each installed file and binary against the checkout and its release build, the group
@@ -19,6 +21,10 @@ use crate::system::{
 /// service. Fails on any mismatch; with no cooler attached, its two checks can't run and say so,
 /// as does the energy check without RAPL zones.
 pub fn check() -> Result<(), String> {
+    // With the package installed there's no dev copy to check: only the test access.
+    if package_installed()? {
+        return check_test_access();
+    }
     let mut problems = Vec::new();
     let repo = repo_root();
     for file in FILES
@@ -41,6 +47,87 @@ pub fn check() -> Result<(), String> {
         }
     }
 
+    check_access(&mut problems)?;
+
+    check_service(&mut problems)?;
+    check_helper(&mut problems)?;
+    check_ranking(&mut problems);
+
+    match fs::read_to_string(odc_manifest::PATH) {
+        Ok(text) => match Manifest::parse(&text) {
+            Ok(m) => println!(
+                "ok       {}: {} entries",
+                odc_manifest::PATH,
+                m.entries().len()
+            ),
+            Err(r) => problems.push(format!("{}: {r}", odc_manifest::PATH)),
+        },
+        Err(e) => problems.push(format!("{}: {e}", odc_manifest::PATH)),
+    }
+
+    for problem in &problems {
+        println!("PROBLEM  {problem}");
+    }
+    if problems.is_empty() {
+        println!("the development setup is in place");
+        Ok(())
+    } else {
+        Err(format!(
+            "{} problems; `odc-dev setup` fixes most",
+            problems.len()
+        ))
+    }
+}
+
+/// `odc-dev check` while the package is installed: what `setup --test-access` makes and the
+/// access it and the package's rule give: the reconnect rule, the group and the user's
+/// membership, the node, the USB switch and the energy counters, and a manifest that lists
+/// only the test access.
+fn check_test_access() -> Result<(), String> {
+    let mut problems = Vec::new();
+    println!("ok       the package opendeepcool is installed: checking the test access only");
+    let repo = repo_root();
+    let rule = RECONNECT_RULE;
+    match (fs::read(repo.join(rule.source)), fs::read(rule.target)) {
+        (Ok(wanted), Ok(current)) if wanted == current => println!("ok       {}", rule.target),
+        (Ok(_), Ok(_)) => problems.push(format!("{} differs from {}", rule.target, rule.source)),
+        (Err(e), _) => problems.push(format!("{}: {e}", rule.source)),
+        (_, Err(e)) => problems.push(format!("{}: {e}", rule.target)),
+    }
+    check_access(&mut problems)?;
+    match fs::read_to_string(odc_manifest::PATH) {
+        Ok(text) => match Manifest::parse(&text) {
+            Ok(manifest) => match only_test_access(&manifest) {
+                Ok(()) => println!(
+                    "ok       {}: {} entries, the test access only",
+                    odc_manifest::PATH,
+                    manifest.entries().len()
+                ),
+                Err(e) => problems.push(e),
+            },
+            Err(r) => problems.push(format!("{}: {r}", odc_manifest::PATH)),
+        },
+        Err(e) => problems.push(format!("{}: {e}", odc_manifest::PATH)),
+    }
+    for problem in &problems {
+        println!("PROBLEM  {problem}");
+    }
+    if problems.is_empty() {
+        println!("the test access is in place");
+        Ok(())
+    } else {
+        Err(format!(
+            "{} problems; `odc-dev setup --test-access` fixes most",
+            problems.len()
+        ))
+    }
+}
+
+/// The access the tests need, which the development copy and the package both give: the group
+/// and the user's membership, the cooler node's group and mode, the reconnect switch's group
+/// write, and the group read of the CPU's package energy counters. The udev rule that sets the
+/// node's and the counters' access is the dev copy's or the package's, the same file.
+fn check_access(problems: &mut Vec<String>) -> Result<(), String> {
     let group = odc_manifest::group_entry(GROUP).map_err(|e| e.to_string())?;
     let user = user_name(effective_uid()?)?;
     let gid = match group {
@@ -123,35 +210,7 @@ pub fn check() -> Result<(), String> {
             }
         }
     }
-
-    check_service(&mut problems)?;
-    check_helper(&mut problems)?;
-    check_ranking(&mut problems);
-
-    match fs::read_to_string(odc_manifest::PATH) {
-        Ok(text) => match Manifest::parse(&text) {
-            Ok(m) => println!(
-                "ok       {}: {} entries",
-                odc_manifest::PATH,
-                m.entries().len()
-            ),
-            Err(r) => problems.push(format!("{}: {r}", odc_manifest::PATH)),
-        },
-        Err(e) => problems.push(format!("{}: {e}", odc_manifest::PATH)),
-    }
-
-    for problem in &problems {
-        println!("PROBLEM  {problem}");
-    }
-    if problems.is_empty() {
-        println!("the development setup is in place");
-        Ok(())
-    } else {
-        Err(format!(
-            "{} problems; `odc-dev setup` fixes most",
-            problems.len()
-        ))
-    }
+    Ok(())
 }
 
 /// The dev copy of the display service: enabled at boot and active, started from its dev build

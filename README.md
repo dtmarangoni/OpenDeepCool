@@ -198,6 +198,8 @@ cargo fmt --all --check
 
 `cargo run -p odc-oracle -- docs/spec/frames` rebuilds the expected frames from the spec's rules. The tests on the real cooler need access to it without root, and so do the tests that read the CPU's power counter: `cargo run -p odc-dev -- setup` sets both up with one `pkexec` step, `check` reports them and `teardown` removes them. `cargo run -p odc-e2e` then runs the end-to-end checks, on the real cooler when one is attached.
 
+While the Arch package is installed, `odc-dev setup` refuses and changes nothing, because the development copy's files in `/etc` would override the package's, and the package's removal would delete them: remove the package first with `sudo pacman -R opendeepcool`. `odc-dev setup --test-access` then gives the tests what they need from the installed package, with one `pkexec` step: your account in the package's group, and the reconnect rule. `odc-dev check` and `teardown` follow whichever is installed.
+
 From Phase 7, `odc-dev setup` also builds a development copy of the display service and installs it as `opendeepcool.service`, enabled at boot. It drives the cooler from then on, as the finished app will, and starts with `--dev`, which adds the test session the end-to-end checks use. Until the settings app exists (Phase 10), change its mode, unit and rotation over D-Bus, and read its journal:
 
 ```sh

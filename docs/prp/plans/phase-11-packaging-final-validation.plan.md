@@ -664,6 +664,13 @@ Three commits: the design, the program with its polkit action, the app.
    - The owner's sound helper exits by itself and is started again on its new program within its `RestartSec=`: its main PID changes. If it doesn't, the owner decides before Task 9.
 7. The start check reads the recorded frames, and the UI's real run (`odc-e2e --only app --require dev-service,weston`) needs the dev interface, so both run within Task 9's runtime drop-in.
 
+**As built, the dev tool** (2026-11-16, its own commit; the privileged steps below are not run yet)
+- `odc-dev setup` first asks `pacman -Q opendeepcool` (as the user; `Tool::Pacman` joined the listed programs). While it succeeds, `setup` refuses before building anything, changes nothing, and says why and `sudo pacman -R opendeepcool`.
+- `odc-dev setup --test-access`: refused, changing nothing, when the package isn't installed. Otherwise it says what it will do and hands one root step, `test-access-root --repo <checkout>`, to `pkexec`. That step refuses a manifest that lists anything but the reconnect rule and a membership (a dev copy: run `odc-dev teardown` first), requires the package's group to exist, installs the reconnect rule, adds the user to the group (nothing if already in), records those two entries, reloads udev and re-triggers the cooler's node, its USB device and the CPU's package zones. No group entry is recorded, so `teardown` never deletes the group.
+- The manifest is the same file, `/var/lib/opendeepcool-dev/manifest`, now holding two entries. `teardown` stops the sound helper in the session only when the manifest lists the dev copy's enabling of it for every user: with the package installed, the running helper is the package's.
+- `odc-dev check` with the package installed checks the test access only: the reconnect rule, the group and the user's membership (in this session too), the cooler's node and USB switch, the energy counters, and a manifest of the test access alone. With no package it checks the dev copy as before (run on this PC: in place, 36 entries).
+- Tests: the refusal while the package is installed, a manifest of the test access accepted and each entry of a dev copy refused, and the helper rule, all in-process; `programs.rs` still pins the places that start a program.
+
 **Returning to the dev copy later** (owner, 2026-11-11: "its better to always build from source again when needed. So we get a clean install dev copy"): `sudo pacman -R opendeepcool`, then `odc-dev setup`, which builds and installs it from the repository. Nothing is saved in between: the settings are chosen again, and the GPU helper ranks again at the first start.
 
 **Validation**

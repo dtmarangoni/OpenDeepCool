@@ -10,8 +10,8 @@ use std::process::Command;
 use odc_device::{HidrawConnector, HidrawNode};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
-/// The system tools the root steps may start, by full path and without a shell: never `cargo`
-/// or any build (solution review P5-03).
+/// The system tools the dev tool may start, by full path and without a shell: never `cargo` or
+/// any build (solution review P5-03). `pacman` is the user's side's, for the package query.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Tool {
     SystemdSysusers,
@@ -20,18 +20,20 @@ pub enum Tool {
     Getent,
     Systemctl,
     Busctl,
+    Pacman,
 }
 
 impl Tool {
     /// Every tool, so a test can check the list.
     #[cfg(test)]
-    pub const ALL: [Tool; 6] = [
+    pub const ALL: [Tool; 7] = [
         Tool::SystemdSysusers,
         Tool::Udevadm,
         Tool::Gpasswd,
         Tool::Getent,
         Tool::Systemctl,
         Tool::Busctl,
+        Tool::Pacman,
     ];
 
     pub fn path(self) -> &'static str {
@@ -42,6 +44,7 @@ impl Tool {
             Tool::Getent => "/usr/bin/getent",
             Tool::Systemctl => "/usr/bin/systemctl",
             Tool::Busctl => "/usr/bin/busctl",
+            Tool::Pacman => "/usr/bin/pacman",
         }
     }
 
@@ -123,6 +126,12 @@ pub fn effective_uid() -> Result<u32, String> {
         .ok_or_else(|| "no Uid: line in /proc/self/status".into())
 }
 
+/// Whether the Arch package `opendeepcool` is installed: `pacman -Q` succeeds. The query needs no
+/// root.
+pub fn package_installed() -> Result<bool, String> {
+    Tool::Pacman.succeeds(&["-Q", "opendeepcool"])
+}
+
 /// The name of a user ID, from `getent passwd`.
 pub fn user_name(uid: u32) -> Result<String, String> {
     let line = Tool::Getent
@@ -163,6 +172,9 @@ pub const FILES: [Install; 3] = [
         target: "/etc/udev/rules.d/71-opendeepcool-dev-reconnect.rules",
     },
 ];
+
+/// The dev-only reconnect rule, the last of [`FILES`]: all `setup --test-access` installs.
+pub const RECONNECT_RULE: &Install = &FILES[2];
 
 /// The folders the dev copy needs, parents first; each one missing is created and recorded.
 pub const DIRS: [&str; 13] = [
@@ -287,7 +299,7 @@ mod tests {
     }
 
     #[test]
-    fn the_root_steps_may_start_only_these_system_tools() {
+    fn the_dev_tool_may_start_only_these_system_tools() {
         assert_eq!(
             Tool::ALL.map(Tool::path),
             [
@@ -297,6 +309,7 @@ mod tests {
                 "/usr/bin/getent",
                 "/usr/bin/systemctl",
                 "/usr/bin/busctl",
+                "/usr/bin/pacman",
             ]
         );
     }
