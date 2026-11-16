@@ -33,6 +33,11 @@ depends=(
 )
 makedepends=('cargo' 'git')
 optdepends=('nvidia-utils: GPU readings and GPU kind on NVIDIA cards')
+# makepkg's default `debug` option would also build opendeepcool-debug, which `makepkg -si`
+# installs and `pacman -R opendeepcool` leaves behind. One package, so one command removes
+# everything (owner, 2026-11-16). A crash is debugged from a rebuild of its tag with debug
+# information, the route Arch's wiki gives for AUR packages.
+options=('!debug')
 install=opendeepcool.install
 source=("$pkgname::git+$url.git?signed#tag=v$pkgver")
 # Phase 12: the release key's full fingerprint, and the checksum makepkg computes over the tag.

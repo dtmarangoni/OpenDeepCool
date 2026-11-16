@@ -94,8 +94,8 @@ fn shellcheck_finds_nothing() {
     let framed = format!(
         "# shellcheck shell=bash\npkgdir=/pkgdir srcdir=/srcdir\n{pkgbuild}\n: \"$pkgver \
          $pkgrel $pkgdesc ${{arch[*]}} $url ${{license[*]}} ${{depends[*]}} ${{makedepends[*]}} \
-         ${{optdepends[*]}} $install ${{source[*]}} ${{validpgpkeys[*]}} ${{sha256sums[*]}} \
-         $srcdir\"\n"
+         ${{optdepends[*]}} ${{options[*]}} $install ${{source[*]}} ${{validpgpkeys[*]}} \
+         ${{sha256sums[*]}} $srcdir\"\n"
     );
     let scratch = Path::new(env!("CARGO_TARGET_TMPDIR")).join("arch-tools");
     fs::create_dir_all(&scratch).expect("a scratch folder");

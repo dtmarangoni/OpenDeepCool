@@ -474,8 +474,17 @@ impl Test {
         Ok(names)
     }
 
-    /// OpenDeepCool's packages installed now: the package and, with makepkg's default `debug`
-    /// option, its debug package.
+    /// The one package built in `dir`: the PKGBUILD turns `debug` off, so makepkg builds no
+    /// `opendeepcool-debug` beside it (owner, 2026-11-16).
+    fn built_one(&self, dir: &str) -> Result<Vec<String>, String> {
+        let names = self.built(dir)?;
+        the_one_package(&names).map_err(|e| format!("{dir}: {e}"))?;
+        Ok(names)
+    }
+
+    /// OpenDeepCool's packages installed now. The uninstall removes only `opendeepcool`, as a
+    /// user's one command does, so anything else of this name left installed makes the root
+    /// differ from its baseline.
     fn installed(&self) -> Result<Vec<String>, String> {
         let ran = self
             .root
@@ -502,15 +511,13 @@ impl Test {
         allowed
     }
 
-    /// `pacman -R` of OpenDeepCool's installed packages, and what the comparison afterwards
+    /// `pacman -R opendeepcool`, the user's one command, and what the comparison afterwards
     /// accepts.
     fn uninstall(&self) -> Result<(Ran, Allowed), String> {
-        let mut argv = vec!["pacman".to_owned(), "-R".into(), "--noconfirm".into()];
-        let installed = self.installed()?;
-        if installed.is_empty() {
+        let argv = ["pacman", "-R", "--noconfirm", "opendeepcool"].map(String::from);
+        if self.installed()?.is_empty() {
             return Err("nothing to uninstall".into());
         }
-        argv.extend(installed);
         // GTK's icon cache tool keeps a cache it thinks is up to date, by whole seconds, so an
         // uninstall in the same second as its install would leave the icon theme's cache naming
         // OpenDeepCool's icon (checked in the root, 2026-11-11). A person never does that; the
@@ -574,7 +581,7 @@ impl Test {
                 .builder(AUR_DIR, &["makepkg", "-si", "--noconfirm"])
                 .check("makepkg -si")?;
             output = ran.said();
-            let names = self.built(AUR_DIR)?;
+            let names = self.built_one(AUR_DIR)?;
             self.aur_packages = names.clone();
             Ok(format!(
                 "git clone, makepkg -si with check(): {}",
@@ -625,7 +632,7 @@ impl Test {
                 .builder(GITHUB_DIR, &["makepkg", "-si", "--noconfirm"])
                 .check("makepkg -si")?;
             output = ran.said();
-            let names = self.built(GITHUB_DIR)?;
+            let names = self.built_one(GITHUB_DIR)?;
             self.packages = names.iter().map(|n| format!("{GITHUB_DIR}/{n}")).collect();
             // The same source and PKGBUILD as the AUR way's, built in another folder: alike, or
             // which of the packages' files differ.
@@ -1083,15 +1090,20 @@ impl Test {
         .check("raising pkgrel")?;
         self.builder(GITHUB_DIR, &["makepkg", "-R", "--noconfirm"])
             .check("makepkg -R")?;
-        let next: Vec<String> = self
+        // The folder still holds release 1's package, so only release 2's names count.
+        let release_2: Vec<String> = self
             .built(GITHUB_DIR)?
             .into_iter()
             .filter(|n| n.ends_with("-2-x86_64.pkg.tar.zst"))
-            .map(|n| format!("{GITHUB_DIR}/{n}"))
             .collect();
-        if next.is_empty() {
+        if release_2.is_empty() {
             return Err("no release 2 package".into());
         }
+        the_one_package(&release_2).map_err(|e| format!("release 2: {e}"))?;
+        let next: Vec<String> = release_2
+            .into_iter()
+            .map(|n| format!("{GITHUB_DIR}/{n}"))
+            .collect();
         let mut argv = vec!["pacman".to_owned(), "-U".into(), "--noconfirm".into()];
         argv.extend(next.iter().cloned());
         let ran = self.root.root(&argv, &[]).check("pacman -U release 2")?;
@@ -1522,5 +1534,60 @@ impl Case {
             Case::Path => "forged_path",
             Case::Key => "forged_key",
         }
+    }
+}
+
+/// What makepkg built: exactly one package, `opendeepcool-<version>-<release>-x86_64.pkg.tar.zst`.
+/// The PKGBUILD turns `debug` off (owner, 2026-11-16), so there is no `opendeepcool-debug` that
+/// `pacman -R opendeepcool` would leave behind.
+fn the_one_package(names: &[String]) -> Result<(), String> {
+    let is_the_package = |name: &String| {
+        name.strip_prefix("opendeepcool-")
+            .and_then(|rest| rest.strip_suffix("-x86_64.pkg.tar.zst"))
+            .is_some_and(|version| version.starts_with(|c: char| c.is_ascii_digit()))
+    };
+    match names {
+        [name] if is_the_package(name) => Ok(()),
+        _ => Err(format!(
+            "expected the one package opendeepcool-<version>-<release>-x86_64.pkg.tar.zst, \
+             got {names:?}"
+        )),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::the_one_package;
+
+    fn names(list: &[&str]) -> Vec<String> {
+        list.iter().map(|n| (*n).to_owned()).collect()
+    }
+
+    #[test]
+    fn accepts_the_one_package() {
+        assert!(the_one_package(&names(&["opendeepcool-0.1.0-1-x86_64.pkg.tar.zst"])).is_ok());
+        assert!(the_one_package(&names(&["opendeepcool-1.0.0-12-x86_64.pkg.tar.zst"])).is_ok());
+    }
+
+    #[test]
+    fn refuses_a_debug_package_beside_it_or_alone() {
+        let package = "opendeepcool-0.1.0-1-x86_64.pkg.tar.zst";
+        let debug = "opendeepcool-debug-0.1.0-1-x86_64.pkg.tar.zst";
+        assert!(the_one_package(&names(&[debug, package])).is_err());
+        assert!(the_one_package(&names(&[debug])).is_err());
+    }
+
+    #[test]
+    fn refuses_none_two_or_another_name() {
+        assert!(the_one_package(&[]).is_err());
+        assert!(
+            the_one_package(&names(&[
+                "opendeepcool-0.1.0-1-x86_64.pkg.tar.zst",
+                "opendeepcool-0.1.0-2-x86_64.pkg.tar.zst",
+            ]))
+            .is_err()
+        );
+        assert!(the_one_package(&names(&["other-0.1.0-1-x86_64.pkg.tar.zst"])).is_err());
+        assert!(the_one_package(&names(&["opendeepcool-0.1.0-1-any.pkg.tar.zst"])).is_err());
     }
 }

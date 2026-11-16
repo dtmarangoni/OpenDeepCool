@@ -646,6 +646,13 @@ fn the_pkgbuild_builds_the_signed_tag() {
     assert_eq!(variable(&text, "license"), "('MIT')");
     assert_eq!(variable(&text, "install"), "opendeepcool.install");
     assert_eq!(variable(&text, "makedepends"), "('cargo' 'git')");
+    // One package, so `pacman -R opendeepcool` removes everything: no split debug package
+    // (owner, 2026-11-16), and no other option that changes what makepkg builds or strips.
+    assert_eq!(variable(&text, "options"), "('!debug')");
+    assert!(
+        !text.contains("pkgname=("),
+        "no split packages: pkgname is one name"
+    );
     assert!(!text.contains("pkgver()"), "no pkgver()");
     assert_eq!(
         variable(&text, "source"),
@@ -662,6 +669,12 @@ fn the_pkgbuild_builds_the_signed_tag() {
     );
     let srcinfo = arch(".SRCINFO");
     assert!(srcinfo.contains(&format!("\tpkgver = {pkgver}\n")));
+    assert!(srcinfo.contains("\toptions = !debug\n"));
+    assert_eq!(
+        srcinfo.matches("pkgname = ").count(),
+        1,
+        ".SRCINFO names one package"
+    );
     let depends: Vec<String> = text
         .split("depends=(\n")
         .nth(1)
