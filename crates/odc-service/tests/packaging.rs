@@ -368,6 +368,31 @@ fn the_readme_lists_what_files_md_lists() {
     );
 }
 
+/// The commands the install message prints to turn OpenDeepCool on are in the README word for
+/// word, so the message and the README tell a user the same thing.
+#[test]
+fn the_readme_gives_the_install_message_s_commands() {
+    let install = arch("opendeepcool.install");
+    let message = install
+        .split("cat <<'EOF'\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\nEOF\n").next())
+        .expect("the install message");
+    let commands: Vec<&str> = message
+        .lines()
+        .map(str::trim)
+        .filter(|line| line.starts_with("sudo systemctl") || line.starts_with("systemctl"))
+        .collect();
+    assert_eq!(commands.len(), 3, "{commands:?}");
+    let readme = fs::read_to_string(packaging("../README.md")).expect("README.md");
+    for command in &commands {
+        assert!(
+            readme.lines().any(|line| line == *command),
+            "the README lacks the install message's {command:?}"
+        );
+    }
+}
+
 #[test]
 fn the_table_paths_are_the_first_column_s_backticked_paths() {
     let text = "| Path | What |\n|---|---|\n| `/a/b` | `/not/first` |\n\

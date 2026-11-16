@@ -631,7 +631,7 @@ Three commits: the design, the program with its polkit action, the app.
   - that, on a PC with no lm-sensors configuration and no fan reading yet, the first start runs `sensors-detect --auto` once to find the chip that measures the cooler's fans and pump, which probes the PC's sensor buses (owner, 2026-10-27; solution review P6-02);
   - that NVIDIA support is untested on real hardware, NVML inside the service's sandbox included (solution review P11-13, OV-15).
   - **Reporting a crash** (owner, 2026-11-16; the package has no debug package): what to attach (the journal's lines for the service, the panic's file and line), and how to rebuild the tag with debug information for a backtrace: the recipe in Task 5's "The debug package", then reproduce the crash (Arch Wiki, Debugging/Getting traces).
-- `packaging/arch/README` for the AUR page: a short description, how to turn it on, the same note about `sensors-detect`, the same "Reporting a crash" section, and a link to the repository.
+- No `packaging/arch/README` (owner, 2026-11-16: only the root README; see As built).
 - `AGENTS.md`: Commands, `--only package`; the repository layout, the new crates `odc-boot` and `odc-pkg-test`. The release steps come with Phase 12.
 
 **Validation**
@@ -641,7 +641,7 @@ Three commits: the design, the program with its polkit action, the app.
 - **README:** "What it will install" became `Install`, `Turn it on and off`, `Uninstall`, `Installed on your system` and `Reporting a crash`, and the Status line no longer says there is no installable app. Install says there is no release yet and the package builds a release's signed tag, so the GitHub steps work from the first tag (Phase 12); the AUR steps and the key import are marked for `v1.0.0` and the first release.
 - **The README test** (`the_readme_lists_what_files_md_lists`, in `crates/odc-service/tests/packaging.rs`): every backticked path that starts with `/` in the first column of a table of `FILES.md` is in the first column of a table of the README's section, and nothing else is. Prose and non-path words don't count. Tried with a row removed and a row added: it names both.
 - **AGENTS.md** needed no change: Task 4 and 5 already added `odc-boot`, `odc-pkg-test` and `--only package`.
-- **`packaging/arch/README` is not written.** Arch's AUR submission guidelines (read 2026-11-16) list what a package repository holds: `PKGBUILD`, `.SRCINFO`, helper files such as `.install`, and a license, and ask to keep it clean. They mention no README, and the package test builds from exactly those four files. The AUR page carries the PKGBUILD's description and `url=`, the GitHub repository, whose README has every note this plan put in the AUR one. Awaiting the owner's decision.
+- **No `packaging/arch/README`** (owner, 2026-11-16: only the root README, which guides users on GitHub). Arch's AUR submission guidelines (read 2026-11-16) list what an AUR repository holds, `PKGBUILD`, `.SRCINFO`, helper files such as `.install`, and a license, with no README, and the package test builds the AUR repository from exactly those four. The AUR page carries the PKGBUILD's description and `url=`, the GitHub repository, whose README has every note. A test (`the_readme_gives_the_install_message_s_commands`) checks that the install message's three commands are in the README word for word.
 
 ### 7. The owner's PC moves to the package
 
