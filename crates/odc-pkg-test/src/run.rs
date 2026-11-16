@@ -269,7 +269,7 @@ impl Test {
     /// into `dir` (Phase 11 plan, Task 7): the exact packages this run validated, built with
     /// Arch's own toolchain under a neutral path, for the owner's PC. The build user's folders
     /// can't be read from outside the user namespace, so root inside copies each one to the
-    /// stage folder, which the teardown removes, and it's read from there.
+    /// stage folder, it's read from there, and the copy is removed again.
     fn export_packages(&self, dir: &Path) -> Result<String, String> {
         fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
         let mut done = Vec::new();
@@ -280,8 +280,10 @@ impl Test {
                 .root(&["install", "-m", "0644", from.as_str(), to.as_str()], &[])
                 .check("copying a package out of the root")?;
             let target = dir.join(&name);
-            fs::copy(self.root.path(&to), &target)
-                .map_err(|e| format!("{}: {e}", target.display()))?;
+            let staged = self.root.path(&to);
+            fs::copy(&staged, &target).map_err(|e| format!("{}: {e}", target.display()))?;
+            // The later cases compare the root with its baseline: the copy must not stay in it.
+            fs::remove_file(&staged).map_err(|e| format!("{}: {e}", staged.display()))?;
             let sha = snapshot::sha256(&target).map_err(|e| format!("{}: {e}", name))?;
             done.push(format!("{name} (sha256 {sha})"));
         }
