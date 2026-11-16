@@ -21,11 +21,13 @@ use std::fs;
 use std::path::PathBuf;
 use std::process::ExitCode;
 
-const USAGE: &str = "usage: odc-pkg-test --repo <dir> --work <dir> [--keep]
+const USAGE: &str = "usage: odc-pkg-test --repo <dir> --work <dir> [--keep] [--export <dir>]
 
-  --repo <dir>  the repository, whose committed HEAD is the release candidate
-  --work <dir>  a folder for the throwaway root and its builds, emptied first
-  --keep        leave the root in place afterwards, to look into it
+  --repo <dir>    the repository, whose committed HEAD is the release candidate
+  --work <dir>    a folder for the throwaway root and its builds, emptied first
+  --keep          leave the root in place afterwards, to look into it
+  --export <dir>  copy the packages this run built, release 1 and the upgrade's release 2, out
+                  of the root into <dir>: the exact packages it validated
 
 Run by `odc-e2e --only package`. Two internal forms run inside the root's user
 namespace: --snapshot <root> <out> [--skip <path>]... and --remove <dir>.";
@@ -43,12 +45,14 @@ fn test(args: &[String]) -> ExitCode {
     let mut repo = None;
     let mut work = None;
     let mut keep = false;
+    let mut export = None;
     let mut args = args.iter();
     while let Some(arg) = args.next() {
         match arg.as_str() {
             "--repo" => repo = args.next().map(PathBuf::from),
             "--work" => work = args.next().map(PathBuf::from),
             "--keep" => keep = true,
+            "--export" => export = args.next().map(PathBuf::from),
             "-h" | "--help" => {
                 println!("{USAGE}");
                 return ExitCode::SUCCESS;
@@ -70,7 +74,12 @@ fn test(args: &[String]) -> ExitCode {
             std::env::current_dir().unwrap_or_default().join(path)
         }
     };
-    if run::run(&absolute(repo), &absolute(work), keep) {
+    if run::run(
+        &absolute(repo),
+        &absolute(work),
+        keep,
+        export.map(absolute).as_deref(),
+    ) {
         ExitCode::SUCCESS
     } else {
         ExitCode::FAILURE

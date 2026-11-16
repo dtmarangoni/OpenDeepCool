@@ -79,7 +79,7 @@ impl Report {
 }
 
 /// The run: whether every check passed.
-pub fn run(repo: &Path, work: &Path, keep: bool) -> bool {
+pub fn run(repo: &Path, work: &Path, keep: bool, export: Option<&Path>) -> bool {
     let mut report = Report::default();
     let mut commit = None;
     report.check("candidate", || {
@@ -121,6 +121,7 @@ pub fn run(repo: &Path, work: &Path, keep: bool) -> bool {
         baseline: Snapshot::new(),
         packages: Vec::new(),
         aur_packages: Vec::new(),
+        export: export.map(Path::to_owned),
     };
     test.steps(&mut report);
     report.check("power_counters", || {
@@ -157,6 +158,8 @@ struct Test {
     packages: Vec<String>,
     /// The AUR way's first build, for the comparison with the GitHub way's.
     aur_packages: Vec<String>,
+    /// Where the built packages are copied to, when asked (`--export`).
+    export: Option<PathBuf>,
 }
 
 /// The account files shadow-utils backs up as `<file>-` when an account changes.
@@ -252,11 +255,37 @@ impl Test {
             return;
         }
         report.check("upgrade", || self.upgrade());
+        if let Some(dir) = &self.export {
+            report.check("export", || self.export_packages(dir));
+        }
         for case in Case::ALL {
             report.check(case.name(), || self.lm_sensors(case));
         }
         report.check("signed_tags", || self.signed_tags());
         report.check("teardown", || self.teardown());
+    }
+
+    /// Copies the GitHub way's packages, release 1 and the upgrade's release 2, out of the root
+    /// into `dir` (Phase 11 plan, Task 7): the exact packages this run validated, built with
+    /// Arch's own toolchain under a neutral path, for the owner's PC. The build user's folders
+    /// can't be read from outside the user namespace, so root inside copies each one to the
+    /// stage folder, which the teardown removes, and it's read from there.
+    fn export_packages(&self, dir: &Path) -> Result<String, String> {
+        fs::create_dir_all(dir).map_err(|e| format!("{}: {e}", dir.display()))?;
+        let mut done = Vec::new();
+        for name in self.built(GITHUB_DIR)? {
+            let from = format!("{GITHUB_DIR}/{name}");
+            let to = format!("{STAGE}/{name}");
+            self.root
+                .root(&["install", "-m", "0644", from.as_str(), to.as_str()], &[])
+                .check("copying a package out of the root")?;
+            let target = dir.join(&name);
+            fs::copy(self.root.path(&to), &target)
+                .map_err(|e| format!("{}: {e}", target.display()))?;
+            let sha = snapshot::sha256(&target).map_err(|e| format!("{}: {e}", name))?;
+            done.push(format!("{name} (sha256 {sha})"));
+        }
+        Ok(format!("{}: {}", dir.display(), done.join(", ")))
     }
 
     fn builder<S: AsRef<std::ffi::OsStr>>(&self, dir: &str, argv: &[S]) -> Ran {

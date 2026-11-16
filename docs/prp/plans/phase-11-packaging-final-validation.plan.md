@@ -652,7 +652,7 @@ Three commits: the design, the program with its polkit action, the app.
   - The full `setup` refuses while the package is installed (`pacman -Q opendeepcool` succeeds), changes nothing, and says to remove the package first with `sudo pacman -R opendeepcool` (owner, 2026-11-11). The dev copy's files in `/etc` carry the package's names, so they would override the package's files, and the package's uninstall would delete them. `--test-access` is meant for the installed package and runs as before. A test covers both.
 
 **Implementation** (the owner approves each privileged step, rule 7)
-1. Build the package from the release candidate (the temporary PKGBUILD pinned to the committed HEAD, Task 4).
+1. Build the package from the release candidate (the temporary PKGBUILD pinned to the committed HEAD, Task 4), with `cargo run -p odc-pkg-test -- --repo . --work target/pkg-work --export target/candidate`: the package test's own run, which also copies out the packages it built, release 1 and the upgrade's release 2, with their SHA-256. They are the exact packages the run validated, built with Arch's own Rust under a neutral path. A build on this PC would not be: it has no Arch `rust`, only the rustup-style toolchain under `~/.cargo`, and its binaries would carry this machine's paths.
 2. `odc-dev teardown` (one `pkexec` step): it removes the dev copy, its account, group and the owner's membership, the saved settings and ranking, and resets the cooler's USB switch and the power counters (Phase 5–7). The detection's record stays.
 3. `sudo pacman -U` the package. Then, with no other step:
    - nothing is enabled or running (`systemctl is-enabled` says `disabled`, `is-active` `inactive`);
