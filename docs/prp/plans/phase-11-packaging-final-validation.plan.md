@@ -606,7 +606,7 @@ Three commits: the design, the program with its polkit action, the app.
     - pacman's log and package cache, which keeps empty `download-*` folders;
     - `ldconfig`'s `aux-cache`, whose entries are each file's inode, change time, size and device (glibc, `elf/cache.c`);
     - the account files' backups.
-  - **The backups:** the plan expected them to equal the originals. In fact `userdel` saves each file as it was just before the account went, so the backups keep the `opendeepcool` lines. They're accepted holding either content; FILES.md and the PRD list them under what outlasts the uninstall.
+  - **The backups:** the plan expected them to equal the originals. In fact `userdel` saves each file as it was just before the account went, so the backups keep the `opendeepcool` lines. They're accepted holding either content; FILES.md and the PRD list them under what outlasts the uninstall. Owner, 2026-11-16: left as the system wrote them. The other choices were editing the four backups in the removal, and keeping the account as Arch's wiki says packages do (Users and groups: "A later removal of a package does not remove the automatically created user/group (UID/GID) again", so files it made aren't orphaned); the owner's rule that the uninstall removes everything stands for the live account files.
 - **Reproducible:**
   - `.BUILDINFO` records the options and the packages installed during the build. A second build with `--nocheck`, or with the first build's packages installed, differed there and only there.
   - So the second build runs after the AUR way's uninstall, with the first one's options: `makepkg -fC`, `check()` included.
