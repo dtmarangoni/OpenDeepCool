@@ -6,7 +6,7 @@ A Linux app, written in Rust, that drives the 14×14 pixel display of a **DeepCo
 
 ## Status
 
-Pre-alpha: planning and research. No installable app yet.
+Pre-alpha. The service, the settings app and the Arch package are built and tested, but no release is published yet; the first alpha comes in Phase 12 (see Install).
 
 - **Phase 1** (done, 2026-10-22): DeepCreative 1.2.14 runs under Wine on the target PC and drives the real cooler; every display mode was recorded. See [the report](docs/research/phase1-wine-spike.md).
 - **Phase 2** (done, 2026-10-22): this repository, with agent instructions and a commit guard.
@@ -48,9 +48,130 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 | [Reference documents](docs/reference/README.md) | Vendor manuals kept locally (not in git) and where to get them |
 | [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | Rules and workflow for coding agents working on this repository |
 
-## What it will install
+## Install
 
-Every file, rule, module and service the finished app adds will be listed here before the first release. The planned list is in the PRD's [System Footprint](docs/prp/prds/opendeepcool-lp360.prd.md#system-footprint).
+There is no release yet: the first alpha, `0.1.z`, comes in Phase 12. The package builds the signed tag of the release it installs, so these steps work once a tag exists.
+
+From GitHub, on Arch Linux:
+
+```sh
+git clone https://github.com/dtmarangoni/OpenDeepCool.git
+cd OpenDeepCool/packaging/arch
+makepkg -si
+```
+
+From the AUR, from `v1.0.0` (Phase 12): `yay -S opendeepcool`, or any AUR helper, or clone `https://aur.archlinux.org/opendeepcool.git` and run `makepkg -si` in it. Releases are signed, and the steps to import the signing key come with the first release.
+
+`makepkg` builds one package with Arch's Rust toolchain and runs the tests first, which takes a few minutes. pacman installs what it needs: GTK 4, PipeWire's tools, polkit, lm-sensors and the rest of its dependencies. `nvidia-utils` is optional, for NVIDIA GPUs.
+
+## Turn it on and off
+
+Installing turns nothing on, as Arch's packages do. Turn OpenDeepCool on with the **Start at boot** switch in its settings app, which asks for your password once, or from a terminal:
+
+```sh
+sudo systemctl enable --now opendeepcool.service
+sudo systemctl --global enable opendeepcool-audio.service
+systemctl --user start opendeepcool-audio.service
+```
+
+Turn it off with the same switch, or:
+
+```sh
+sudo systemctl disable --now opendeepcool.service
+sudo systemctl --global disable opendeepcool-audio.service
+```
+
+On a PC that has no lm-sensors configuration and no fan reading yet, the service's first start runs lm-sensors' `sensors-detect --auto` once, as root, to find the chip that measures the cooler's fans and pump. That detection probes the PC's sensor buses, loads the `i2c-dev` and `cpuid` drivers, and may write `/etc/conf.d/lm_sensors` and enable `lm_sensors.service`. The uninstall undoes only what the detection created.
+
+NVIDIA support is untested on real hardware, NVML inside the service's sandbox included.
+
+## Uninstall
+
+```sh
+sudo pacman -R opendeepcool
+```
+
+This removes everything OpenDeepCool installed or made, in the next section's four tables: its files, its system account and group, the links that turn it on, its saved settings, what the detection created, and any file an administrator made under its names in `/etc` and `/run`. A package test proves it: it installs and uninstalls the package in a throwaway Arch root and compares the root with how it started.
+
+What stays, because it isn't OpenDeepCool's to delete:
+
+- a sensor driver that lm-sensors loaded, and `i2c-dev` and `cpuid`, until the next boot;
+- the journal's lines, until journald rotates them;
+- a core dump of an OpenDeepCool program that crashed, until systemd's cleanup removes it, after two weeks by default;
+- pacman's own log and cache;
+- shadow-utils' backups of the account files, `/etc/passwd-`, `/etc/group-`, `/etc/shadow-` and `/etc/gshadow-`, which keep the `opendeepcool` lines until the next change to any account on the PC;
+- users' home folders, which OpenDeepCool never writes to;
+- software an administrator installed in `/usr/local`.
+
+## Installed on your system
+
+The exact list is [packaging/FILES.md](packaging/FILES.md), and a test fails when this section and that file differ.
+
+**Installed by the package**, owned by root, and removed by `pacman -R`:
+
+| Path | What it is |
+|---|---|
+| `/usr/bin/opendeepcool` | the settings app |
+| `/usr/lib/opendeepcool/` | the folder for the programs users don't run themselves |
+| `/usr/lib/opendeepcool/opendeepcoold` | the display service |
+| `/usr/lib/opendeepcool/opendeepcool-audio` | the sound helper, run in each user's session |
+| `/usr/lib/opendeepcool/odc-gpu-rank` | a one-shot helper that asks each GPU's driver for its kind |
+| `/usr/lib/opendeepcool/odc-sensors-detect` | a one-shot helper that runs lm-sensors' detection once |
+| `/usr/lib/opendeepcool/opendeepcool-boot` | the Start at boot switch's root program |
+| `/usr/lib/systemd/system/opendeepcool.service` | the display service's unit |
+| `/usr/lib/systemd/system/opendeepcool-gpu-rank.service` | the GPU helper's unit |
+| `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` | the detection's unit |
+| `/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service` | loads the two drivers the detection may need |
+| `/usr/lib/systemd/user/opendeepcool-audio.service` | the sound helper's user unit |
+| `/usr/lib/sysusers.d/opendeepcool.conf` | the locked system account and group `opendeepcool` that the service runs as |
+| `/usr/lib/udev/rules.d/70-opendeepcool.rules` | gives that group the cooler's device and read access to the CPU's power counters |
+| `/usr/share/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf` | lets the service own its D-Bus name |
+| `/usr/share/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy` | the actions polkit checks before the service takes a change |
+| `/usr/share/applications/io.github.dtmarangoni.OpenDeepCool.desktop` | the launcher entry |
+| `/usr/share/icons/hicolor/scalable/apps/io.github.dtmarangoni.OpenDeepCool.svg` | the icon |
+| `/usr/share/libalpm/hooks/opendeepcool-restart.hook` | restarts a running service on the new program after an upgrade |
+| `/usr/share/licenses/opendeepcool/` | the license folder |
+| `/usr/share/licenses/opendeepcool/LICENSE` | the MIT license |
+
+The system account and group `opendeepcool` are created by systemd's sysusers hook when the package is installed, and deleted by the uninstall.
+
+**Made when you turn it on**, removed by the uninstall:
+
+| Path | What it is |
+|---|---|
+| `/etc/systemd/system/multi-user.target.wants/opendeepcool.service` → `/usr/lib/systemd/system/opendeepcool.service` | starts the service at boot |
+| `/etc/systemd/user/default.target.wants/opendeepcool-audio.service` → `/usr/lib/systemd/user/opendeepcool-audio.service` | starts the sound helper at each login |
+
+**Made while it runs**, removed by the uninstall:
+
+| Path | What it is |
+|---|---|
+| `/var/lib/opendeepcool/` (opendeepcool:opendeepcool, 0700), with `settings.toml` and `gpu-rank.json` | your settings and each GPU's kind |
+| `/var/lib/opendeepcool-detect/` (root:root, 0700), with `sensors-detect.json` | a record of what the detection created |
+| `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`, and `lm_sensors.service` enabled | written by the detection, only on a PC with no lm-sensors configuration and no fan reading; removed only if the record says the detection made them |
+
+It also changes two things the udev rule controls, and the uninstall puts both back: the cooler's device node gets the group `opendeepcool` and mode 0660, and each CPU package's `energy_uj` power counter gets that group's read access.
+
+**Made by an administrator under OpenDeepCool's names.** pacman never deletes a file it didn't install, but these are read in front of, or beside, the package's own files, so one left behind would change the next install. The uninstall deletes them; each lives in `/etc`, or in `/run` for the current boot:
+
+| Path | What it is |
+|---|---|
+| `/etc/systemd/system/<unit>`, `<unit>.d/` and `/etc/systemd/system.control/<unit>.d/`, for each of the four system units; the same under `/run/systemd/` | a unit copy, a mask or a drop-in from `systemctl edit`, `set-property` or `mask` |
+| `/etc/systemd/user/opendeepcool-audio.service` and `opendeepcool-audio.service.d/`; the same under `/run/systemd/user/` | the same for the sound helper |
+| `/etc/sysusers.d/opendeepcool.conf`, `/etc/udev/rules.d/70-opendeepcool.rules`, `/etc/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy`; the same three under `/run` | a file that overrides the package's, or masks it |
+| `/etc/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf`, `/etc/pacman.d/hooks/opendeepcool-restart.hook` | likewise |
+
+## Reporting a crash
+
+The service writes to the journal: `journalctl -u opendeepcool`. If a program panics, its message names the file, line and column. Attach both to a bug report, with the version from `pacman -Q opendeepcool`.
+
+The package ships without debug symbols, so a backtrace from it has no frames. To get one, rebuild the same release from its tag with symbols and reproduce the crash. In a clone of the repository at `packaging/arch/` (or of the AUR repository), change the PKGBUILD's `options=('!debug')` to `options=('!debug' '!strip')`, then:
+
+```sh
+CARGO_PROFILE_RELEASE_DEBUG=line-tables-only makepkg -si
+```
+
+The first sets Cargo to write source lines into the programs, and `!strip` keeps makepkg from removing them. Arch's wiki describes the same route for AUR packages, under [Debugging/Getting traces](https://wiki.archlinux.org/title/Debugging/Getting_traces).
 
 ## Development
 

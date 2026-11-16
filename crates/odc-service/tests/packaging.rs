@@ -328,6 +328,55 @@ fn installed() -> Vec<(String, String, String, String)> {
         .collect()
 }
 
+/// The paths in the first column of every table row of `text`: each backticked word that starts
+/// with `/`. Words that are not paths (`<unit>.d/`, an account's name) are left out on both sides.
+fn table_paths(text: &str) -> BTreeSet<String> {
+    text.lines()
+        .filter(|line| line.starts_with("| "))
+        .filter_map(|line| line.trim_start_matches('|').split('|').next())
+        .flat_map(|cell| cell.split('`').skip(1).step_by(2))
+        .filter(|word| word.starts_with('/'))
+        .map(str::to_owned)
+        .collect()
+}
+
+/// The README's "Installed on your system" lists exactly the paths in `FILES.md`'s tables
+/// (Phase 11 plan, Task 6; AGENTS.md rule 7), so what the README tells a user the package puts
+/// on the PC can't drift from what it does: the other test here checks `FILES.md` against the
+/// PKGBUILD and the repository.
+#[test]
+fn the_readme_lists_what_files_md_lists() {
+    let files = fs::read_to_string(packaging("FILES.md")).expect("packaging/FILES.md");
+    let readme = fs::read_to_string(packaging("../README.md")).expect("README.md");
+    let section = readme
+        .split("\n## Installed on your system\n")
+        .nth(1)
+        .and_then(|rest| rest.split("\n## ").next())
+        .expect("the README's section \"Installed on your system\"");
+    let listed = table_paths(section);
+    let expected = table_paths(&files);
+    assert!(
+        expected.len() > 30,
+        "{}: FILES.md's tables hold the package's paths",
+        expected.len()
+    );
+    let missing: Vec<_> = expected.difference(&listed).collect();
+    let extra: Vec<_> = listed.difference(&expected).collect();
+    assert!(
+        missing.is_empty() && extra.is_empty(),
+        "the README misses {missing:?} and lists {extra:?} beyond FILES.md"
+    );
+}
+
+#[test]
+fn the_table_paths_are_the_first_column_s_backticked_paths() {
+    let text = "| Path | What |\n|---|---|\n| `/a/b` | `/not/first` |\n\
+                | `/c/<unit>`, `<unit>.d/` and `/d/` | x |\n| The account `opendeepcool` | y |\n\
+                `/prose` is no table row\n";
+    let paths: Vec<String> = table_paths(text).into_iter().collect();
+    assert_eq!(paths, ["/a/b", "/c/<unit>", "/d/"]);
+}
+
 /// `FILES.md`'s "The PKGBUILD's own files": the files that build the package, never installed.
 fn pkgbuild_files() -> Vec<String> {
     let text = fs::read_to_string(packaging("FILES.md")).expect("packaging/FILES.md");
