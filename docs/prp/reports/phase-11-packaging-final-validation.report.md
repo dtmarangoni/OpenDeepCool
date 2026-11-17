@@ -132,7 +132,7 @@ No target exists (the owner set none). The 3000-frame timing run's mean interval
 |---|---|
 | `cargo build --workspace`, `cargo test --workspace` (the guard, at each commit), `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check` | Pass; 688 tests passed, 0 failed, 6 ignored at the dev-interface commit |
 | `cargo run -p odc-e2e -- --dev-interface --require …` | 229 of 229 passed |
-| `cargo run -p odc-e2e -- --only package --require container` | 32 of 32 passed |
+| `cargo run -p odc-e2e -- --only package --require container` | 32 of 32 passed; again after the last packaging and README change (`8f8cf5d`), 32 of 32 |
 | `cargo run -p odc-e2e -- --only sensors --require …`, with the checks added after the run (CPU temperature under load, the sensor thread's cost) | Passed in 5 runs of the light load the owner asked for (2026-11-17: never towards 60 °C): 32–33 → 43–47 °C under the load, an independent 100 ms sampler saw at most 49 °C, 0 °C from `sensors` each time, CPU Usage 5.4 % against `top`'s 5.3–5.5 %; the sensor thread's work 1.3–1.5 ms of CPU a second |
 | `cargo run -p odc-e2e -- --dev-interface --only baseline --require dev-service` | Passed (table above) |
 | `namcap`, `shellcheck`, `systemd-analyze security` | 0 errors; shellcheck clean; scores above |
