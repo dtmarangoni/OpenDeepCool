@@ -1,6 +1,6 @@
 # OpenDeepCool
 
-A Linux app, written in Rust, that drives the 14×14 pixel display of a **DeepCool LP360** AIO cooler on **Omarchy** (Arch Linux). It replaces DeepCool's Windows-only DeepCreative app.
+A Linux app, written in Rust, that drives the 14×14 pixel display of a **DeepCool LP360** AIO cooler on **Arch Linux** and on Arch-based distributions that use systemd, Omarchy included. It replaces DeepCool's Windows-only DeepCreative app.
 
 > **Not affiliated with DeepCool.** "DeepCool", "LP360" and "DeepCreative" are trademarks of their respective owners. This repository contains no DeepCool code, firmware or documents; facts about the device are described in our own words.
 
@@ -25,10 +25,10 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 
 ## Scope
 
-- **Hardware**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Arch Linux, with Omarchy first. It finds the PC's CPU, GPU and board fan sensors itself. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
+- **Hardware and system**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Arch Linux or an Arch-based distribution that uses systemd and Arch's packages. Distributions without systemd are out of scope. It finds the PC's CPU, GPU and board fan sensors itself. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
 - **Planned**:
   - a system service that starts at boot, the same for every user;
-  - a GTK4 settings app that follows the current Omarchy theme live, with its own default theme on other desktops;
+  - a GTK4 settings app that follows the current Omarchy theme live when there is one, with its own default theme everywhere else;
   - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer;
   - the cooler's fan and pump speed readings.
 - **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls other hardware. To monitor or control the CPU, GPU, other fans or power, use dedicated tools, as OpenRGB for lighting.
@@ -52,7 +52,7 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 
 There is no release yet: the first alpha, `0.1.z`, comes in Phase 12. The package builds the signed tag of the release it installs, so these steps work once a tag exists.
 
-From GitHub, on Arch Linux:
+From GitHub, on Arch Linux or an Arch-based distribution:
 
 ```sh
 git clone https://github.com/dtmarangoni/OpenDeepCool.git

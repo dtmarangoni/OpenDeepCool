@@ -4,10 +4,10 @@ Instructions for any coding agent (Claude Code, Codex, Cursor, …) working in t
 
 ## What this project is
 
-OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Omarchy (Arch Linux). It is written in Rust and supports only the DeepCool LP360 AIO cooler, on any PC running Arch Linux, with Omarchy first (owner, 2026-10-23). Real-hardware tests run on the owner's PC.
+OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Linux. It is written in Rust and supports only the DeepCool LP360 AIO cooler, on Arch Linux and on the Arch-based distributions that use Arch's packages and systemd (owner, 2026-10-23 and 2026-11-17). Omarchy, the owner's system, is one of them. Real-hardware tests run on the owner's PC.
 
 - A system service drives the LP360's 14×14 dot-matrix display from boot, the same for every user.
-- A GTK4 app changes the settings. It follows the current Omarchy theme live, and uses its own default theme on other desktops.
+- A GTK4 app changes the settings. It follows the current Omarchy theme live when there is one, and uses its own default theme everywhere else.
 
 It covers only the DeepCool cooler: its display, and its fans and pump (owner, 2026-10-23). The CPU, GPU and RAM are read only for the values the display shows.
 
@@ -97,6 +97,9 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
     - The program, its tests and its tools are Rust. The tools are the expected-frame generator (`tools/oracle/`), the commit guard and its tests (`tools/guard/`), the dev setup tool (`tools/dev/`), the generator of the GPU helper's kernel structures (`tools/bindings/`, from Phase 6; owner, 2026-10-28) and the mockup generator (`tools/mockups/`, from Phase 10).
     - Other languages appear only where a tool requires its own format: git's hook files (one-line starters of the guard), the PKGBUILD and its install script, CI's YAML, and the mockups' own HTML, CSS and JS.
     - `research/` stays local and is exempt.
+14. **Target Arch, not Omarchy** (owner, 2026-11-17: "It should be build for Arch or any Arch based distro in general"). OpenDeepCool must work on Arch Linux and on any Arch-based distribution that uses Arch's packages and systemd. Omarchy is one such system, and the owner's: the only thing that may depend on it is the theme the app follows when it finds one.
+    - Nothing in the service, the packaging, the dependencies, the units, the rules or the tests may assume Omarchy, a desktop or a window manager.
+    - Check a change against Arch's own documentation and packages, as the review `docs/prp/solution-reviews/arch-portability.review.md` does.
 
 ## Verified facts (details in the PRD Research Summary)
 

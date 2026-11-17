@@ -20,7 +20,8 @@ A review only reports. It never changes the PRD, a plan, the spec or code, and t
 - **No machine data:** no hardware models, OS or kernel versions, user names, local paths or other facts about the owner's PC (AGENTS.md rule 10). Refer to `docs/local/` instead. The commit guard checks these files like any other.
 - **Finding IDs:**
   - `OV-nn` in the overview, which lists the phase findings behind each one;
-  - `Pn-nn` in the review of Phase *n*.
+  - `Pn-nn` in the review of Phase *n*;
+  - `AP-nn` in the Arch portability review.
 
   IDs are never reused, even when a finding is withdrawn.
 - **Severity:**
@@ -53,6 +54,7 @@ All reviewed on 2026-10-26, at commit `3ec34b7` (Phase 4 complete, Phases 5–11
 | [phase-9-music.review.md](phase-9-music.review.md) | The audio helper, the spectrum, emojis and the Dancer | 0 / 14 | Done (2026-10-27): P9-03, P9-04, P9-06, P9-09, P9-10 and P9-11 accepted; P9-08 already in the plan; P9-05 and P9-12 notes; P9-01, P9-02, P9-07 and P9-14 decided through the overview; P9-13 settled with P4-01 |
 | [phase-10-settings-app.review.md](phase-10-settings-app.review.md) | The GTK4 app, the frame preview, the theme, UI tests | 0 / 12 | Done (2026-10-27): P10-05 and P10-06 accepted; P10-07 to P10-10 and P10-12 notes; P10-01 and P10-02 decided (owner, 2026-10-26: only the user at the PC); P10-03, P10-04 and P10-11 settled with P4-05 and P4-04 |
 | [phase-11-packaging-final-validation.review.md](phase-11-packaging-final-validation.review.md) | The PKGBUILD, install and uninstall, release, the final parity run | 2 / 21 | Done (2026-10-27): the release stages designed (the alpha and the beta as GitHub pre-releases, each for a month and until every open bug is fixed; `v1.0.0` on GitHub and the AUR; a new Phase 12); P11-09 accepted, wider; P11-06 rejected (no signed tags; the source becomes the tag through git); the rest accepted; a gap the review missed fixed (the final run's test access); P11-01, P11-02 and P11-15 decided through the overview; P11-04, P11-08, P11-16 and P11-19 settled with P6-03, P4-05, P3-06 and P3-01 |
+| [arch-portability.review.md](arch-portability.review.md) | The whole solution against the target of Arch Linux and Arch-based distributions: documents, code, packaging, units, CI, Arch's own documentation and packages | 0 / 9 | Written 2026-11-17 at the owner's request, after Phase 11's implementation; AP-01's wording and AGENTS.md rule 14 applied; AP-02 to AP-07 and AP-09 await the owner's answers |
 
 ## How the cross-check works
 
