@@ -26,7 +26,7 @@ What isn't general is how the documents describe it, and five places where behav
 | AP-02 | Medium | The sound helper's sandbox needs unprivileged user namespaces, which `linux-hardened` turns off; never tried with them off |
 | AP-03 | Medium | Music works only with PipeWire, and the package forces PipeWire onto PulseAudio systems |
 | AP-04 | Medium | The design needs systemd; Arch-based distributions without it can't run it, and no document says so |
-| AP-05 | Low | `rust-version = "1.99"` was the pinned development toolchain, the newest one, not the oldest that builds (now 1.92) |
+| AP-05 | Low | `rust-version = "1.99"` was the pinned development toolchain, the newest one, not the oldest that builds (the owner chose the newest always) |
 | AP-06 | Low | Where no polkit agent runs, the Start at boot switch fails with a message that doesn't say what to do |
 | AP-07 | Low | The default theme is always dark, whatever the desktop prefers |
 | AP-08 | Note | Hardware is tested for real on one PC, and CI runs only on Arch |
@@ -75,7 +75,7 @@ What isn't general is how the documents describe it, and five places where behav
 - **What follows:** on a distribution whose `rust` package is older than the current one (derivatives that hold packages back), the build stops at once with Cargo's version error. That is a clear failure, but a lower floor would allow the build.
 - **Recommendation:** measure the oldest toolchain that builds the packaged crates (the code uses `let` chains, stable since 1.88; the rest is unmeasured) and set `rust-version` to it, keeping the pin in `mise.toml` for development. Unverified: how far any derivative lags Arch's Rust.
 - **Measured (2026-11-17):** the highest `rust-version` that any package in the shipped crates' dependency graph declares is 1.92 (`pango-sys`; 123 packages, 13 declare none), so the lock file can't build with an older compiler whatever our own floor says. With Rust 1.92.0 (installed apart from the owner's toolchains) the six shipped crates check, and the 636 tests of the package's `check()` pass.
-- **Outcome (owner, 2026-11-17):** measure and lower it. Done: `rust-version = "1.92"`; `mise.toml` keeps the newer toolchain for development, and `crates/odc-e2e/tests/arch_tools.rs` still keeps the floor at or below Arch's `rust`. A CI job that builds with 1.92 would keep the floor true; it can't be tried locally, so it is left for the owner to ask for.
+- **Outcome (owner, 2026-11-17), superseding the first one the same day:** the owner asked first to measure and lower it (done: 1.92 builds the shipped crates and passes the 636 tests), then decided on **the newest stable Rust always**: `rust-version` stays at the newest, `mise.toml` follows it, and at the start of the alpha both move to the latest stable and are tested, which the owner then uses through the alpha and the beta. The 1.92 figure is kept here as information; `crates/odc-e2e/tests/arch_tools.rs` keeps the floor at or below Arch's `rust`.
 
 ### AP-06 (Low): no polkit agent, no explanation
 
@@ -136,7 +136,7 @@ See the owner's question of 2026-11-17 and the options below.
 1. **Support boundary (AP-04):** systemd only. Other init systems are out of scope for now; the notes say systemd is necessary.
 2. **Music and PipeWire (AP-03):** keep `pipewire-audio` as a dependency.
 3. **`linux-hardened` (AP-02):** yes, reproduce it. Done, see AP-02.
-4. **Rust version (AP-05):** yes, measure the oldest that builds and lower `rust-version`.
+4. **Rust version (AP-05):** measure the oldest that builds (1.92); then the owner decided on the newest stable always, updated and tested at the start of the alpha.
 5. **Default theme (AP-07):** follow the system's dark or light preference, with an option in the app to change it; both in the UI review.
 6. **Crash information (AP-09):** option 2 now.
 

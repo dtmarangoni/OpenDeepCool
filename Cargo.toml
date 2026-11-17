@@ -4,11 +4,11 @@ resolver = "3"
 
 [workspace.package]
 edition = "2024"
-# The oldest compiler the shipped programs build with (Arch portability review, AP-05; owner,
-# 2026-11-17): the highest `rust-version` that a dependency of theirs declares is 1.92 (`pango-sys`),
-# and with 1.92.0 the six shipped crates check and the 636 tests of the package's check() pass.
-# `mise.toml` pins the newer toolchain that development uses.
-rust-version = "1.92"
+# The newest stable Rust, always (owner, 2026-11-17): this and `mise.toml` follow it, and at the start
+# of the alpha (Phase 12) both move to the latest stable and are tested; the owner uses that build
+# through the alpha and the beta. (Measured the same day, for the record: the oldest that builds
+# the shipped programs is 1.92, the highest `rust-version` a dependency declares.)
+rust-version = "1.99"
 license = "MIT"
 publish = false
 
