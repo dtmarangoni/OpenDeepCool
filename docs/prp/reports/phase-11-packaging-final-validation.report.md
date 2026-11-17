@@ -2,8 +2,8 @@
 
 **Plan:** [phase-11-packaging-final-validation.plan.md](../plans/phase-11-packaging-final-validation.plan.md)
 **PRD phase:** 11 — Packaging & final validation
-**Branch:** `phase-11-packaging-final-validation` (not pushed)
-**Status:** implemented, 2026-11-17; awaiting the owner's sign-off. Then the branch is pushed, CI must pass, and `main` is fast-forwarded to it (AGENTS.md, How to work).
+**Branch:** `phase-11-packaging-final-validation`, pushed; `main` fast-forwarded to it
+**Status:** complete, 2026-11-17. The owner signed it off, CI passed on the pushed branch, and `main` was fast-forwarded to it (AGENTS.md, How to work).
 
 ## Outcome
 
@@ -145,4 +145,4 @@ No target exists (the owner set none). The 3000-frame timing run's mean interval
 | `cargo run -p odc-e2e -- --dev-interface --only baseline --require dev-service` | Passed (table above) |
 | `namcap`, `shellcheck`, `systemd-analyze security` | 0 errors; shellcheck clean; scores above |
 | Layer 2 differential tests | Not changed by this phase's code; Phase 5–9 results stand |
-| CI (build, tests, `cargo deny`, `makepkg`, namcap, shellcheck, the UI job) | After the push; this report is completed with its result (AGENTS.md, How to work) |
+| CI (GitHub Actions, in `archlinux:base-devel`) | Passed on the pushed branch (run 44171695408, commit `c3ff39d`): `test` (`cargo deny`, format, clippy, the workspace tests, which include `makepkg --printsrcinfo`, namcap, shellcheck and the Rust-version test, and the udev rules), `ui` (the app's layer 3 in a headless weston, and layer 4 against the fake service) and `privacy` (every commit's identity, no binary file). The full build and the package test run locally, `--only package`. At sign-off the pins were checked: `actions/checkout` is at its newest release, `mise-action` moved to v5.2.9, and `cargo deny`'s skips and ignores are still needed |
