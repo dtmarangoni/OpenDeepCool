@@ -847,11 +847,12 @@ fn close(what: &str, ours: i64, reference: i64, tolerance: i64) -> Result<String
 /// 0.24 ms read once a second; two AMD GPU values cost 1.4 ms read once a second).
 const COST_PASSES: u32 = 12;
 
-/// The most CPU the sensor thread's work in one second may cost: 10 ms, 1 % of one core. Its
-/// measured cost was about 3.8 ms, 0.38 % of a core, in the running service on the development PC
-/// (Phase 11 report), and a regression to more than 2.5 times that fails. The owner set no
-/// target; this guards against getting worse.
-const SENSORS_CEILING_MS: f64 = 10.0;
+/// The most CPU the sensor thread's work in one second may cost: 50 ms, 5 % of one core. It costs
+/// 1.3–1.8 ms (0.13–0.18 % of a core) on the development PC, so the ceiling is about 30 times that:
+/// a slower or simpler CPU, or a GPU driver that answers more slowly, passes, and only work that
+/// has grown a great deal fails, such as a loop that no longer waits. The owner set no target and
+/// asked for a wide margin, not a tight one (2026-11-17; the first ceiling was 10 ms).
+const SENSORS_CEILING_MS: f64 = 50.0;
 
 /// This thread's CPU time so far, from its own CPU clock.
 fn thread_cpu() -> Duration {
@@ -1643,12 +1644,16 @@ mod tests {
             "a busy 30 ms costs CPU"
         );
         assert!(sensors_cost(0.5, 0.5, 10).is_ok());
-        assert!(sensors_cost(5.0, 5.0, 10).is_ok(), "exactly the ceiling");
-        assert!(sensors_cost(5.0, 5.01, 10).is_err(), "above it");
         assert!(
-            sensors_cost(0.1, 20.0, 10)
+            sensors_cost(12.0, 4.0, 10).is_ok(),
+            "a CPU ten times as slow as the development PC's"
+        );
+        assert!(sensors_cost(25.0, 25.0, 10).is_ok(), "exactly the ceiling");
+        assert!(sensors_cost(25.0, 25.01, 10).is_err(), "above it");
+        assert!(
+            sensors_cost(0.1, 60.0, 10)
                 .expect_err("the fans' speeds")
-                .contains("20.00 ms"),
+                .contains("60.00 ms"),
             "the note tells the two apart"
         );
         assert!(memory_load(&value(62_400), 62_500).is_ok());
