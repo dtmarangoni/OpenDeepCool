@@ -375,7 +375,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 8 | Temperature & Power | Temperature and Power (DeepCreative's Temperature Guardian and Power Guardian) | complete | - | 7 | [plan](../plans/phase-8-temperature-power.plan.md) | [report](../reports/phase-8-temperature-power.report.md) | - |
 | 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | complete | - | 7, 8 | [plan](../plans/phase-9-music.plan.md) | [report](../reports/phase-9-music.report.md) | - |
 | 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | complete | - | 7, 8, 9 | [plan](../plans/phase-10-settings-app.plan.md) | [report](../reports/phase-10-settings-app.report.md) | - |
-| 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | in-progress | - | 8, 9, 10 | [plan](../plans/phase-11-packaging-final-validation.plan.md) | - | - |
+| 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | in-progress | - | 8, 9, 10 | [plan](../plans/phase-11-packaging-final-validation.plan.md) | [report](../reports/phase-11-packaging-final-validation.report.md) | - |
 | 12 | Releases | Alpha and beta as GitHub pre-releases, a month each; `v1.0.0` on GitHub and the AUR; DeepCreative deleted | pending | - | 11 | - | - | - |
 
 ### Phase Details
