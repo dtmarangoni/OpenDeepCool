@@ -307,3 +307,88 @@ fn a_shared_folder_that_isnt_empty_and_files_the_service_doesnt_write_are_kept()
         "the service's own files go"
     );
 }
+
+const LAUNCHERS: &str = "/usr/local/share/applications";
+const ENTRY: &str = "/usr/local/share/applications/io.github.dtmarangoni.OpenDeepCool.desktop";
+const CACHE: &str = "/usr/local/share/applications/mimeinfo.cache";
+
+/// The setup's launcher entry in the folder it created.
+fn launcher_manifest() -> Manifest {
+    let mut m = Manifest::default();
+    m.push(Entry::dir(LAUNCHERS).expect("a created folder"))
+        .expect("new");
+    m.push(Entry::file(ENTRY).expect("a dev file"))
+        .expect("new");
+    m
+}
+
+/// The desktop-database cache pacman's hook wrote beside the entry (Phase 11, Task 7: it stayed
+/// after the teardown, and with it the folder).
+#[test]
+fn the_desktop_databases_cache_goes_when_it_is_all_that_is_left_in_the_launchers_folder() {
+    let mut host = TestHost::new("removal-cache");
+    fs::create_dir_all(host.under_root(Path::new(LAUNCHERS))).expect("the folder");
+    fs::write(host.under_root(Path::new(ENTRY)), "x").expect("the entry");
+    fs::write(host.under_root(Path::new(CACHE)), "[MIME Cache]\n").expect("the cache");
+    let failures = launcher_manifest().remove_all(&mut host);
+    assert!(failures.is_empty(), "{failures:?}");
+    assert_eq!(
+        host.said,
+        [
+            format!("removed {ENTRY}"),
+            format!("removed {CACHE}"),
+            format!("removed {LAUNCHERS}"),
+        ],
+        "the entry, then the cache, then the folder"
+    );
+    assert!(!host.under_root(Path::new(LAUNCHERS)).exists());
+    // A second run finds everything gone.
+    host.said.clear();
+    let failures = launcher_manifest().remove_all(&mut host);
+    assert!(failures.is_empty(), "{failures:?}");
+    assert!(
+        host.said.iter().all(|l| l.ends_with("already gone")),
+        "{:?}",
+        host.said
+    );
+}
+
+#[test]
+fn the_cache_stays_with_another_programs_entry_and_in_any_other_folder() {
+    // Another program's launcher entry keeps the folder, and the cache that describes it.
+    let mut host = TestHost::new("removal-cache-shared");
+    fs::create_dir_all(host.under_root(Path::new(LAUNCHERS))).expect("the folder");
+    fs::write(host.under_root(Path::new(ENTRY)), "x").expect("the entry");
+    fs::write(host.under_root(Path::new(CACHE)), "x").expect("the cache");
+    let other = host.under_root(Path::new("/usr/local/share/applications/other.desktop"));
+    fs::write(&other, "x").expect("another program's entry");
+    let failures = launcher_manifest().remove_all(&mut host);
+    assert!(failures.is_empty(), "{failures:?}");
+    assert!(
+        host.under_root(Path::new(CACHE)).exists() && other.exists(),
+        "never another's file, or what describes it"
+    );
+    assert!(
+        host.said.contains(&format!("kept {LAUNCHERS}: not empty")),
+        "{:?}",
+        host.said
+    );
+
+    // A file of that name in any other folder the setup created isn't the hook's.
+    let mut host = TestHost::new("removal-cache-elsewhere");
+    let libexec = "/usr/local/libexec";
+    fs::create_dir_all(host.under_root(Path::new(libexec))).expect("the folder");
+    let stray = host.under_root(Path::new("/usr/local/libexec/mimeinfo.cache"));
+    fs::write(&stray, "x").expect("a file of that name");
+    let mut m = Manifest::default();
+    m.push(Entry::dir(libexec).expect("a created folder"))
+        .expect("new");
+    let failures = m.remove_all(&mut host);
+    assert!(failures.is_empty(), "{failures:?}");
+    assert!(stray.exists(), "only the launchers' folder is special");
+    assert!(
+        host.said.contains(&format!("kept {libexec}: not empty")),
+        "{:?}",
+        host.said
+    );
+}

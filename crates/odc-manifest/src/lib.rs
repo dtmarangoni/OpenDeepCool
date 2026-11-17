@@ -334,17 +334,7 @@ impl Manifest {
                     Ok(None) => Ok(format!("the group {GROUP}: already gone")),
                     Err(e) => Err(format!("{GROUP}: {e}")),
                 },
-                Entry::Dir(path) => match host.remove_dir(path) {
-                    Ok(()) => Ok(format!("removed {}", path.display())),
-                    Err(e) if e.kind() == ErrorKind::NotFound => {
-                        Ok(format!("{}: already gone", path.display()))
-                    }
-                    // Something else keeps files there now: the folder is no longer only ours.
-                    Err(e) if e.kind() == ErrorKind::DirectoryNotEmpty => {
-                        Ok(format!("kept {}: not empty", path.display()))
-                    }
-                    Err(e) => Err(format!("{}: {e}", path.display())),
-                },
+                Entry::Dir(path) => remove_created_dir(host, path),
                 Entry::User => match host.user_exists(USER) {
                     Ok(true) => host
                         .remove_user(USER)
@@ -374,6 +364,45 @@ impl Manifest {
             }
         }
         failures
+    }
+}
+
+/// The folder of launcher entries the setup creates, and the cache the system's desktop-database
+/// hook writes into it.
+const DESKTOP_DIR: &str = "/usr/local/share/applications";
+const DESKTOP_CACHE: &str = "mimeinfo.cache";
+
+/// Removes a folder the setup created, when it is empty. Something else's files keep it, said. The
+/// one exception is the desktop-database cache: pacman's hook writes it into a folder of launcher
+/// entries after any package operation, so it appears beside the setup's entry and outlives it
+/// (found at Phase 11, Task 7). With the entry gone it describes nothing, so when it is all that
+/// is left it goes first, said, and the folder with it.
+fn remove_created_dir(host: &mut impl Host, path: &Path) -> Result<String, String> {
+    match host.remove_dir(path) {
+        Ok(()) => Ok(format!("removed {}", path.display())),
+        Err(e) if e.kind() == ErrorKind::NotFound => {
+            Ok(format!("{}: already gone", path.display()))
+        }
+        // Something else keeps files there now: the folder is no longer only ours.
+        Err(e) if e.kind() == ErrorKind::DirectoryNotEmpty => {
+            let only_cache = path == Path::new(DESKTOP_DIR)
+                && host
+                    .list_dir(path)
+                    .is_ok_and(|names| names == [DESKTOP_CACHE]);
+            if !only_cache {
+                return Ok(format!("kept {}: not empty", path.display()));
+            }
+            let cache = path.join(DESKTOP_CACHE);
+            match host.remove_file(&cache) {
+                Ok(()) => host.say(&format!("removed {}", cache.display())),
+                Err(e) if e.kind() == ErrorKind::NotFound => {}
+                Err(e) => return Err(format!("{}: {e}", cache.display())),
+            }
+            host.remove_dir(path)
+                .map(|()| format!("removed {}", path.display()))
+                .map_err(|e| format!("{}: {e}", path.display()))
+        }
+        Err(e) => Err(format!("{}: {e}", path.display())),
     }
 }
 
