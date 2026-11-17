@@ -41,15 +41,17 @@ What isn't general is how the documents describe it, and five places where behav
   - The PRD's Technical Approach says the app links "the system GTK4, which Omarchy already ships".
 - **Why it matters:** the text decides what a contributor treats as the target. Arch-based distributions are excluded outright by the PRD's non-goal.
 - **Recommendation:** the target is Arch Linux and the Arch-based distributions that use Arch's packages and systemd; Omarchy is one of them, whose theme the app follows when it finds it. Reword those places, add one rule to AGENTS.md, and record the decision in the PRD's Decisions Log. The Omarchy-theme feature itself stays.
-- **Status:** the wording and the rule are applied with this review (owner, 2026-11-17); AP-04 names the boundary.
+- **Outcome (owner, 2026-11-17):** accepted and applied: the wording, AGENTS.md rule 14 and the PRD's Decisions Log row.
 
 ### AP-02 (Medium): the sound helper's sandbox needs unprivileged user namespaces
 
 - **Evidence:**
   - `packaging/systemd-user/opendeepcool-audio.service` sets `PrivateUsers=yes`, `ProtectSystem=strict`, `PrivateTmp=yes`, `PrivateDevices=yes`, `PrivateNetwork=yes` and more. Its own comment says that in a user unit these settings need unprivileged user namespaces (systemd.exec(5), read 2026-10-27).
   - ArchWiki, Security: unprivileged user namespaces are on by default in every officially supported kernel **except `linux-hardened`**, which turns them off (`kernel.unprivileged_userns_clone`).
-- **What follows:** on `linux-hardened`, or after any `sysctl kernel.unprivileged_userns_clone=0`, the user unit can't set up its sandbox, so the helper doesn't run and Music shows "No sound: spectrum is silent". The display service, a system unit started by root, isn't affected. Unverified: the exact failure (the unit's exit status and the journal line); the unit has only been tested with the setting on.
-- **Recommendation:** first reproduce it once, on a PC with the setting flipped for a minute and back (one approved `pkexec` step), so the README can name the symptom and the fix (`sysctl kernel.unprivileged_userns_clone=1`, as the wiki says for bubblewrap). Don't weaken the unit for everyone: the owner chose the strongest sandbox (2026-11-10).
+- **What follows:** on `linux-hardened`, or after any `sysctl kernel.unprivileged_userns_clone=0`, the user unit can't set up its sandbox, so the helper doesn't run and Music shows "No sound: spectrum is silent". The display service, a system unit started by root, isn't affected. 
+- **Reproduced (2026-11-17, one `pkexec` step the owner approved, the setting off for 9 s and put back, a safety timer set):** with `kernel.unprivileged_userns_clone=0` the user unit fails at once and keeps restarting: `status=217/USER`, "Failed to set up user namespacing for unprivileged user: Operation not permitted" (the journal), `Result=exit-code`. A transient system unit with `PrivateUsers=yes`, `ProtectSystem=strict`, `PrivateTmp=yes`, `PrivateDevices=yes` and `PrivateNetwork=yes` started and ended well in the same window, so the display service, which the root manager starts, isn't affected. After the setting went back to 1 the helper started again.
+- **Recommendation:** don't weaken the unit for everyone: the owner chose the strongest sandbox (2026-11-10). Say in the README what the symptom is and the fix, with its cost: `sysctl kernel.unprivileged_userns_clone=1` lets every user create user namespaces, which `linux-hardened` turns off on purpose (ArchWiki, Security).
+- **Outcome (owner, 2026-11-17):** reproduce it (done); the README documents the symptom and the fix.
 
 ### AP-03 (Medium): Music works only with PipeWire, and the package forces PipeWire on PulseAudio systems
 
@@ -58,29 +60,35 @@ What isn't general is how the documents describe it, and five places where behav
   - ArchWiki, PipeWire: PipeWire replaces PulseAudio through `pipewire-pulse`, so the two are alternatives, and Arch keeps both in its repositories. `pipewire-audio` itself declares no conflicts (archlinux.org metadata), so on a PulseAudio system pacman installs it beside PulseAudio.
 - **What follows:** on a PulseAudio system the install adds PipeWire's audio stack that the user didn't choose, and Music still has no sound. The app says so ("No sound"), and the helper logs "pw-record can't start". Unverified: whether the extra PipeWire daemon, socket-activated by `pw-record`, disturbs a running PulseAudio.
 - **Recommendation (the owner decides):** (a) keep the hard dependency, say in the README that Music needs a PipeWire sound server, and have the app's note name the cause; or (b) move `pipewire-audio` to `optdepends`, which pacman prints at install, and keep the helper's existing "pw-record not found" state. (a) is the simplest and matches how most current installs run; (b) is the more careful for PulseAudio users, and Arch's guidelines keep optional features out of `depends`. Music is half the modes, so I'd choose (a) with the note.
+- **Outcome (owner, 2026-11-17):** (a): keep `pipewire-audio` as a dependency. The README says Music needs PipeWire.
 
 ### AP-04 (Medium): the design needs systemd
 
 - **Evidence:** the display service and its helpers are systemd units, with `sysusers.d`, `StateDirectory=`, the polkit actions that need logind's active session, `systemctl --global enable`, and a pacman hook that calls Arch's `systemd-hook`. ArchWiki, Arch-based distributions, lists Artix among the derivatives; Artix is known for choosing another init system (OpenRC, runit, s6 or dinit), but that is from general knowledge: the page's text I read says nothing of its init, so it is unverified here.
 - **What follows:** an Arch-based distribution without systemd can't run it. Manjaro, EndeavourOS, CachyOS and Garuda are listed by the wiki as derivatives, and as far as I know they keep systemd and Arch's packages, so they can (unverified).
 - **Recommendation:** state the requirement: Arch Linux and Arch-based distributions that use systemd. Say in the README and the PRD that those without it are out of scope. Supporting them would be a different init layer, which I don't recommend for v1.
+- **Outcome (owner, 2026-11-17):** out of scope for now. The README and the PRD say that systemd is necessary.
 
 ### AP-05 (Low): the Rust version asked for is the newest one
 
 - **Evidence:** `Cargo.toml` has `rust-version = "1.99"`, which is also `mise.toml`'s pinned toolchain. The PKGBUILD builds with the system `cargo`, as Arch's Rust guidelines say.
 - **What follows:** on a distribution whose `rust` package is older than the current one (derivatives that hold packages back), the build stops at once with Cargo's version error. That is a clear failure, but a lower floor would allow the build.
 - **Recommendation:** measure the oldest toolchain that builds the packaged crates (the code uses `let` chains, stable since 1.88; the rest is unmeasured) and set `rust-version` to it, keeping the pin in `mise.toml` for development. Unverified: how far any derivative lags Arch's Rust.
+- **Measured (2026-11-17):** the highest `rust-version` that any package in the shipped crates' dependency graph declares is 1.92 (`pango-sys`; 123 packages, 13 declare none), so the lock file can't build with an older compiler whatever our own floor says. Whether our code builds with 1.92 is tested next.
+- **Outcome (owner, 2026-11-17):** measure and lower it; the result is recorded here.
 
 ### AP-06 (Low): no polkit agent, no explanation
 
 - **Evidence:** ArchWiki, polkit: a graphical session needs an authentication agent; Cinnamon, Deepin, Hyprland, GNOME, KDE, LXDE, LXQt, MATE and Xfce have one, and other setups must install one. The app maps `pkexec`'s code 127 to "Not changed: the password wasn't accepted, or no password dialog could open in this session." (`crates/odc-app/src/boot.rs`). The README and the install script do give the terminal commands.
 - **Recommendation:** add to that note, and to the README's "Turn it on and off", the terminal commands and a pointer to the wiki's list of agents. Settings changes need no agent: their actions are open to the active local session.
+- **Outcome:** the README gets the sentence now (a recommendation, not a question to the owner). The app's note is UI text, so it goes on the list for the owner's UI review.
 
 ### AP-07 (Low): the default theme is always dark
 
 - **Evidence:** the design (settings-app.md, Theme) says the default theme is dark outside Omarchy in v1; the owner decided that other desktops' themes wait until after v1 (PRD, Non-goals, 2026-10-23). The app never sets window opacity or blur, so it is opaque everywhere.
 - **What follows:** it works on every desktop but ignores a light preference. Arch's `gtk4` is 4.24.1, past the 4.20 that the design's colour-scheme property needs, so following the desktop's preference is possible.
 - **Recommendation:** ask the owner whether the default theme should follow the desktop's light or dark preference in v1. It would take the existing light palette, which the design already has.
+- **Outcome (owner, 2026-11-17):** the default theme follows the system's dark or light preference, and the app gets an option to change between dark and light. Both are done in the owner's UI review, after Phase 11 and before Phase 12.
 
 ### AP-08 (Note): coverage
 
@@ -100,6 +108,7 @@ See the owner's question of 2026-11-17 and the options below.
   2. **`opendeepcool --report`**: prints a ready bug report (version, unit states, which readings were found, the last journal lines, no host name or machine ID), which the user reads and pastes into a GitHub issue. Small code, no server, no consent problem. A Phase 12 candidate.
   3. **Opt-in automatic sending**, off by default, with a switch in the app and a separate sender, in the way `pkgstats` is separate. It needs the endpoint and policy above. Worth considering only once there are users to justify it.
 - **Recommendation:** 1 now, 2 in Phase 12, 3 only if wanted later.
+- **Outcome (owner, 2026-11-17):** option 2 now: `opendeepcool --report` is built in Phase 11 (plan Task 11; [report.md](../../spec/report.md)). Option 3 isn't built.
 
 ## What was checked and is fine
 
@@ -122,15 +131,15 @@ See the owner's question of 2026-11-17 and the options below.
 - AMD CPU power through `intel-rapl` and the other sensor rules on real hardware (AP-08).
 - Artix's init choice, from general knowledge (AP-04).
 
-## Questions for the owner
+## Questions for the owner, answered 2026-11-17
 
-1. **Support boundary (AP-04):** Arch Linux and Arch-based distributions that use systemd; the ones without it are out of scope. Right?
-2. **Music and PipeWire (AP-03):** keep `pipewire-audio` as a dependency with a clear note, or make it optional?
-3. **`linux-hardened` (AP-02):** may I reproduce the failure once, with one approved `pkexec` step that flips the setting for a minute and back?
-4. **Rust version (AP-05):** may I measure the oldest toolchain that builds, and lower `rust-version` to it?
-5. **Default theme (AP-07):** should it follow the desktop's light or dark preference in v1?
-6. **Crash information (AP-09):** option 1 now and 2 in Phase 12?
+1. **Support boundary (AP-04):** systemd only. Other init systems are out of scope for now; the notes say systemd is necessary.
+2. **Music and PipeWire (AP-03):** keep `pipewire-audio` as a dependency.
+3. **`linux-hardened` (AP-02):** yes, reproduce it. Done, see AP-02.
+4. **Rust version (AP-05):** yes, measure the oldest that builds and lower `rust-version`.
+5. **Default theme (AP-07):** follow the system's dark or light preference, with an option in the app to change it; both in the UI review.
+6. **Crash information (AP-09):** option 2 now.
 
 ## Outcomes
 
-None yet: the owner answers the questions above, and each answer is recorded here and carried into the PRD, the plan or the spec.
+Each finding's Outcome line is above. Carried into: the README ("What it needs", "Reporting a crash"), the PRD (Decisions Log, the UI review's scope), `docs/spec/settings.md` (Theme), the designer's brief, the Phase 11 plan (Task 11, `--report`) and the spec (`docs/spec/report.md`).

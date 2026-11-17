@@ -30,7 +30,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
   - No dashboards and no controls for the CPU, GPU, other fans or power; users use dedicated tools for those, as OpenRGB handles lighting.
   - CPU, GPU and RAM values appear only where the display shows them, for example in the preview.
   - This keeps the app small: aim for the fewest screens that reach every display setting.
-- **A default theme of our own.** Where the app finds no Omarchy theme (other desktops, such as Plasma, Pop!_OS, Ubuntu, HyDE, Caelestia or ML4W), it uses OpenDeepCool's default theme. Design it, and make the screens work in both it and any Omarchy theme. Following other desktops' themes comes after v1, so leave room for a later "theme source" setting, but don't show it in v1.
+- **A default theme of our own.** Where the app finds no Omarchy theme (other desktops, such as Plasma, Pop!_OS, Ubuntu, HyDE, Caelestia or ML4W), it uses OpenDeepCool's default theme. Design it, and make the screens work in both it and any Omarchy theme. Following other desktops' themes comes after v1, so leave room for a later "theme source" setting, but don't show it in v1. Two changes are decided for the owner's UI review (owner, 2026-11-17): the default theme follows the system's dark or light preference, and the app has an option to change between dark and light.
 - **One setup for the whole PC.** Every user sees the same settings, and nobody sets OpenDeepCool up per user.
 
 ## Design brief (owner, 2026-10-24)

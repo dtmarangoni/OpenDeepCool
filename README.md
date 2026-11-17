@@ -64,6 +64,13 @@ From the AUR, from `v1.0.0` (Phase 12): `yay -S opendeepcool`, or any AUR helper
 
 `makepkg` builds one package with Arch's Rust toolchain and runs the tests first, which takes a few minutes. pacman installs what it needs: GTK 4, PipeWire's tools, polkit, lm-sensors and the rest of its dependencies. `nvidia-utils` is optional, for NVIDIA GPUs.
 
+## What it needs
+
+- **systemd is necessary.** The display service, its helpers, the account and the rules are systemd's units, sysusers and logind. An Arch-based distribution without systemd can't run OpenDeepCool, and supporting one is out of scope for now.
+- **PipeWire, for the Music modes.** `pipewire-audio` is a dependency, so pacman installs it. The sound helper records through PipeWire's `pw-record`; on a system that runs only PulseAudio, the Music modes have no sound and the display shows a silent spectrum. The other modes don't use sound.
+- **A polkit authentication agent, for the Start at boot switch.** The switch asks for your password through polkit. GNOME, KDE, Xfce, LXQt, MATE, Cinnamon and Hyprland setups have an agent; on another window manager install one (the [Arch wiki lists them](https://wiki.archlinux.org/title/Polkit#Authentication_agents)), or turn OpenDeepCool on from a terminal, as the next section shows. The other settings need no password.
+- **Unprivileged user namespaces, for the sound helper.** Arch's kernels allow them, except `linux-hardened`. Where they're off, the helper fails to start (`systemctl --user status opendeepcool-audio` shows `status=217/USER` and "Failed to set up user namespacing"), and Music has no sound. Turn them on with `sudo sysctl kernel.unprivileged_userns_clone=1` (put the line in a file in `/etc/sysctl.d/` to keep it). That lets every user create user namespaces, which `linux-hardened` turns off on purpose, so it is your choice; the display service doesn't need it.
+
 ## Turn it on and off
 
 Installing turns nothing on, as Arch's packages do. Turn OpenDeepCool on with the **Start at boot** switch in its settings app, which asks for your password once, or from a terminal:

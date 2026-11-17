@@ -750,6 +750,23 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 - **Tests added after the parity run** (owner, 2026-11-17: "add the missing tests in our test suit"): the sensors area checks the CPU temperature under the load (at least 3 °C above idle and within 2 °C of `sensors`; the first version loaded every CPU and the development PC rose from 31–33 °C to 75–76 °C, which the owner didn't want: "don't push it towards more than 60 degrees Celsius", 2026-11-17. The check now puts one busy thread for each 16 logical CPUs, with a watcher thread that stops it at 50 °C; one thread rose from 32–33 °C to 43–47 °C in five runs and an independent sampler saw at most 49 °C. The same loop built without optimisation reached 59–61 °C in a stand-alone probe, so `odc-e2e` is optimised in the dev profile. CPU Usage is checked against the load's own share and `top`: 5.4 % and 5.3–5.5 %. `sensors` was 0 °C away every time) and times the sensor thread's work once a second, with the GPU chosen as the service chooses it, against a ceiling of 100 ms (10 % of a core: about 60 times the 1.3–1.8 ms measured, so a slower or simpler CPU passes; the first ceiling, 10 ms, was widened at the owner's request, to 50 ms and then to 100 ms, 2026-11-17); the baseline prints each thread's CPU from the scheduler's exact run times. They found that the sensor thread is 0.37 % of the service's 0.56 % and that the Phase 10 candidates (the frame task, the fan speeds) are small (about 0.06 % and 0.05 %); the rest of the gap to a plain process's 0.15–0.18 % is unverified (it needs a syscall trace as root).
 - **Seen on the owner's screen:** while a run's test sessions hold the cooler, the service reports it as `released` and the app shows "cooler not connected"; it clears when the run ends. A normal user can't cause that state, so it needs no design change.
 
+### 11. The bug report: `opendeepcool --report` (added 2026-11-17, before Task 10 closes the phase)
+
+Owner, 2026-11-17, after the Arch portability review (AP-09): "option 2 now". The contract is [report.md](../../spec/report.md).
+
+**Files and integration points**
+- `crates/odc-app/src/report.rs` (new): the report's sections, the scrub and a `Runner` trait (running a program, reading a file) with the real one; `crates/odc-app/src/flags.rs` gains `--report`, refused with any other flag; `crates/odc-app/src/main.rs` handles it before the toolkit starts, so it runs with no display.
+- The README's "Reporting a crash" asks for the report's output; the spec index lists `report.md`.
+
+**Implementation**
+- Std only: no new crate. Each program runs with fixed arguments and no shell; a failure is one line, `not available: <reason>`, in its section.
+- The scrub replaces the home folder, the host name, the machine ID, the boot ID and the login name (a whole word) in everything printed.
+- The system journal needs `systemd-journal`, `adm` or `wheel`: the section says what to do when it can't be read.
+
+**Tests** (rule 5; the entry points table needs no row: the command reads, never listens)
+- Unit tests with a fake `Runner`, as the spec lists, each mutation-checked; the real program with an empty `PATH` prints every section and exits 0; another flag exits 2.
+- A real run on the development PC, read once, and checked against the machine's private values in `docs/local/`.
+
 ### 10. Phase 11 closes
 
 **Implementation**
@@ -784,6 +801,8 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 7. **AC7 — Only committed, verifiable code is built:** the PKGBUILD builds a published, signed tag the same way both ways and refuses an unsigned or wrongly signed one; a release candidate only from the committed HEAD, and a tree with uncommitted changes is refused; two builds are identical (Tasks 4, 5).
 8. **AC8 — Least privilege:** every unit's hardening options pinned and its `systemd-analyze security` score under its ceiling; the switch's program refuses everything but `on` and `off` under `pkexec`, and its action asks for the administrator's password every time; release builds check overflows (Tasks 2, 3).
 9. **AC9 — Records:** README install, turn-on, uninstall and footprint sections, `FILES.md`, the PRD footprint and table, AGENTS.md, the design and its mockups, the entry-points table, and the Phase 11 report match what was built (Tasks 1, 3, 6, 10).
+
+10. **AC10 — A bug report the user can read and post:** `opendeepcool --report` prints the sections of [report.md](../../spec/report.md) with nothing of the host name, machine ID, boot ID, login name or home folder, and works with no service, no display and no tool (Task 11).
 
 ## Validation
 
