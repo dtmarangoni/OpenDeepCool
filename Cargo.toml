@@ -27,3 +27,11 @@ overflow-checks = true
 # the dev profile.
 [profile.dev.package.sha2]
 opt-level = 3
+
+# The end-to-end checks' CPU load runs one busy loop, and an unoptimised build of that loop heats a
+# core far more than the optimised one: one thread for 5 s took the package from 33 °C to 59–61 °C
+# unoptimised and to 45–46 °C optimised (Phase 11, 2026-11-17). The checks must never push the CPU
+# towards 60 °C (owner, 2026-11-17), so this crate is optimised in the dev profile, where
+# `odc-e2e` runs; the load also stops itself at 50 °C.
+[profile.dev.package.odc-e2e]
+opt-level = 3

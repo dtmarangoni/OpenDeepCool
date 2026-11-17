@@ -12,7 +12,7 @@
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 use std::{fs, hint};
@@ -67,7 +67,28 @@ const CHECKS: [(&str, Capability); 7] = [
 ];
 
 /// The Gpu usage check's load lasts this long, and the reading must drop within as long after.
+/// The CPU load lasts at most as long.
 const LOAD: Duration = Duration::from_secs(5);
+
+/// The CPU load's busy threads: one for each 16 logical CPUs, at least one. That is enough for
+/// every reading to move, and far below the heat of a full load, which took the development PC from
+/// 31–33 °C to 75–81 °C in Phase 11. One thread for 5 s took it to 45–46 °C; the same loop built
+/// without optimisation, to 59–61 °C, so the workspace optimises this crate in the dev profile. The
+/// checks prove the readings work; they are not to heat the CPU, and never to 60 °C (owner,
+/// 2026-11-17).
+const LOAD_DIVISOR: usize = 16;
+
+/// The CPU load stops itself at the first look that shows this temperature: 10 °C under the
+/// owner's limit, for the heat of the next look's wait and of what runs after the stop. It is a
+/// guard: the load itself peaks at 45–46 °C on the development PC.
+const LOAD_STOP_TEMP: i64 = 50_000;
+
+/// How often the CPU load looks at the temperature, from its first moment.
+const LOAD_WATCH: Duration = Duration::from_millis(100);
+
+// The owner's limit, held at compile time.
+const _: () = assert!(LOAD_STOP_TEMP + 10_000 <= 60_000);
+const _: () = assert!(LOAD_WATCH.as_millis() <= 100);
 
 pub fn run(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
     let probes: Vec<(Capability, Probe)> = SENSORS.iter().map(|&c| (c, probe(c, roots))).collect();
@@ -187,8 +208,13 @@ struct RealPc<'a> {
 
 /// One CPU load's readings: the usage and `top`'s in the same second, the power at idle and under
 /// the load, and the CPU temperature at idle and at the end of the load, with `sensors`' own right
-/// after it, still under the load.
+/// after it, still under the load. The load ends at [`LOAD`], or at [`LOAD_STOP_TEMP`].
 struct CpuRun {
+    /// The busy threads of the load, and the logical CPUs they share.
+    busy: usize,
+    cpus: usize,
+    /// The temperature that stopped the load before its end, if one did.
+    capped: Option<i64>,
     usage: Reading,
     top_busy: Result<i64, String>,
     idle_power: Reading,
@@ -220,10 +246,17 @@ impl<'a> RealPc<'a> {
                 let run = self.cpu_run()?;
                 cpu_temp_load(&run.idle_temp, &run.load_temp, run.load_sensors.clone())
                     .map(|note| format!("real: {note}"))
+                    .map_err(|e| capped(e, run.capped))
             }
             "cpu_usage" => {
                 let run = self.cpu_run()?;
-                cpu_usage(&run.usage, run.top_busy.clone()).map(|note| format!("real: {note}"))
+                cpu_usage(
+                    &run.usage,
+                    run.top_busy.clone(),
+                    load_share(run.busy, run.cpus),
+                )
+                .map(|note| format!("real: {note}, {} of {} CPUs busy", run.busy, run.cpus))
+                .map_err(|e| capped(e, run.capped))
             }
             "cpu_power" => {
                 if euid()? == 0 {
@@ -236,6 +269,7 @@ impl<'a> RealPc<'a> {
                 let run = self.cpu_run()?;
                 cpu_power(&run.idle_power, &run.load_power)
                     .map(|note| format!("real, through the group: {note}"))
+                    .map_err(|e| capped(e, run.capped))
             }
             "memory_load" => {
                 let ours = self.read(Metric::MemoryLoad)?;
@@ -285,8 +319,8 @@ impl<'a> RealPc<'a> {
             .map(|note| format!("real: {note} ({source})"))
     }
 
-    /// Idle power, then CPU Usage and power under a load on every logical CPU, compared with
-    /// `top` in the same second. Run once, for both checks.
+    /// Idle power, then CPU Usage and power under a light load, compared with `top` in the same
+    /// second, and the temperature. Run once, for all of them.
     fn cpu_run(&mut self) -> Result<&CpuRun, String> {
         if self.cpu.is_none() {
             self.cpu = Some(self.measure_cpu());
@@ -303,13 +337,13 @@ impl<'a> RealPc<'a> {
         thread::sleep(Duration::from_secs(1));
         let idle_power = self.registry.snapshot().get(Metric::CpuPower).clone();
         let idle_temp = self.registry.snapshot().get(Metric::CpuTemperature).clone();
-        let load = CpuLoad::start();
+        let load = CpuLoad::start(self.roots.sensors());
         thread::sleep(Duration::from_secs(1));
         self.registry.snapshot();
         let top_busy = top_busy(&self.tools.top);
         let usage = self.registry.snapshot().get(Metric::CpuUsage).clone();
         let mut load_power = Reading::Unavailable(Unavailable::NotYet);
-        while load.started.elapsed() < LOAD {
+        while load.started.elapsed() < LOAD && load.capped().is_none() {
             thread::sleep(Duration::from_millis(1_000));
             load_power = self.registry.snapshot().get(Metric::CpuPower).clone();
         }
@@ -317,9 +351,13 @@ impl<'a> RealPc<'a> {
         let load_temp = self.registry.snapshot().get(Metric::CpuTemperature).clone();
         let load_sensors =
             sensors_json(self.tools.sensors.as_ref()).and_then(|json| cpu_package(&json));
+        let (busy, cpus, capped) = (load.busy, load.cpus, load.capped());
         drop(load);
         bound(&self.registry, Metric::CpuUsage)?;
         Ok(CpuRun {
+            busy,
+            cpus,
+            capped,
             usage,
             top_busy,
             idle_power,
@@ -585,7 +623,7 @@ impl FakePc {
                 let ours = registry.snapshot().get(Metric::CpuUsage).clone();
                 bound(&registry, Metric::CpuUsage)?;
                 // `top`'s share of the same counters: 97 busy jiffies of 100.
-                cpu_usage(&ours, Ok(97_000))?
+                cpu_usage(&ours, Ok(97_000), 100_000)?
             }
             "cpu_power" => {
                 self.write(RAPL, 1_000_000)?;
@@ -869,13 +907,14 @@ fn sensors_cost(snapshot_ms: f64, fans_ms: f64, inputs: usize) -> Result<String,
 }
 
 /// How much the CPU temperature must rise in the load, in thousandths of a degree: the reading
-/// has a resolution of 1 °C, and any CPU under a full load for 5 s rises by more than 3 °C. On the
-/// development PC it rose from 31–33 °C to 75–81 °C in nine runs; other PCs are unverified.
+/// has a resolution of 1 °C. The light load ([`LOAD_DIVISOR`]) took the development PC from
+/// 32–33 °C to 43–47 °C in five runs, 10–14 °C; other PCs are unverified, and one that rises less
+/// than 3 °C fails with its readings, never with a heavier load.
 const TEMP_RISE: i64 = 3_000;
 
 /// How far `sensors`, read right after ours at the end of the load, may be from it: the reading
-/// moves less than 1 °C in that moment once the load has lasted 5 s (nine runs on the
-/// development PC: 0 °C apart).
+/// moves less than 1 °C in that moment once the load has lasted 5 s (five runs of the light load
+/// on the development PC: 0 °C apart).
 const TEMP_LOAD_TOLERANCE: i64 = 2_000;
 
 /// CPU Temperature under the load: at least [`TEMP_RISE`] above its idle reading, so a reading
@@ -903,13 +942,28 @@ fn cpu_temp_load(
     Ok(format!("{note}, up from {} at idle", show(idle)))
 }
 
-/// CPU Usage: at least 95 % under the load, and within 5 points of `top`'s busy share.
-fn cpu_usage(ours: &Reading, top: Result<i64, String>) -> Result<String, String> {
+/// An error of a check that ran under the CPU load, with what to know when the load had stopped
+/// itself at [`LOAD_STOP_TEMP`] before its end: the readings are of a shorter load.
+fn capped(error: String, stopped_at: Option<i64>) -> String {
+    match stopped_at {
+        Some(temp) => format!(
+            "{error}; the load had stopped at {} °C, the limit that keeps the CPU cool: let the PC cool and run it again",
+            show(temp)
+        ),
+        None => error,
+    }
+}
+
+/// CPU Usage: at least 80 % of the load's own `share` (thousandths of a percent of all the logical
+/// CPUs), and within 5 points of `top`'s busy share, so a reading stuck at one value fails at a
+/// partial load.
+fn cpu_usage(ours: &Reading, top: Result<i64, String>, share: i64) -> Result<String, String> {
     let ours = milli(ours)?;
-    if ours < 95_000 {
+    if ours < share * 4 / 5 {
         return Err(format!(
-            "CPU Usage {} % under the load, below 95 %",
-            show(ours)
+            "CPU Usage {} % under the load, below 80 % of its {} % share",
+            show(ours),
+            show(share)
         ));
     }
     close("CPU Usage under load, %", ours, top?, 5_000)
@@ -1243,18 +1297,40 @@ fn top_busy(top: &Path) -> Result<i64, String> {
     Ok(100_000 - share("id")? - share("wa")?)
 }
 
-/// A busy thread on every logical CPU until dropped.
+/// A busy thread for each 16 logical CPUs ([`LOAD_DIVISOR`]), at least one, until dropped, and a
+/// thread that looks at the CPU temperature from the load's first moment and stops the load at
+/// [`LOAD_STOP_TEMP`].
 struct CpuLoad {
     stop: Arc<AtomicBool>,
     threads: Vec<JoinHandle<()>>,
+    watcher: Option<JoinHandle<()>>,
+    /// The temperature that stopped the load, in thousandths of a degree; 0 while none did.
+    stopped_at: Arc<AtomicI64>,
     started: Instant,
+    /// The busy threads, and the logical CPUs they share.
+    busy: usize,
+    cpus: usize,
+}
+
+/// How many threads of `cpus` logical CPUs the load keeps busy.
+fn load_threads(cpus: usize) -> usize {
+    (cpus / LOAD_DIVISOR).max(1)
+}
+
+/// The share of all `cpus` logical CPUs that `busy` load threads use, in thousandths of a percent.
+fn load_share(busy: usize, cpus: usize) -> i64 {
+    i64::try_from(busy * 100_000 / cpus.max(1)).unwrap_or(i64::MAX)
 }
 
 impl CpuLoad {
-    fn start() -> CpuLoad {
+    /// The load, watched through its own registry over `roots`, so the check's registry keeps its
+    /// own intervals.
+    fn start(roots: odc_sensors::Roots) -> CpuLoad {
         let stop = Arc::new(AtomicBool::new(false));
+        let stopped_at = Arc::new(AtomicI64::new(0));
         let cpus = thread::available_parallelism().map_or(1, usize::from);
-        let threads = (0..cpus)
+        let busy = load_threads(cpus);
+        let threads = (0..busy)
             .map(|_| {
                 let stop = Arc::clone(&stop);
                 thread::spawn(move || {
@@ -1267,18 +1343,45 @@ impl CpuLoad {
                 })
             })
             .collect();
+        let watcher = {
+            let (stop, stopped_at) = (Arc::clone(&stop), Arc::clone(&stopped_at));
+            thread::spawn(move || {
+                let mut registry = Registry::from_rules(SystemClock, roots);
+                while !stop.load(Ordering::Relaxed) {
+                    let temp = milli(registry.snapshot().get(Metric::CpuTemperature));
+                    if let Ok(temp) = temp
+                        && temp >= LOAD_STOP_TEMP
+                    {
+                        stopped_at.store(temp, Ordering::Relaxed);
+                        stop.store(true, Ordering::Relaxed);
+                        break;
+                    }
+                    thread::sleep(LOAD_WATCH);
+                }
+            })
+        };
         CpuLoad {
             stop,
             threads,
+            watcher: Some(watcher),
+            stopped_at,
             started: Instant::now(),
+            busy,
+            cpus,
         }
+    }
+
+    /// The temperature that stopped the load, if it did.
+    fn capped(&self) -> Option<i64> {
+        let temp = self.stopped_at.load(Ordering::Relaxed);
+        (temp != 0).then_some(temp)
     }
 }
 
 impl Drop for CpuLoad {
     fn drop(&mut self) {
         self.stop.store(true, Ordering::Relaxed);
-        for thread in self.threads.drain(..) {
+        for thread in self.threads.drain(..).chain(self.watcher.take()) {
             let _ = thread.join();
         }
     }
@@ -1403,15 +1506,82 @@ mod tests {
         );
     }
 
+    /// The owner's limit (2026-11-17): the checks never push the CPU towards 60 °C.
+    #[test]
+    fn the_cpu_load_is_one_thread_for_each_16_cpus_and_at_least_one() {
+        for (cpus, busy) in [(1, 1), (4, 1), (15, 1), (16, 1), (20, 1), (32, 2), (64, 4)] {
+            assert_eq!(load_threads(cpus), busy, "{cpus} CPUs");
+        }
+    }
+
+    /// The load stops itself at the limit, within a look or two, and not before it.
+    #[test]
+    fn the_cpu_load_stops_itself_at_the_temperature_limit_and_only_there() {
+        let dir = std::env::temp_dir().join(format!("odc-e2e-load-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let pc = FakePc::new(&dir).expect("a fake PC");
+        let roots = || odc_sensors::Roots {
+            sys: pc.tree.roots().sysfs,
+            proc: pc.tree.roots().proc,
+        };
+        // Under the limit: the load runs on.
+        fs::write(&pc.package_input, format!("{}\n", LOAD_STOP_TEMP - 1_000)).expect("a reading");
+        let load = CpuLoad::start(roots());
+        thread::sleep(Duration::from_millis(600));
+        assert_eq!(load.capped(), None, "a degree under the limit");
+        // At it: the load says so, and its threads end.
+        fs::write(&pc.package_input, format!("{LOAD_STOP_TEMP}\n")).expect("a reading");
+        let waited = Instant::now();
+        while load.capped().is_none() && waited.elapsed() < Duration::from_secs(5) {
+            thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(load.capped(), Some(LOAD_STOP_TEMP));
+        assert!(
+            waited.elapsed() < Duration::from_secs(1),
+            "stopped within a few looks: {:?}",
+            waited.elapsed()
+        );
+        assert!(load.stop.load(Ordering::Relaxed), "the threads are told");
+        drop(load);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_failed_check_says_when_the_load_stopped_at_the_limit() {
+        assert_eq!(capped("x".into(), None), "x");
+        assert!(capped("x".into(), Some(50_000)).contains("stopped at 50"));
+    }
+
     #[test]
     fn the_thresholds_are_the_plans() {
         let value =
             |milli: i64| Reading::Value(odc_sensors::Exact::new(milli, 1_000).expect("exact"));
-        assert!(cpu_usage(&value(97_000), Ok(99_000)).is_ok());
-        assert!(cpu_usage(&value(94_000), Ok(94_000)).is_err(), "below 95 %");
+        // One thread on 20 CPUs: a share of 5 %.
+        let share = load_share(1, 20);
+        assert_eq!(share, 5_000);
+        assert!(cpu_usage(&value(5_100), Ok(6_000), share).is_ok());
         assert!(
-            cpu_usage(&value(96_000), Ok(90_000)).is_err(),
-            "6 points from top"
+            cpu_usage(&value(4_000), Ok(4_000), share).is_ok(),
+            "80 % of the share"
+        );
+        assert!(
+            cpu_usage(&value(3_900), Ok(3_900), share).is_err(),
+            "below 80 % of the share"
+        );
+        assert!(
+            cpu_usage(&value(5_100), Ok(11_000), share).is_err(),
+            "5.9 points from top"
+        );
+        assert!(
+            cpu_usage(&value(100_000), Ok(5_000), share).is_err(),
+            "stuck at 100 % under a light load"
+        );
+        // One CPU, all of it busy.
+        assert_eq!(load_share(1, 1), 100_000);
+        assert!(cpu_usage(&value(97_000), Ok(99_000), 100_000).is_ok());
+        assert!(
+            cpu_usage(&value(79_000), Ok(79_000), 100_000).is_err(),
+            "below 80 %"
         );
         assert!(cpu_power(&value(6_000), &value(88_000)).is_ok());
         assert!(
