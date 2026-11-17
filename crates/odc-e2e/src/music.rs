@@ -35,6 +35,29 @@ pub const SINK: &str = "odc-e2e";
 pub const HELPER_UNIT: &str = "opendeepcool-audio.service";
 pub const HELPER_NODE: &str = "opendeepcool-audio";
 pub const DEV_HELPER: &str = "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio";
+/// The package's helper, where the dev copy isn't installed (Phase 11 plan, Task 9).
+pub const PACKAGED_HELPER: &str = "/usr/lib/opendeepcool/opendeepcool-audio";
+
+/// The helper the checks run in place of the owner's: the first of `candidates` that is a file
+/// (the dev copy's, then the package's).
+///
+/// # Errors
+///
+/// When none is installed, naming both.
+pub fn helper_program(candidates: &[&Path]) -> Result<PathBuf, String> {
+    candidates
+        .iter()
+        .find(|path| path.is_file())
+        .map(|path| path.to_path_buf())
+        .ok_or_else(|| {
+            let names: Vec<String> = candidates.iter().map(|p| p.display().to_string()).collect();
+            format!(
+                "no sound helper is installed ({}); fix: run `cargo run -p odc-dev -- setup` for \
+                 the dev copy, or install the Arch package",
+                names.join(" or ")
+            )
+        })
+}
 
 /// The test tone: column 7's centre at −20 dBFS, as `spectrum/signals.txt` has it.
 const TONE: &str = "column 7 centre, -20 dBFS";
@@ -348,8 +371,11 @@ fn real(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
         return summary.check("music", Err(format!("{}: {e}", out_dir.display())));
     }
     // Dropped last: the owner's settings come back first, which leaves Music and closes the pipe.
-    let _harness = match Harness::start(&tools, Path::new(DEV_HELPER), &out_dir.join("helper.log"))
-    {
+    let helper = match helper_program(&[Path::new(DEV_HELPER), Path::new(PACKAGED_HELPER)]) {
+        Ok(helper) => helper,
+        Err(e) => return summary.check("music", Err(e)),
+    };
+    let _harness = match Harness::start(&tools, &helper, &out_dir.join("helper.log")) {
         Ok(harness) => harness,
         Err(e) => return summary.check("music", Err(e)),
     };
@@ -743,4 +769,51 @@ pub fn fake_capture(drawn: Drawn) -> Result<String, String> {
         "in process: {TONE}, {} ticks as expected",
         windows.len()
     ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn folder(name: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("odc-e2e-helper-{}-{name}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).expect("a folder");
+        dir
+    }
+
+    #[test]
+    fn the_dev_helper_is_run_where_it_is_installed_and_else_the_packages() {
+        let dir = folder("choice");
+        let (dev, packaged) = (dir.join("dev"), dir.join("packaged"));
+        let both = [dev.as_path(), packaged.as_path()];
+        let Err(why) = helper_program(&both) else {
+            panic!("neither is installed")
+        };
+        assert!(why.contains("dev") && why.contains("packaged"), "{why}");
+        assert!(
+            why.contains("odc-dev -- setup") && why.contains("Arch package"),
+            "{why}"
+        );
+
+        fs::write(&packaged, "").expect("the package's helper");
+        assert_eq!(helper_program(&both), Ok(packaged.clone()));
+        fs::write(&dev, "").expect("the dev copy's helper");
+        assert_eq!(helper_program(&both), Ok(dev.clone()));
+        // A folder in its place isn't a program.
+        fs::remove_file(&dev).expect("gone");
+        fs::create_dir(&dev).expect("a folder");
+        assert_eq!(helper_program(&both), Ok(packaged));
+    }
+
+    #[test]
+    fn the_package_s_helper_is_where_the_unit_starts_it() {
+        let unit = include_str!("../../../packaging/systemd-user/opendeepcool-audio.service");
+        assert!(
+            unit.lines()
+                .any(|l| l.strip_prefix("ExecStart=") == Some(PACKAGED_HELPER)),
+            "{unit}"
+        );
+    }
 }

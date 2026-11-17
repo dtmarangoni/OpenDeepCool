@@ -172,8 +172,11 @@ impl Roots {
     }
 }
 
-const SETUP_FIX: &str = "run `cargo run -p odc-dev -- setup`, then log in again or use \
-                         `newgrp opendeepcool`";
+/// The account's access to the cooler and the power counters: the dev copy's setup, or with the
+/// Arch package installed the test access alone (Phase 11 plan, Task 7).
+pub const SETUP_FIX: &str = "run `cargo run -p odc-dev -- setup` (the dev copy) or, with the Arch \
+                             package installed, `cargo run -p odc-dev -- setup --test-access`; \
+                             then log in again or use `newgrp opendeepcool`";
 
 const RENDER_FIX: &str = "give this account read and write access to the GPU's render node \
                           (`/dev/dri/renderD*`, the `render` group)";
@@ -380,8 +383,17 @@ pub const DEV_UNIT: &str = "opendeepcool.service";
 /// The dev copy's frame recording: `odc_service::RECORDING` in its state directory.
 pub const DEV_RECORDING: &str = "/var/lib/opendeepcool/dev-frames.log";
 
-const SERVICE_FIX: &str = "run `cargo run -p odc-dev -- setup`; `cargo run -p odc-dev -- check` \
-                           says what's missing";
+/// The service isn't installed or isn't running.
+pub const SERVICE_FIX: &str = "run `cargo run -p odc-dev -- setup` (the dev copy; `cargo run -p \
+                               odc-dev -- check` says what's missing) or, with the Arch package \
+                               installed, turn OpenDeepCool on with the app's Start at boot switch";
+
+/// The service runs without the dev interface the checks drive it through (Phase 11 plan, Task 9).
+pub const DEV_INTERFACE_FIX: &str = "with the Arch package installed, run `odc-e2e` with \
+                                     `--dev-interface` (one pkexec step adds the dev interface \
+                                     for the run), after `cargo run -p odc-dev -- setup \
+                                     --test-access` once; with the dev copy, run `cargo run -p \
+                                     odc-dev -- setup`";
 
 /// The dev service, as `odc-dev check` finds it: its unit's state and main process from
 /// `<bin>/systemctl`, the process's arguments, the bus name's owner, and the recording. Where
@@ -416,9 +428,10 @@ fn dev_service(roots: &Roots) -> Probe {
     match fs::read(&cmdline) {
         Ok(args) if args.split(|b| *b == 0).any(|arg| arg == b"--dev") => {}
         Ok(_) => {
-            return unusable(format!(
-                "{DEV_UNIT} runs without --dev: it's not the dev copy"
-            ));
+            return Probe::Unusable {
+                reason: format!("{DEV_UNIT} runs without --dev: no dev interface"),
+                fix: DEV_INTERFACE_FIX.to_owned(),
+            };
         }
         Err(e) => return unusable(format!("{}: {e}", cmdline.display())),
     }

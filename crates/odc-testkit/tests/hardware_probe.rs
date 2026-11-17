@@ -11,7 +11,7 @@ use odc_testkit::fixtures::{
     BOARD_CHIP, amdgpu_apu, amdgpu_dgpu, board_fans, coretemp, i915, k10temp, nouveau,
     nvidia_proprietary, proc_meminfo, proc_stat, rapl, render_node, xe,
 };
-use odc_testkit::hardware::{Capability, Probe, probe};
+use odc_testkit::hardware::{Capability, DEV_INTERFACE_FIX, Probe, SERVICE_FIX, SETUP_FIX, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR};
 
 fn tree(name: &str) -> FakeTree {
@@ -59,7 +59,10 @@ fn an_lp360_without_access_is_unusable_with_the_setup_fix() {
     fs::create_dir(usb.join("authorized")).expect("a folder in its place");
     for capability in [Capability::Lp360, Capability::Lp360Reconnect] {
         match probe(capability, &t.roots()) {
-            Probe::Unusable { fix, .. } => assert!(fix.contains("odc-dev -- setup"), "{fix}"),
+            Probe::Unusable { fix, .. } => assert!(
+                fix.contains("odc-dev -- setup") && fix.contains("setup --test-access"),
+                "{fix}"
+            ),
             other => panic!("{capability:?}: {other:?}"),
         }
     }
@@ -193,7 +196,10 @@ fn a_power_counter_this_account_cant_read_is_unusable_with_the_setup_fix() {
     )
     .expect("no read for this account");
     match probe(Capability::CpuPower, &t.roots()) {
-        Probe::Unusable { fix, .. } => assert!(fix.contains("odc-dev -- setup"), "{fix}"),
+        Probe::Unusable { fix, .. } => assert!(
+            fix.contains("odc-dev -- setup") && fix.contains("setup --test-access"),
+            "{fix}"
+        ),
         other => panic!("{other:?}"),
     }
 }
@@ -312,4 +318,22 @@ fn a_fake_tree_has_no_dev_service() {
         probe(Capability::DevService, &t.roots()),
         Probe::Absent { .. }
     ));
+}
+
+/// Phase 11 plan, Task 9: with the Arch package installed there's no `odc-dev setup`, so each fix
+/// that names it also names the package's way.
+#[test]
+fn every_fix_names_the_dev_copys_way_and_the_packages() {
+    for (fix, package_way) in [
+        (SETUP_FIX, "setup --test-access"),
+        (SERVICE_FIX, "Start at boot switch"),
+        (DEV_INTERFACE_FIX, "--dev-interface"),
+        (DEV_INTERFACE_FIX, "setup --test-access"),
+    ] {
+        assert!(fix.contains("odc-dev -- setup"), "{fix}");
+        assert!(fix.contains(package_way), "{fix}");
+        assert!(fix.contains("Arch package"), "{fix}");
+    }
+    assert!(SERVICE_FIX.contains("odc-dev -- check"), "{SERVICE_FIX}");
+    assert!(SETUP_FIX.contains("newgrp opendeepcool"), "{SETUP_FIX}");
 }

@@ -158,7 +158,9 @@ fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
         Ok(found) => found,
         Err(e) => return summary.check("service", Err(e)),
     };
-    // First, before anything changes: the instance's own start.
+    // First, before anything changes: the access this PC gives (`GetState` has just answered
+    // for this session), then the instance's own start.
+    summary.check("service_access", crate::access::real());
     summary.check("service_start", start_real(&found));
     let current = Current {
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
@@ -197,6 +199,7 @@ fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
 }
 
 fn fake(tick: Duration, modes: &[u16], summary: &mut Summary) {
+    summary.check("service_access", crate::access::fake());
     summary.check("service_start", start_fake());
     summary.check("service_timing", timing_fake(tick));
     for (name, plan) in examples(modes) {

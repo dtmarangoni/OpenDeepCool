@@ -297,10 +297,11 @@ fn against_the_fake(stage: &Stage, summary: &mut Summary) -> Result<(), String> 
     stage.driver("fake", &fake_dir, &["--systemd", systemd], summary)
 }
 
-/// What says the installed dev copy is older than this build: a state without the GPU in use,
+/// What says the installed service is older than this build: a state without the GPU in use,
 /// which Phase 10 added (Task 2).
-const STALE: &str = "the dev service is older than this build; fix: run \
-                     `cargo run -p odc-dev -- setup`";
+const STALE: &str = "the service is older than this build; fix: run `cargo run -p odc-dev -- \
+                     setup` for the dev copy, or install a newer package (then `--dev-interface` \
+                     again)";
 
 /// The real run, where the dev service runs (decisions log D83); else nothing, as every
 /// scenario ran against the fake.

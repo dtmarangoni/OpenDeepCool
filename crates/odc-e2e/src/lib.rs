@@ -4,6 +4,7 @@
 //! start, never environment variables (owner, 2026-10-24). It never runs in `cargo test` or CI,
 //! because it touches real hardware when present.
 
+pub mod access;
 pub mod app;
 pub mod attended;
 pub mod baseline;
