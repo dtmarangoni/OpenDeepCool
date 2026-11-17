@@ -744,6 +744,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 **Implementation**
 - The Phase 11 report, with the checklist table at 100 %, every area's summary, each unit's security score, namcap's warnings explained, and the reproducibility result.
 - The PRD table at `complete` through Phase 11, via `/prp-core:prp-prd-update`.
+- **The owner's review of the settings app follows** (owner, 2026-11-17), before Phase 12's plan: it isn't part of this phase, and Phase 11's run proves the app as Phase 10 built it (PRD, Phase 12 scope and Decisions Log).
 
 **Moved to Phase 12, after `v1.0.0`** (owner, 2026-10-27): DeepCreative leaves the owner's PC. What this plan had worked out, for Phase 12's plan:
 - **The list** (owner, 2026-10-23: the owner confirms it before anything is deleted):
