@@ -26,7 +26,7 @@ What isn't general is how the documents describe it, and five places where behav
 | AP-02 | Medium | The sound helper's sandbox needs unprivileged user namespaces, which `linux-hardened` turns off; never tried with them off |
 | AP-03 | Medium | Music works only with PipeWire, and the package forces PipeWire onto PulseAudio systems |
 | AP-04 | Medium | The design needs systemd; Arch-based distributions without it can't run it, and no document says so |
-| AP-05 | Low | `rust-version = "1.99"` is the pinned development toolchain, the newest one, not the oldest that builds |
+| AP-05 | Low | `rust-version = "1.99"` was the pinned development toolchain, the newest one, not the oldest that builds (now 1.92) |
 | AP-06 | Low | Where no polkit agent runs, the Start at boot switch fails with a message that doesn't say what to do |
 | AP-07 | Low | The default theme is always dark, whatever the desktop prefers |
 | AP-08 | Note | Hardware is tested for real on one PC, and CI runs only on Arch |
@@ -74,8 +74,8 @@ What isn't general is how the documents describe it, and five places where behav
 - **Evidence:** `Cargo.toml` has `rust-version = "1.99"`, which is also `mise.toml`'s pinned toolchain. The PKGBUILD builds with the system `cargo`, as Arch's Rust guidelines say.
 - **What follows:** on a distribution whose `rust` package is older than the current one (derivatives that hold packages back), the build stops at once with Cargo's version error. That is a clear failure, but a lower floor would allow the build.
 - **Recommendation:** measure the oldest toolchain that builds the packaged crates (the code uses `let` chains, stable since 1.88; the rest is unmeasured) and set `rust-version` to it, keeping the pin in `mise.toml` for development. Unverified: how far any derivative lags Arch's Rust.
-- **Measured (2026-11-17):** the highest `rust-version` that any package in the shipped crates' dependency graph declares is 1.92 (`pango-sys`; 123 packages, 13 declare none), so the lock file can't build with an older compiler whatever our own floor says. Whether our code builds with 1.92 is tested next.
-- **Outcome (owner, 2026-11-17):** measure and lower it; the result is recorded here.
+- **Measured (2026-11-17):** the highest `rust-version` that any package in the shipped crates' dependency graph declares is 1.92 (`pango-sys`; 123 packages, 13 declare none), so the lock file can't build with an older compiler whatever our own floor says. With Rust 1.92.0 (installed apart from the owner's toolchains) the six shipped crates check, and the 636 tests of the package's `check()` pass.
+- **Outcome (owner, 2026-11-17):** measure and lower it. Done: `rust-version = "1.92"`; `mise.toml` keeps the newer toolchain for development, and `crates/odc-e2e/tests/arch_tools.rs` still keeps the floor at or below Arch's `rust`. A CI job that builds with 1.92 would keep the floor true; it can't be tried locally, so it is left for the owner to ask for.
 
 ### AP-06 (Low): no polkit agent, no explanation
 

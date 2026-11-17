@@ -4,7 +4,11 @@ resolver = "3"
 
 [workspace.package]
 edition = "2024"
-rust-version = "1.99"
+# The oldest compiler the shipped programs build with (Arch portability review, AP-05; owner,
+# 2026-11-17): the highest `rust-version` that a dependency of theirs declares is 1.92 (`pango-sys`),
+# and with 1.92.0 the six shipped crates check and the 636 tests of the package's check() pass.
+# `mise.toml` pins the newer toolchain that development uses.
+rust-version = "1.92"
 license = "MIT"
 publish = false
 
