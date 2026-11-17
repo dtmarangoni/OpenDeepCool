@@ -170,14 +170,18 @@ It also changes two things the udev rule controls, and the uninstall puts both b
 
 ## Reporting a crash
 
-The programs write to the journal. Attach the lines around the crash to a bug report, with the version from `pacman -Q opendeepcool`:
+Run `opendeepcool --report` and paste what it prints into a new issue at <https://github.com/dtmarangoni/OpenDeepCool/issues>. It prints:
 
-```sh
-journalctl -u opendeepcool -b
-journalctl --user -u opendeepcool-audio -b
-```
+- the version, your distribution and kernel, and whether systemd runs;
+- the state of OpenDeepCool's units;
+- the lines of the display service's and the sound helper's journals, and their warnings and errors since the boot;
+- the crashes of OpenDeepCool's programs that `coredumpctl` lists.
 
-A program that panics logs a message that names the source file, line and column, which is usually enough to find the fault. The package carries no debug symbols, and there is nothing for you to rebuild. If a program was killed without such a message, `coredumpctl list` followed by the program's name (`opendeepcoold`, for the service) shows when it died and by which signal: add that line.
+Your host name, machine ID, account name and home folder are taken out of it. It sends nothing, writes nothing, and needs no window and no running service, so it works after a crash. Read it before you post it, and remove what you don't want to share.
+
+Your account must read the system journal for the service's lines: it can if it is in the `systemd-journal`, `adm` or `wheel` group. Where it can't, the report says what to do.
+
+A program that panics logs a message that names the source file, line and column, which is usually enough to find the fault. The package carries no debug symbols, and there is nothing for you to rebuild.
 
 Don't attach a core dump, which is a copy of the program's memory, or the output of `coredumpctl info`, which prints your account name, host name and machine ID.
 

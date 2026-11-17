@@ -35,6 +35,11 @@ fn main() -> ExitCode {
             return ExitCode::from(2);
         }
     };
+    // The bug report needs no window, no service and no display (docs/spec/report.md).
+    if flags.report {
+        print!("{}", odc_app::report::build(&mut odc_app::report::System));
+        return ExitCode::SUCCESS;
+    }
     // A test's app never hands over to the user's own (decisions log D47).
     let app_flags = if flags.testing() {
         gio::ApplicationFlags::NON_UNIQUE

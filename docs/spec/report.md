@@ -4,7 +4,7 @@ A command that prints a plain-text bug report for the user to read, change and p
 
 ## What it is, and isn't
 
-- **Plain text on standard output.** The user reads it, removes what they don't want to share, and pastes it into an issue at <https://github.com/dtmarangoni/OpenDeepCool/issues>.
+- **Text on standard output, in Markdown**, so the issue shows it as written: each section is a heading and a code block. The user reads it, removes what they don't want to share, and pastes it into an issue at <https://github.com/dtmarangoni/OpenDeepCool/issues>.
 - **Nothing is sent.** It opens no network connection, writes no file and changes nothing. It needs no display, no root and no running service: it works when the service has crashed, which is when it is wanted.
 - **Where:** the settings app's program, `opendeepcool --report`, handled before the toolkit starts. The flag is refused together with any other (exit code 2, a usage line). Once it starts it exits 0: what it couldn't read is said in its place.
 - **Programs it runs:** `pacman`, `systemctl`, `journalctl` and `coredumpctl`, found on `PATH`, each with fixed arguments and no shell. A program that isn't there, or that fails, leaves one line in its section: `not available: <the reason>`.
@@ -19,13 +19,14 @@ A command that prints a plain-text bug report for the user to read, change and p
 | 4 | Units | For the four system units (`opendeepcool.service`, `opendeepcool-gpu-rank.service`, `opendeepcool-sensors-detect.service`, `opendeepcool-sensors-detect-modules.service`) and the user's `opendeepcool-audio.service`: `LoadState`, `UnitFileState`, `ActiveState`, `SubState`, `Result`, `NRestarts`, `ExecMainStatus` | `systemctl show`, and `systemctl --user show` |
 | 5 | The service's journal | The last 100 lines since the boot of the four system units | `journalctl -b -n 100 -o short-iso --no-hostname --no-pager` |
 | 6 | The sound helper's journal | The last 40 lines since the boot | the same with `--user` |
-| 7 | Crashes | The `coredumpctl list` lines of OpenDeepCool's programs (`opendeepcoold`, `opendeepcool`, `opendeepcool-audio`, `odc-gpu-rank`, `odc-sensors-detect`, `opendeepcool-boot`) and nothing of any other program, with the reminder not to attach a core dump | `coredumpctl list` |
+| 7 | Warnings and errors since the boot | The last 50 lines of priority warning or worse of the four system units, and the last 20 of the sound helper: in a long session the lines that matter have left the last 100 | `journalctl -b -p warning -n 50` and `--user … -n 20` |
+| 8 | Crashes | The `coredumpctl list` lines of OpenDeepCool's programs (`opendeepcoold`, `opendeepcool`, `opendeepcool-audio`, `odc-gpu-rank`, `odc-sensors-detect`, `opendeepcool-boot`) and nothing of any other program, with the reminder not to attach a core dump | `coredumpctl list` |
 
 The service's journal already says which source each reading uses, whether the cooler is connected and what the detection did, so the report adds no D-Bus call.
 
 ## The journal needs a group
 
-A regular user reads only their own journal; the system journal is open to `systemd-journal`, `adm` and `wheel` (ArchWiki, systemd/Journal, read 2026-11-17). Where the system journal can't be read, section 5 says so, with what to do: add the account to `systemd-journal`, or run `sudo journalctl -u opendeepcool.service -b -n 100 --no-hostname` and paste its output.
+A regular user reads only their own journal; the system journal is open to `systemd-journal`, `adm` and `wheel` (ArchWiki, systemd/Journal, read 2026-11-17). Where the system journal can't be read, section 5 says so, and section 7 says "none (or the journal can't be read: see above)", with what to do: add the account to `systemd-journal`, or run `sudo journalctl -u opendeepcool.service -b -n 100 --no-hostname` and paste its output.
 
 ## Privacy
 

@@ -5,6 +5,7 @@ pub mod client;
 pub mod flags;
 pub mod model;
 pub mod pci_ids;
+pub mod report;
 pub mod startup;
 pub mod theme;
 pub mod ui;

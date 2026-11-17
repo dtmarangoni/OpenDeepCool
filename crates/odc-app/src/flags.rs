@@ -1,5 +1,6 @@
-//! The app's flags (Phase 10 plan, Task 4; Phase 11 plan, Task 3): only the five the tests give,
-//! never environment variables (owner, 2026-10-24). Anything else is refused.
+//! The app's flags (Phase 10 plan, Task 4; Phase 11 plan, Tasks 3 and 11): `--report`, which a
+//! user gives alone, and the five the tests give, never environment variables (owner,
+//! 2026-10-24). Anything else is refused.
 
 use std::path::PathBuf;
 
@@ -19,10 +20,14 @@ pub struct Flags {
     /// The program run in place of `pkexec` for a Start at boot flip: the tests' fake, with the
     /// same arguments. It runs as the user, as the app does.
     pub pkexec: Option<PathBuf>,
+    /// `--report`: print the bug report and exit (`docs/spec/report.md`), the one flag a user
+    /// gives. It stands alone.
+    pub report: bool,
 }
 
-pub const USAGE: &str = "usage: opendeepcool [--service-address ADDRESS] [--omarchy-state DIR] \
-                         [--frame-log FILE] [--user-bus-address ADDRESS] [--pkexec PROGRAM]";
+pub const USAGE: &str = "usage: opendeepcool [--report] [--service-address ADDRESS] \
+                         [--omarchy-state DIR] [--frame-log FILE] [--user-bus-address ADDRESS] \
+                         [--pkexec PROGRAM]";
 
 /// The flags' names.
 const NAMES: [&str; 5] = [
@@ -54,6 +59,13 @@ pub fn parse(args: &[String]) -> Result<Flags, String> {
     let mut flags = Flags::default();
     let mut rest = args.iter();
     while let Some(arg) = rest.next() {
+        if arg == "--report" {
+            if flags.report {
+                return Err("--report given twice".to_owned());
+            }
+            flags.report = true;
+            continue;
+        }
         let (name, inline) = match arg.split_once('=') {
             Some((name, value)) => (name, Some(value.to_owned())),
             None => (arg.as_str(), None),
@@ -81,6 +93,15 @@ pub fn parse(args: &[String]) -> Result<Flags, String> {
         if taken {
             return Err(format!("{name} given twice"));
         }
+    }
+    if flags.report
+        && flags
+            != (Flags {
+                report: true,
+                ..Flags::default()
+            })
+    {
+        return Err("--report is given alone".to_owned());
     }
     Ok(flags)
 }
@@ -134,6 +155,23 @@ mod tests {
         );
         assert_eq!(boot.pkexec, Some(PathBuf::from("/tmp/fake/pkexec")));
         assert!(boot.testing());
+    }
+
+    #[test]
+    fn report_is_a_flag_with_no_value_that_stands_alone() {
+        let report = parse(&args(&["--report"])).expect("read");
+        assert!(report.report);
+        assert!(!report.testing(), "it's a user's flag, not a test's");
+        assert!(!parse(&[]).expect("read").report);
+        for bad in [
+            &["--report", "--report"][..],
+            &["--report", "--pkexec", "/a"],
+            &["--frame-log=/a", "--report"],
+            &["--report=yes"],
+            &["--report", "extra"],
+        ] {
+            assert!(parse(&args(bad)).is_err(), "{bad:?}");
+        }
     }
 
     #[test]
