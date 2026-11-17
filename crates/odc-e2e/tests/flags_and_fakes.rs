@@ -41,6 +41,17 @@ fn flags_are_read_and_anything_unknown_is_refused() {
         }))
     );
     assert_eq!(
+        parse_args(&args(&["--dev-interface", "--require", "dev-service"])),
+        Ok(Some(Options {
+            require: vec![Capability::DevService],
+            dev_interface: true,
+            ..Options::default()
+        }))
+    );
+    // The tour has its own way to the service, and the flag asks for a root step it doesn't make.
+    let error = parse_args(&args(&["--attended", "--dev-interface"])).expect_err("refused");
+    assert!(error.contains("isn't for the attended tour"), "{error}");
+    assert_eq!(
         parse_args(&args(&["--only", "baseline"])).map(|o| o.and_then(|o| o.only)),
         Ok(Some(Area::Baseline))
     );
@@ -59,6 +70,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::Service),
             attended: false,
             modes: None,
+            dev_interface: false,
         }))
     );
     assert_eq!(
@@ -73,6 +85,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::Device),
             attended: false,
             modes: None,
+            dev_interface: false,
         }))
     );
     assert_eq!(
@@ -87,6 +100,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::Sensors),
             attended: false,
             modes: None,
+            dev_interface: false,
         }))
     );
     assert_eq!(
@@ -101,6 +115,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::GpuRank),
             attended: false,
             modes: None,
+            dev_interface: false,
         }))
     );
     assert_eq!(
@@ -110,6 +125,7 @@ fn flags_are_read_and_anything_unknown_is_refused() {
             only: Some(Area::Display),
             attended: false,
             modes: None,
+            dev_interface: false,
         }))
     );
     for (bad, reason) in [
@@ -268,6 +284,7 @@ fn a_gpu_whose_kind_query_fails_fails_its_check_with_the_error() {
         only: Some(Area::GpuRank),
         attended: false,
         modes: None,
+        dev_interface: false,
     };
     let summary = run(&options, &t.roots(), &dir("gpu-query-fails"), TICK);
     let table = summary.table();
@@ -295,6 +312,7 @@ fn a_required_capability_that_is_absent_fails_the_run() {
         only: None,
         attended: false,
         modes: None,
+        dev_interface: false,
     };
     let summary = run(&options, &t.roots(), &dir("required"), TICK);
     assert!(!summary.passed());

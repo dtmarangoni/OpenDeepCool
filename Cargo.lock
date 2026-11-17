@@ -1129,6 +1129,7 @@ dependencies = [
 name = "odc-e2e"
 version = "0.0.0"
 dependencies = [
+ "odc-boot",
  "odc-device",
  "odc-gpu-rank",
  "odc-ipc",

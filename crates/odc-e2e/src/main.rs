@@ -1,16 +1,26 @@
 //! `odc-e2e`: the unattended end-to-end checks; see the library's documentation.
 
+use std::ffi::OsString;
 use std::path::Path;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use odc_e2e::Area;
+use odc_e2e::{Area, dev_interface};
 use odc_testkit::hardware::Roots;
 
 /// One frame per 100 ms tick (`docs/spec/protocol.md`, Timing).
 const TICK: Duration = Duration::from_millis(100);
 
 fn main() -> ExitCode {
+    // The dev-interface step, started by pkexec: its arguments come from whoever ran pkexec, so
+    // they are read as they are, not as UTF-8.
+    let raw: Vec<OsString> = std::env::args_os().skip(1).collect();
+    if raw
+        .first()
+        .is_some_and(|arg| arg == dev_interface::ROOT_STEP)
+    {
+        return ExitCode::from(dev_interface::root_main(&raw[1..]));
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     let options = match odc_e2e::parse_args(&args) {
         Ok(Some(options)) => options,

@@ -7,6 +7,7 @@
 pub mod app;
 pub mod attended;
 pub mod baseline;
+pub mod dev_interface;
 pub mod device;
 pub mod display;
 pub mod gpu_rank;
@@ -25,6 +26,7 @@ use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 
 pub const USAGE: &str =
     "usage: odc-e2e [--require <capability,...>] [--only <area>] [--modes <list>]
+                [--dev-interface]
        odc-e2e --attended [--modes <list>]
 
   --require <list>  capabilities that must run real: lp360, lp360-reconnect,
@@ -38,6 +40,11 @@ pub const USAGE: &str =
                     throwaway root, about 10 minutes
   --modes <list>    the modes display, service and the tour take, as numbers and
                     ranges: 7, or 7-9,12; without it, every mode this build draws
+  --dev-interface   with the Arch package installed: one pkexec step, which you
+                    approve with your password, adds the dev interface and the
+                    frame recording to the packaged service for this run (a
+                    drop-in in /run and a restart) and removes both when the run
+                    ends, however it ends; the dev-service checks need it
   --attended        the optional tour for you to watch on the cooler, through the
                     dev service: you answer each case; never a gate
   -h, --help        this text
@@ -79,6 +86,9 @@ pub struct Options {
     pub attended: bool,
     /// The modes `--modes` lists, in order; `None` for every mode this build draws.
     pub modes: Option<Vec<u16>>,
+    /// The packaged service gets the dev interface for this run, through one approved root step
+    /// that stays until the run ends (Phase 11 plan, Task 9).
+    pub dev_interface: bool,
 }
 
 impl Options {
@@ -133,6 +143,7 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
         match arg.as_str() {
             "-h" | "--help" => return Ok(None),
             "--attended" => options.attended = true,
+            "--dev-interface" => options.dev_interface = true,
             "--require" => {
                 let list = args.next().ok_or("--require needs a list")?;
                 for name in list.split(',') {
@@ -165,6 +176,9 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
             _ => return Err(format!("{arg:?} isn't an option")),
         }
     }
+    if options.attended && options.dev_interface {
+        return Err("--dev-interface isn't for the attended tour".into());
+    }
     Ok(Some(options))
 }
 
@@ -172,6 +186,41 @@ pub fn parse_args(args: &[String]) -> Result<Option<Options>, String> {
 /// the real cooler, `protocol.md` Timing), and returns the summary.
 pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> Summary {
     let mut summary = Summary::default();
+    if let Some(path) = dev_interface::leftover(&roots.run) {
+        let note = format!(
+            "{} was left by an earlier run whose step was killed: {}",
+            path.display(),
+            if options.dev_interface {
+                "this run's step replaces it"
+            } else {
+                "the packaged service keeps --dev until it is removed (a run with \
+                 --dev-interface replaces it, and a reboot clears it)"
+            }
+        );
+        println!("{note}");
+        summary.check("dev_interface_leftover", Ok(note));
+    }
+    // Held until the areas are done, and closed on a panic too (its `Drop`).
+    let dev_interface = if options.dev_interface {
+        match dev_interface::open() {
+            Ok(guard) => {
+                summary.check(
+                    "dev_interface",
+                    Ok(format!(
+                        "the packaged {} runs with --dev for this run",
+                        dev_interface::UNIT
+                    )),
+                );
+                Some(guard)
+            }
+            Err(e) => {
+                summary.check("dev_interface", Err(e));
+                return summary;
+            }
+        }
+    } else {
+        None
+    };
     match device::restore_switch(roots) {
         Ok(Some(note)) => {
             println!("{note}");
@@ -219,6 +268,15 @@ pub fn run(options: &Options, roots: &Roots, out_dir: &Path, tick: Duration) -> 
     }
     if options.only == Some(Area::Package) {
         package::run(roots, out_dir, &mut summary);
+    }
+    if let Some(guard) = dev_interface {
+        let closed = guard
+            .close()
+            .and_then(|note| match dev_interface::leftover(&roots.run) {
+                None => Ok(note),
+                Some(path) => Err(format!("{} is still there", path.display())),
+            });
+        summary.check("dev_interface_removed", closed);
     }
     summary
 }

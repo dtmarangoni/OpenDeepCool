@@ -44,6 +44,7 @@ impl FakeTree {
             dev: self.root.join("dev"),
             proc: self.root.join("proc"),
             bin: self.root.join("bin"),
+            run: self.root.join("run"),
         }
     }
 

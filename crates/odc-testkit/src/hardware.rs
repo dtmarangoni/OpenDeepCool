@@ -140,14 +140,16 @@ pub enum Probe {
     Unusable { reason: String, fix: String },
 }
 
-/// The roots the probe looks under: `/sys`, `/dev` and `/proc`, and `/usr/bin` for the tools the
-/// checks compare with, or a fake tree's.
+/// The roots the probe looks under: `/sys`, `/dev` and `/proc`, `/usr/bin` for the tools the
+/// checks compare with, and `/run`, where a parity run's dev-interface drop-in lives, or a fake
+/// tree's.
 #[derive(Clone, Debug)]
 pub struct Roots {
     pub sysfs: PathBuf,
     pub dev: PathBuf,
     pub proc: PathBuf,
     pub bin: PathBuf,
+    pub run: PathBuf,
 }
 
 impl Roots {
@@ -157,6 +159,7 @@ impl Roots {
             dev: PathBuf::from("/dev"),
             proc: PathBuf::from("/proc"),
             bin: PathBuf::from("/usr/bin"),
+            run: PathBuf::from("/run"),
         }
     }
 
