@@ -739,6 +739,15 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 **Validation**
 - The run passes. The Phase 11 report holds the checklist table at 100 %, every area's summary and the baseline.
 
+**As built** (2026-11-17)
+- **Commits:** the dev interface's root step (`03638aa`), the packaged helper, the fixes and the access check (`9487428`), and the checklist's test names with their checker (`b743362`). Two docs commits came before them: the root step that stays (owner, 2026-11-17; Implementation, step 1) and the owner's UI review after this phase.
+- **The root step** ran as designed on the owner's PC: one `pkexec` password per run; the drop-in and the restart made the packaged service run with `--dev`, the state directory took the drop-in's 0750 and the recording was group-readable; at the end the drop-in folder was gone, the service ran without `--dev` and the state directory was 0700 again. `pkexec` runs in root's home directory, so the step is started with `odc-e2e`'s absolute path.
+- **The parity run** (`--dev-interface`, every area, `--require` for every capability this PC can run real, `weston` included): 229 checks passed, 0 failed, in about 20 minutes, with the real cooler and the installed package. The access check passed (`GetState` from the owner's session; the installed policy's four actions). The timing run's mean interval was 100.000 ms, and the music delay's 95th percentile was 95.1 ms (target 150 ms). The owner's settings were back at the end.
+- **The package test** on the same commit: 32 of 32 passed.
+- **The baseline** (`--dev-interface --only baseline`, mode 4, 600 s): mean CPU 0.57 % of one core, peak RSS 6.1 MiB; writes p50 4.37 ms, p99 8.27 ms; snapshots p50 1.23 ms, p99 3.84 ms. Phase 10's was 0.53 % and 7.5 MiB, so the doubling since Phase 9 (0.25 %) is still unexplained: it stays an open finding, with no target (the owner set none).
+- **The checklist:** every `test` row (81) links the tests that prove it (239 links), the 7 `replaced` rows point at test rows or the spec, and P8 is `device`. `crates/odc-testkit/tests/parity_checklist.rs` fails for a row without a valid kind, a link to a file or function that isn't there, or a pointer at a row that isn't a test row, and fails on each kind of damage tried.
+- **Seen on the owner's screen:** while a run's test sessions hold the cooler, the service reports it as `released` and the app shows "cooler not connected"; it clears when the run ends. A normal user can't cause that state, so it needs no design change.
+
 ### 10. Phase 11 closes
 
 **Implementation**
