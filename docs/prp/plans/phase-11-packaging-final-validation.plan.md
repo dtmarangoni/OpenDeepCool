@@ -710,13 +710,17 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
 ### 9. The full unattended parity run against the installed package
 
 **Files and integration points**
-- `crates/odc-e2e/`, `crates/odc-testkit/src/hardware.rs`: UPDATE, its own commit first. With the package installed:
-  - the music check runs the packaged helper, `/usr/lib/opendeepcool/opendeepcool-audio`, where the dev helper is gone (`music.rs`'s `DEV_HELPER`);
-  - the fixes it prints name the package's way (the runtime drop-in, `odc-dev setup --test-access`) as well as `odc-dev setup`.
+- `crates/odc-e2e/`, `crates/odc-testkit/src/hardware.rs`: UPDATE, two commits, each with its tests, before the run. With the package installed:
+  - **The dev interface for the packaged service** (commit 1; `crates/odc-e2e/src/dev_interface.rs`, new): the run's flag `--dev-interface`, and the root step it asks for, `odc-e2e dev-interface-root`, started by `pkexec` with `odc-e2e`'s own path like `odc-dev`'s root steps and left out of `USAGE`. Without the flag the run asks for nothing privileged, and the dev-service probe's fix names the flag.
+  - **The packaged paths and the fixes** (commit 2): the music check runs the packaged helper, `/usr/lib/opendeepcool/opendeepcool-audio`, where the dev helper is gone (`music.rs`'s `DEV_HELPER`); the fixes it prints (`hardware.rs`'s `SETUP_FIX` and `SERVICE_FIX`, the app check's) name the package's way (`--dev-interface`, `odc-dev setup --test-access`) as well as `odc-dev setup`; and the service check gains the installed package's access check (Implementation, step 2).
 
 **Implementation**
-1. The owner approves one `pkexec` step that writes the runtime drop-in `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` and restarts the service. The drop-in adds `--dev` and relaxes the recording's modes as the dev drop-in does.
-   - A drop-in left by an earlier run that was killed is reported at start and in the summary, and this step replaces it (solution review P11-18).
+1. **One approved `pkexec` step that stays for the whole run** (owner, 2026-11-17: "One root step that stays", over a second step at the end, because the end of an hour's unattended run may find nobody to type a password, and a drop guard running as the owner can't remove a root-owned file). It is `pkexec <odc-e2e> dev-interface-root` with the run's end of a pipe as its standard input:
+   - **It refuses**, with exit 2 before anything is written: not root; no `PKEXEC_UID`, or one that isn't a user ID; any argument; the package not installed (no vendor unit `/usr/lib/systemd/system/opendeepcool.service` or no `/usr/lib/opendeepcool/opendeepcoold`); a vendor unit whose `ExecStart=` isn't exactly one line naming that binary; the unit not active (turn it on first, with the app's switch). The drop-in's only variable text is that binary's path, taken from the root-owned vendor unit, never from the caller.
+   - **It writes** `/run/systemd/system/opendeepcool.service.d/odc-e2e.conf` (a drop-in in `/run` applies to a unit in `/usr/lib`; systemd.unit(5), read 2026-11-17) with `ExecStart=`, `ExecStart=<the binary> --dev`, `UMask=0027` and `StateDirectoryMode=0750`, the dev copy's lines (`tools/dev/opendeepcool-dev.conf`; a test keeps them equal), then runs `systemctl daemon-reload` and `systemctl restart opendeepcool.service` with an emptied environment, and prints `ready`.
+   - **It waits** until its standard input ends. `pkexec` runs the program by `execv`, keeps standard input, output and error and marks every other descriptor close-on-exec (polkit's `pkexec.c`, main branch, read 2026-11-17), and runs it in root's home directory, so a path must be absolute. The run holds the pipe's writing end, so the end of the run, a panic or a kill of the run all end the wait, and the owner's account can't signal a root process, so it can't stop the cleanup either.
+   - **At the end** it removes the drop-in file and its folder if empty, reloads, restarts the service without `--dev`, removes the recording the dev service wrote (`dev-frames.log` and its rotated copy; the restart has closed them), prints `removed` and exits 0. A failed restart after the write removes the drop-in the same way and exits 1.
+   - A drop-in left by an earlier run whose step was killed outright is reported at the next run's start and in its summary, and this step replaces it (solution review P11-18).
    - The tests use the owner's test access from Task 7.
 2. **The whole `odc-e2e`, every area, every `--require` that applies on the owner's PC** (the list in `docs/local/`):
    - device (start-up, reconnect, and `reset`, the device side of the wake-up from standby);
@@ -729,7 +733,7 @@ The owner moved the releases to a phase of their own on 2026-10-27 (PRD, Phase 1
    - package;
    - then `--only baseline`, compared with Phase 10's.
    It's unattended. The real-cooler part, one example of each kind, should take well under an hour (estimate); the summary prints each area's time.
-3. The drop-in is removed and the service restarted, by a drop guard. The summary confirms `/run/systemd/system/opendeepcool.service.d/` is empty again.
+3. The run's guard closes the pipe when the areas are done (or on a panic), waits for `removed` and the step's exit, and the summary confirms `/run/systemd/system/opendeepcool.service.d/` holds no `odc-e2e.conf` and the service runs without `--dev` again.
 4. **The parity checklist:** every row marked `test` gets the name of the test that proved it; every `replaced` row points at rows that passed; `device` rows need no test (the checklist's OpenDeepCool column; owner, 2026-10-27; solution review P3-06). The checklist must be at 100 %.
 
 **Validation**

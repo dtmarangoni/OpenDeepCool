@@ -296,6 +296,7 @@ The plan's mapping, "proven by a test or replaced by an owner decision", needs a
 
 - **Recommendation:** check it at the next `odc-e2e` start and in the summary, and remove it with the owner's approval.
 - **Outcome (2026-10-27):** accepted. A leftover drop-in is reported at the next run's start and in its summary; that run's own approved step replaces it, and its end removes it. Phase 11 plan (Task 7).
+  - **Outcome (2026-11-17, owner):** how the end removes it, which needs root: one `pkexec` step that stays for the whole run and removes the drop-in itself when the run's pipe closes, over a second step at the end. One password, and a killed run can't skip the cleanup. Phase 11 plan (Task 9).
 
 ### P11-19: The oracle generator
 
