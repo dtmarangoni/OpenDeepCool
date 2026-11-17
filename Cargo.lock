@@ -1138,6 +1138,7 @@ dependencies = [
  "odc-sensors",
  "odc-service",
  "odc-testkit",
+ "rustix",
  "zbus 6.2.0",
 ]
 

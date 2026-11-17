@@ -56,12 +56,14 @@ const GPUS: [Capability; 5] = [
 ];
 
 /// The checks besides the GPUs', each with the capability whose mode decides how it runs.
-const CHECKS: [(&str, Capability); 5] = [
+const CHECKS: [(&str, Capability); 7] = [
     ("cpu_temp", Capability::CpuTemp),
+    ("cpu_temp_load", Capability::CpuTemp),
     ("cpu_usage", Capability::ProcStat),
     ("cpu_power", Capability::CpuPower),
     ("memory_load", Capability::Meminfo),
     ("fans", Capability::BoardFans),
+    ("sensors_cost", Capability::BoardFans),
 ];
 
 /// The Gpu usage check's load lasts this long, and the reading must drop within as long after.
@@ -183,13 +185,17 @@ struct RealPc<'a> {
     cpu: Option<Result<CpuRun, String>>,
 }
 
-/// One CPU load's readings: the usage and `top`'s in the same second, and the power at idle and
-/// under the load.
+/// One CPU load's readings: the usage and `top`'s in the same second, the power at idle and under
+/// the load, and the CPU temperature at idle and at the end of the load, with `sensors`' own right
+/// after it, still under the load.
 struct CpuRun {
     usage: Reading,
     top_busy: Result<i64, String>,
     idle_power: Reading,
     load_power: Reading,
+    idle_temp: Reading,
+    load_temp: Reading,
+    load_sensors: Result<i64, String>,
 }
 
 impl<'a> RealPc<'a> {
@@ -210,6 +216,11 @@ impl<'a> RealPc<'a> {
     fn check(&mut self, name: &str) -> Result<String, String> {
         match name {
             "cpu_temp" => self.cpu_temp(),
+            "cpu_temp_load" => {
+                let run = self.cpu_run()?;
+                cpu_temp_load(&run.idle_temp, &run.load_temp, run.load_sensors.clone())
+                    .map(|note| format!("real: {note}"))
+            }
             "cpu_usage" => {
                 let run = self.cpu_run()?;
                 cpu_usage(&run.usage, run.top_busy.clone()).map(|note| format!("real: {note}"))
@@ -232,6 +243,19 @@ impl<'a> RealPc<'a> {
                 memory_load(&ours, reference).map(|note| format!("real: {note}"))
             }
             "fans" => self.fans(),
+            "sensors_cost" => {
+                let sys = self.roots.sysfs.clone();
+                // The GPU the service would read, chosen as it chooses: the best ranked, or the
+                // snapshot would leave out the GPU's readings, which cost the most.
+                let ranking = rank(&sys, &mut DriverKinds::new(&sys, &self.roots.dev));
+                let found = gpus(&sys, Some(&ranking));
+                self.registry.choose_gpu(odc_sensors::choose(&found, None));
+                let registry = &mut self.registry;
+                sensors_cost_over(&sys, COST_PASSES, Duration::from_secs(1), || {
+                    registry.snapshot();
+                })
+                .map(|note| format!("real: {note}"))
+            }
             _ => Err(format!("no check {name}")),
         }
     }
@@ -278,6 +302,7 @@ impl<'a> RealPc<'a> {
         self.registry.snapshot();
         thread::sleep(Duration::from_secs(1));
         let idle_power = self.registry.snapshot().get(Metric::CpuPower).clone();
+        let idle_temp = self.registry.snapshot().get(Metric::CpuTemperature).clone();
         let load = CpuLoad::start();
         thread::sleep(Duration::from_secs(1));
         self.registry.snapshot();
@@ -288,6 +313,10 @@ impl<'a> RealPc<'a> {
             thread::sleep(Duration::from_millis(1_000));
             load_power = self.registry.snapshot().get(Metric::CpuPower).clone();
         }
+        // Still under the load: the temperature, then `sensors`' in the same moment.
+        let load_temp = self.registry.snapshot().get(Metric::CpuTemperature).clone();
+        let load_sensors =
+            sensors_json(self.tools.sensors.as_ref()).and_then(|json| cpu_package(&json));
         drop(load);
         bound(&self.registry, Metric::CpuUsage)?;
         Ok(CpuRun {
@@ -295,6 +324,9 @@ impl<'a> RealPc<'a> {
             top_busy,
             idle_power,
             load_power,
+            idle_temp,
+            load_temp,
+            load_sensors,
         })
     }
 
@@ -457,6 +489,8 @@ fn snapshot_gpu(snapshot: &odc_sensors::Snapshot) -> [Reading; 3] {
 struct FakePc {
     tree: FakeTree,
     nvidia: &'static str,
+    /// The fake CPU package temperature's file, which the load check raises.
+    package_input: PathBuf,
 }
 
 /// The fixtures' values, chosen to pass the checks.
@@ -475,24 +509,23 @@ const RAPL: &str = "sys/devices/virtual/powercap/intel-rapl/intel-rapl:0/energy_
 impl FakePc {
     fn new(dir: &Path) -> Result<FakePc, String> {
         let tree = FakeTree::create(dir).map_err(|e| e.to_string())?;
-        let built = coretemp(&tree, PACKAGE_MILLIC)
-            .and_then(|_| {
-                rapl(
-                    &tree,
-                    &[("intel-rapl:0", "package-0", 1_000_000, 262_143_328_850)],
-                )
-            })
-            .and_then(|()| proc_meminfo(&tree, MEM_TOTAL_KB, MEM_AVAILABLE_KB))
-            .and_then(|_| board_fans(&tree, BOARD_CHIP, &FANS))
-            .and_then(|_| amdgpu_dgpu(&tree, CARD, 41_000, 37, 182_000_000))
-            .and_then(|_| i915(&tree, IGPU, 44_000, 9_100_000))
-            .and_then(|_| xe(&tree, CARD2, 47_000, 7_300_000))
-            .and_then(|_| nvidia_proprietary(&tree, NVIDIA))
-            .and_then(|_| nouveau(&tree, NOUVEAU));
+        let hwmon = coretemp(&tree, PACKAGE_MILLIC).map_err(|e| e.to_string())?;
+        let built = rapl(
+            &tree,
+            &[("intel-rapl:0", "package-0", 1_000_000, 262_143_328_850)],
+        )
+        .and_then(|()| proc_meminfo(&tree, MEM_TOTAL_KB, MEM_AVAILABLE_KB))
+        .and_then(|_| board_fans(&tree, BOARD_CHIP, &FANS))
+        .and_then(|_| amdgpu_dgpu(&tree, CARD, 41_000, 37, 182_000_000))
+        .and_then(|_| i915(&tree, IGPU, 44_000, 9_100_000))
+        .and_then(|_| xe(&tree, CARD2, 47_000, 7_300_000))
+        .and_then(|_| nvidia_proprietary(&tree, NVIDIA))
+        .and_then(|_| nouveau(&tree, NOUVEAU));
         built.map_err(|e| e.to_string())?;
         Ok(FakePc {
             tree,
             nvidia: NVIDIA,
+            package_input: hwmon.join("temp1_input"),
         })
     }
 
@@ -534,6 +567,15 @@ impl FakePc {
                 let ours = registry.snapshot().get(Metric::CpuTemperature).clone();
                 bound(&registry, Metric::CpuTemperature)?;
                 close("CPU Temperature", milli(&ours)?, PACKAGE_MILLIC, 1_000)?
+            }
+            "cpu_temp_load" => {
+                let idle = registry.snapshot().get(Metric::CpuTemperature).clone();
+                let loaded = PACKAGE_MILLIC + 14_000;
+                fs::write(&self.package_input, format!("{loaded}\n"))
+                    .map_err(|e| format!("{}: {e}", self.package_input.display()))?;
+                let load = registry.snapshot().get(Metric::CpuTemperature).clone();
+                bound(&registry, Metric::CpuTemperature)?;
+                cpu_temp_load(&idle, &load, Ok(loaded))?
             }
             "cpu_usage" => {
                 self.stat(1_500, 8_500)?;
@@ -584,6 +626,12 @@ impl FakePc {
                     fan(&input.chip, input.input, &fan_rpm(&sys, input), rpm)?;
                 }
                 format!("{} fan inputs agree with the fixture", inputs.len())
+            }
+            "sensors_cost" => {
+                let sys = self.tree.roots().sysfs;
+                sensors_cost_over(&sys, 3, Duration::from_millis(1), || {
+                    registry.snapshot();
+                })?
             }
             _ => return Err(format!("no check {name}")),
         };
@@ -753,6 +801,106 @@ fn close(what: &str, ours: i64, reference: i64, tolerance: i64) -> Result<String
             show(tolerance)
         ))
     }
+}
+
+/// How many seconds the sensor thread's work is timed, one pass a second as the service does it.
+/// The board's and the GPU's drivers cache their readings for about a second, so passes in a row
+/// would measure the cache, not the work (Phase 11: ten fan inputs cost 0.03 ms read in a row and
+/// 0.24 ms read once a second; two AMD GPU values cost 1.4 ms read once a second).
+const COST_PASSES: u32 = 12;
+
+/// The most CPU the sensor thread's work in one second may cost: 10 ms, 1 % of one core. Its
+/// measured cost was about 3.8 ms, 0.38 % of a core, in the running service on the development PC
+/// (Phase 11 report), and a regression to more than 2.5 times that fails. The owner set no
+/// target; this guards against getting worse.
+const SENSORS_CEILING_MS: f64 = 10.0;
+
+/// This thread's CPU time so far, from its own CPU clock.
+fn thread_cpu() -> Duration {
+    let now = rustix::time::clock_gettime(rustix::time::ClockId::ThreadCPUTime);
+    Duration::new(
+        u64::try_from(now.tv_sec).unwrap_or(0),
+        u32::try_from(now.tv_nsec).unwrap_or(0),
+    )
+}
+
+/// What the sensor thread does each second, as the service does it: a registry snapshot, and the
+/// speed of every fan input, each found again through its chip (Phase 10 added the speeds, for the
+/// app's list). Both are timed in each of `passes` passes, `every` apart, and together must stay
+/// within [`SENSORS_CEILING_MS`].
+fn sensors_cost_over(
+    sys: &Path,
+    passes: u32,
+    every: Duration,
+    mut snapshot: impl FnMut(),
+) -> Result<String, String> {
+    let inputs = fan_inputs(sys);
+    let (mut snapshot_used, mut fans_used) = (Duration::ZERO, Duration::ZERO);
+    for _ in 0..passes {
+        let before = thread_cpu();
+        snapshot();
+        let middle = thread_cpu();
+        for input in &inputs {
+            let _ = fan_rpm(sys, input);
+        }
+        let after = thread_cpu();
+        snapshot_used += middle.saturating_sub(before);
+        fans_used += after.saturating_sub(middle);
+        thread::sleep(every);
+    }
+    let ms = |used: Duration| used.as_secs_f64() * 1_000.0 / f64::from(passes.max(1));
+    sensors_cost(ms(snapshot_used), ms(fans_used), inputs.len())
+}
+
+/// The verdict on the two costs, each in ms of CPU for one pass, and the note that tells them
+/// apart.
+fn sensors_cost(snapshot_ms: f64, fans_ms: f64, inputs: usize) -> Result<String, String> {
+    let total = snapshot_ms + fans_ms;
+    let note = format!(
+        "a second's work costs {total:.2} ms of CPU ({:.3} % of one core): the snapshot \
+         {snapshot_ms:.2} ms, the {inputs} fan inputs' speeds {fans_ms:.2} ms",
+        total / 10.0
+    );
+    if total > SENSORS_CEILING_MS {
+        Err(format!("{note}, above the {SENSORS_CEILING_MS} ms ceiling"))
+    } else {
+        Ok(note)
+    }
+}
+
+/// How much the CPU temperature must rise in the load, in thousandths of a degree: the reading
+/// has a resolution of 1 °C, and any CPU under a full load for 5 s rises by more than 3 °C. On the
+/// development PC it rose from 31–33 °C to 75–81 °C in nine runs; other PCs are unverified.
+const TEMP_RISE: i64 = 3_000;
+
+/// How far `sensors`, read right after ours at the end of the load, may be from it: the reading
+/// moves less than 1 °C in that moment once the load has lasted 5 s (nine runs on the
+/// development PC: 0 °C apart).
+const TEMP_LOAD_TOLERANCE: i64 = 2_000;
+
+/// CPU Temperature under the load: at least [`TEMP_RISE`] above its idle reading, so a reading
+/// stuck at one value fails, and within [`TEMP_LOAD_TOLERANCE`] of `sensors`' own.
+fn cpu_temp_load(
+    idle: &Reading,
+    load: &Reading,
+    sensors: Result<i64, String>,
+) -> Result<String, String> {
+    let (idle, load) = (milli(idle)?, milli(load)?);
+    if load < idle + TEMP_RISE {
+        return Err(format!(
+            "CPU Temperature {} °C under the load, less than {} °C above {} °C at idle",
+            show(load),
+            show(TEMP_RISE),
+            show(idle)
+        ));
+    }
+    let note = close(
+        "CPU Temperature under load",
+        load,
+        sensors?,
+        TEMP_LOAD_TOLERANCE,
+    )?;
+    Ok(format!("{note}, up from {} at idle", show(idle)))
 }
 
 /// CPU Usage: at least 95 % under the load, and within 5 points of `top`'s busy share.
@@ -1271,6 +1419,68 @@ mod tests {
             "not above idle"
         );
         assert!(cpu_power(&value(500), &value(88_000)).is_err(), "below 1 W");
+        assert!(
+            cpu_temp_load(&value(30_000), &value(33_000), Ok(33_000)).is_ok(),
+            "3 °C up"
+        );
+        assert!(
+            cpu_temp_load(&value(30_000), &value(32_900), Ok(32_900)).is_err(),
+            "less than 3 °C up"
+        );
+        assert!(
+            cpu_temp_load(&value(30_000), &value(30_000), Ok(30_000)).is_err(),
+            "a reading stuck at its idle value"
+        );
+        assert!(
+            cpu_temp_load(&value(80_000), &value(60_000), Ok(60_000)).is_err(),
+            "lower than at idle"
+        );
+        assert!(
+            cpu_temp_load(&value(30_000), &value(70_000), Ok(72_000)).is_ok(),
+            "2 °C apart"
+        );
+        assert!(
+            cpu_temp_load(&value(30_000), &value(70_000), Ok(72_100)).is_err(),
+            "more than 2 °C from sensors"
+        );
+        assert!(
+            cpu_temp_load(&value(30_000), &value(70_000), Err("no sensors".into())).is_err(),
+            "no reference"
+        );
+        assert!(
+            cpu_temp_load(
+                &Reading::Unavailable(odc_sensors::Unavailable::NotYet),
+                &value(70_000),
+                Ok(70_000)
+            )
+            .is_err(),
+            "no idle reading"
+        );
+        // The thread's CPU clock counts what the thread computes and not what it waits for.
+        let slept = thread_cpu();
+        thread::sleep(Duration::from_millis(50));
+        assert!(
+            thread_cpu() - slept < Duration::from_millis(10),
+            "a sleep costs no CPU"
+        );
+        let burned = thread_cpu();
+        let began = Instant::now();
+        while began.elapsed() < Duration::from_millis(30) {
+            hint::spin_loop();
+        }
+        assert!(
+            thread_cpu() - burned >= Duration::from_millis(20),
+            "a busy 30 ms costs CPU"
+        );
+        assert!(sensors_cost(0.5, 0.5, 10).is_ok());
+        assert!(sensors_cost(5.0, 5.0, 10).is_ok(), "exactly the ceiling");
+        assert!(sensors_cost(5.0, 5.01, 10).is_err(), "above it");
+        assert!(
+            sensors_cost(0.1, 20.0, 10)
+                .expect_err("the fans' speeds")
+                .contains("20.00 ms"),
+            "the note tells the two apart"
+        );
         assert!(memory_load(&value(62_400), 62_500).is_ok());
         assert!(memory_load(&value(61_900), 62_500).is_err());
         assert!(fan("chip", 1, &value(1_000_000), 1_030_000).is_ok());
