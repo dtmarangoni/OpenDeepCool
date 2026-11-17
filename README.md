@@ -163,15 +163,16 @@ It also changes two things the udev rule controls, and the uninstall puts both b
 
 ## Reporting a crash
 
-The service writes to the journal: `journalctl -u opendeepcool`. If a program panics, its message names the file, line and column. Attach both to a bug report, with the version from `pacman -Q opendeepcool`.
-
-The package ships without debug symbols, so a backtrace from it has no frames. To get one, rebuild the same release from its tag with symbols and reproduce the crash. In a clone of the repository at `packaging/arch/` (or of the AUR repository), change the PKGBUILD's `options=('!debug')` to `options=('!debug' '!strip')`, then:
+The programs write to the journal. Attach the lines around the crash to a bug report, with the version from `pacman -Q opendeepcool`:
 
 ```sh
-CARGO_PROFILE_RELEASE_DEBUG=line-tables-only makepkg -si
+journalctl -u opendeepcool -b
+journalctl --user -u opendeepcool-audio -b
 ```
 
-The first sets Cargo to write source lines into the programs, and `!strip` keeps makepkg from removing them. Arch's wiki describes the same route for AUR packages, under [Debugging/Getting traces](https://wiki.archlinux.org/title/Debugging/Getting_traces).
+A program that panics logs a message that names the source file, line and column, which is usually enough to find the fault. The package carries no debug symbols, and there is nothing for you to rebuild. If a program was killed without such a message, `coredumpctl list` followed by the program's name (`opendeepcoold`, for the service) shows when it died and by which signal: add that line.
+
+Don't attach a core dump, which is a copy of the program's memory, or the output of `coredumpctl info`, which prints your account name, host name and machine ID.
 
 ## Development
 

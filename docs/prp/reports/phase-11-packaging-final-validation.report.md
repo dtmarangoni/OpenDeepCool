@@ -122,7 +122,8 @@ No target exists (the owner set none). The 3000-frame timing run's mean interval
 - **At every upgrade the journal shows "Failed with result 'exit-code'"** for the sound helper at warning level: it ends with a failure by design (owner, 2026-11-10) so that `Restart=on-failure` starts the new program.
 - **While a test run holds the cooler, the app shows "cooler not connected"** (the service's state is `released`). A normal user can't cause it, so it needs no design change; it cleared when the run ended.
 - **`/usr/local/share/applications/mimeinfo.cache`** was left from the dev copy's teardown: a system hook wrote it into a folder the dev setup had created. The owner had it removed on 2026-11-17, with its empty folder, in one `pkexec` step; nothing under `/usr/local` is left from the dev copy. The owner asked that this never need a manual step again, so `odc-dev teardown` now removes the cache when it is all that is left in the folder it created.
-- **Unverified:** the README's recipe for a crash report with a backtrace (`!strip` and debug information through `makepkg`) was not run end to end; NVIDIA hardware has never run it, NVML in the sandbox included; S25's real path (switching between two GPUs) has never run on a PC with two.
+- **The README's crash report no longer asks users to rebuild with debug information** (owner, 2026-11-17: debugging is the developer's job): it asks for the version, the journal's lines and, for a program killed without a panic message, the `coredumpctl list` line, and says not to attach a core dump or `coredumpctl info` (account name, host name and machine ID).
+- **Unverified:** NVIDIA hardware has never run it, NVML in the sandbox included; S25's real path (switching between two GPUs) has never run on a PC with two.
 - **The owner's review of the settings app** is next, after this phase and before Phase 12's plan (PRD, Phase 12 scope).
 
 ## Validation
