@@ -115,6 +115,14 @@ No target exists (the owner set none). The 3000-frame timing run's mean interval
 - The real upgrade ran after a reboot, not only a new login; the settings survived the reboot too.
 - `odc-pkg-test --export` was added so the packages installed on the owner's PC are the ones the test validated.
 - The check fixes now name the package's way (`--dev-interface`, `odc-dev setup --test-access`), and the service check gained the installed policy's access check.
+- **Added after the implementation, at the owner's request (2026-11-17):**
+  - **The target is Arch Linux and the Arch-based distributions that use systemd**, not Omarchy (AGENTS.md rule 14). The whole solution was reviewed against it: [arch-portability.review.md](../solution-reviews/arch-portability.review.md), nine findings. The product code has no desktop-specific call and CI runs in Arch's image; the wording was the flaw, and it is fixed. The README gained "What it needs": systemd is necessary, PipeWire for Music (`pipewire-audio` stays a dependency), a polkit agent for the Start at boot switch, and unprivileged user namespaces for the sound helper.
+  - **The sound helper without unprivileged user namespaces, reproduced** with one approved `pkexec` step (the setting off for 9 s, then back): `status=217/USER`, "Failed to set up user namespacing for unprivileged user"; a system unit with the display service's sandbox options still started, so the display service isn't affected. Arch's `linux-hardened` turns them off by default; the README says what to do.
+  - **The Rust floor is 1.92**, down from 1.99: the highest `rust-version` a dependency declares, and with 1.92.0 the shipped crates build and the package's 636 `check()` tests pass.
+  - **`opendeepcool --report`** (Task 11, `docs/spec/report.md`): a bug report the user reads and posts, with the home folder, host name, machine ID, boot ID and login name taken out; 13 unit tests with a fake machine and 2 with the real program, mutation-checked; a real run on the development PC held none of its private values.
+  - **The tests that were added after the run** changed: the CPU load of the sensors check is one busy thread for each 16 logical CPUs that stops itself at 50 °C (the owner: never towards 60 °C; the peak was at most 49 °C in an independent sampler), and the sensor thread's ceiling is 100 ms a second, 10 % of a core, which is only the line at which that test fails: the service itself uses about 0.13–0.18 % of a core for it.
+  - **`odc-dev teardown` removes the desktop-database cache** that the system's hook leaves in the launchers' folder.
+- **Decided for the owner's UI review** (2026-11-17): the default theme follows the system's dark or light preference and the app gets an option to change between them; the Start at boot switch's note, when no polkit agent can open a dialog, should say what to do.
 
 ## Findings worth carrying into the next phase
 
@@ -132,7 +140,7 @@ No target exists (the owner set none). The 3000-frame timing run's mean interval
 |---|---|
 | `cargo build --workspace`, `cargo test --workspace` (the guard, at each commit), `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check` | Pass; 688 tests passed, 0 failed, 6 ignored at the dev-interface commit |
 | `cargo run -p odc-e2e -- --dev-interface --require …` | 229 of 229 passed |
-| `cargo run -p odc-e2e -- --only package --require container` | 32 of 32 passed; again after the last packaging and README change (`8f8cf5d`), 32 of 32 |
+| `cargo run -p odc-e2e -- --only package --require container` | 32 of 32 passed; again after the last packaging and README change (`8f8cf5d`), and after the bug report and the Rust floor (`51f7b51`), 32 of 32 |
 | `cargo run -p odc-e2e -- --only sensors --require …`, with the checks added after the run (CPU temperature under load, the sensor thread's cost) | Passed in 5 runs of the light load the owner asked for (2026-11-17: never towards 60 °C): 32–33 → 43–47 °C under the load, an independent 100 ms sampler saw at most 49 °C, 0 °C from `sensors` each time, CPU Usage 5.4 % against `top`'s 5.3–5.5 %; the sensor thread's work 1.3–1.5 ms of CPU a second |
 | `cargo run -p odc-e2e -- --dev-interface --only baseline --require dev-service` | Passed (table above) |
 | `namcap`, `shellcheck`, `systemd-analyze security` | 0 errors; shellcheck clean; scores above |
