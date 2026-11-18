@@ -13,6 +13,7 @@ What DeepCool's DeepCreative app does with the LP360's 14×14 display, written s
 | [frames/](frames/) | The expected frame of every test-matrix case, for the Rust tests | Phases 5–11 |
 | [settings.md](settings.md) | Settings that change what the cooler shows | Phases 7, 11 |
 | [report.md](report.md) | The bug report `opendeepcool --report` prints: its sections, what it scrubs, what it never collects | Phase 11 |
+| [fans-and-pump.md](fans-and-pump.md) | The cooler's fans and pump: what was learned and built, removed on 2026-11-18 and kept for a later version | None (not built) |
 | [dbus.md](dbus.md) | The display service's D-Bus interface: names, who may call, members, state and errors | Phases 7–11 |
 | [parity-checklist.md](parity-checklist.md) | Every item above, checked by the owner on the cooler | Every phase; Phase 11 |
 
