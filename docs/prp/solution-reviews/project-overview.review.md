@@ -363,9 +363,9 @@ What [Phase 11a](../plans/phase-11a-settings-app-ui-review.plan.md) changes in t
 
 - **The root surface shrinks.** The sensor-detection one-shot, its two units, its root-only record and the package's undo of it leave (Task 5). It was the only OpenDeepCool part that ran as root at every boot, and one of the two root programs OV-01 named. The root programs that remain are the package's scripts, the Start at boot switch's program and the development PC's parity step.
 - **Fans and pump leave the contract** (Task 4): two methods and seven state keys. The service's saved settings lose two keys, which are dropped at load.
-- **Two additions on the frame watchers' path** (Task 13): the `Readings` state key and the `Levels` signal, sent only to a caller that watches frames and passes the one-second check (P10-01's rule). No new method, no new privilege.
-- **One new file on the user's side** (Task 10): the app's appearance file in the user's configuration folder, written only after the user changes the theme. It is not the service's, and pacman can't remove it (P11A-08).
-- **Entry points** (the table above) change in the task that changes them: the two setters leave "The service's D-Bus methods" (Task 4); "The detection record" row goes (Task 5); the appearance file and the new test flags join "The settings app" row (Task 10); `Readings` and `Levels` join the watchers (Task 13).
+- **Two additions on the frame watchers' path** (Task 14): the `Readings` state key and the `Levels` signal, sent only to a caller that watches frames and passes the one-second check (P10-01's rule). No new method, no new privilege.
+- **Two new settings, and no new file** (Task 10): the theme choice, "use system theme" and "dark theme", is kept by the service in its settings file for the whole PC, with two setters under `change-settings` (owner, 2026-11-18). The app writes nothing, and uninstalling removes the choice with the rest of the state.
+- **Entry points** (the table above) change in the task that changes them: the two setters leave "The service's D-Bus methods" (Task 4); "The detection record" row goes (Task 5); the theme setters join the same row (Task 10), and a test flag, if one is needed for the system's preference, joins "The settings app" row (Task 11); `Readings` and `Levels` join the watchers (Task 13).
 
 ## Sources
 

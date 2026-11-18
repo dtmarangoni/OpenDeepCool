@@ -8,7 +8,7 @@
 
 > **Numbering.** The PRD (Phase 12 scope; Decisions Log, "When the owner reviews the settings app") put the owner's review of the settings app after Phase 11 and before Phase 12. This phase is that review's work, written on 2026-11-18 after the owner's review. It is 11a so that Releases stays Phase 12: renumbering would change about sixty references in the completed phases' plans, reports and reviews, which stay as written.
 >
-> **Evidence read** on 2026-11-18 at `main` = `1a6a4e9` (Phase 11 complete). The owner's decisions D1–D4 below were given the same day, in answer to four questions about the owner's draft review. The draft itself is not part of the repository.
+> **Evidence read** on 2026-11-18 at `main` = `1a6a4e9` (Phase 11 complete). The owner's decisions D1–D4 below were given the same day, in answer to four questions about the owner's draft review, and D5–D8 later the same day, in answer to the four questions of [the solution review](../solution-reviews/phase-11a-settings-app-ui-review.review.md). The draft itself is not part of the repository.
 
 ## Outcome
 
@@ -37,28 +37,32 @@
 - **Sound is captured as now:** only while a Music mode is shown. The live tiles add no capture.
 - **Colours come from the theme** or from the default theme, never hard-coded in a widget, and the app never sets window opacity or blur.
 - **Nothing assumes Omarchy or a window manager** except the Omarchy theme the app follows when it finds one (rule 14).
-- **Uninstalling leaves the system as it was** (rule 7). The only thing the new app writes outside the service's own folders is one small per-user file, listed in the footprint, and only after the user changes the theme (Task 10).
+- **Uninstalling leaves the system as it was** (rule 7). The app writes no file of its own: the theme choice is the service's setting, saved with the others in its state directory, which the package's removal already deletes (Task 10).
 - **The service's access rules don't widen:** the new data goes only to a caller that watches frames and passes the same one-second check, and a client that doesn't know it ignores it.
 
-**Success signal:** The owner reviews the new build (Task 17) and signs the phase off. Behind that, every acceptance criterion below passes unattended: the app's AT-SPI run on every scenario, `--only display` on every mode, `--only service`, `--only package`, and the full parity run on the installed package.
+**Success signal:** The owner reviews the new build (Task 18) and signs the phase off. Behind that, every acceptance criterion below passes unattended: the app's AT-SPI run on every scenario, `--only display` on every mode, `--only service`, `--only package`, and the full parity run on the installed package.
 
 **Approach:**
 - **Remove first** (the owner's order): keep the fans-and-pump facts in one spec file, then take the feature out of the app, the service with its contract and the sensors, the package (the sensor detection exists only for the fan chip), and the documents.
 - **Rebuild the app's structure** (header, pages, window size, theme card), design first (the `ui-ux-designer` agent), then code.
-- **Centre two cooler pictures** with one rule change in `odc-render` and in the oracle, and a Dancer redrawn one row up.
+- **Centre two cooler pictures** with one rule change in `odc-render` and in the oracle, and a Dancer moved up one row, with its squat redrawn.
 - **Make the tiles live by sending the app two more things and drawing every tile with the code the service already uses:** the readings, as a state key, and the sound's 14 column levels, as a signal, both only to frame watchers. `odc-render` stays the only drawing code, in the service and in the app (`crates/odc-render/src/lib.rs:1-5`).
 - **Close with the owner's own steps:** a whole-design review by the designer, a review of all the app's code, a new build, and the owner's review.
 
 ### The owner's decisions of 2026-11-18
 
-Given in answer to four questions about the owner's draft review; each is in the PRD's Decisions Log and in a "decided, not yet built" note in the spec.
+D1–D4 answer four questions about the owner's draft review, D5–D8 the solution review's four. Each is in the PRD's Decisions Log or the Phase 11a details, and in a "decided, not yet built" note in the spec where the spec is affected.
 
 | # | Decision | Choice |
 |---|---|---|
 | D1 | The completed phases' plans, reports and solution reviews that mention fans and pump | **Keep history, strip the rest.** Fans and pump go from the PRD body, `AGENTS.md`, the README, the spec, the design, the code and the packaging. Their facts move to `docs/spec/fans-and-pump.md`. The completed phases' own records stay as written, with one note in the PRD |
 | D2 | Two-value modes (4, 5, 6, 9, 12) on the cooler | **Centred as one block:** the wider value by the one-value rule (the extra spare column on the left), the shorter value's last digit under the wider one's. One-value modes were already centred in both directions |
-| D3 | The Dancer's rows | **Centre the standing figure:** rows 2–13, one spare row above and below; the jump rises one row, the squat sinks one row; poses 4 and 10 are redrawn; sideways it is already centred (head on columns 7–9) |
+| D3 | The Dancer's rows | **Centre the standing figure:** rows 2–13, one spare row above and below; the jump rises one row, the squat sinks one row; sideways it is already centred (head on columns 7–9). Checked against `POSES` on 2026-11-18: eight poses just move up one row, the squat (4) is redrawn, and the jump (10) already sits one row above the new standing figure, so it stays as drawn |
 | D4 | The Music and Dancer tiles when the tiles go live | **Real sound only if already captured:** they show the live spectrum while the cooler is in a Music mode, and a still sample otherwise. When sound is captured doesn't change |
+| D5 | The tiles' motion | **Real time, no pause control, and only while the window is on screen:** a minimised window, or one on another workspace, costs nothing. This knowingly leaves WCAG 2.2 SC 2.2.2 (Level A) to the owner's decision: there is no mechanism to pause the tiles (review P11A-06) |
+| D6 | Where the theme choice lives, and OpenDeepCool's own theme | **The service keeps the choice** for the whole PC, with no manual interaction. **The designer creates OpenDeepCool's own theme**, dark and light, following the UI/UX standards and Anthropic's Frontend Design guidelines |
+| D7 | System steps on the development PC | **Approved to ask:** remove the old package before Task 4, `odc-dev setup` after each service change, install the new package at Task 18. Each still asks for the password when it comes |
+| D8 | The Dancer's pictures | **Shown to the owner on 2026-11-18**, drawn on rows 2–13 (the squat redrawn); the owner's approval comes before Task 13's code |
 
 ## Recommendation
 
@@ -75,7 +79,7 @@ Given in answer to four questions about the owner's draft review; each is in the
 
 **The two centring changes are one rule each.**
 - The one place that decides a picture's home column is `crates/odc-render/src/picture.rs:102-113`, mirrored by the oracle at `tools/oracle/src/rules.rs:203-211`. Today one value is centred and two values end at column 14. The owner's decision is that both are centred, and the spare column of an odd split goes on the left.
-- The Dancer's poses are typed from `docs/spec/music.md`, which the oracle also parses (`tools/oracle/src/dancer.rs:12,34-45`), so a redrawn pose changes the spec's picture, `crates/odc-render/src/dancer.rs:11` and the frames together.
+- The Dancer's poses are typed from `docs/spec/music.md`, which the oracle also parses (`tools/oracle/src/dancer.rs:12,34-45`), so a changed pose changes the spec's picture, `crates/odc-render/src/dancer.rs:11` and the frames together.
 
 ### Evidence
 
@@ -91,7 +95,7 @@ Given in answer to four questions about the owner's draft review; each is in the
 ### Alternatives considered
 
 - **Service-drawn tiles (23 frames a tick):** loses on state and bus cost (above).
-- **A theme choice held by the service** (a PC-wide setting, with polkit and a contract change): keeps uninstall simple, but one user's theme would change another's session, and it grows the contract for a visual preference. The recommendation is a per-user file; the footprint consequence is a decision in Risks.
+- **A per-user theme file:** rejected by the owner (2026-11-18, "service ... no manual interaction"): pacman can't remove a file in a home folder, so uninstall would need a manual step, and the service already keeps every other setting.
 - **Renumbering Releases to Phase 13:** about sixty edits to completed phases' records. Not worth it.
 - **Migration code in the package for the detection's leftovers:** the only package that ever ran the detection is the development PC's; `pacman -R` of that package already undoes it. Code that runs for one installation is not worth shipping.
 
@@ -131,8 +135,8 @@ The service stays the only reader of sensors and sound, and the only authority o
 |---|---|
 | `AGENTS.md` (rules 1–5, 7, 8, 10, 13, 14; Commands) | The rules every task obeys: one implementation, one commit; tests with every step; refusal tests at every entry point; no machine data; Rust everywhere; Arch, not Omarchy |
 | `docs/design/settings-app.md` | The current design the designer changes: Window, Preview column, Display page, Configuration page, Banners, Refresh, Start at boot, States, Theme, Keyboard, Accessible names, Coverage check |
-| `docs/spec/display.md` (Static layout, "OpenDeepCool: alignment"; Scrolling layout), `docs/spec/music.md` (Dancer) | The rules Tasks 11 and 12 change |
-| `docs/spec/dbus.md` (Methods, State, Watchers) and `docs/prp/solution-reviews/project-overview.review.md` ("Entry points after the cross-check") | The contract Task 13 adds to, and the refusal tests it needs |
+| `docs/spec/display.md` (Static layout, "OpenDeepCool: alignment"; Scrolling layout), `docs/spec/music.md` (Dancer) | The rules Tasks 12 and 13 change |
+| `docs/spec/dbus.md` (Methods, State, Watchers) and `docs/prp/solution-reviews/project-overview.review.md` ("Entry points after the cross-check") | The contract Task 14 adds to, and the refusal tests it needs |
 | `docs/prp/solution-reviews/phase-10-settings-app.review.md` (P10-01) | Why `Frame` goes to each watcher alone, after a one-second check: the new signal follows it |
 | `crates/odc-app/src/ui/window.rs:35-36,197-262,331-460,520-530,739-768` | The sizes, the header, the page stack and actions, and the rules for when the switcher and Refresh show |
 | `crates/odc-app/src/model.rs` (fans: 159-203, 272-335, 369-414, 748-800; caption: 505) | The pure view model, which most of Task 3 deletes from |
@@ -145,7 +149,7 @@ The service stays the only reader of sensors and sound, and the only authority o
 
 - **Watcher signals addressed to one caller:** `tell_frame_watchers` and `signal_frame` (`crates/odc-service/src/dbus.rs:1452-1482`), with the watchers' cap and check in `crates/odc-service/src/watchers.rs`. `Readings` and `Levels` use them; there is no new method and no new cap.
 - **Retiring a saved key:** none exists yet. The flatten table at `settings.rs:141-143` is where a retired key lands, so the loader removes the two keys from it, and a test loads a file that still has them.
-- **A per-user file:** none exists yet. Model it on the service's `SettingsStore` (`settings.rs`, MAX_FILE 64 KiB, an invalid file moved aside, atomic write), without the service's directory rules.
+- **A new saved setting:** the Music settings were added as optional fields with serde defaults, so a file written before them loads with Winamp's defaults (`crates/odc-service/src/settings.rs:134-140`). The two theme keys follow that precedent.
 - **Headless display tests:** `odc_testkit::weston` (`crates/odc-testkit/src/weston.rs`), the fake service (`odc-testkit`) and the AT-SPI driver (`crates/odc-ui-e2e`), whose scenarios are listed at `scenarios.rs:485-515`.
 - **Generated mockups:** `cargo run -p odc-mockups -- docs/design/mockups` from the states in `tools/mockups/src/lib.rs` (Rust) and the sources in `docs/design/mockups-src/` (`app.js`, `app.css`); `cargo test -p odc-mockups` fails when a committed mockup differs.
 
@@ -175,10 +179,10 @@ The service stays the only reader of sensors and sound, and the only authority o
 | C5 | Refresh is a borderless icon at the top right of the display page | 7 |
 | C6 | The temperature unit moves to Configuration, Display section, after Rotation | 7 |
 | C7 | The switches are a little smaller | 8 |
-| C8 | Every mode tile shows live values, all animating together (D4: Music tiles live only with sound already captured) | 13, 14 |
-| C9 | Modes 1–12 centred on the cooler, the Music modes unchanged; the odd spare column goes on the left (D2) | 11 |
-| C10 | The Dancer centred horizontally and vertically (D3) | 12 |
-| A1 | A Theme card, first in Configuration: "use system theme", and a dark / light toggle | 10 |
+| C8 | Every mode tile shows live values, all animating together (D4: Music tiles live only with sound already captured; D5) | 14, 15 |
+| C9 | Modes 1–12 centred on the cooler, the Music modes unchanged; the odd spare column goes on the left (D2) | 12 |
+| C10 | The Dancer centred horizontally and vertically (D3) | 13 |
+| A1 | A Theme card, first in Configuration: "use system theme", and a dark / light toggle; OpenDeepCool's own theme designed for it (D6) | 10, 11 |
 
 ### Not building
 
@@ -192,9 +196,9 @@ The service stays the only reader of sensors and sound, and the only authority o
 
 | Concern | Decision and owned work |
 |---|---|
-| Compatibility / migration | No release exists yet, so the D-Bus contract (frozen at `v1.0.0`) and the settings file can still change. A settings file that still holds the two fan keys loads, and its keys are dropped at the first save (Task 4, with a test). The only package that ever ran the sensor detection is the development PC's: the owner removes it with `pacman -R` before this phase's service tests, and that removal undoes the detection from its record (rule 7; the package test proves it), so the new package carries no migration code (Tasks 4 and 5) |
-| Rollout / reversibility | Everything lands on a phase branch, one commit per task, and moves to `main` at sign-off. Each commit builds and passes its tests, so a task can be reverted alone. The development PC moves from the package to the dev copy for the service tests and back to the new package at the end (Task 17); each step is a system change the owner approves first |
-| Discoverability | The README's screenshots and text name no fans or pump, and its "Installed on your system" and "What the app writes" lists change (Tasks 5, 6, 10) |
+| Compatibility / migration | No release exists yet, so the D-Bus contract (frozen at `v1.0.0`) and the settings file can still change. A settings file that still holds the two fan keys loads, and its keys are dropped at the first save (Task 4, with a test). The only package that ever ran the sensor detection is the development PC's: the owner removes it with `pacman -R` before this phase's service tests, and that removal undoes the detection from its record (rule 7; the package test proves it), so the new package carries no migration code (Tasks 4 and 5). A settings file written before the two theme keys loads with their defaults (Task 10) |
+| Rollout / reversibility | Everything lands on a phase branch, one commit per task, and moves to `main` at sign-off. Each commit builds and passes its tests, so a task can be reverted alone. The development PC moves from the package to the dev copy for the service tests and back to the new package at the end (Task 18); each step is a system change the owner approves first |
+| Discoverability | The README's screenshots and text name no fans or pump, and its "Installed on your system" list changes (Tasks 5, 6) |
 | Documentation / communication | The design, the mockups, the spec, the PRD, `AGENTS.md` (crate list, layout, commands) and the designer's brief change in the task that changes their subject. Task 6 sweeps what is left |
 | Observability | `opendeepcool --report` (spec `docs/spec/report.md`) loses its fan lines in Task 3 |
 
@@ -202,7 +206,7 @@ The service stays the only reader of sensors and sound, and the only authority o
 
 Each task is one implementation and **one commit** (rule 4), after its own tests pass, with its documents changed in the same commit. A UI task goes in this order: the `ui-ux-designer` agent first updates `docs/design/settings-app.md` and the sources in `docs/design/mockups-src/` and reads the current app code and design again; then the implementer encodes the mockup states in `tools/mockups/src/lib.rs`, regenerates the mockups, and writes the code and tests. The designer has no shell and writes no Rust, so it never builds, tests or commits. Each task ends by ticking its row in the table at the end of the phase's report.
 
-Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); see Delivery Considerations, and ask the owner before each system step.
+Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 15); see Delivery Considerations, and ask the owner before each system step.
 
 ### 1. Settle the open points before they harden
 
@@ -217,7 +221,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
   3. **A floating window:** whether a window with a fixed size (`resizable` false), or with another hint GTK can give, is floated by Hyprland, read once from the owner's session with `hyprctl clients -j` and recorded as `system:` evidence in the report; never a test, because rule 14 forbids tests that assume Omarchy. If nothing GTK can say floats it, the design says so, and the owner decides (Risks).
   4. **A header with our own close icon:** `GtkHeaderBar::show-title-buttons` false with our own gear, back and close buttons, so desktops that draw window buttons don't show two.
   5. **Smaller switches:** which CSS on `switch` and `slider` shrinks a `GtkSwitch` under the app's stylesheet.
-  6. **The cost of 23 live tiles, and what stops them:** a program drawing 23 `GtkDrawingArea`s of 14 × 14 dots at 10 Hz under weston, measured with `/proc/<pid>/stat`, once driven by a `glib` timeout and once by a `Widget::add_tick_callback` counted to 100 ms, with the window shown, hidden and unmapped. The frame clock is expected to stop for a surface the compositor doesn't draw, such as a window on another workspace, which a timeout doesn't (**unverified**). Also whether `gtk-enable-animations` can be read and followed live.
+  6. **The cost of 23 live tiles, and what stops them:** a program drawing 23 `GtkDrawingArea`s of 14 × 14 dots at 10 Hz under weston, measured with `/proc/<pid>/stat`, once driven by a `glib` timeout and once by a `Widget::add_tick_callback` counted to 100 ms, with the window shown, hidden and unmapped. The tiles must move only while the window is on screen (owner, 2026-11-18): a window that is minimised or on another workspace must cost nothing. The frame clock is expected to stop for a surface the compositor doesn't draw, which a timeout doesn't (**unverified**); if neither stops on the owner's compositor, the result goes to the owner before Task 15.
   7. **The remaining sources' drivers without lm-sensors:** whether the kernel loads, by itself, the drivers the CPU temperature, CPU power and memory rules read (`coretemp`, `k10temp`, the powercap RAPL driver), from the kernel's module alias tables and the Arch wiki, since the detection also loaded such drivers on a PC where they weren't. Where one doesn't autoload, the modes that need it are disabled with their reason, as the spec already says, and the README names the driver to load; the product loads none (**unverified**).
 - The first task also compares this plan with what Phases 5–11 built: the names, files and commands above were read from the tree on 2026-11-18.
 
@@ -380,31 +384,49 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `cargo test -p odc-app --features weston-tests`, `cargo run -p odc-e2e -- --only app --require weston` — pass.
 - The owner's session check from Task 1 is repeated on the built window and recorded in the report.
 
-### 10. A Theme card: use the system theme, or choose dark or light
+### 10. The service keeps the theme choice (D6)
 
 **Files and integration points**
-- `docs/design/settings-app.md` (Configuration page, Theme, Accessible names, States), `docs/spec/settings.md` (the "No app-only settings in v1" line and the Theme bullets), mockups and tools — UPDATE (designer, then implementer).
-- `crates/odc-app/src/appearance.rs` — CREATE — the pure part: `Appearance { use_system: bool, dark: bool }`, its file `appearance.toml` in `opendeepcool/` under `$XDG_CONFIG_HOME`, or under `$HOME/.config` when that variable is unset, empty or relative (the XDG Base Directory Specification, read 2026-11-18: the default is `$HOME/.config`, a relative path is invalid and skipped, and a folder the app creates gets mode 0700 while an existing one's mode is left alone). Parsing refuses what isn't two booleans, a file over 64 KiB or an unknown key (it logs and takes the defaults); the file is opened without following a symbolic link; the write is atomic (temporary file, `rename`), mode 0600, on the first change only.
-- `crates/odc-app/src/theme.rs:174-203`, `ui/theme.rs:37-151`, `ui/config_page.rs`, `main.rs:35-60` — UPDATE — the resolved theme is one of: the Omarchy theme as today; our default theme dark or light, from the system's preference; our default theme dark or light, chosen.
-- `crates/odc-testkit` — UPDATE — a fake `org.freedesktop.portal.Desktop` on the tests' private session bus, if Task 1 proves GTK reads it in headless weston; otherwise a test flag `--system-scheme` (the flag list in `flags.rs:9-40` and the entry-points table grow by it). Either way, a `--config-dir` test flag points the file somewhere a test owns.
+- `docs/spec/settings.md` (the settings table, OpenDeepCool's defaults, and the "UI review" paragraph), `docs/spec/dbus.md` (two setters, two state keys) and the entry-points table in `docs/prp/solution-reviews/project-overview.review.md` — UPDATE first. The members' exact names and types are fixed in `dbus.md` before the code.
+- `crates/odc-service/src/settings.rs:134-160,170-200` — UPDATE — two booleans, each with a serde default: use the system theme on, dark theme on. A wrong type already makes the file invalid, and it is moved aside with the defaults written; `VERSION` stays 1.
+- `crates/odc-service/src/dbus.rs`, `crates/odc-ipc/src/{lib,state}.rs`, `crates/odc-testkit/src/fake_service.rs` — UPDATE — two setters under `change-settings`, two state keys and the proxy's methods.
+- `crates/odc-service/tests/{dbus,settings}.rs`, `crates/odc-ipc/tests/contract.rs`, `crates/odc-testkit/tests/fake_service.rs`, `crates/odc-e2e/src/` (the service checks) — UPDATE.
 
 **Implementation**
-- **Use system theme** on (the default when a system theme is found): an Omarchy theme if one is found, else the system's dark/light preference applied to our default palette (Task 1's interface). It disables the dark/light toggle, which shows what the system gives. The live Omarchy monitors (`ui/theme.rs`) and the property's notify keep it live.
-- **No system theme found** (no Omarchy theme and an unsupported preference): the toggle is disabled and off, a warning says OpenDeepCool can't find the system's theme and is using its own, and the dark/light toggle is enabled.
-- **Use system theme** off: the dark/light toggle is enabled and picks our default theme dark or light, whatever Omarchy says.
-- Nothing is written until the user changes one of the two. The file is per user; it is not the service's setting (the app still changes no service setting itself).
-- The footprint gains one per-user file (Risks): the README's "Installed on your system" and the PRD's System Footprint name it, and the uninstall text says to delete it by hand, since no pacman step reaches into a home folder.
+- The choice is the whole PC's and lives in `settings.toml` with every other setting (owner, 2026-11-18: "service ... no manual interaction"). Uninstalling already removes the service's state directory, so the footprint grows by nothing and the app writes no file.
+- A setter that sets what is already set succeeds and changes nothing (`dbus.md`); neither touches the cooler or restarts the picture.
+- The service stores two booleans and never interprets a theme. What "the system theme" is belongs to the app, in each session (Task 11).
 
 **Tests**
-- Pure: every combination of (Omarchy found, preference, use_system, dark) gives the expected theme; a malformed, oversized, unknown-key, wrong-type or symbolic-link file gives the defaults and is never read as a theme; a relative `XDG_CONFIG_HOME` is ignored; the write is atomic. The contrast checks of the default palettes (`theme.rs` tests) still pass for both.
-- Widgets: the card's states (system found; not found with the warning; toggle off), the dark/light toggle's sensitivity, a change saved, and the theme changing live.
-- AT-SPI: the `theme` scenario drives the card against a private config folder and the fake portal, and a live Omarchy theme switch still reloads.
-- Entry points: the appearance file's refusals are listed in the entry-points table ("The settings app").
+- A file written before the keys loads with both on; each setter saves, signals `StateChanged` and survives a restart of the service; the same value again changes nothing; a caller polkit refuses gets `NotAuthorized`; a file with a wrong type for either key is moved aside and the defaults used. The contract test shows the state keys equal the spec's table.
 
 **Validation**
-- `cargo test -p odc-app`, `… --features weston-tests`, `cargo run -p odc-e2e -- --only app --require weston` — pass.
+- `cargo test --workspace`, `cargo clippy --workspace --all-targets -- -D warnings`, `cargo fmt --all --check` — pass.
+- `cargo run -p odc-e2e -- --only service --require dev-service` — passes, after `odc-dev setup` (ask first).
 
-### 11. Pairs of values are centred as one block on the cooler (D2)
+### 11. A Theme card, and OpenDeepCool's own theme (D6)
+
+**Files and integration points**
+- `docs/design/settings-app.md` (Configuration page, Theme, Default theme and its contrast table, Accessible names, States), `docs/spec/settings.md` (the Theme bullets and "No app-only settings in v1", which stays true: both settings are the service's), `docs/design/mockups-src/*`, `tools/mockups/src/lib.rs` — UPDATE (designer, then implementer).
+- `crates/odc-app/src/theme.rs:91-115,174-203` (the `DARK` and `LIGHT` palettes, and the theme's resolution), `ui/theme.rs:37-151`, `ui/config_page.rs`, `client.rs`, `model.rs`, `main.rs:35-60` — UPDATE — the resolved theme is one of: the Omarchy theme as today; OpenDeepCool's theme, dark or light, from the system's preference; OpenDeepCool's theme, dark or light, as chosen.
+- `crates/odc-testkit` — UPDATE — a fake `org.freedesktop.portal.Desktop` on the tests' private session bus, if Task 1 proves GTK reads it in headless weston; otherwise a test flag `--system-scheme` (the flag list in `flags.rs:9-40` and the entry-points table grow by it).
+
+**Implementation**
+- **OpenDeepCool's own theme** (owner, 2026-11-18: "It's us that defines the default OpenDeepCool theme. You should create it using UI/UX and Anthropic Frontend Guidelines"). The `ui-ux-designer` agent designs it, dark and light, as one deliberate whole: a core palette of named hex values, a type scale, hierarchy and spacing, restraint, and the quality floor (contrast, visible focus), following the UI/UX standards and Anthropic's Frontend Design guidelines, and avoiding the generic palettes those guidelines name. It replaces the Phase 10 default (a cool grey with a teal accent). The design's contrast table is recomputed for the new values, and `cargo test -p odc-mockups` and the theme tests check it. The Phase 10 design uses the system's font: the designer may propose a type scale on it, and a font that needs a new package dependency goes to the owner first (rule 7). No motion in the chrome.
+- **Use system theme** on (the default): an Omarchy theme if one is found, else the system's dark/light preference applied to OpenDeepCool's theme (Task 1's interface). It disables the dark/light toggle, which shows what the system gives. The live Omarchy monitors (`ui/theme.rs`) and the property's notify keep it live.
+- **No system theme found** (no Omarchy theme and an unsupported preference): the toggle is disabled and off, a warning says OpenDeepCool can't find the system's theme and is using its own, and the dark/light toggle is enabled.
+- **Use system theme** off: the dark/light toggle is enabled and picks OpenDeepCool's theme dark or light, whatever Omarchy says.
+- Each toggle sends `SetUseSystemTheme` or `SetDarkTheme` and shows the state the service confirms, like every setting. The app writes no file and changes no setting itself.
+
+**Tests**
+- Pure: every combination of (Omarchy found, preference, use system theme, dark theme) gives the expected theme. The contrast checks of both palettes (`theme.rs` tests) pass for the new values.
+- Widgets: the card's states (system found; not found with the warning; toggle off), the dark/light toggle's sensitivity, a change confirmed by the service, and the theme changing live.
+- AT-SPI: the `theme` scenario drives the card against the fake service and the fake portal, and a live Omarchy theme switch still reloads.
+
+**Validation**
+- `cargo test -p odc-app`, `… --features weston-tests`, `cargo test -p odc-mockups`, `cargo run -p odc-e2e -- --only app --require weston` — pass.
+
+### 12. Pairs of values are centred as one block on the cooler (D2)
 
 **Files and integration points**
 - `docs/spec/display.md` (Static layout, "OpenDeepCool: alignment", the sentence on `°C` moving one column, and Scrolling layout's home) — UPDATE — the rule becomes: one value or two, the picture is placed by its width, with the extra spare column of an odd split on the left; two values end at the same column, so a pair is centred as the wider value would be, and the shorter keeps its last digit under the wider one's.
@@ -426,14 +448,14 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `cargo test -p odc-render -p odc-oracle`, `cargo run -p odc-oracle -- docs/spec/frames` (no diff after the commit) — pass.
 - `cargo run -p odc-e2e -- --only display --modes 4-6,9,12 --require lp360`, `--only service --modes 4-6,9,12 --require dev-service` — pass: the real cooler shows the new frames.
 
-### 12. The Dancer stands on rows 2–13 (D3)
+### 13. The Dancer stands on rows 2–13 (D3)
 
 **Files and integration points**
 - `docs/spec/music.md` (Dancer: the figure's rows, the eleven pictures, the rise and sink) — UPDATE.
 - `crates/odc-render/src/dancer.rs:11-60` (`POSES`) and `Pose::STILL`, `tools/oracle/src/dancer.rs:12-45,283`, `docs/spec/frames/mode-023.txt` and its scenarios, `crates/odc-render/tests/dancer.rs`, `crates/odc-app/src/ui/tiles.rs` (the Dancer tile uses `Pose::STILL`) — UPDATE.
 
 **Implementation**
-- **Stop for the owner first.** The first commit-free step writes the proposed pictures into `music.md`: nine poses one row higher and the two redrawn ones, squat (4) sinking one row and jump (10) rising one row, with the legs' rows shown. The owner approves them as they approved the first Dancer (2026-10-25); no code before.
+- **Stop for the owner first.** The proposed pictures were shown to the owner on 2026-11-18 (D8): eight poses one row higher (rows 2–13), the squat (4) redrawn to sink one row (rows 3–13), and the jump (10) as drawn, since it already rises one row above the new standing figure. They go into `music.md` when the owner approves them, as the first Dancer's were approved (2026-10-25); no code before.
 - Then the same pictures go into `POSES`, and the oracle's assertion about the figure's rows (`oracle/src/dancer.rs:283`) says rows 2–13.
 
 **Tests**
@@ -443,7 +465,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `cargo test -p odc-render -p odc-oracle`, `cargo run -p odc-oracle -- docs/spec/frames` — pass.
 - `cargo run -p odc-e2e -- --only display --modes 23 --require lp360`, `--only service --modes 23 --require dev-service` — pass.
 
-### 13. The service sends the app the readings and the sound's levels
+### 14. The service sends the app the readings and the sound's levels
 
 **Files and integration points**
 - `docs/spec/dbus.md` (State: a `Readings` key, in the withheld key's place; Methods and signals: `Levels`; the watchers' text), and the entry-points table in `docs/prp/solution-reviews/project-overview.review.md` — UPDATE first.
@@ -466,7 +488,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `cargo test --workspace`, `cargo clippy …`, `cargo fmt --all --check` — pass.
 - `cargo run -p odc-e2e -- --only service --require dev-service` — passes, after `odc-dev setup`; it also checks that, for the shown mode, `odc_render::picture` over the service's `Readings` has the home frame the service wrote.
 
-### 14. The tiles go live
+### 15. The tiles go live
 
 **Files and integration points**
 - `docs/design/settings-app.md` (Display page: Tile content, Selection; Window: "No motion in the chrome"; Preview column), `docs/design/mockups-src/*`, `tools/mockups/src/lib.rs` — UPDATE (designer, then implementer): tiles show live values; the static mockups show one moment; a still sample stands for the Music tiles without sound; the design's "tiles redraw only when…" and "the preview is the only thing that moves" rules change to the new ones.
@@ -475,7 +497,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `crates/odc-ui-e2e/src/{scenarios,fake}.rs` — UPDATE — a `tiles_live` scenario and a `tile_cost` check.
 
 **Implementation**
-- One tick of 100 ms steps every tile's state machine together, so all tiles animate in step. It comes from the window's frame clock (`add_tick_callback`, counted to 100 ms) if Task 1 shows that clock stops for a window the compositor doesn't draw, so a window left on another workspace costs nothing; otherwise from a `glib` timeout stopped when the window is hidden or minimised, as `WatchFrames` does today. A tile queues a redraw only when its frame differs from the last. The tick also stops while `gtk-enable-animations` is off (read, never changed): the tiles then show their still frames and take a new reading once a second.
+- One tick of 100 ms steps every tile's state machine together, so all tiles move in real time and in step, with no pause control (D5). The tick runs only while the window is on screen (D5): it comes from the window's frame clock (`add_tick_callback`, counted to 100 ms) if Task 1 shows that clock stops for a window that is minimised or on another workspace; otherwise from a `glib` timeout that is stopped when the window is hidden or minimised, with whatever Task 1 found for another workspace. A tile queues a redraw only when its frame differs from the last.
 - Value tiles draw with the live `Readings` in the current unit. A reading the service has no value for shows dashes, as the cooler does (`display.md`, Unavailable values), with the tile's existing "Unavailable" and "Reading lost" flags.
 - **Music and Dancer tiles** (D4): while `AudioConnected` is true and a Music mode is shown, the shared `Spectrum` is updated with each `Levels` and the Dancer stepped by it; otherwise the tiles show the still sample, as today. The emoji tiles play their loops always. Nothing asks the service for sound.
 - The app's idle cost is measured in Task 1 and checked here: with the window shown and nothing changing, the tick is the only work.
@@ -490,13 +512,13 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 - `cargo test -p odc-app`, `… --features weston-tests`, `cargo test -p odc-mockups` — pass.
 - `cargo run -p odc-e2e -- --only app --require weston`, then `--require dev-service,weston` — pass.
 
-### 15. The designer reviews the whole design
+### 16. The designer reviews the whole design
 
 **Files and integration points**
 - `docs/design/settings-app.md`, `docs/design/mockups/`, `docs/design/mockups-src/` — UPDATE — whatever the review finds.
 
 **Implementation**
-- The `ui-ux-designer` agent reads the current design and the mockups as a whole and checks them against modern, minimal and clean: hierarchy, spacing, alignment, density, contrast, the empty and error states, keyboard and accessible names, and consistency between the Display page and the Configuration page. Anthropic's Frontend Design is used for its quality floor and its restraint only; its custom palette, chosen type and motion don't apply where the brief fixes the system font and theme and no motion in the chrome. The agent can't run the app, so the mockups and the design are its surface; the owner's review of the build (Task 17) is the visual check of the real window.
+- The `ui-ux-designer` agent reads the current design and the mockups as a whole and checks them against modern, minimal and clean: hierarchy, spacing, alignment, density, contrast, the empty and error states, keyboard and accessible names, and consistency between the Display page and the Configuration page. Anthropic's Frontend Design guidelines are the reference, with the UI/UX standards, for OpenDeepCool's own theme (Task 11) and for this review: hierarchy, one memorable element and restraint elsewhere, plain sentence-case copy, a visible quality floor. Where the brief fixes something (the system font, no motion in the chrome), the brief wins, as the guidelines themselves say a fixed direction does. The agent can't run the app, so the mockups and the design are its surface; the owner's review of the build (Task 18) is the visual check of the real window.
 - Each change the review finds is applied by the designer in the design and mockups, and by the implementer in the code, each its own commit if it changes code.
 
 **Tests**
@@ -505,7 +527,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 **Validation**
 - The designer's written verdict, with each finding and what was done, is in the report.
 
-### 16. Review all the app's code
+### 17. Review all the app's code
 
 **Files and integration points**
 - `crates/odc-app/`, `crates/odc-ui-e2e/`, `crates/odc-testkit/` (the fakes), `tools/mockups/`, `docs/design/`, `docs/spec/`, `README.md` — UPDATE — what the review finds.
@@ -520,7 +542,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 **Validation**
 - `cargo build --workspace && cargo test --workspace && cargo clippy --workspace --all-targets -- -D warnings && cargo fmt --all --check` — pass; the findings and their fixes are in the report.
 
-### 17. A new build, the owner's review, and the sign-off
+### 18. A new build, the owner's review, and the sign-off
 
 **Files and integration points**
 - `docs/prp/reports/phase-11a-settings-app-ui-review.report.md` — CREATE.
@@ -541,13 +563,13 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 ## Acceptance
 
 1. **AC1 — Only the display:** the grep in Task 6 finds nothing outside the allowed places; the service, the contract, the sensors, the package and the tests have no fan, pump or sensor-detection code; the PRD's Decisions Log has the 2026-11-18 row.
-2. **AC2 — The package:** it installs and uninstalls leaving the system exactly as it was, both ways, with no detection program, units, dependency or record; the footprint lists the per-user appearance file as the only thing the app writes outside the service's folders.
+2. **AC2 — The package:** it installs and uninstalls leaving the system exactly as it was, both ways, with no detection program, units, dependency or record; the footprint adds nothing, since the theme choice lives in the service's settings file.
 3. **AC3 — The app's structure:** title centred; gear and close icons without frames at the right; a back icon on the Configuration page; no Display tab; no "Shown on the cooler now" line; Refresh an icon at the top right of the display page; the unit after Rotation on the Configuration page; no second sentence in Start at boot's hint; labels beside their controls; smaller switches. Every scenario of the AT-SPI run passes.
 4. **AC4 — The window:** it opens at the size of its content, scrolls where the screen is smaller, and its floating behaviour is as Task 1 proved and the report records.
-5. **AC5 — The theme card:** first on the Configuration page; "use system theme" follows an Omarchy theme or the system's preference live and disables the dark/light toggle; with no system theme found it is disabled with a warning; the toggle off lets dark or light be chosen; the choice survives a restart; a malformed file gives the defaults.
+5. **AC5 — The theme card:** first on the Configuration page; "use system theme" follows an Omarchy theme or the system's preference live and disables the dark/light toggle; with no system theme found it is disabled with a warning; the toggle off lets dark or light be chosen; the choice is the service's setting, kept for the whole PC, so it survives a restart of the app and of the service, and the app writes no file.
 6. **AC6 — The cooler:** the frames of modes 4, 5, 6, 9 and 12 and of the Dancer follow the new rules on the real LP360 (one example each) and in every in-process case; every other mode's frames are byte for byte as before; the Music spectrum stays at the bottom.
-7. **AC7 — Live tiles:** every tile shows its mode with the live readings in the current unit and all move together; the Music and Dancer tiles follow the sound only while the cooler is in a Music mode, and are still samples otherwise; sound is captured only while a Music mode is shown; the tiles stop when the window is hidden; the app's cost stays under its ceiling.
-8. **AC8 — The contract:** `Readings` and `Levels` go only to frame watchers that pass the one-second check; each refusal in Task 13 is tested.
+7. **AC7 — Live tiles:** every tile shows its mode with the live readings in the current unit and all move together; the Music and Dancer tiles follow the sound only while the cooler is in a Music mode, and are still samples otherwise; sound is captured only while a Music mode is shown; the tiles move in real time, with no pause control (owner, 2026-11-18), and only while the window is on screen, not minimised and not on another workspace; the app's cost stays under its ceiling.
+8. **AC8 — The contract:** `Readings` and `Levels` go only to frame watchers that pass the one-second check; each refusal in Task 14 is tested, and the two theme setters are refused for a caller polkit refuses, as every setting's are.
 9. **AC9 — The documents agree:** the design, the mockups, the spec, the PRD, `AGENTS.md`, the README and the designer's brief say what is built, with no fan or pump text and no "decided, not yet built" note left.
 10. **AC10 — The owner's review:** the owner reviews the new build and signs the phase off.
 
@@ -568,7 +590,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 | The package | `cargo run -p odc-e2e -- --only package --require container` | AC2 |
 | The full parity run | `cargo run -p odc-e2e -- --dev-interface --require <the PC's list, minus board-fans>` on the installed package | Every capability still passes after the phase |
 | Baseline | `cargo run -p odc-e2e -- --dev-interface --only baseline --require dev-service` | The service's cost is not worse than Phase 11's |
-| Leftovers | The grep of Task 6 and Task 16's sweep | AC1, AC9 |
+| Leftovers | The grep of Task 6 and Task 17's sweep | AC1, AC9 |
 | The owner's review | The owner runs the new build | AC10 |
 
 ## Risks and Decisions
@@ -577,13 +599,13 @@ Real runs that need the changed service use the dev copy (Tasks 4, 11 to 14); se
 |---|---|---|---|
 | **Who does what.** The draft makes the `ui-ux-designer` agent do every task | The designer owns the design, mockups and design reviews; the implementer owns code, tests and commits | The agent's definition says it writes no Rust and has no shell (`.claude/agents/ui-ux-designer.md`); AGENTS.md rule 4 needs builds and tests before each commit | Giving the agent a shell would change its definition and let a designer commit code |
 | **A floating window** can't be ordered from GTK | Try the window's own hints (Task 1), record what the owner's session does, ship no compositor rule | Rule 14; Hyprland's handling of a fixed-size window is **unverified** | If nothing floats it, the owner decides between a rule in their own config (a system change) and a tiled window of its content's size |
-| **Where the theme choice lives** | A small per-user file the app writes only after a change | The XDG norm; one user's choice must not change another's session; no service contract or polkit for a visual preference | Held by the service: simple uninstall, but a contract change, a polkit action and a shared choice. Per-user needs a stated exception to rule 7's "uninstall removes saved data": pacman can't reach a home folder (PRD: no step reaches into users' sessions), so the README says to delete it |
+| **Where the theme choice lives** (decided, owner, 2026-11-18) | The service keeps "use system theme" and "dark theme" in its settings file, with two setters under `change-settings`; the app writes no file | "No manual interaction": uninstall already removes the service's state; the Music settings are the precedent for a new key | A choice for the whole PC: one user's change shows in every session of that PC |
 | **Which interface reports the system's preference, and what "no preference" shows** (left to this review by `settings.md:110`) | Read `GtkSettings:gtk-interface-color-scheme`; `DEFAULT` and `UNSUPPORTED` show our dark default theme | The app already enables GTK 4.20; Task 1 confirms against docs.gtk.org and a program | The portal read directly: one more bus dependency in the app |
 | **Rule 8's ban on writing `pwm*`** | Keep one sentence as a safety rule | The ban protects hardware and costs nothing; the draft asks for "everything related to fans" gone | Removing it leaves no written rule against a fan write |
 | **One commit for five modes** (rule 4) | One commit for the centring rule | It is one implementation: one rule in two places, and five modes' frames follow; per-mode commits would each leave the other four inconsistent with the spec | Five commits, each with the rule applied to one mode: contrived, and the spec would be wrong in between |
 | **The detection's leftovers on the development PC** | The owner removes the old package (`pacman -R`), which undoes the detection from its record | The package test proves that undo; no release has the detection | Migration code in the new package: code for one installation |
-| **Redrawn Dancer poses** | Written into `music.md` and approved by the owner before any code (Task 12) | The first Dancer was approved on a preview page (2026-10-25) | Coding first risks redrawing the owner's art twice |
-| **The development PC's package** | Remove it for the dev-copy runs (Tasks 4–14) and install the new one at the end (Task 17), each step with the owner's OK | AGENTS.md: `odc-dev setup` refuses while the package is installed; `--dev-interface` drives the packaged service, which wouldn't have the new code | Running the new service tests needs a new package per task: ten minutes each |
+| **The Dancer's pictures** (shown to the owner, 2026-11-18; approval pending) | Eight poses one row up, the squat redrawn, the jump as drawn; written into `music.md` once approved, before any code (Task 13) | The first Dancer was approved the same way (2026-10-25); `POSES` read on 2026-11-18 | Coding first risks redrawing the owner's art twice |
+| **The development PC's package** | Remove it for the dev-copy runs (Tasks 4–15) and install the new one at the end (Task 18), each step with the owner's OK (approved to ask, 2026-11-18; each still asks for the password) | AGENTS.md: `odc-dev setup` refuses while the package is installed; `--dev-interface` drives the packaged service, which wouldn't have the new code | Running the new service tests needs a new package per task: ten minutes each |
 | **`docs/local/machine.md`'s `--require` list** names `board-fans` | The owner edits it by hand | It is local and not committed (rule 10) | `odc-e2e --require board-fans` would fail as an unknown capability |
 | **Phase numbering** | 11a | Sixty references to Phase 12 in history stay valid | Renumbering touches every completed phase's record |
 
