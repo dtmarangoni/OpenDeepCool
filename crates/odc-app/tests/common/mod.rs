@@ -23,7 +23,7 @@ use odc_app::theme::{Rgb, Tokens};
 use odc_app::ui::Request;
 use odc_app::ui::dots;
 use odc_app::ui::window::Window;
-use odc_ipc::{CoolerState, FallStop, FanInput, FanSpeed, Input, State, TemperatureUnit};
+use odc_ipc::{CoolerState, FallStop, State, TemperatureUnit};
 use odc_protocol::Frame;
 use odc_testkit::weston::Weston;
 
@@ -169,11 +169,6 @@ pub fn close(window: Window) {
 
 /// A made-up state: Load · CPU, everything there.
 pub fn base() -> State {
-    let input = |n: u32| Input {
-        chip: "acme6000".to_owned(),
-        device: "devices/platform/acme6000.2592".to_owned(),
-        input: n,
-    };
     State {
         mode: Some(1),
         rotation: Some(0),
@@ -185,33 +180,12 @@ pub fn base() -> State {
         gpus: Some(Vec::new()),
         chosen_gpu: Some(String::new()),
         gpu_in_use: Some(String::new()),
-        fan_inputs: Some(vec![
-            FanInput {
-                chip: "acme6000".to_owned(),
-                device: "devices/platform/acme6000.2592".to_owned(),
-                input: 1,
-                label: String::new(),
-                rpm: FanSpeed::Rpm(1180),
-            },
-            FanInput {
-                chip: "acme6000".to_owned(),
-                device: "devices/platform/acme6000.2592".to_owned(),
-                input: 2,
-                label: String::new(),
-                rpm: FanSpeed::Rpm(3400),
-            },
-        ]),
-        cooler_fan_input: Some(Some(input(1))),
-        pump_input: Some(Some(input(2))),
-        cooler_fan_input_present: Some(true),
-        pump_input_present: Some(true),
-        cooler_fan_rpm: Some(FanSpeed::Rpm(1180)),
-        pump_rpm: Some(FanSpeed::Rpm(3400)),
         music_peaks: Some(true),
         music_bar_fall: Some(FallStop::Moderate),
         music_peak_fall: Some(FallStop::Slow),
         audio_connected: Some(true),
         audio_wanted: Some(false),
+        ..State::default()
     }
 }
 

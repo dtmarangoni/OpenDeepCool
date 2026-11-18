@@ -11,7 +11,7 @@ Widget names are GTK 4 classes. Anything not checked against docs.gtk.org is mar
 - **Feature parity, not interface parity.** Every LP360 feature is reachable. There are no DeepCreative tabs and no Combined/Separate split.
 - **Few screens, few clicks.** There is one window with two pages, and every mode is one click away.
 - **Fast.** It opens straight onto the current settings, with no animation in the app's own chrome. Idle CPU use is nil: the preview redraws only when the cooler's picture changes, and nothing polls.
-- **Only the cooler.** CPU, GPU and RAM values appear only inside display pictures. The only RPM shown is the cooler's own fans and pump.
+- **Only the cooler.** CPU, GPU and RAM values appear only inside display pictures.
 - **Themed.** The app follows the current Omarchy theme live and uses its own default theme elsewhere. It never sets window opacity or blur.
 
 ## Decisions
@@ -43,7 +43,6 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 - **Default theme:** dark and light variants. Outside Omarchy in v1, the dark one is used.
 - **Preview dots:** lit dots in the foreground colour, unlit dots in a low-alpha foreground.
 - **Language and app settings:** English only, with no app-only settings.
-- **Fan and pump RPM:** under the preview, on both pages.
 - **GPU label:** `<kind> · <product name>`.
 - **Preview source:** the preview mirrors the service's current frame.
 
@@ -87,8 +86,8 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
 ├──────────────────────┬─────────────────────────────────────────────────────┤
 │ Preview column       │ GtkStack (transition: none)                         │
 │  GtkDrawingArea      │  page "display": unit + tile gallery                │
-│  caption, status,    │  page "config":  Display / Cooler / Music / Startup │
-│  fan and pump RPM    │  (each page in a GtkScrolledWindow)                 │
+│  caption, status     │  page "config":  Display / Music / Startup          │
+│                      │  (each page in a GtkScrolledWindow)                 │
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
@@ -121,15 +120,6 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
   - cooler, from `CoolerState`: "Cooler connected" (green), "Cooler not connected" (yellow), "Cooler: no access" (red) or "Cooler: sending fails" (yellow), with the same 2 s rule as the caption. While the service is down it says "Cooler: unknown" (hollow dot);
   - service: "Service running" (green); while it's down, on the [off screen](#the-off-screen), "Service off" (hollow dot: it doesn't start at boot, off on purpose) or "Service not running" (red: it's set to start but stopped, failed or starting);
   - Music sound, **only while a Music mode is chosen** (`AudioConnected`): "Sound connected" or "No sound: spectrum is silent".
-- **Fan and pump RPM:** two rows, "Cooler fans" and "Pump". Speeds are capped at 9,999 RPM, like every value in OpenDeepCool (settings.md); the same holds for the RPM in the input pickers. Each value is one of:
-  - `1,180 RPM`;
-  - "Choose input": a link-style `GtkButton` that opens the Configuration page;
-  - "Input not found";
-  - "No reading": the chosen input is there, but its speed can't be read (the picker says "no reading"; Phase 10 decisions log D34);
-  - "No fan sensors found";
-  - "—" while the service is down.
-
-  These speeds come from the chosen inputs and never reach the cooler.
 
 ## Display page
 
@@ -171,7 +161,7 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
 
 ## Configuration page
 
-**Purpose:** every other setting, on one screen (settings.md, A configuration screen). There are four sections, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The fourth, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot).
+**Purpose:** every other setting, on one screen (settings.md, A configuration screen). There are three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot).
 
 ### Display
 
@@ -195,16 +185,6 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
     - The app adds no note of why. It keeps no record of the old choice, the service publishes only the result, and the journal has the reason.
     - A note would need a new state key from the service saying that it cleared the choice in this run. That isn't part of v1.
     - A saved GPU is never missing, so the GPU row has no "not found" state.
-
-### Cooler
-
-- **Cooler fans input** and **Pump input:** two `GtkDropDown`s with a custom list-item factory.
-  - Entries: "None" first (the default), then every fan input except a graphics card's own fans. Each shows `<chip> · <label or fanN>` and its live RPM, right-aligned with tabular figures.
-  - The RPM figures update in place while the list is open; how smooth that is in a `GtkDropDown` popover is **unverified**.
-  - Choosing calls `SetCoolerFanInput` or `SetPumpInput`.
-  - **Saved input missing:** the button reads `<chip> · <input> — not found` with a warning border. A hint says "The saved input isn't found. Pick another, or it comes back when the input does." The app never shows another input's RPM in its place.
-  - **No fan sensors:** both dropdowns are insensitive and read "No fan sensors found". A hint says "No fan sensors were found. The board's sensor driver may not be loaded; the journal says more."
-- **Hint** under the rows: "Pick the inputs your cooler's radiator fans and pump are plugged into. Their speeds show in the app only, never on the cooler."
 
 ### Music
 
@@ -405,8 +385,8 @@ When the switch reads off and something is set up, one note under the row says w
 │ ○ Service off        │  ┌───────────────────────────────────────────────┐  │
 │   (● Service not     │  │ Start at boot                       ( ○    )  │  │
 │    running, red)     │  │ For the whole PC                              │  │
-│ Cooler fans  —       │  │ ⚠ Not fully on: the display service failed. … │  │
-│ Pump         —       │  │ When it's on, the display service starts …    │  │
+│                      │  │ ⚠ Not fully on: the display service failed. … │  │
+│                      │  │ When it's on, the display service starts …    │  │
 │                      │  └───────────────────────────────────────────────┘  │
 │                      │  From a terminal instead:                           │
 │                      │  sudo systemctl enable --now opendeepcool.service   │
@@ -453,7 +433,7 @@ When the switch reads off and something is set up, one note under the row says w
 - **Widgets**, all plain GTK4 (no libadwaita, so no `AdwStatusPage`):
   - the same `GtkHeaderBar`, with only the app name. The switcher and Refresh are hidden (`visible` false), not just insensitive. The window buttons stay, following the desktop's decoration layout;
   - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the off screen's heading and text;
-  - nothing else: no banner, no preview column, no pages, no status, no RPM, nothing that could show a value.
+  - nothing else: no banner, no preview column, no pages, no status, nothing that could show a value.
 - **Keyboard and screen readers:** nothing in the content takes focus. Ctrl+W and Ctrl+Q still close the window; the page and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
 - **Trying again,** without polling: when the window becomes active again (`notify::is-active` on `GtkWindow:is-active`, verified) and when the service's bus name gets a new owner (`NameOwnerChanged`). If `GetState()` succeeds then, the normal screens appear with the current state.
 - **The service not running comes first.** Without the service, the app can't tell whether this session may use OpenDeepCool, so it shows the service state, which holds no settings and no picture. In a session logind reports as remote or inactive, that state, the off screen, has no Start at boot switch ([Who may flip it](#who-may-flip-it)).
@@ -469,7 +449,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
   - otherwise, the normal screens with that state.
 - **Connecting again,** one call at a time and never polling: whenever the bus name gets a new owner (`NameOwnerChanged`), and whenever the window becomes active (`notify::is-active`). This also renews any watch the service dropped meanwhile, for example while this session was inactive.
 - **Updates** come as `StateChanged` signals addressed to this app alone, and preview frames the same way after `WatchFrames()`, only while the window is mapped ([Preview column](#preview-column)).
-- **State names:** `CoolerState`, `AudioConnected`, `UnavailableReasons`, `FanInputs`, `Gpus` and `ChosenGpu` in this document are the names in the Phase 7–9 contract, and `GpuInUse` is the Phase 10 plan's (Task 2). They come in `GetState()` and `StateChanged`, not as properties, and the Phase 10 plan sets their final shape.
+- **State names:** `CoolerState`, `AudioConnected`, `UnavailableReasons`, `Gpus` and `ChosenGpu` in this document are the names in the Phase 7–9 contract, and `GpuInUse` is the Phase 10 plan's (Task 2). They come in `GetState()` and `StateChanged`, not as properties, and the Phase 10 plan sets their final shape.
   - The cooler's part of the window follows `CoolerState` (`connected`, `not-found`, `no-access`, `write-failed`; [Banners](#banners)). `CoolerConnected` stays in the state, but the app doesn't read it.
   - The GPU row reads `Gpus` (its kinds include `query-failed`), `ChosenGpu` (empty for Automatic) and `GpuInUse` ([Display](#display)).
 - **Start at boot** reads systemd, not the service, so it works while the service is down ([Where its state comes from](#where-its-state-comes-from)).
@@ -479,13 +459,12 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | State | What the app shows | Mockup |
 |---|---|---|
-| Normal, several GPUs | Display page; status "Cooler connected", "Service running"; fan and pump RPM. Configuration: the GPU on Automatic, and "Using Dedicated · Contoso Graphics R870." under it | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| Normal, several GPUs | Display page; status "Cooler connected", "Service running". Configuration: the GPU on Automatic, and "Using Dedicated · Contoso Graphics R870." under it | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
 | GPU list open | Automatic first; a GPU whose kind query failed as "Unknown type · …" with "driver couldn't be asked"; a GPU without a reading rule last, with "no readings"; the line under the dropdown names the integrated GPU, which Automatic reads here | [configuration-gpu-list.html](mockups/configuration-gpu-list.html) |
 | A GPU added or removed since the last start | The choice is back on Automatic (the service cleared it), with no note; the line names the GPU in use | [configuration.html](mockups/configuration.html) |
 | A Music mode | The status line adds "Sound connected" or "No sound: spectrum is silent" | [display-music.html](mockups/display-music.html) |
 | A value of 100 or more, °F | The preview mirrors the scrolling strip; the temperature tiles show °F | [display-scrolling.html](mockups/display-scrolling.html) |
-| Fan picker open | Every input with its chip, label and live RPM; None first | [configuration-picker-open.html](mockups/configuration-picker-open.html) |
-| First start | Load · CPU, 0°, °C, no fan inputs ("Choose input"), peak dots on, Moderate / Slow, the GPU on Automatic | [first-start.html](mockups/first-start.html) |
+| First start | Load · CPU, 0°, °C, peak dots on, Moderate / Slow, the GPU on Automatic | [first-start.html](mockups/first-start.html) |
 | Cooler disconnected (`not-found`) | Cooler banner; status "Cooler not connected"; everything still changeable | [cooler-disconnected.html](mockups/cooler-disconnected.html) |
 | Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; caption "Not on the cooler: the service can't open it"; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
 | Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; caption "Not on the cooler: sending it fails"; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
@@ -509,8 +488,6 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | The saved mode lost a reading | Tile still selected with "Reading lost"; dashes in the preview; reason under the preview | [reading-lost.html](mockups/reading-lost.html) |
 | Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no Refresh | [not-available.html](mockups/not-available.html) |
 | One GPU | No GPU row at all | [one-gpu.html](mockups/one-gpu.html) |
-| Saved fan or pump input missing | "— not found" on its picker, with a warning border and a hint; "Input not found" under the preview; no other input's RPM in its place. (A saved GPU can't be missing: the service clears the choice at start.) | [missing-input.html](mockups/missing-input.html) |
-| No fan sensors | Both pickers insensitive with a note; the preview column says "No fan sensors found" | [no-fan-sensors.html](mockups/no-fan-sensors.html) |
 | A GPU without a reading rule in use | GPU tiles disabled with "no reading for this GPU's driver"; a hint under the GPU dropdown | [configuration.html](mockups/configuration.html): choose "Unknown type · othergpu · 0000:07:00.0" |
 | Another `CoolerState` (the dev copy's `released`, or a later value) | As `not-found` | (as cooler-disconnected) |
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
@@ -602,7 +579,7 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 
 ## Keyboard
 
-- **Tab order:** header switcher → Refresh → banner button (when present) → page content → preview column links. On the Display page: the unit toggles, then each tile group in turn. On the Configuration page: rotation, GPU, cooler fans, pump, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
+- **Tab order:** header switcher → Refresh → banner button (when present) → page content. On the Display page: the unit toggles, then each tile group in turn. On the Configuration page: rotation, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
 - **Insensitive tiles can't take focus.** Their reasons are visible text under the group heading.
 - **Toggle groups** (unit, rotation, switcher): Tab reaches them; Enter or Space toggles. Arrow keys between the buttons of a group are **unverified** for grouped `GtkToggleButton`s; if GTK doesn't do it, each button is a Tab stop.
@@ -641,19 +618,15 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
 | Reason under the preview | `GtkBox` (group) around the icon and the `GtkLabel` | `Unavailable reading` | its label's text |
 | Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown"; `Service status`: "Service running", "Service not running" or "Service off") |
-| Fan and pump speed rows | `GtkBox` (group) around the row | `Cooler fans speed`, `Pump speed` | their labels' text: the row's title and the value (RPM, "Input not found", …), or the choose-input link |
-| Choose-input links | `GtkButton` (button) | `Choose cooler fans input`, `Choose pump input` | — |
 | Unit toggles | `GtkToggleButton` (toggle button) | `Celsius`, `Fahrenheit` | pressed |
 | Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
 | Group reason lines | `GtkBox` (group) around the `GtkLabel` | `Load unavailable reasons` (and so on per group) | its label's text |
 | Tiles | `GtkFlowBoxChild` (grid cell), its picture an image of the same name | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode; action `tile.activate` while sensitive |
-| Configuration cards | `GtkBox` (group) | `Display settings`, `Cooler settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
+| Configuration cards | `GtkBox` (group) | `Display settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
 | Rotation | `GtkToggleButton` (toggle button) | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | pressed |
 | GPU | `GtkDropDown` (combo box) | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
 | GPU in use | `GtkBox` (group) around the `GtkLabel` under the GPU dropdown | `GPU in use` | its label's text ("Using Dedicated · Contoso Graphics R870."); present only while Automatic is chosen |
-| Cooler fans input | `GtkDropDown` (combo box) | `Cooler fans input` | the selected item's label; description "not found" |
-| Pump input | `GtkDropDown` (combo box) | `Pump input` | the same |
-| Dropdown items | the open list's rows (list item) | the item label without the RPM or note (`None`, `acme6000 · fan1`, `Automatic`, `Dedicated · Contoso Graphics R870`) | the RPM or the note ("no readings", "driver couldn't be asked") in the description; action `row.activate` on the row's content |
+| Dropdown items | the open list's rows (list item) | the item label without its note (`Automatic`, `Dedicated · Contoso Graphics R870`) | the note ("no readings", "driver couldn't be asked") in the description; action `row.activate` on the row's content |
 | Peak dots | `GtkSwitch` (switch) | `Peak dots` | checked: the switch's handle, which moves at the press (decisions log D63, D79) |
 | Bar fall | `GtkScale` (slider) | `Bar fall` | value 0–4; value text the stop's name (`Moderate`) |
 | Peak fall | `GtkScale` (slider) | `Peak fall` | the same (`Slow`) |
@@ -670,25 +643,22 @@ A scale's value text reaches AT-SPI as its Value interface's text, the stop's na
 - Metrics are named as the display shows them: CPU usage, GPU usage, RAM usage, CPU temperature, GPU temperature, CPU power, GPU power.
 - Reasons come from the service and aren't rewritten. The service puts the metric in front by the spec's name ("Gpu usage: …", "Memory Load: …"); the app writes that name as the display does ("GPU usage: …", "RAM usage: …") and keeps the rest (decisions log D35).
 - A banner that needs the user's action says what happened in bold, then the fix in one sentence. Details, such as device paths and error codes, go to the journal, and the banner says "The journal says more."
-- Numbers use English digit grouping (`1,180 RPM`) and tabular figures.
 - Terminal commands are shown whole, in a selectable monospace label with a Copy button, never inside a sentence. Users read "the sound for Music", never "sound helper" or a unit name, except where systemd's own answer names a unit.
 
 ## What the Phase 10 plan must add to the D-Bus contract
 
-The design depends on these. The first two were agreed on 2026-10-25. The service offers no D-Bus properties (owner, 2026-10-26), so each item is part of the state that `GetState()` returns and `StateChanged` updates, or a signal addressed to one watcher ([Talking to the service](#talking-to-the-service)).
+The design depends on these. The first was agreed on 2026-10-25. The service offers no D-Bus properties (owner, 2026-10-26), so each item is part of the state that `GetState()` returns and `StateChanged` updates, or a signal addressed to one watcher ([Talking to the service](#talking-to-the-service)).
 
 1. **The current frame:** a signal, addressed to each authorized watcher alone after `WatchFrames()` and never broadcast, carrying the frame exactly as written to the cooler, rotation included. It's sent only while the app watches, and only when the frame changes. Its encoding (the 28 pixel bytes or 196 booleans) is chosen in the plan.
    - While the cooler is away (`not-found`, `no-access`, `write-failed`), the design still needs the frame the engine draws on each tick, so the preview keeps showing the saved picture ([Banners](#banners)). The Phase 10 plan's "each written frame" (Task 2) has to cover those ticks too.
-2. **Live RPM for every fan input:** RPM in the state's fan inputs (`FanInputs`), or a separate map, updated about once a second while the app watches.
-3. **GPU names:**
+2. **GPU names:**
    - either the service sends each GPU's PCI vendor and device ID, so the app can look up `/usr/share/hwdata/pci.ids`, or the service sends the name;
    - the current `Gpus` (`a(sss)`: address, driver, kind) has neither;
    - it also needs a "no reading rule" flag per GPU;
    - the Phase 10 plan makes it `a(sssqqb)` (Task 2). Its kinds already include `query-failed` (Phase 6), which the list notes.
-4. **The GPU in use as well as the saved one:** needed for the line that names the GPU Automatic reads. `ChosenGpu` is only the saved choice, empty for Automatic (owner, 2026-11-04). The Phase 10 plan adds `GpuInUse` (s) (Task 2).
-5. **Whether the saved fan and pump inputs are present:** for "not found". The app could infer it by matching `FanInputs`, but an explicit flag avoids two rules.
-6. **How the app learns it's in a remote or inactive session:** `GetState()` refused with `NotAuthorized` ([Not available in this session](#not-available-in-this-session)). There's no `CanChangeSettings()` and no separate check: the refusal that protects the state is what tells the app.
-7. **Watches that can be renewed:** calling `Watch()` or `WatchFrames()` again does no harm, because the app renews its watches each time it connects again, including on every window activation ([Talking to the service](#talking-to-the-service)).
+3. **The GPU in use as well as the saved one:** needed for the line that names the GPU Automatic reads. `ChosenGpu` is only the saved choice, empty for Automatic (owner, 2026-11-04). The Phase 10 plan adds `GpuInUse` (s) (Task 2).
+4. **How the app learns it's in a remote or inactive session:** `GetState()` refused with `NotAuthorized` ([Not available in this session](#not-available-in-this-session)). There's no `CanChangeSettings()` and no separate check: the refusal that protects the state is what tells the app.
+5. **Watches that can be renewed:** calling `Watch()` or `WatchFrames()` again does no harm, because the app renews its watches each time it connects again, including on every window activation ([Talking to the service](#talking-to-the-service)).
 
 ## Coverage check
 
@@ -711,10 +681,6 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | A GPU added or removed: the choice goes back to Automatic, and a saved GPU is never missing | Configuration → GPU (no note; the journal has the reason) | configuration |
 | A GPU whose kind query failed: listed with the unknown GPUs, with a short note, and choosable | Configuration → GPU, the open list | configuration-gpu-list |
 | GPU without a reading rule → listed last, GPU modes disabled | Configuration → GPU, and tiles | configuration-gpu-list; configuration (choose it) |
-| Cooler fans and pump inputs, None default, live RPM, no graphics card fans | Configuration → Cooler | configuration-picker-open |
-| Saved input missing → not found | Configuration → Cooler; preview column | missing-input |
-| No fan sensors → note | Configuration → Cooler; preview column | no-fan-sensors |
-| Cooler fan and pump RPM shown, never on the cooler | Preview column, both pages | display |
 | Peak dots on or off | Configuration → Music | configuration |
 | Bar fall, peak fall, five stops, defaults | Configuration → Music | configuration |
 | Configuration screen holds everything but mode and unit | Configuration page | configuration |
@@ -750,12 +716,11 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | English only, no app-only settings | — | — |
 
 **Out of scope, confirmed absent.** The design has no:
-- fan or pump speed control (the RPM is read-only text);
 - brightness, screen on/off or other hidden settings;
 - lighting;
 - other devices;
 - CPU, GPU or RAM readouts outside display pictures (tiles use fixed sample values, and the preview shows only the cooler's picture);
-- clocks, voltages or other fans (the pickers list fan inputs only to choose the cooler's);
+- clocks or voltages;
 - theme-source setting;
 - Creative mode;
 - static or scrolling option;
@@ -775,7 +740,6 @@ Each point the design left open, with its answer and source, or the fallback the
 | Accessible names, descriptions, value text | `AccessibleExtManual::update_property` sets `Label` and `Description`; `ValueText` is ARIA's `aria-valuetext`. Read through AT-SPI (Phase 10 Task 8): descriptions and value text arrive as set; a name arrives as set once the app drops a button's labelled-by relation (decisions log D68), and on a group around a label, since a label is always named by its text (D72) | gtk4-rs book, Accessibility; docs.gtk.org, Accessibility; GTK's source (`gtkbutton.c`, `gtklabel.c`); the layer 4 run |
 | `GtkScale` and whole stops | `GtkRange:round-digits` rounds the value "when it changes", drags included: with 0 digits over 0–4 the scale only holds whole stops, and the app applies each stop as it's reached (at most five calls a drag). If a test shows otherwise, the stop is applied on release | docs.gtk.org, `Gtk.Range:round-digits` |
 | Arrow keys between grouped `GtkToggleButton`s | **Unverified.** Each unit and rotation toggle is a Tab stop as well, so the keyboard reaches each one either way. AT-SPI's key events don't reach a Wayland app (Phase 10 Task 8, decisions log D71), so no test types keys; the shortcuts' keys are checked in-process | the fallback of Keyboard |
-| Live RPM inside an open `GtkDropDown` | It updates in place: each open row is bound to its entry by position, and every `StateChanged` sets the bound rows' notes again; the layer 3 tests change the speeds with the list open (Phase 10 Task 6) | `crates/odc-app/tests/config_page.rs` |
 | Tooltips on insensitive widgets | **Unverified**, and not relied on: the reason line under each group says why a tile is unavailable | Display page, Unavailable modes |
 | Hyprland and the window's minimum size | **Unverified**: it can be seen only in the owner's session, and no test opens a window there. The app sets its minimum size as designed; the optional attended tour looks at it | Window |
 | `GtkWindow:is-active` after a session switch | **Unverified** under Hyprland, for the same reason. The app also follows logind's `Active` property of its own session (org.freedesktop.login1), a third trigger for connecting again, still without polling. The reconnect on activation itself is checked in headless weston, where another window takes the focus and closes (Phase 10 Task 8, decisions log D78) | Not available in this session |

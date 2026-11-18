@@ -41,7 +41,6 @@ body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, san
   overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); min-height: 660px; display: flex; flex-direction: column; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
-.num { font-variant-numeric: tabular-nums; }
 svg { width: 16px; height: 16px; flex: none; }
 button { font: inherit; color: inherit; }
 
@@ -89,9 +88,6 @@ button { font: inherit; color: inherit; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .dot.good { background: var(--green); } .dot.warn { background: var(--yellow); } .dot.bad { background: var(--red); }
 .dot.off { background: transparent; border: 1.5px solid var(--muted); }
-.rpms { margin-top: 14px; padding-top: 12px; border-top: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); font-size: 13px; }
-.rpm { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
-.link { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; text-decoration: underline; }
 .warn-text { color: var(--yellow); display: inline-flex; gap: 4px; align-items: center; }
 :root[data-theme="light"] .warn-text { color: var(--yellow); }
 
@@ -116,7 +112,6 @@ button { font: inherit; color: inherit; }
 .row-r .hint { margin-top: 0; }
 .dd { position: relative; }
 .dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 340px; padding: 6px 10px; text-align: left; }
-.dd-btn.warn-border { border-color: var(--yellow); }
 .dd-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 380px; width: max-content; max-width: 600px; background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }

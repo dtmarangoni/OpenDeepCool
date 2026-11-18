@@ -20,18 +20,6 @@ pub struct Gpu {
     pub has_rule: bool,
 }
 
-/// A fan input of `FanInputs`; `None` for a speed that can't be read.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Fan {
-    pub input: u32,
-    pub label: &'static str,
-    pub rpm: Option<u16>,
-}
-
-/// The made-up fan chip every fan input is on.
-pub const CHIP: &str = "acme6000";
-pub const DEVICE: &str = "devices/platform/acme6000.2592";
-
 /// The made-up GPUs, in the service's order (dedicated, integrated, then unknown, each by PCI
 /// address). Their vendor IDs are listed in no `pci.ids` (checked at the start of a run), so
 /// each is labelled `<kind> · <driver> · <address>` (`docs/design/settings-app.md`, GPU).
@@ -86,12 +74,6 @@ pub struct Service {
     pub gpus: Vec<Gpu>,
     pub chosen_gpu: &'static str,
     pub gpu_in_use: &'static str,
-    pub fans: Vec<Fan>,
-    /// Chosen fan inputs, by input number.
-    pub cooler_fan: Option<u32>,
-    pub pump: Option<u32>,
-    pub cooler_fan_present: bool,
-    pub pump_present: bool,
     pub peaks: bool,
     pub bar_fall: &'static str,
     pub peak_fall: &'static str,
@@ -99,9 +81,8 @@ pub struct Service {
 }
 
 impl Service {
-    /// A first start (`docs/design/settings-app.md`, States): Load · CPU, 0°, °C, no inputs,
-    /// peak dots on, Moderate and Slow, the GPU on Automatic; here with two GPUs, so the GPU row
-    /// shows, and three fan inputs.
+    /// A first start (`docs/design/settings-app.md`, States): Load · CPU, 0°, °C, peak dots
+    /// on, Moderate and Slow, the GPU on Automatic; here with two GPUs, so the GPU row shows.
     pub fn first_start() -> Service {
         Service {
             mode: 1,
@@ -113,27 +94,6 @@ impl Service {
             gpus: vec![DEDICATED, INTEGRATED],
             chosen_gpu: "",
             gpu_in_use: DEDICATED.pci,
-            fans: vec![
-                Fan {
-                    input: 1,
-                    label: "",
-                    rpm: Some(1180),
-                },
-                Fan {
-                    input: 2,
-                    label: "",
-                    rpm: Some(3400),
-                },
-                Fan {
-                    input: 3,
-                    label: "Rear",
-                    rpm: Some(940),
-                },
-            ],
-            cooler_fan: None,
-            pump: None,
-            cooler_fan_present: true,
-            pump_present: true,
             peaks: true,
             bar_fall: "moderate",
             peak_fall: "slow",
@@ -141,23 +101,10 @@ impl Service {
         }
     }
 
-    /// The speed of input `n`, as `CoolerFanRpm` and `PumpRpm` give it.
-    fn rpm(&self, chosen: Option<u32>, present: bool) -> f64 {
-        let speed = chosen
-            .filter(|_| present)
-            .and_then(|n| self.fans.iter().find(|fan| fan.input == n))
-            .and_then(|fan| fan.rpm);
-        speed.map_or(f64::NAN, f64::from)
-    }
-
     fn table(&self) -> toml::Table {
-        use toml::Value::{Array, Boolean, Float, Integer, String as Text};
+        use toml::Value::{Array, Boolean, Integer, String as Text};
         let text = |t: &str| Text(t.to_owned());
         let int = |n: u32| Integer(i64::from(n));
-        let input = |chosen: Option<u32>| match chosen {
-            Some(n) => Array(vec![text(CHIP), text(DEVICE), int(n)]),
-            None => Array(vec![text(""), text(""), int(0)]),
-        };
         let mut table = toml::Table::new();
         let mut put = |key: &str, value: toml::Value| {
             table.insert(key.to_owned(), value);
@@ -200,32 +147,6 @@ impl Service {
         );
         put("ChosenGpu", text(self.chosen_gpu));
         put("GpuInUse", text(self.gpu_in_use));
-        put(
-            "FanInputs",
-            Array(
-                self.fans
-                    .iter()
-                    .map(|fan| {
-                        Array(vec![
-                            text(CHIP),
-                            text(DEVICE),
-                            int(fan.input),
-                            text(fan.label),
-                            Float(fan.rpm.map_or(f64::NAN, f64::from)),
-                        ])
-                    })
-                    .collect(),
-            ),
-        );
-        put("CoolerFanInput", input(self.cooler_fan));
-        put("PumpInput", input(self.pump));
-        put("CoolerFanInputPresent", Boolean(self.cooler_fan_present));
-        put("PumpInputPresent", Boolean(self.pump_present));
-        put(
-            "CoolerFanRpm",
-            Float(self.rpm(self.cooler_fan, self.cooler_fan_present)),
-        );
-        put("PumpRpm", Float(self.rpm(self.pump, self.pump_present)));
         put("MusicPeaks", Boolean(self.peaks));
         put("MusicBarFall", text(self.bar_fall));
         put("MusicPeakFall", text(self.peak_fall));

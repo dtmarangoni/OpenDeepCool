@@ -25,8 +25,8 @@ use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::boot::{self, Boot, Place};
 use crate::model::{
-    Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Speed, Ui,
-    View, view,
+    Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Ui, View,
+    view,
 };
 use crate::pci_ids;
 use crate::theme::Tokens;
@@ -91,19 +91,12 @@ struct StatusRow {
     label: gtk::Label,
 }
 
-struct SpeedRow {
-    value: gtk::Label,
-    link: gtk::Button,
-}
-
 struct ColumnWidgets {
     caption: gtk::Label,
     line: gtk::Label,
     reason_box: gtk::Box,
     reason: gtk::Label,
     status: [StatusRow; 3],
-    fans: SpeedRow,
-    pump: SpeedRow,
 }
 
 struct Inner {
@@ -282,32 +275,6 @@ impl Window {
                 label: text,
             }
         });
-        let speeds = vbox(4);
-        let speed_row = |title: &str, value_name: &str, link_name: &str| {
-            let row = group().spacing(8).build();
-            names.name(&row, value_name);
-            let name = label(title, &[]);
-            name.set_hexpand(true);
-            let value = label("", &["num"]);
-            value.set_xalign(1.0);
-            let link = gtk::Button::builder()
-                .label("Choose input")
-                .css_classes(["link"])
-                .visible(false)
-                .build();
-            names.name(&link, link_name);
-            row.append(&name);
-            row.append(&value);
-            row.append(&link);
-            speeds.append(&row);
-            SpeedRow { value, link }
-        };
-        let fans = speed_row(
-            "Cooler fans",
-            "Cooler fans speed",
-            "Choose cooler fans input",
-        );
-        let pump = speed_row("Pump", "Pump speed", "Choose pump input");
         // The column keeps the design's width (the mockups' 262 px), however long its lines.
         let column_box = vbox(10);
         column_box.add_css_class("side");
@@ -322,7 +289,6 @@ impl Window {
             line.upcast_ref(),
             reason_box.upcast_ref(),
             status_box.upcast_ref(),
-            speeds.upcast_ref(),
         ] {
             column_box.append(widget);
         }
@@ -479,8 +445,6 @@ impl Window {
                 reason_box,
                 reason,
                 status,
-                fans,
-                pump,
             },
             preview,
             display: display_page,
@@ -539,10 +503,6 @@ impl Window {
             }
         });
         self.0.header.config.connect_toggled(move |_| go());
-        for link in [&self.0.column.fans.link, &self.0.column.pump.link] {
-            let go = with(|w| w.go(Page::Configuration));
-            link.connect_clicked(move |_| go());
-        }
         // Frames only while the window is mapped (Preview column).
         let watch = with(|w| (w.0.send)(Request::WatchFrames(true)));
         self.0.window.connect_map(move |_| watch());
@@ -863,18 +823,6 @@ impl Window {
             };
             row.dot.set_css_classes(&["dot", class]);
         }
-        for (row, speed) in [(&widgets.fans, column.fans), (&widgets.pump, column.pump)] {
-            let choose = speed == Speed::ChooseInput;
-            row.link.set_visible(choose);
-            row.value.set_visible(!choose);
-            row.value.set_text(&speed.text());
-            let class = match speed {
-                Speed::Rpm(_) => "num",
-                Speed::NotFound => "warn-text",
-                _ => "muted",
-            };
-            row.value.set_css_classes(&[class]);
-        }
     }
 
     /// The view shown last, for the tests.
@@ -948,7 +896,7 @@ impl Window {
         ]
     }
 
-    /// The column's words: caption, line, reason, the status items shown, the two speeds.
+    /// The column's words: caption, line, reason and the status items shown.
     pub fn column_words(&self) -> Vec<String> {
         let c = &self.0.column;
         let mut words = vec![c.caption.text().to_string(), c.line.text().to_string()];
@@ -957,13 +905,6 @@ impl Window {
         }
         for row in c.status.iter().filter(|r| r.row.is_visible()) {
             words.push(row.label.text().to_string());
-        }
-        for row in [&c.fans, &c.pump] {
-            words.push(if row.link.is_visible() {
-                "Choose input".to_owned()
-            } else {
-                row.value.text().to_string()
-            });
         }
         words
     }

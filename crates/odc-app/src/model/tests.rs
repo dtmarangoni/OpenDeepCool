@@ -122,32 +122,6 @@ const INTEGRATED_LABEL: &str = "Integrated · Fabrikam Display Engine";
 const QUERY_FAILED_LABEL: &str = "Unknown type · contosogpu · 0000:05:00.0";
 const NO_RULE_LABEL: &str = "Unknown type · othergpu · 0000:07:00.0";
 
-fn fan(input: u32, label: &str, rpm: FanSpeed) -> FanInput {
-    FanInput {
-        chip: "acme6000".to_owned(),
-        device: "devices/platform/acme6000.2592".to_owned(),
-        input,
-        label: label.to_owned(),
-        rpm,
-    }
-}
-
-fn fans() -> Vec<FanInput> {
-    vec![
-        fan(1, "", FanSpeed::Rpm(1180)),
-        fan(2, "", FanSpeed::Rpm(3400)),
-        fan(3, "Rear", FanSpeed::Unavailable),
-    ]
-}
-
-fn chosen(input: u32) -> Option<Input> {
-    Some(Input {
-        chip: "acme6000".to_owned(),
-        device: "devices/platform/acme6000.2592".to_owned(),
-        input,
-    })
-}
-
 /// The "Normal, several GPUs" row's state: Temperature · CPU + GPU, everything there.
 fn base() -> State {
     State {
@@ -161,18 +135,12 @@ fn base() -> State {
         gpus: Some(gpus()),
         chosen_gpu: Some(String::new()),
         gpu_in_use: Some(DEDICATED.to_owned()),
-        fan_inputs: Some(fans()),
-        cooler_fan_input: Some(chosen(1)),
-        pump_input: Some(chosen(2)),
-        cooler_fan_input_present: Some(true),
-        pump_input_present: Some(true),
-        cooler_fan_rpm: Some(FanSpeed::Rpm(1180)),
-        pump_rpm: Some(FanSpeed::Rpm(3400)),
         music_peaks: Some(true),
         music_bar_fall: Some(FallStop::Moderate),
         music_peak_fall: Some(FallStop::Slow),
         audio_connected: Some(false),
         audio_wanted: Some(false),
+        ..State::default()
     }
 }
 
@@ -280,38 +248,6 @@ fn all_gpu_entries() -> Vec<GpuEntry> {
     ])
 }
 
-fn input_entries(chosen_missing: Option<u32>) -> Vec<InputEntry> {
-    let entry = |input: u32, label: &str, rpm: &str| InputEntry {
-        input: chosen(input),
-        label: label.to_owned(),
-        rpm: if chosen_missing == Some(input) {
-            "not found".to_owned()
-        } else {
-            rpm.to_owned()
-        },
-    };
-    vec![
-        InputEntry {
-            input: None,
-            label: "None".to_owned(),
-            rpm: String::new(),
-        },
-        entry(1, "acme6000 · fan1", "1,180 RPM"),
-        entry(2, "acme6000 · fan2", "3,400 RPM"),
-        entry(3, "acme6000 · Rear", "no reading"),
-    ]
-}
-
-fn input_row(chosen: Option<usize>, button: &str) -> InputRow {
-    InputRow {
-        entries: input_entries(None),
-        chosen,
-        button: button.to_owned(),
-        sensitive: true,
-        missing: false,
-    }
-}
-
 /// The "Normal, several GPUs" row's whole view.
 fn base_view() -> Normal {
     Normal {
@@ -322,8 +258,6 @@ fn base_view() -> Normal {
             line: "Shown on the cooler now",
             reason: None,
             status: vec![CONNECTED, RUNNING],
-            fans: Speed::Rpm(1180),
-            pump: Speed::Rpm(3400),
         },
         display: DisplayPage {
             unit: TemperatureUnit::Celsius,
@@ -338,9 +272,6 @@ fn base_view() -> Normal {
                 hint: None,
                 description: format!("Using {DEDICATED_LABEL}"),
             }),
-            cooler_fans: input_row(Some(1), "acme6000 · fan1"),
-            pump: input_row(Some(2), "acme6000 · fan2"),
-            inputs_hint: INPUTS_HINT,
             peaks: true,
             bar_fall: FallStop::Moderate,
             peak_fall: FallStop::Slow,
@@ -350,7 +281,7 @@ fn base_view() -> Normal {
 }
 
 // Row "Normal, several GPUs": the Display page, the cooler connected, the service running,
-// the fan and pump RPM; the GPU on Automatic, naming the GPU it reads.
+// the GPU on Automatic, naming the GPU it reads.
 #[test]
 fn normal_with_several_gpus() {
     assert_eq!(view_of(base()), base_view());
@@ -484,34 +415,15 @@ fn fahrenheit() {
     assert_eq!(view_of(state), want);
 }
 
-// Row "Fan picker open": None first, then every input with its chip, label and live RPM, "no
-// reading" where its speed can't be read.
-#[test]
-fn the_fan_picker() {
-    let row = view_of(base()).config.cooler_fans;
-    assert_eq!(row.entries, input_entries(None));
-    assert_eq!(row.chosen, Some(1));
-}
-
-// Row "First start": Load · CPU, 0°, °C, no inputs ("Choose input"), peak dots on, Moderate /
-// Slow, the GPU on Automatic.
+// Row "First start": Load · CPU, 0°, °C, peak dots on, Moderate / Slow, the GPU on Automatic.
 #[test]
 fn first_start() {
     let mut state = base();
     state.mode = Some(1);
-    state.cooler_fan_input = Some(None);
-    state.pump_input = Some(None);
-    state.cooler_fan_rpm = Some(FanSpeed::Unavailable);
-    state.pump_rpm = Some(FanSpeed::Unavailable);
     let mut want = base_view();
     want.column.caption = "Load · CPU".to_owned();
-    want.column.fans = Speed::ChooseInput;
-    want.column.pump = Speed::ChooseInput;
     want.display.groups = expected_groups(1, &[]);
-    want.config.cooler_fans = input_row(Some(0), "None");
-    want.config.pump = input_row(Some(0), "None");
     assert_eq!(view_of(state), want);
-    assert_eq!(Speed::ChooseInput.text(), "Choose input");
 }
 
 /// The base view with the cooler shown as `status`, `line` and `banner`.
@@ -646,8 +558,6 @@ fn service_not_running() {
             line: "The service draws the picture",
             reason: None,
             status,
-            fans: Speed::Unknown,
-            pump: Speed::Unknown,
         }
     };
     let new_install = Boot {
@@ -690,7 +600,6 @@ fn service_not_running() {
         );
         assert_eq!(boot::off_screen(startup).heading, heading);
     }
-    assert_eq!(Speed::Unknown.text(), "—");
     // The Startup card follows the switch, on the normal screens too.
     let normal = view(
         &Service::Up(Box::new(base())),
@@ -841,81 +750,6 @@ fn one_gpu() {
     }
 }
 
-// Row "Saved fan or pump input missing": "— not found" on its picker with the warning, "Input
-// not found" under the preview, and no other input's RPM in its place.
-#[test]
-fn a_saved_input_missing() {
-    let mut state = base();
-    // The cooler fans' input was found at start and has gone; the pump's wasn't found at all.
-    state.cooler_fan_input_present = Some(false);
-    state.cooler_fan_rpm = Some(FanSpeed::Unavailable);
-    state.pump_input = Some(chosen(9));
-    state.pump_input_present = Some(false);
-    state.pump_rpm = Some(FanSpeed::Unavailable);
-    let mut want = base_view();
-    want.column.fans = Speed::NotFound;
-    want.column.pump = Speed::NotFound;
-    want.config.cooler_fans = InputRow {
-        entries: input_entries(Some(1)),
-        chosen: Some(1),
-        button: "acme6000 · fan1 — not found".to_owned(),
-        sensitive: true,
-        missing: true,
-    };
-    let mut entries = input_entries(None);
-    entries.push(InputEntry {
-        input: chosen(9),
-        label: "acme6000 · fan9".to_owned(),
-        rpm: "not found".to_owned(),
-    });
-    want.config.pump = InputRow {
-        entries,
-        chosen: Some(4),
-        button: "acme6000 · fan9 — not found".to_owned(),
-        sensitive: true,
-        missing: true,
-    };
-    assert_eq!(view_of(state), want);
-    assert_eq!(Speed::NotFound.text(), "Input not found");
-}
-
-// An input that's there but can't be read says so, and never shows another's speed (D34).
-#[test]
-fn an_input_without_a_reading() {
-    let mut state = base();
-    state.cooler_fan_input = Some(chosen(3));
-    state.cooler_fan_rpm = Some(FanSpeed::Unavailable);
-    let mut want = base_view();
-    want.column.fans = Speed::NoReading;
-    want.config.cooler_fans = input_row(Some(3), "acme6000 · Rear");
-    assert_eq!(view_of(state), want);
-    assert_eq!(Speed::NoReading.text(), "No reading");
-}
-
-// Row "No fan sensors": both pickers insensitive with the note; the column says so.
-#[test]
-fn no_fan_sensors() {
-    let mut state = base();
-    state.fan_inputs = Some(Vec::new());
-    state.cooler_fan_input = Some(None);
-    state.pump_input = Some(chosen(2));
-    state.pump_input_present = Some(false);
-    let mut want = base_view();
-    want.column.fans = Speed::NoSensors;
-    want.column.pump = Speed::NoSensors;
-    let none = InputRow {
-        entries: Vec::new(),
-        chosen: None,
-        button: "No fan sensors found".to_owned(),
-        sensitive: false,
-        missing: false,
-    };
-    want.config.cooler_fans = none.clone();
-    want.config.pump = none;
-    want.config.inputs_hint = NO_SENSORS_HINT;
-    assert_eq!(view_of(state), want);
-}
-
 // Row "A GPU without a reading rule in use": the GPU tiles disabled with the service's reason,
 // and the hint under the dropdown.
 #[test]
@@ -1023,19 +857,6 @@ fn identical_gpus_get_their_addresses() {
     );
 }
 
-#[test]
-fn speeds_use_english_digit_grouping() {
-    for (rpm, text) in [
-        (0, "0 RPM"),
-        (999, "999 RPM"),
-        (1000, "1,000 RPM"),
-        (1180, "1,180 RPM"),
-        (9999, "9,999 RPM"),
-    ] {
-        assert_eq!(Speed::Rpm(rpm).text(), text);
-    }
-}
-
 /// Every text of a view.
 /// The switch's note and commands.
 fn switch_texts(switch: &boot::Switch) -> Vec<String> {
@@ -1089,8 +910,6 @@ fn texts(view: &View) -> Vec<String> {
         out.push(c.line.to_owned());
         out.extend(c.reason.clone());
         out.extend(c.status.iter().map(|s| s.text.to_owned()));
-        out.push(c.fans.text());
-        out.push(c.pump.text());
     };
     match view {
         View::NotAvailable => {
@@ -1129,38 +948,10 @@ fn texts(view: &View) -> Vec<String> {
                 out.extend(gpu.hint.map(str::to_owned));
                 out.push(gpu.description.clone());
             }
-            for row in [&n.config.cooler_fans, &n.config.pump] {
-                out.push(row.button.clone());
-                for e in &row.entries {
-                    out.push(e.label.clone());
-                    out.push(e.rpm.clone());
-                }
-            }
-            out.push(n.config.inputs_hint.to_owned());
             out.extend(switch_texts(&n.startup));
         }
     }
     out
-}
-
-/// The numbers `text` shows as RPM.
-fn rpms_in(text: &str) -> Vec<u16> {
-    let mut found = Vec::new();
-    for (end, _) in text.match_indices(" RPM") {
-        let start = text[..end]
-            .rfind(|c: char| !(c.is_ascii_digit() || c == ','))
-            .map_or(0, |i| i + 1);
-        let digits: String = text[start..end].chars().filter(|c| *c != ',').collect();
-        found.push(digits.parse().expect("an RPM figure"));
-    }
-    found
-}
-
-fn speed() -> impl Strategy<Value = FanSpeed> {
-    prop_oneof![
-        (0u16..=9999).prop_map(FanSpeed::Rpm),
-        Just(FanSpeed::Unavailable)
-    ]
 }
 
 fn cooler_state() -> impl Strategy<Value = Option<CoolerState>> {
@@ -1200,9 +991,6 @@ prop_compose! {
         reasons in prop::collection::btree_map(1u16..=23, (0usize..2, 0usize..4), 0..12),
         gpu_list in prop::collection::vec((gpu_kind(), any::<bool>(), 0usize..3), 0..4),
         choice in (prop::option::of(0usize..4), prop::option::of(0usize..4)),
-        fan_list in prop::collection::vec(speed(), 0..4),
-        inputs in (prop::option::of(1u32..6), prop::option::of(1u32..6), any::<bool>(), any::<bool>()),
-        rpms in (prop::option::of(speed()), prop::option::of(speed())),
         music in (any::<bool>(), 0usize..5, 0usize..5, any::<bool>()),
     ) -> State {
         let stops = [FallStop::Slower, FallStop::Slow, FallStop::Moderate, FallStop::Fast, FallStop::Faster];
@@ -1234,18 +1022,12 @@ prop_compose! {
             chosen_gpu: Some(pci(choice.0)),
             gpu_in_use: Some(pci(choice.1)),
             gpus: Some(gpus),
-            fan_inputs: Some(fan_list.iter().enumerate().map(|(i, rpm)| fan(i as u32 + 1, "", *rpm)).collect()),
-            cooler_fan_input: Some(inputs.0.and_then(chosen)),
-            pump_input: Some(inputs.1.and_then(chosen)),
-            cooler_fan_input_present: Some(inputs.2),
-            pump_input_present: Some(inputs.3),
-            cooler_fan_rpm: rpms.0,
-            pump_rpm: rpms.1,
             music_peaks: Some(music.0),
             music_bar_fall: Some(stops[music.1]),
             music_peak_fall: Some(stops[music.2]),
             audio_connected: Some(music.3),
             audio_wanted: Some(music.3),
+            ..State::default()
         }
     }
 }
@@ -1298,26 +1080,13 @@ proptest! {
         }
     }
 
-    // No view shows a hardware value but the cooler's fan and pump RPM: every RPM figure is one
-    // of the fan speeds the service sent, and nothing shows a %, a temperature or a power.
+    // No view shows a hardware value: no text carries a %, a temperature, a power or a speed.
     #[test]
-    fn only_the_cooler_s_rpm_is_shown(state in any_state(), long: bool, down: bool, startup in 0..6_usize) {
-        let mut sent: Vec<u16> = state.fan_inputs.iter().flatten().filter_map(|f| match f.rpm {
-            FanSpeed::Rpm(r) => Some(r),
-            FanSpeed::Unavailable => None,
-        }).collect();
-        for speed in [state.cooler_fan_rpm, state.pump_rpm].into_iter().flatten() {
-            if let FanSpeed::Rpm(r) = speed {
-                sent.push(r);
-            }
-        }
+    fn no_view_shows_a_hardware_value(state in any_state(), long: bool, down: bool, startup in 0..6_usize) {
         let service = if down { Service::Down } else { Service::Up(Box::new(state)) };
         let ui = Ui { sending_failed_long: long, ..Ui::default() };
         for text in texts(&view(&service, ui, &products(), &startup_states()[startup])) {
-            prop_assert!(!text.contains('%') && !text.contains('°'), "{}", text);
-            for rpm in rpms_in(&text) {
-                prop_assert!(sent.contains(&rpm), "{} isn't a speed the service sent: {}", rpm, text);
-            }
+            prop_assert!(!text.contains('%') && !text.contains('°') && !text.contains("RPM"), "{}", text);
         }
     }
 }

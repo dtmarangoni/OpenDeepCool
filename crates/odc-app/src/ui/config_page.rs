@@ -1,6 +1,6 @@
 //! The Configuration page (`docs/design/settings-app.md`, Configuration page): every other
-//! setting, in three cards. Display: the rotation and, with more than one GPU, the GPU. Cooler:
-//! the cooler fans' and the pump's inputs. Music: the peak dots and the bars' and peaks' fall.
+//! setting, in cards. Display: the rotation and, with more than one GPU, the GPU. Music: the peak
+//! dots and the bars' and peaks' fall. (Startup, the last card, is `startup.rs`.)
 //! Each control asks the service at once and shows the new value once the service confirms it.
 
 use std::cell::{Cell, RefCell};
@@ -9,12 +9,12 @@ use std::rc::Rc;
 use gtk::accessible::Property;
 use gtk::glib;
 use gtk::prelude::*;
-use odc_ipc::{FallStop, Input};
+use odc_ipc::FallStop;
 
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
 use super::names::{Names, group};
-use crate::model::{self, MISSING_INPUT_HINT};
+use crate::model;
 
 /// The five fall stops, slowest first, as the scales hold them: 0 to 4.
 pub const STOPS: [FallStop; 5] = [
@@ -52,8 +52,6 @@ pub fn value_of(stop: FallStop) -> f64 {
 struct Confirmed {
     rotation: u8,
     gpus: Vec<String>,
-    fans: Vec<Option<Input>>,
-    pump: Vec<Option<Input>>,
     bar_fall: Option<FallStop>,
     peak_fall: Option<FallStop>,
 }
@@ -67,11 +65,6 @@ pub struct ConfigPage {
     /// The group named "GPU in use" around it (decisions log D72).
     gpu_in_use_group: gtk::Box,
     gpu_hint: gtk::Label,
-    fans: Dropdown,
-    fans_hint: gtk::Label,
-    pump: Dropdown,
-    pump_hint: gtk::Label,
-    inputs_hint: gtk::Label,
     peaks: gtk::Switch,
     bar_fall: gtk::Scale,
     peak_fall: gtk::Scale,
@@ -237,37 +230,6 @@ impl ConfigPage {
             }
         });
 
-        // Cooler: the two inputs.
-        let cooler = card(&root, "Cooler", "Cooler settings", names);
-        let input_row = |title: &str, name: &str| {
-            let dropdown = Dropdown::new();
-            names.name(dropdown.widget(), name);
-            let hint = small(MISSING_INPUT_HINT, &["warn-text", "small"]);
-            hint.set_max_width_chars(HINT_CHARS);
-            hint.set_visible(false);
-            let column = right(320);
-            column.append(dropdown.widget());
-            column.append(&hint);
-            row(&cooler, title, None, &column);
-            (dropdown, hint)
-        };
-        let (fans, fans_hint) = input_row("Cooler fans input", "Cooler fans input");
-        let (pump, pump_hint) = input_row("Pump input", "Pump input");
-        let (s, c) = (Rc::clone(&send), Rc::clone(&confirmed));
-        fans.connect_picked(move |position| {
-            if let Some(input) = c.borrow().fans.get(position as usize) {
-                s(Request::SetCoolerFanInput(input.clone()));
-            }
-        });
-        let (s, c) = (Rc::clone(&send), Rc::clone(&confirmed));
-        pump.connect_picked(move |position| {
-            if let Some(input) = c.borrow().pump.get(position as usize) {
-                s(Request::SetPumpInput(input.clone()));
-            }
-        });
-        let inputs_hint = small("", &["muted", "small"]);
-        cooler.append(&inputs_hint);
-
         // Music: the peak dots and the two falls.
         let music = card(&root, "Music", "Music settings", names);
         let peaks = gtk::Switch::builder()
@@ -336,11 +298,6 @@ impl ConfigPage {
             gpu_in_use,
             gpu_in_use_group,
             gpu_hint,
-            fans,
-            fans_hint,
-            pump,
-            pump_hint,
-            inputs_hint,
             peaks,
             bar_fall,
             peak_fall,
@@ -366,13 +323,6 @@ impl ConfigPage {
                 .iter()
                 .flat_map(|gpu| gpu.entries.iter().map(|e| e.pci.clone()))
                 .collect();
-            confirmed.fans = page
-                .cooler_fans
-                .entries
-                .iter()
-                .map(|e| e.input.clone())
-                .collect();
-            confirmed.pump = page.pump.entries.iter().map(|e| e.input.clone()).collect();
             confirmed.bar_fall = Some(page.bar_fall);
             confirmed.peak_fall = Some(page.peak_fall);
         }
@@ -410,46 +360,6 @@ impl ConfigPage {
             None => self.gpu_row.set_visible(false),
         }
 
-        for (dropdown, hint, row) in [
-            (&self.fans, &self.fans_hint, &page.cooler_fans),
-            (&self.pump, &self.pump_hint, &page.pump),
-        ] {
-            if row.entries.is_empty() {
-                // No fan sensors: the note alone, and nothing to pick.
-                dropdown.show(
-                    vec![Entry {
-                        label: row.button.clone(),
-                        note: String::new(),
-                    }],
-                    Some(0),
-                    &row.button,
-                );
-            } else {
-                let entries = row
-                    .entries
-                    .iter()
-                    .map(|e| Entry {
-                        label: e.label.clone(),
-                        note: e.rpm.clone(),
-                    })
-                    .collect();
-                dropdown.show(
-                    entries,
-                    row.chosen.and_then(|c| u32::try_from(c).ok()),
-                    &row.button,
-                );
-            }
-            dropdown.widget().set_sensitive(row.sensitive);
-            if row.missing {
-                dropdown.widget().add_css_class("warn");
-            } else {
-                dropdown.widget().remove_css_class("warn");
-            }
-            hint.set_visible(row.missing);
-            names.describe(dropdown.widget(), row.missing.then_some("not found"));
-        }
-        self.inputs_hint.set_text(page.inputs_hint);
-
         self.peaks.set_active(page.peaks);
         self.peaks.set_state(page.peaks);
         for (index, (scale, stop)) in [
@@ -470,14 +380,6 @@ impl ConfigPage {
         &self.gpu
     }
 
-    pub fn fans(&self) -> &Dropdown {
-        &self.fans
-    }
-
-    pub fn pump(&self) -> &Dropdown {
-        &self.pump
-    }
-
     /// Whether the GPU row shows, and its line and hint while they show.
     pub fn gpu_row(&self) -> Option<(Option<String>, Option<String>)> {
         let shown = |l: &gtk::Label| l.is_visible().then(|| l.text().to_string());
@@ -490,16 +392,6 @@ impl ConfigPage {
             .then(|| (in_use, shown(&self.gpu_hint)))
     }
 
-    /// Whether each input's missing hint shows, and the hint under the inputs.
-    pub fn input_hints(&self) -> (bool, bool, String) {
-        (
-            self.fans_hint.is_visible(),
-            self.pump_hint.is_visible(),
-            self.inputs_hint.text().to_string(),
-        )
-    }
-
-    /// The confirmed rotation's toggle, the switch and the scales as shown.
     pub fn shown(&self) -> (usize, bool, f64, f64) {
         (
             self.rotations

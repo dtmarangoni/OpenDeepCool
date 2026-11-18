@@ -1,13 +1,13 @@
 //! The Configuration page's dropdowns (`docs/design/settings-app.md`, Configuration page): a
 //! `GtkDropDown` over a `GtkStringList` of the entries' labels. Its button shows the view's own
-//! words; its open list shows a check mark, the label and a muted note at the right (an RPM, or
-//! a GPU's note), each item named by its label and described by its note. No item type of the
+//! words; its open list shows a check mark, the label and a muted note at the right (a GPU's
+//! note), each item named by its label and described by its note. No item type of the
 //! app's own: the workspace forbids the `unsafe` that GObject subclassing generates, so the rows
 //! look their entry up by position.
 //!
 //! The dropdown shows a choice only once the service confirms it: a user's pick is handed to
 //! [`Dropdown::connect_picked`], and the confirmed entry is shown again until the next
-//! [`Dropdown::show`]. The notes of an open list update in place (Cooler: live RPM).
+//! [`Dropdown::show`].
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -267,39 +267,6 @@ impl Dropdown {
     /// The button's words.
     pub fn button_text(&self) -> String {
         self.shared.button_text.borrow().clone()
-    }
-
-    /// The open list's bound rows: position, label, note, and whether its check shows.
-    pub fn rows(&self) -> Vec<(u32, String, String, bool)> {
-        let mut rows: Vec<_> = self
-            .shared
-            .rows
-            .borrow()
-            .iter()
-            .map(|r| {
-                (
-                    r.item.position(),
-                    r.label.text().to_string(),
-                    r.note.text().to_string(),
-                    r.check.opacity() > 0.5,
-                )
-            })
-            .collect();
-        rows.sort();
-        rows
-    }
-
-    /// The open list's row at `position`, as assistive technology picks it: its `row.activate`.
-    /// False when no bound row is there.
-    pub fn activate_row(&self, position: u32) -> bool {
-        let row = self
-            .shared
-            .rows
-            .borrow()
-            .iter()
-            .find(|r| r.item.position() == position)
-            .and_then(|r| r.label.parent());
-        row.is_some_and(|row| row.activate_action("row.activate", None).is_ok())
     }
 }
 

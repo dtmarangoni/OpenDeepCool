@@ -6,9 +6,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use odc_ipc::{
-    CoolerState, FallStop, FanInput, FanSpeed, Gpu, GpuKind, Input, State, TemperatureUnit,
-};
+use odc_ipc::{CoolerState, FallStop, Gpu, GpuKind, State, TemperatureUnit};
 use odc_render::{Kind, Mode, mode_info};
 use odc_sensors::Metric;
 
@@ -156,8 +154,6 @@ pub struct Column {
     pub reason: Option<String>,
     /// Up to three status items.
     pub status: Vec<Status>,
-    pub fans: Speed,
-    pub pump: Speed,
 }
 
 /// A status item: its accessible name, its words and its dot.
@@ -175,42 +171,6 @@ pub enum Dot {
     Bad,
     /// Hollow: unknown.
     Off,
-}
-
-/// A fan or pump row under the preview.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Speed {
-    Rpm(u16),
-    /// The input is there, but its speed can't be read (decisions log D34).
-    NoReading,
-    /// No input chosen: a link to the Configuration page.
-    ChooseInput,
-    NotFound,
-    NoSensors,
-    /// The service is down.
-    Unknown,
-}
-
-impl Speed {
-    pub fn text(self) -> String {
-        match self {
-            Speed::Rpm(rpm) => format!("{} RPM", grouped(rpm)),
-            Speed::NoReading => "No reading".to_owned(),
-            Speed::ChooseInput => "Choose input".to_owned(),
-            Speed::NotFound => "Input not found".to_owned(),
-            Speed::NoSensors => "No fan sensors found".to_owned(),
-            Speed::Unknown => "—".to_owned(),
-        }
-    }
-}
-
-/// `n` with English digit grouping: `1,180`.
-pub fn grouped(n: u16) -> String {
-    if n >= 1000 {
-        format!("{},{:03}", n / 1000, n % 1000)
-    } else {
-        n.to_string()
-    }
 }
 
 /// The Display page.
@@ -269,19 +229,11 @@ pub struct ConfigPage {
     pub rotation: u8,
     /// Only with more than one GPU.
     pub gpu: Option<GpuRow>,
-    pub cooler_fans: InputRow,
-    pub pump: InputRow,
-    /// Under the Cooler rows.
-    pub inputs_hint: &'static str,
     pub peaks: bool,
     pub bar_fall: FallStop,
     pub peak_fall: FallStop,
 }
 
-pub const INPUTS_HINT: &str = "Pick the inputs your cooler's radiator fans and pump are plugged into. Their speeds show in the app only, never on the cooler.";
-pub const NO_SENSORS_HINT: &str = "No fan sensors were found. The board's sensor driver may not be loaded; the journal says more.";
-pub const MISSING_INPUT_HINT: &str =
-    "The saved input isn't found. Pick another, or it comes back when the input does.";
 pub const NO_GPU_RULE_HINT: &str =
     "No reading for this GPU's driver: the GPU options are unavailable.";
 
@@ -308,32 +260,6 @@ pub struct GpuEntry {
     pub label: String,
     /// The muted note in the open list.
     pub note: Option<&'static str>,
-}
-
-/// A fan input dropdown.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InputRow {
-    /// None first, then every fan input, then the saved input when it isn't among them; empty
-    /// without fan sensors.
-    pub entries: Vec<InputEntry>,
-    /// The chosen entry; `None` only without fan sensors.
-    pub chosen: Option<usize>,
-    /// What the dropdown's button reads.
-    pub button: String,
-    pub sensitive: bool,
-    /// The saved input isn't found: a warning border, [`MISSING_INPUT_HINT`] and the
-    /// accessible description "not found".
-    pub missing: bool,
-}
-
-/// One fan input dropdown entry.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct InputEntry {
-    /// The input `SetCoolerFanInput` or `SetPumpInput` takes: `None` for none.
-    pub input: Option<Input>,
-    pub label: String,
-    /// Its live speed, "no reading", "not found", or empty for None.
-    pub rpm: String,
 }
 
 /// What the window shows for `service`, `ui`, the products of the system's PCI ID list
@@ -366,7 +292,6 @@ pub fn view(
         .filter_map(|(m, r)| Some((u16::try_from(*m).ok()?, reason_text(r))))
         .collect();
     let cooler = shown(state.cooler_state, ui.sending_failed_long);
-    let fan_inputs: &[FanInput] = state.fan_inputs.as_deref().unwrap_or(&[]);
     let lost = reasons.get(&mode.number());
     let mut status = vec![cooler.status(), SERVICE_RUNNING];
     if mode_info(mode).kind == Kind::Music {
@@ -384,23 +309,11 @@ pub fn view(
             }
         });
     }
-    let fans = Fan {
-        chosen: state.cooler_fan_input.clone().flatten(),
-        present: state.cooler_fan_input_present != Some(false),
-        rpm: state.cooler_fan_rpm,
-    };
-    let pump = Fan {
-        chosen: state.pump_input.clone().flatten(),
-        present: state.pump_input_present != Some(false),
-        rpm: state.pump_rpm,
-    };
     let column = Column {
         caption: caption(mode),
         line: cooler.line(),
         reason: lost.map(|r| format!("{r}. The cooler shows dashes until it's back.")),
         status,
-        fans: fans.speed(fan_inputs),
-        pump: pump.speed(fan_inputs),
     };
     let display = DisplayPage {
         unit: state.temperature_unit.unwrap_or(TemperatureUnit::Celsius),
@@ -409,13 +322,6 @@ pub fn view(
     let config = ConfigPage {
         rotation: state.rotation.unwrap_or(0),
         gpu: gpu_row(state, products),
-        cooler_fans: fans.row(fan_inputs),
-        pump: pump.row(fan_inputs),
-        inputs_hint: if fan_inputs.is_empty() {
-            NO_SENSORS_HINT
-        } else {
-            INPUTS_HINT
-        },
         peaks: state.music_peaks.unwrap_or(true),
         bar_fall: state.music_bar_fall.unwrap_or(FallStop::Moderate),
         peak_fall: state.music_peak_fall.unwrap_or(FallStop::Slow),
@@ -459,8 +365,6 @@ fn down_column(startup: &Boot) -> Column {
         line: "The service draws the picture",
         reason: None,
         status,
-        fans: Speed::Unknown,
-        pump: Speed::Unknown,
     }
 }
 
@@ -743,116 +647,6 @@ fn gpu_row(state: &State, products: &HashMap<(u16, u16), String>) -> Option<GpuR
         hint: in_use_has_no_rule.then_some(NO_GPU_RULE_HINT),
         description,
     })
-}
-
-/// One of the cooler's inputs, the cooler fans' or the pump's.
-struct Fan {
-    chosen: Option<Input>,
-    present: bool,
-    rpm: Option<FanSpeed>,
-}
-
-/// `<chip> · <label or fanN>`.
-fn input_label(chip: &str, label: &str, input: u32) -> String {
-    if label.is_empty() {
-        format!("{chip} · fan{input}")
-    } else {
-        format!("{chip} · {label}")
-    }
-}
-
-fn rpm_text(speed: FanSpeed) -> String {
-    match speed {
-        FanSpeed::Rpm(rpm) => format!("{} RPM", grouped(rpm)),
-        FanSpeed::Unavailable => "no reading".to_owned(),
-    }
-}
-
-fn same(input: &Input, listed: &FanInput) -> bool {
-    input.chip == listed.chip && input.device == listed.device && input.input == listed.input
-}
-
-impl Fan {
-    fn speed(&self, inputs: &[FanInput]) -> Speed {
-        if inputs.is_empty() {
-            return Speed::NoSensors;
-        }
-        if self.chosen.is_none() {
-            return Speed::ChooseInput;
-        }
-        if !self.present {
-            return Speed::NotFound;
-        }
-        match self.rpm {
-            Some(FanSpeed::Rpm(rpm)) => Speed::Rpm(rpm),
-            Some(FanSpeed::Unavailable) | None => Speed::NoReading,
-        }
-    }
-
-    fn row(&self, inputs: &[FanInput]) -> InputRow {
-        if inputs.is_empty() {
-            return InputRow {
-                entries: Vec::new(),
-                chosen: None,
-                button: "No fan sensors found".to_owned(),
-                sensitive: false,
-                missing: false,
-            };
-        }
-        let missing = self.chosen.is_some() && !self.present;
-        let listed = self
-            .chosen
-            .as_ref()
-            .and_then(|c| inputs.iter().position(|i| same(c, i)));
-        let mut entries = vec![InputEntry {
-            input: None,
-            label: "None".to_owned(),
-            rpm: String::new(),
-        }];
-        entries.extend(inputs.iter().enumerate().map(|(i, f)| InputEntry {
-            input: Some(Input {
-                chip: f.chip.clone(),
-                device: f.device.clone(),
-                input: f.input,
-            }),
-            label: input_label(&f.chip, &f.label, f.input),
-            rpm: if missing && listed == Some(i) {
-                "not found".to_owned()
-            } else {
-                rpm_text(f.rpm)
-            },
-        }));
-        let (chosen, button) = match (&self.chosen, listed) {
-            (None, _) => (Some(0), "None".to_owned()),
-            (Some(_), Some(i)) => (Some(i + 1), entries[i + 1].label.clone()),
-            (Some(c), None) => {
-                // The saved input wasn't found at all: it stands last in the list, so the picker
-                // has it to show as chosen (decisions log D59).
-                let label = input_label(&c.chip, "", c.input);
-                entries.push(InputEntry {
-                    input: Some(c.clone()),
-                    label: label.clone(),
-                    rpm: if missing {
-                        "not found".to_owned()
-                    } else {
-                        String::new()
-                    },
-                });
-                (Some(entries.len() - 1), label)
-            }
-        };
-        InputRow {
-            entries,
-            chosen,
-            button: if missing {
-                format!("{button} — not found")
-            } else {
-                button
-            },
-            sensitive: true,
-            missing,
-        }
-    }
 }
 
 #[cfg(test)]

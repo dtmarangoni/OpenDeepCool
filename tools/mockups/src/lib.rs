@@ -108,26 +108,6 @@ fn obj(pairs: &[(&str, Json)]) -> Json {
     )
 }
 
-/// The fan inputs every page lists: made-up chips, labels and readings.
-fn fans() -> Json {
-    let fan = |chip: &str, label: &str, input: i64, rpm: i64| {
-        obj(&[
-            ("chip", s(chip)),
-            ("label", s(label)),
-            ("input", Json::Int(input)),
-            ("rpm", Json::Int(rpm)),
-        ])
-    };
-    Json::Array(vec![
-        fan("acme6000", "", 1, 1180),
-        fan("acme6000", "", 2, 2750),
-        fan("acme6000", "", 3, 940),
-        fan("acme6000", "", 4, 0),
-        fan("acme6000", "", 5, 1620),
-        fan("acme-ec", "Rear Fan", 1, 860),
-    ])
-}
-
 /// The GPUs: made-up product names and PCI addresses.
 fn gpus() -> Vec<Json> {
     let gpu = |kind: &str, name: &str, driver: &str, pci: &str| {
@@ -156,7 +136,7 @@ fn gpus() -> Vec<Json> {
 }
 
 /// The state every page starts from: the Display page in Temperature · CPU + GPU, everything
-/// connected, several GPUs on Automatic and both inputs chosen.
+/// connected and several GPUs on Automatic.
 fn base() -> Json {
     obj(&[
         ("theme", s("omarchy")),
@@ -171,13 +151,6 @@ fn base() -> Json {
         ("gpus", Json::Array(gpus())),
         ("gpu", Json::Null),
         ("gpuInUse", Json::Int(0)),
-        ("fans", fans()),
-        ("fan", Json::Int(0)),
-        ("pump", Json::Int(1)),
-        (
-            "missing",
-            obj(&[("fan", Json::Bool(false)), ("pump", Json::Bool(false))]),
-        ),
         ("unavailable", obj(&[])),
         (
             "live",
@@ -238,14 +211,8 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the cooler's fan and pump inputs, the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
+            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
             config().with("rotation", Json::Int(1)),
-        ),
-        page(
-            "configuration-picker-open.html",
-            "Configuration, fan picker open",
-            "The cooler fans picker lists every fan input with its chip, its label when the driver has one, and its live RPM. None comes first.",
-            config().with("open", s("fan")),
         ),
         page(
             "configuration-gpu-list.html",
@@ -272,11 +239,8 @@ pub fn pages() -> Vec<Page> {
         page(
             "first-start.html",
             "First start",
-            "Defaults: Load CPU, rotation 0°, °C, no fan inputs chosen, peak dots on, bar fall moderate, peak fall slow, the GPU on Automatic.",
-            base()
-                .with("mode", Json::Int(1))
-                .with("fan", Json::Null)
-                .with("pump", Json::Null),
+            "Defaults: Load CPU, rotation 0°, °C, peak dots on, bar fall moderate, peak fall slow, the GPU on Automatic.",
+            base().with("mode", Json::Int(1)),
         ),
         page(
             "cooler-disconnected.html",
@@ -371,24 +335,6 @@ pub fn pages() -> Vec<Page> {
             "One GPU",
             "With one GPU, dedicated or integrated, the configuration screen has no GPU control at all.",
             config().with("gpus", Json::Array(vec![dedicated])),
-        ),
-        page(
-            "missing-input.html",
-            "Saved pump input missing",
-            "The saved pump input isn't found: its picker says so with a hint, the preview column says \"Input not found\", and nothing shows another input's RPM.",
-            config().with(
-                "missing",
-                obj(&[("fan", Json::Bool(false)), ("pump", Json::Bool(true))]),
-            ),
-        ),
-        page(
-            "no-fan-sensors.html",
-            "No fan sensors",
-            "No fan inputs were found: both pickers are disabled with a note, and the preview column says so.",
-            config()
-                .with("fans", Json::Array(Vec::new()))
-                .with("fan", Json::Null)
-                .with("pump", Json::Null),
         ),
         page(
             "boot-partly.html",

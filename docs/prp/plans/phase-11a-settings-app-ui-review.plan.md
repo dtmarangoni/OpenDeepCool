@@ -251,7 +251,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 
 **Files and integration points**
 - `docs/design/settings-app.md`, `docs/design/mockups-src/app.js`, `tools/mockups/src/lib.rs` — UPDATE (designer, then implementer) — the preview column's RPM rows, the Cooler card, the "missing input" and "no fan sensors" states, the coverage check and the accessible names go. Two mockups (`missing-input`, `no-fan-sensors`) go; the others lose the rows.
-- `crates/odc-app/src/model.rs:159-203,272-335,369-414,748-800`, `ui/window.rs` (`SpeedRow`), `ui/config_page.rs`, `ui/mod.rs:30-32`, `client.rs:107,246-252`, `report.rs` and `docs/spec/report.md` — UPDATE — the view model, the rows, the Cooler card, the two requests and the report's fan lines go.
+- `crates/odc-app/src/model.rs:159-203,272-335,369-414,748-800`, `ui/window.rs` (`SpeedRow`), `ui/config_page.rs`, `ui/mod.rs:30-32`, `client.rs:107,246-252` and `ui/dropdowns.rs` (its two test-only row helpers) — UPDATE — the view model, the rows, the Cooler card and the two requests go. (The bug report's only mentions are the detection's units and program, which go in Task 5.)
 - `crates/odc-app/src/model/tests.rs`, `tests/config_page.rs`, `tests/common/mod.rs`, `tests/window.rs`, `crates/odc-ui-e2e/src/scenarios.rs` (`inputs`, `missing_input`, `no_fan_sensors`, and the `names` list), `crates/odc-ui-e2e/src/fake.rs` — UPDATE — the tests that exercised them go with them.
 
 **Implementation**
@@ -292,6 +292,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 **Files and integration points**
 - `crates/odc-sensors-detect/` (DELETE, whole crate), `packaging/systemd/opendeepcool-sensors-detect.service` and `…-detect-modules.service` (DELETE), `packaging/systemd/opendeepcool.service:4,7-8` — UPDATE — `Wants=` and `After=` drop the detection and `lm_sensors.service`.
 - `packaging/arch/PKGBUILD:18,28,59,79-90`, `.SRCINFO`, `opendeepcool.install:16-17,46,73-78,82-137,160-162`, `packaging/FILES.md`, `crates/odc-service/tests/packaging.rs` — UPDATE — the `lm_sensors` dependency, the program and the two units, the install message and the undo of the detection go.
+- `crates/odc-app/src/report.rs` and `docs/spec/report.md` — UPDATE — the detection's two units and its program leave the bug report's lists.
 - `crates/odc-pkg-test/src/{main,run}.rs`, `Cargo.toml` — UPDATE — the lm-sensors cases, their constants and the detection record helper go; the install, upgrade and uninstall cases stay, and the unit score no longer reads the two units.
 - `AGENTS.md` (the crate table), `README.md` ("Installed on your system"), the PRD's System Footprint (the detection rows and the lm-sensors list), and the entry-points table in `docs/prp/solution-reviews/project-overview.review.md` (the row "The detection record") — UPDATE.
 

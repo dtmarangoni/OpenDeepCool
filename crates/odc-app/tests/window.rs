@@ -170,9 +170,7 @@ fn banners_and_states(app: &gtk::Application) {
         [
             "No picture",
             "The service draws the picture",
-            "Cooler: unknown",
-            "—",
-            "—"
+            "Cooler: unknown"
         ]
     );
     window.boot(new_install());
@@ -207,9 +205,7 @@ fn banners_and_states(app: &gtk::Application) {
             "Load · CPU",
             "Shown on the cooler now",
             "Cooler connected",
-            "Service running",
-            "1,180 RPM",
-            "3,400 RPM"
+            "Service running"
         ]
     );
     for (cooler, banner, status, line) in [
@@ -525,7 +521,7 @@ fn feedback(app: &gtk::Application) {
 }
 
 // Frames are watched once mapped; Refresh and the pages through their actions, and only where
-// they can be used; the choose-input link opens the Configuration page.
+// they can be used.
 fn requests(app: &gtk::Application) {
     let (window, asked) = shown(app);
     assert!(asked.borrow().contains(&Request::WatchFrames(true)));
@@ -537,20 +533,10 @@ fn requests(app: &gtk::Application) {
         !asked.borrow().contains(&Request::Refresh),
         "no Refresh without the service"
     );
-    let mut state = base();
-    state.cooler_fan_input = Some(None);
-    window.state(state);
+    window.state(base());
     WidgetExt::activate_action(window.widget(), "win.refresh", None).expect("the refresh action");
     run_for(Duration::from_millis(20));
     assert_eq!(*asked.borrow(), [Request::Refresh]);
-    let link = window
-        .names()
-        .find("Choose cooler fans input")
-        .and_then(|w| w.downcast::<gtk::Button>().ok())
-        .expect("the link");
-    assert!(link.is_visible());
-    link.emit_clicked();
-    assert_eq!(window.screen().1, "config");
     WidgetExt::activate_action(window.widget(), "win.page-display", None).expect("the page action");
     assert_eq!(window.screen().1, "display");
     WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page action");
@@ -633,10 +619,6 @@ fn names(app: &gtk::Application) {
         ("Cooler status", R::Group),
         ("Service status", R::Group),
         ("Music sound status", R::Group),
-        ("Cooler fans speed", R::Group),
-        ("Pump speed", R::Group),
-        ("Choose cooler fans input", R::Button),
-        ("Choose pump input", R::Button),
         // The Display page (Task 5).
         ("Celsius", R::ToggleButton),
         ("Fahrenheit", R::ToggleButton),
@@ -650,7 +632,6 @@ fn names(app: &gtk::Application) {
         ("Music unavailable reasons", R::Group),
         // The Configuration page (Task 6).
         ("Display settings", R::Group),
-        ("Cooler settings", R::Group),
         ("Music settings", R::Group),
         ("Rotation 0°", R::ToggleButton),
         ("Rotation 90°", R::ToggleButton),
@@ -658,8 +639,6 @@ fn names(app: &gtk::Application) {
         ("Rotation 270°", R::ToggleButton),
         ("GPU", R::ComboBox),
         ("GPU in use", R::Group),
-        ("Cooler fans input", R::ComboBox),
-        ("Pump input", R::ComboBox),
         ("Peak dots", R::Switch),
         ("Bar fall", R::Slider),
         ("Peak fall", R::Slider),

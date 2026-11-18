@@ -308,12 +308,10 @@ impl Run {
             self.activate_again()?;
         }
         self.node("toggle button", "Display")?;
-        for combo in ["GPU", "Cooler fans input", "Pump input"] {
-            if let Some(node) = self.driver.find("combo box", combo)?
-                && self.driver.has(&node, State::Expanded)?
-            {
-                self.close(combo)?;
-            }
+        if let Some(node) = self.driver.find("combo box", "GPU")?
+            && self.driver.has(&node, State::Expanded)?
+        {
+            self.close("GPU")?;
         }
         self.page("Display")?;
         self.expect_state("grid cell", "Load: CPU", State::Selected, true)
@@ -481,7 +479,7 @@ impl Run {
 
 pub type Scenario = fn(&mut Run) -> Result<String>;
 
-pub const ALL: [(&str, Scenario); 31] = [
+pub const ALL: [(&str, Scenario); 28] = [
     ("service_down", service_down),
     ("first_start", first_start),
     ("names", names),
@@ -492,9 +490,6 @@ pub const ALL: [(&str, Scenario); 31] = [
     ("gpu", gpu),
     ("gpu_notes", gpu_notes),
     ("one_gpu", one_gpu),
-    ("inputs", inputs),
-    ("missing_input", missing_input),
-    ("no_fan_sensors", no_fan_sensors),
     ("music", music),
     ("refresh", refresh),
     ("shortcuts", shortcuts),
@@ -535,8 +530,6 @@ fn service_down(run: &mut Run) -> Result<String> {
     run.check_state("button", "Refresh display", State::Sensitive, false)?;
     run.expect_texts("group", "Cooler status", &["Cooler: unknown"])?;
     run.expect_texts("group", "Service status", &["Service off"])?;
-    run.expect_texts("group", "Cooler fans speed", &["Cooler fans", "—"])?;
-    run.expect_texts("group", "Pump speed", &["Pump", "—"])?;
     run.expect_description("image", "Cooler display preview", "No picture")?;
     run.gone("grid cell", "Load: CPU")?;
     let calls = run.fake.calls_since(0)?;
@@ -583,8 +576,6 @@ fn first_start(run: &mut Run) -> Result<String> {
     run.expect_description("image", "Cooler display preview", "Load · CPU")?;
     run.node("label", "Load · CPU")?;
     run.node("label", "Shown on the cooler now")?;
-    run.node("button", "Choose cooler fans input")?;
-    run.node("button", "Choose pump input")?;
     run.check_state("toggle button", "Celsius", State::Pressed, true)?;
     run.check_state("toggle button", "Fahrenheit", State::Pressed, false)?;
     for toggle in ["Display", "Configuration"] {
@@ -603,8 +594,6 @@ fn first_start(run: &mut Run) -> Result<String> {
         "GPU in use",
         &[&format!("Using {DEDICATED_LABEL}.")],
     )?;
-    run.expect_texts("combo box", "Cooler fans input", &["None"])?;
-    run.expect_texts("combo box", "Pump input", &["None"])?;
     run.check_state("switch", "Peak dots", State::Checked, true)?;
     run.expect_value("slider", "Bar fall", 2.0, "Moderate")?;
     run.expect_value("slider", "Peak fall", 1.0, "Slow")?;
@@ -628,10 +617,6 @@ fn names(run: &mut Run) -> Result<String> {
         ("image", "Cooler display preview"),
         ("group", "Cooler status"),
         ("group", "Service status"),
-        ("group", "Cooler fans speed"),
-        ("group", "Pump speed"),
-        ("button", "Choose cooler fans input"),
-        ("button", "Choose pump input"),
     ]);
     let mut display = owned(&[
         ("toggle button", "Celsius"),
@@ -648,7 +633,6 @@ fn names(run: &mut Run) -> Result<String> {
     }
     let configuration = owned(&[
         ("group", "Display settings"),
-        ("group", "Cooler settings"),
         ("group", "Music settings"),
         ("toggle button", "Rotation 0°"),
         ("toggle button", "Rotation 90°"),
@@ -656,8 +640,6 @@ fn names(run: &mut Run) -> Result<String> {
         ("toggle button", "Rotation 270°"),
         ("combo box", "GPU"),
         ("group", "GPU in use"),
-        ("combo box", "Cooler fans input"),
-        ("combo box", "Pump input"),
         ("switch", "Peak dots"),
         ("slider", "Bar fall"),
         ("slider", "Peak fall"),
@@ -917,133 +899,6 @@ fn one_gpu(run: &mut Run) -> Result<String> {
     run.page("Configuration")?;
     run.gone("combo box", "GPU")?;
     run.gone("group", "GPU in use")?;
-    run.node("combo box", "Cooler fans input")?;
-    run.page("Display")?;
-    NO_NOTE
-}
-
-/// The cooler fans and pump inputs: None first, each input with its live speed in the open
-/// list, a pick, the speed under the preview, an unreadable speed, and None again
-/// (Configuration page, Cooler; Preview column, Fan and pump RPM).
-fn inputs(run: &mut Run) -> Result<String> {
-    run.reset()?;
-    run.page("Configuration")?;
-    run.open("Cooler fans input")?;
-    run.expect_items(
-        "Cooler fans input",
-        &[
-            ("None", ""),
-            ("acme6000 · fan1", "1,180 RPM"),
-            ("acme6000 · fan2", "3,400 RPM"),
-            ("acme6000 · Rear", "940 RPM"),
-        ],
-    )?;
-    // The speeds change while the list is open.
-    run.fake.service.fans[0].rpm = Some(1250);
-    run.fake.write()?;
-    run.expect_items(
-        "Cooler fans input",
-        &[
-            ("None", ""),
-            ("acme6000 · fan1", "1,250 RPM"),
-            ("acme6000 · fan2", "3,400 RPM"),
-            ("acme6000 · Rear", "940 RPM"),
-        ],
-    )?;
-    let input =
-        |call: &str, n: u32| format!("{call}(\"{}\", \"{}\", {n})", fake::CHIP, fake::DEVICE);
-    run.change(
-        |run| run.pick("Cooler fans input", "acme6000 · fan1"),
-        &input("SetCoolerFanInput", 1),
-        |run| run.check_texts("combo box", "Cooler fans input", &["None"]),
-        |service| service.cooler_fan = Some(1),
-        |run| {
-            run.expect_texts("combo box", "Cooler fans input", &["acme6000 · fan1"])?;
-            run.expect_texts("group", "Cooler fans speed", &["Cooler fans", "1,250 RPM"])
-        },
-    )?;
-    run.open("Pump input")?;
-    run.change(
-        |run| run.pick("Pump input", "acme6000 · fan2"),
-        &input("SetPumpInput", 2),
-        |run| run.check_texts("combo box", "Pump input", &["None"]),
-        |service| service.pump = Some(2),
-        |run| {
-            run.expect_texts("combo box", "Pump input", &["acme6000 · fan2"])?;
-            run.expect_texts("group", "Pump speed", &["Pump", "3,400 RPM"])
-        },
-    )?;
-    // The pump's speed changes, then can't be read.
-    run.fake.service.fans[1].rpm = Some(3500);
-    run.fake.write()?;
-    run.expect_texts("group", "Pump speed", &["Pump", "3,500 RPM"])?;
-    run.fake.service.fans[1].rpm = None;
-    run.fake.write()?;
-    run.expect_texts("group", "Pump speed", &["Pump", "No reading"])?;
-    run.open("Cooler fans input")?;
-    run.change(
-        |run| run.pick("Cooler fans input", "None"),
-        "SetCoolerFanInput(\"\", \"\", 0)",
-        |run| run.check_texts("combo box", "Cooler fans input", &["acme6000 · fan1"]),
-        |service| service.cooler_fan = None,
-        |run| {
-            run.expect_texts("combo box", "Cooler fans input", &["None"])?;
-            run.node("button", "Choose cooler fans input").map(|_| ())
-        },
-    )?;
-    run.page("Display")?;
-    NO_NOTE
-}
-
-/// A saved input that isn't there: "— not found" on its picker, its hint, "Input not found"
-/// under the preview, and no other input's speed (States, Saved fan or pump input missing).
-fn missing_input(run: &mut Run) -> Result<String> {
-    run.reset()?;
-    run.fake.service.cooler_fan = Some(4);
-    run.fake.service.cooler_fan_present = false;
-    run.fake.write()?;
-    run.expect_texts(
-        "group",
-        "Cooler fans speed",
-        &["Cooler fans", "Input not found"],
-    )?;
-    run.page("Configuration")?;
-    run.expect_texts(
-        "combo box",
-        "Cooler fans input",
-        &["acme6000 · fan4 — not found"],
-    )?;
-    run.expect_description("combo box", "Cooler fans input", "not found")?;
-    run.node(
-        "label",
-        "The saved input isn't found. Pick another, or it comes back when the input does.",
-    )?;
-    run.page("Display")?;
-    NO_NOTE
-}
-
-/// No fan sensors: both pickers insensitive with the note, and the preview column says so
-/// (States, No fan sensors).
-fn no_fan_sensors(run: &mut Run) -> Result<String> {
-    run.reset()?;
-    run.fake.service.fans = Vec::new();
-    run.fake.write()?;
-    run.expect_texts(
-        "group",
-        "Cooler fans speed",
-        &["Cooler fans", "No fan sensors found"],
-    )?;
-    run.expect_texts("group", "Pump speed", &["Pump", "No fan sensors found"])?;
-    run.page("Configuration")?;
-    for combo in ["Cooler fans input", "Pump input"] {
-        run.expect_state("combo box", combo, State::Sensitive, false)?;
-        run.expect_texts("combo box", combo, &["No fan sensors found"])?;
-    }
-    run.node(
-        "label",
-        "No fan sensors were found. The board's sensor driver may not be loaded; the journal \
-         says more.",
-    )?;
     run.page("Display")?;
     NO_NOTE
 }

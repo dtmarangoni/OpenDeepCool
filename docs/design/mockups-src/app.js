@@ -229,17 +229,10 @@ const ICON = {
 
 // ---------- view ----------
 const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
-const fmt = n => n.toLocaleString("en-US");
 const canChange = () => S.service;
 const dis = () => (canChange() ? "" : " disabled");
 
 function gpuLabel(g) { return g.name ? `${g.kind} · ${g.name}` : `${g.kind} · ${g.driver} · ${g.pci}`; }
-function fanLabel(f) { return `${f.chip} · ${f.label || "fan" + f.input}`; }
-function fanOption(i) {
-  if (i === null) return { text: "None", rpm: "" };
-  const f = S.fans[i];
-  return { text: fanLabel(f), rpm: f.rpm === null ? "no reading" : fmt(f.rpm) + " RPM" };
-}
 
 // The cooler's state as the app shows it (design, Banners): one of the four CoolerState values.
 const COOLER_STATES = ["connected", "not-found", "no-access", "write-failed"];
@@ -407,18 +400,6 @@ function side() {
     if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
   }
-  const rpmRow = (name, which) => {
-    let v;
-    if (!S.service) v = `<span class="muted">—</span>`;
-    else if (S.fans.length === 0) v = `<span class="muted">No fan sensors found</span>`;
-    else {
-      const sel = S[which];
-      if (sel === null) v = `<button class="link" aria-label="Choose ${name.toLowerCase()} input" onclick="go('config')">Choose input</button>`;
-      else if (S.missing[which]) v = `<span class="warn-text">${ICON.warn} Input not found</span>`;
-      else v = `<span class="num">${fmt(S.fans[sel].rpm)} RPM</span>`;
-    }
-    return `<div class="rpm" aria-label="${name} speed"><span>${name}</span>${v}</div>`;
-  };
   let caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
   let sub = !S.service ? "The service draws the picture" : COOLER[coolerState()][2];
   return `<aside class="side">
@@ -427,7 +408,6 @@ function side() {
     <div class="pv-sub muted">${sub}</div>
     ${lost ? `<div class="reason warn-text" role="status" aria-label="Unavailable reading">${ICON.warn}<span>${METRIC[lost.metric]}: ${esc(lost.reason)}. The cooler shows dashes until it's back.</span></div>` : ""}
     <ul class="status" aria-label="Status">${status}</ul>
-    <div class="rpms">${rpmRow("Cooler fans", "fan")}${rpmRow("Pump", "pump")}</div>
   </aside>`;
 }
 
@@ -467,29 +447,10 @@ function displayPage() {
 function dropdown(id, name, valueHtml, items, opts) {
   const open = S.open === id;
   return `<div class="dd${open ? " open" : ""}">
-    <button class="dd-btn${opts && opts.warn ? " warn-border" : ""}" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.desc ? ` aria-description="${esc(opts.desc)}"` : ""}${opts && opts.disabled ? " disabled" : dis()} onclick="toggle('${id}')">
+    <button class="dd-btn" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.desc ? ` aria-description="${esc(opts.desc)}"` : ""}${dis()} onclick="toggle('${id}')">
       <span class="dd-val">${valueHtml}</span>${ICON.chevron}</button>
     ${open ? `<div class="dd-pop" role="listbox" aria-label="${name} choices">${items}</div>` : ""}
   </div>`;
-}
-function fanPicker(which, name) {
-  if (S.fans.length === 0) {
-    return dropdown(which, name, `<span class="muted">No fan sensors found</span>`, "", { disabled: true });
-  }
-  const sel = S[which];
-  let val;
-  if (sel === null) val = `None`;
-  else if (S.missing[which]) val = `${esc(fanLabel(S.fans[sel]))} <span class="warn-text">— not found</span>`;
-  else { const o = fanOption(sel); val = `${esc(o.text)} <span class="num muted">${o.rpm}</span>`; }
-  const items = [null, ...S.fans.map((_, i) => i)].map(i => {
-    const o = fanOption(i);
-    const on = i === sel;
-    const nf = i !== null && S.missing[which] && i === sel;
-    return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}" onclick="choose('${which}', ${i})">
-      <span class="dd-check">${on ? ICON.check : ""}</span><span>${esc(o.text)}</span>
-      <span class="num muted">${nf ? '<span class="warn-text">not found</span>' : o.rpm}</span></div>`;
-  }).join("");
-  return dropdown(which, name, val, items, { warn: S.missing[which] });
 }
 function configPage() {
   const rot = [0, 1, 2, 3].map(r => `<button class="seg${S.rotation === r ? " on" : ""}" role="radio" aria-checked="${S.rotation === r}"
@@ -504,7 +465,7 @@ function configPage() {
     const note = g => g.norule ? "no readings" : g.queryFailed ? "driver couldn't be asked" : "";
     const item = (i, text, n) => {
       const on = i === S.gpu;
-      return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}"${n ? ` aria-description="${esc(n)}"` : ""} onclick="choose('gpu', ${i})">
+      return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}"${n ? ` aria-description="${esc(n)}"` : ""} onclick="chooseGpu(${i})">
         <span class="dd-check">${on ? ICON.check : ""}</span><span>${esc(text)}</span><span class="muted">${esc(n)}</span></div>`;
     };
     const all = S.gpus.map((_, i) => i);
@@ -523,21 +484,11 @@ function configPage() {
     <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" aria-labelledby="${id}-l"
       aria-valuetext="${stops[v]}" aria-label="${name}"${dis()} oninput="setStop('${id}', this.value)">
       <div class="marks">${stops.map((s, i) => `<span class="${i === v ? "on" : ""}">${s}</span>`).join("")}</div></div></div></div>`;
-  const fanNote = S.fans.length === 0
-    ? `<div class="hint muted">${ICON.info}<span>No fan sensors were found. The board's sensor driver may not be loaded; the journal says more.</span></div>`
-    : `<div class="hint muted"><span>Pick the inputs your cooler's radiator fans and pump are plugged into. Their speeds show in the app only, never on the cooler.</span></div>`;
   return `<div class="page config">
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
         <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
       ${gpuRow}
-    </section>
-    <section class="card" aria-label="Cooler settings"><h3>Cooler</h3>
-      <div class="row"><div class="row-l"><span>Cooler fans input</span></div><div class="row-r">${fanPicker("fan", "Cooler fans input")}
-        ${S.missing.fan ? `<div class="hint warn-text">${ICON.warn}<span>The saved input isn't found. Pick another, or it comes back when the input does.</span></div>` : ""}</div></div>
-      <div class="row"><div class="row-l"><span>Pump input</span></div><div class="row-r">${fanPicker("pump", "Pump input")}
-        ${S.missing.pump ? `<div class="hint warn-text">${ICON.warn}<span>The saved input isn't found. Pick another, or it comes back when the input does.</span></div>` : ""}</div></div>
-      ${fanNote}
     </section>
     <section class="card" aria-label="Music settings"><h3>Music</h3>
       <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
@@ -559,7 +510,7 @@ function emptyPage() {
     ${terminalBlock("on", "From a terminal instead:")}</div></div>`;
 }
 // Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
-// and nothing else: no banner, no preview column, no pages, no status, no RPM, no controls.
+// and nothing else: no banner, no preview column, no pages, no status, no controls.
 function notAvailablePage() {
   return `<div class="body"><main class="content only">
     <div class="page empty" role="status" aria-label="Not available in this session"><div>
@@ -596,16 +547,14 @@ function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
 function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
 function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
-function choose(which, i) {
-  if (which === "gpu") {
-    // Automatic (null) reads the first GPU in the service's order; a GPU chosen by hand is the one in use.
-    S.gpu = i; S.gpuInUse = i === null ? 0 : i;
-    const nr = S.gpus[S.gpuInUse].norule;
-    ["gpu_usage", "gpu_temp", "gpu_power"].forEach(k => {
-      if (nr) S.unavailable[k] = "no reading for this GPU's driver";
-      else if (S.unavailable[k] === "no reading for this GPU's driver") delete S.unavailable[k];
-    });
-  } else { S[which] = i; S.missing[which] = false; }
+function chooseGpu(i) {
+  // Automatic (null) reads the first GPU in the service's order; a GPU chosen by hand is the one in use.
+  S.gpu = i; S.gpuInUse = i === null ? 0 : i;
+  const nr = S.gpus[S.gpuInUse].norule;
+  ["gpu_usage", "gpu_temp", "gpu_power"].forEach(k => {
+    if (nr) S.unavailable[k] = "no reading for this GPU's driver";
+    else if (S.unavailable[k] === "no reading for this GPU's driver") delete S.unavailable[k];
+  });
   S.open = null; render();
 }
 // Start at boot: from off (whatever is missing) a flip goes to on, and from on to off. In the app the desktop's

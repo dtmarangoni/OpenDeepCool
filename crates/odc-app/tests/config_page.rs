@@ -1,9 +1,8 @@
 //! The Configuration page in a headless weston (Phase 10 plan, Task 6; layer 3): every control
 //! asks for its call with the right argument and shows the saved value until the service
 //! confirms; the GPU row only with more than one GPU, Automatic first, naming the GPU it reads;
-//! the dropdowns' entries, their names and their notes, an open list's RPM updating in place;
-//! a missing input and no fan sensors. Against a fake client, through `common::run`. Behind the
-//! `weston-tests` feature.
+//! the dropdown's entries, its names and its notes. Against a fake client, through
+//! `common::run`. Behind the `weston-tests` feature.
 
 mod common;
 
@@ -11,11 +10,10 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use gtk::prelude::*;
-use odc_app::model::{INPUTS_HINT, NO_SENSORS_HINT};
-use odc_app::ui::dropdowns::{Dropdown, Entry};
+use odc_app::ui::dropdowns::Dropdown;
 use odc_app::ui::window::Window;
 use odc_app::ui::{Reason, Refused, Request};
-use odc_ipc::{FallStop, FanSpeed, Gpu, GpuKind, Input, State};
+use odc_ipc::{FallStop, Gpu, GpuKind, State};
 
 use common::{Check, Renderer, base, close, run_for, save_png, shown};
 
@@ -23,12 +21,10 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 6] = [
+const CHECKS: [(&str, Check); 4] = [
     ("every_control_asks_for_its_call", calls),
     ("the_gpu_row_with_one_gpu_and_several", gpu_row),
-    ("the_dropdowns_entries_names_and_live_rpm", entries),
     ("a_refused_change_shows_the_saved_value_again", refused),
-    ("a_missing_input_and_no_fan_sensors", missing),
     ("the_page_saved_as_a_picture", picture_file),
 ];
 
@@ -47,14 +43,6 @@ fn gpus() -> Vec<Gpu> {
         gpu("0000:00:02.0", GpuKind::Integrated, true),
         gpu("0000:07:00.0", GpuKind::Unknown, false),
     ]
-}
-
-fn input(n: u32) -> Input {
-    Input {
-        chip: "acme6000".to_owned(),
-        device: "devices/platform/acme6000.2592".to_owned(),
-        input: n,
-    }
 }
 
 fn with(change: impl FnOnce(&mut State)) -> State {
@@ -84,8 +72,7 @@ fn pick(dropdown: &Dropdown, position: u32) {
     run_for(Duration::from_millis(30));
 }
 
-// Each rotation, each GPU entry and Automatic, each input entry and none, the switch and each
-// scale's stops: the right call with the right argument, once, and the saved value shown until
+// Each rotation, each GPU entry and Automatic, the switch and each scale's stops: the right call with the right argument, once, and the saved value shown until
 // the service says otherwise.
 fn calls(app: &gtk::Application) {
     let (window, asked) = shown(app);
@@ -122,25 +109,6 @@ fn calls(app: &gtk::Application) {
         );
     }
 
-    // The inputs: None, then each input.
-    pick(page.fans(), 0);
-    assert_eq!(taken(&asked), [Request::SetCoolerFanInput(None)]);
-    pick(page.fans(), 2);
-    assert_eq!(taken(&asked), [Request::SetCoolerFanInput(Some(input(2)))]);
-    pick(page.fans(), 1);
-    assert_eq!(taken(&asked), [], "the saved input");
-    pick(page.pump(), 1);
-    assert_eq!(taken(&asked), [Request::SetPumpInput(Some(input(1)))]);
-    pick(page.pump(), 0);
-    assert_eq!(taken(&asked), [Request::SetPumpInput(None)]);
-    assert_eq!(
-        (
-            page.fans().widget().selected(),
-            page.pump().widget().selected()
-        ),
-        (1, 2)
-    );
-
     // The peak dots: the call, and the switch's state kept until confirmed.
     let peaks = find::<gtk::Switch>(&window, "Peak dots");
     peaks.set_active(false);
@@ -174,12 +142,10 @@ fn calls(app: &gtk::Application) {
         s.music_peaks = Some(false);
         s.music_bar_fall = Some(FallStop::Fast);
         s.music_peak_fall = Some(FallStop::Moderate);
-        s.pump_input = Some(None);
     }));
     run_for(Duration::from_millis(30));
     assert_eq!(page.shown(), (2, false, 3.0, 2.0));
     assert_eq!(page.gpu().chosen(), Some(3));
-    assert_eq!(page.pump().chosen(), Some(0));
     assert!(!peaks.state());
     assert_eq!(
         taken(&asked),
@@ -231,65 +197,6 @@ fn gpu_row(app: &gtk::Application) {
     close(window);
 }
 
-// The fan picker's entries, each item named by its label and described by its RPM; the open
-// list's rows with the check on the saved entry; new speeds change the open rows in place.
-fn entries(app: &gtk::Application) {
-    let (window, asked) = shown(app);
-    window.state(with(|_| {}));
-    let fans = window.config_page().fans();
-    let entry = |label: &str, note: &str| Entry {
-        label: label.to_owned(),
-        note: note.to_owned(),
-    };
-    assert_eq!(
-        fans.entries(),
-        [
-            entry("None", ""),
-            entry("acme6000 · fan1", "1,180 RPM"),
-            entry("acme6000 · fan2", "3,400 RPM"),
-        ]
-    );
-    assert_eq!(fans.button_text(), "acme6000 · fan1");
-    fans.widget().emit_activate();
-    run_for(Duration::from_millis(200));
-    let rows = |dropdown: &Dropdown| dropdown.rows();
-    let row = |position: u32, label: &str, note: &str, check: bool| {
-        (position, label.to_owned(), note.to_owned(), check)
-    };
-    assert_eq!(
-        rows(fans),
-        [
-            row(0, "None", "", false),
-            row(1, "acme6000 · fan1", "1,180 RPM", true),
-            row(2, "acme6000 · fan2", "3,400 RPM", false),
-        ]
-    );
-    window.state(with(|s| {
-        if let Some(inputs) = s.fan_inputs.as_mut() {
-            inputs[0].rpm = FanSpeed::Rpm(1250);
-            inputs[1].rpm = FanSpeed::Unavailable;
-        }
-    }));
-    run_for(Duration::from_millis(50));
-    assert_eq!(
-        rows(fans),
-        [
-            row(0, "None", "", false),
-            row(1, "acme6000 · fan1", "1,250 RPM", true),
-            row(2, "acme6000 · fan2", "no reading", false),
-        ],
-        "the open list's speeds change in place"
-    );
-    // An open row picked through its action, as assistive technology picks it (decisions log
-    // D69): the pick is asked for, and the saved entry stays shown until the service confirms.
-    taken(&asked);
-    assert!(fans.activate_row(2), "row 2 is bound");
-    run_for(Duration::from_millis(50));
-    assert_eq!(taken(&asked), [Request::SetCoolerFanInput(Some(input(2)))]);
-    assert_eq!(fans.button_text(), "acme6000 · fan1");
-    close(window);
-}
-
 // A refused change: the scale, the rotation and the dropdown show the saved values again.
 fn refused(app: &gtk::Application) {
     let (window, asked) = shown(app);
@@ -308,62 +215,11 @@ fn refused(app: &gtk::Application) {
     close(window);
 }
 
-// A saved input missing, found at start or not: "— not found", the warning border, its hint and
-// its description. No fan sensors: both pickers insensitive with the note, and the hint.
-fn missing(app: &gtk::Application) {
-    let (window, _) = shown(app);
-    let page = window.config_page();
-    window.state(with(|s| {
-        s.cooler_fan_input_present = Some(false);
-        s.pump_input = Some(Some(input(9)));
-        s.pump_input_present = Some(false);
-    }));
-    for (dropdown, name, button) in [
-        (
-            page.fans(),
-            "Cooler fans input",
-            "acme6000 · fan1 — not found",
-        ),
-        (page.pump(), "Pump input", "acme6000 · fan9 — not found"),
-    ] {
-        assert_eq!(dropdown.button_text(), button);
-        assert!(dropdown.widget().has_css_class("warn"), "{name}");
-        assert_eq!(
-            window.names().description(name).as_deref(),
-            Some("not found")
-        );
-    }
-    assert_eq!(
-        page.pump().entries().last().map(|e| e.note.as_str()),
-        Some("not found")
-    );
-    assert_eq!(page.input_hints(), (true, true, INPUTS_HINT.to_owned()));
-
-    window.state(with(|s| {
-        s.fan_inputs = Some(Vec::new());
-        s.cooler_fan_input = Some(None);
-        s.pump_input = Some(None);
-    }));
-    for dropdown in [page.fans(), page.pump()] {
-        assert!(!dropdown.widget().is_sensitive());
-        assert_eq!(dropdown.button_text(), "No fan sensors found");
-        assert!(!dropdown.widget().has_css_class("warn"));
-    }
-    assert_eq!(
-        page.input_hints(),
-        (false, false, NO_SENSORS_HINT.to_owned())
-    );
-    close(window);
-}
-
 // The whole window on the Configuration page, saved for a person to look at: several GPUs on
-// Automatic, the pump's input missing.
+// Automatic.
 fn picture_file(app: &gtk::Application) {
     let (window, _) = shown(app);
-    window.state(with(|s| {
-        s.pump_input = Some(Some(input(9)));
-        s.pump_input_present = Some(false);
-    }));
+    window.state(with(|_| {}));
     WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page");
     run_for(Duration::from_millis(300));
     let renderer = Renderer::new();
