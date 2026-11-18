@@ -357,6 +357,16 @@ What each entry point must refuse, as decided at the cross-check. AGENTS.md rule
 
 **Note (2026-10-28, owner):** the dev scripts are now the Rust dev tool `odc-dev`. `setup` refuses root, only its root steps run through `pkexec`, and `teardown --check-only` checks a manifest. The package's dev-copy removal is the same Rust code (`odc-manifest`), run by its hook program. The refusals stay as listed (AGENTS.md rule 13; Phase 5 review, Owner decision before Task 0).
 
+## Phase 11a update (2026-11-18)
+
+What [Phase 11a](../plans/phase-11a-settings-app-ui-review.plan.md) changes in the architecture, from [its review](phase-11a-settings-app-ui-review.review.md). This section only reports: the sections above and the entry-points table stay as decided until each task changes them, with the owner's OK.
+
+- **The root surface shrinks.** The sensor-detection one-shot, its two units, its root-only record and the package's undo of it leave (Task 5). It was the only OpenDeepCool part that ran as root at every boot, and one of the two root programs OV-01 named. The root programs that remain are the package's scripts, the Start at boot switch's program and the development PC's parity step.
+- **Fans and pump leave the contract** (Task 4): two methods and seven state keys. The service's saved settings lose two keys, which are dropped at load.
+- **Two additions on the frame watchers' path** (Task 13): the `Readings` state key and the `Levels` signal, sent only to a caller that watches frames and passes the one-second check (P10-01's rule). No new method, no new privilege.
+- **One new file on the user's side** (Task 10): the app's appearance file in the user's configuration folder, written only after the user changes the theme. It is not the service's, and pacman can't remove it (P11A-08).
+- **Entry points** (the table above) change in the task that changes them: the two setters leave "The service's D-Bus methods" (Task 4); "The detection record" row goes (Task 5); the appearance file and the new test flags join "The settings app" row (Task 10); `Readings` and `Levels` join the watchers (Task 13).
+
 ## Sources
 
 Read on 2026-10-26:

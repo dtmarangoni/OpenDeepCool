@@ -143,6 +143,7 @@ DeepCreative uses these fixed columns for one value and for two: it never centre
 **OpenDeepCool: alignment** (owner, 2026-10-24). The picture is the number (digits 3 wide, a blank column after each) followed by its symbol, and is placed by its width:
 - **One value:** centred in the 14 columns. The spare columns are shared evenly; when their number is odd, the extra one goes on the left. So a single spare column is on the left and the picture ends at column 14 (`42%`, `65W`, `98°F`, as DeepCreative), and `7%` (9 wide, 5 spare) has 3 blank columns on the left and 2 on the right, columns 4–12.
 - **Two values:** both end at column 14, so their last digits and symbols line up. `°C` moves one column right of DeepCreative's place here.
+  - **Decided 2026-11-18, not yet built** (owner; [Phase 11a plan, Task 11](../prp/plans/phase-11a-settings-app-ui-review.plan.md)): two values are centred as one block instead. The wider value is placed by the one-value rule, with the extra spare column on the left, and the shorter value keeps its last digit and symbol under the longer one's. `42%` over `7%` doesn't change (the wider value is 13 wide); `5%` over `7%` (9 wide) moves from columns 6–14 to columns 4–12. This supersedes "both end at column 14" when it is built, together with the oracle, `frames/`, `odc-render` and the differential tests, which record the difference from DeepCreative as made on purpose. One-value modes and the rows of both bands don't change.
 
 ## Scrolling layout (temperature in °F, and power)
 
