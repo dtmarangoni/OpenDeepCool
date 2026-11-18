@@ -9,8 +9,7 @@ mod state;
 pub use frame::{FRAME_PIXELS, frame_from_pixels, frame_pixels};
 
 pub use state::{
-    CoolerState, FallStop, FanInput, FanSpeed, Gpu, GpuKind, Input, STATE_KEYS, State, StateError,
-    TemperatureUnit,
+    CoolerState, FallStop, Gpu, GpuKind, STATE_KEYS, State, StateError, TemperatureUnit,
 };
 
 use std::collections::HashMap;
@@ -84,10 +83,6 @@ pub trait OpenDeepCool {
     async fn set_temperature_unit(&self, unit: &str) -> Result<(), Error>;
     /// A PCI address listed in `Gpus`.
     async fn choose_gpu(&self, pci: &str) -> Result<(), Error>;
-    /// A fan input listed in `FanInputs`, or all empty for none.
-    async fn set_cooler_fan_input(&self, chip: &str, device: &str, input: u32)
-    -> Result<(), Error>;
-    async fn set_pump_input(&self, chip: &str, device: &str, input: u32) -> Result<(), Error>;
     /// Fresh readings at once, and the picture from home.
     async fn refresh(&self) -> Result<(), Error>;
     /// The write end of a pipe the service reads the session's sound from: raw `f32` stereo
@@ -104,7 +99,7 @@ pub trait OpenDeepCool {
     async fn watch(&self) -> Result<(), Error>;
     async fn unwatch(&self) -> Result<(), Error>;
     /// Sends this caller `Frame` while it watches frames: the cooler's picture at each change
-    /// (Phase 10). A frame watcher also gets `FanInputs` in `StateChanged`.
+    /// (Phase 10).
     async fn watch_frames(&self) -> Result<(), Error>;
     async fn unwatch_frames(&self) -> Result<(), Error>;
     /// Each metric, its bound source, and its state.

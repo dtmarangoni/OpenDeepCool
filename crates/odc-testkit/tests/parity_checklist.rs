@@ -144,9 +144,10 @@ fn every_row_of_the_checklist_says_how_opendeepcool_meets_it_and_every_test_it_n
     let found = problems(&text, &repo());
     assert!(found.is_empty(), "{}", found.join("\n"));
     let rows = rows(&text).expect("the rows");
-    assert!(rows.len() >= 89, "{} rows", rows.len());
+    // 89 rows until row S9, the cooler's fans and pump, left with the feature (Phase 11a).
+    assert!(rows.len() >= 88, "{} rows", rows.len());
     let tests = rows.iter().filter(|(_, c)| c.starts_with("test: ")).count();
-    assert!(tests >= 81, "{tests} test rows");
+    assert!(tests >= 80, "{tests} test rows");
 }
 
 /// The checker finds what it is for: each of these damaged copies of a real row fails.

@@ -196,21 +196,6 @@ impl Main {
         self.shared.change(format!("ChooseGpu({pci:?})"))
     }
 
-    async fn set_cooler_fan_input(
-        &self,
-        chip: &str,
-        device: &str,
-        input: u32,
-    ) -> Result<(), Error> {
-        let call = format!("SetCoolerFanInput({chip:?}, {device:?}, {input})");
-        self.shared.change(call)
-    }
-
-    async fn set_pump_input(&self, chip: &str, device: &str, input: u32) -> Result<(), Error> {
-        let call = format!("SetPumpInput({chip:?}, {device:?}, {input})");
-        self.shared.change(call)
-    }
-
     async fn refresh(&self) -> Result<(), Error> {
         self.shared.change("Refresh()".to_owned())
     }
@@ -420,14 +405,7 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
         let mut sends = Vec::new();
         if *owned && on_bus && !changed.is_empty() {
             for watcher in &inner.watchers {
-                let mut changes = clone(&changed);
-                // `FanInputs` goes to frame watchers only (Phase 10 plan, Task 2).
-                if !inner.frame_watchers.contains(watcher) {
-                    changes.remove("FanInputs");
-                }
-                if !changes.is_empty() {
-                    sends.push((watcher.clone(), changes));
-                }
+                sends.push((watcher.clone(), clone(&changed)));
             }
         }
         (sends, frames)
@@ -648,7 +626,7 @@ mod tests {
                 "Gpus = [[\"0000:0a:00.0\", \"acmegpu\"]]",
                 "Gpus isn't a(sssqqb)",
             ),
-            (ON, "PumpInput = [\"acme6000\", 2]", "PumpInput isn't (ssu)"),
+            (ON, "ChosenGpu = 5", "ChosenGpu isn't s"),
             (
                 "serial = 1\non_bus = true\nreads = true\nrefuse = \"Nope: no\"",
                 "",
@@ -686,10 +664,6 @@ UnavailableReasons = { 2 = "Gpu usage: no device found", 21 = "Gpu usage: no dev
 Gpus = []
 ChosenGpu = ""
 GpuInUse = ""
-FanInputs = [["acme6000", "devices/platform/acme6000.2592", 1, "Pump", nan]]
-CoolerFanInput = ["", "", 0]
-CoolerFanRpm = nan
-PumpRpm = 3400
 MusicBarFall = "faster""#
         );
         let (behaviour, state) = parse(&text).expect("taken");
@@ -708,7 +682,7 @@ MusicBarFall = "faster""#
                 assert_eq!(value.value_signature().to_string(), signature, "{key}");
             }
         }
-        assert_eq!(state.len(), 15);
+        assert_eq!(state.len(), 11);
         // A value the contract doesn't know reaches the app as given (decisions log D33).
         assert_eq!(
             String::try_from(state["CoolerState"].try_clone().expect("cloned")),

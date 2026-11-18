@@ -7,9 +7,9 @@ use std::path::{Path, PathBuf};
 
 use odc_testkit::fake_tree::FakeTree;
 use odc_testkit::fixtures::{
-    BOARD_CHIP, PCI_CLASS_3D, PCI_CLASS_HOST_BRIDGE, PCI_CLASS_VGA, amdgpu_apu, amdgpu_dgpu,
-    amdgpu_power_input_only, board_fans, coretemp, i915, k10temp, k10temp_pre17h, nouveau,
-    nvidia_proprietary, proc_meminfo, proc_stat, rapl, rapl_mmio, xe,
+    OTHER_CHIP, PCI_CLASS_3D, PCI_CLASS_HOST_BRIDGE, PCI_CLASS_VGA, amdgpu_apu, amdgpu_dgpu,
+    amdgpu_power_input_only, coretemp, i915, k10temp, k10temp_pre17h, nouveau, nvidia_proprietary,
+    other_chip, proc_meminfo, proc_stat, rapl, rapl_mmio, xe,
 };
 
 fn tree(name: &str) -> FakeTree {
@@ -149,7 +149,7 @@ fn k10temp_hangs_off_a_host_bridge_and_says_its_cpu_family() {
 }
 
 #[test]
-fn an_amd_card_has_three_distinct_temperatures_its_power_its_fan_and_its_busy_share() {
+fn an_amd_card_has_three_distinct_temperatures_its_power_and_its_busy_share() {
     let t = tree("amdgpu");
     amdgpu_dgpu(&t, "0000:0a:00.0", 41_000, 37, 182_000_000).expect("amdgpu");
     let gpu = "sys/devices/pci0000:00/0000:0a:00.0";
@@ -164,7 +164,6 @@ fn an_amd_card_has_three_distinct_temperatures_its_power_its_fan_and_its_busy_sh
             "sys/devices/pci0000:00/0000:0a:00.0/drm/card0/device -> ../../../0000:0a:00.0",
             "sys/devices/pci0000:00/0000:0a:00.0/gpu_busy_percent",
             "sys/devices/pci0000:00/0000:0a:00.0/hwmon/hwmon0/device -> ../../../0000:0a:00.0",
-            "sys/devices/pci0000:00/0000:0a:00.0/hwmon/hwmon0/fan1_input",
             "sys/devices/pci0000:00/0000:0a:00.0/hwmon/hwmon0/power1_average",
         ],
     );
@@ -206,7 +205,7 @@ fn amd_integrated_graphics_and_a_card_with_only_power1_input_differ_where_they_s
     amdgpu_apu(&apu, "0000:0c:00.0", 48_000, 12, 9_000_000).expect("apu");
     let hwmon = apu.root().join("sys/class/hwmon/hwmon0");
     assert!(hwmon.join("temp1_label").exists() && !hwmon.join("temp2_label").exists());
-    assert!(hwmon.join("power1_average").exists() && !hwmon.join("fan1_input").exists());
+    assert!(hwmon.join("power1_average").exists());
 
     let input = tree("amdgpu-power-input");
     amdgpu_power_input_only(&input, "0000:0a:00.0", 41_000, 37, 150_000_000).expect("card");
@@ -262,7 +261,6 @@ fn nvidia_has_no_hwmon_and_nouveau_has_readings_no_rule_may_use() {
     assert!(!t.root().join(nvidia).join("hwmon").exists());
     assert!(!t.root().join(nvidia).join("drm").exists());
     assert_eq!(read(&t, "sys/class/hwmon/hwmon0/name"), "nouveau\n");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/fan1_input"), "1500\n");
     assert_eq!(
         resolved(&t, "sys/class/drm/card0/device"),
         "sys/devices/pci0000:00/0000:0e:00.0"
@@ -330,22 +328,14 @@ fn proc_files_carry_what_they_were_given() {
 }
 
 #[test]
-fn the_board_chip_is_a_platform_device_with_its_fans_and_labels() {
-    let t = tree("board");
-    board_fans(
-        &t,
-        BOARD_CHIP,
-        &[(1, 930, None), (2, 3_400, Some("Pump")), (3, 0, None)],
-    )
-    .expect("board");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/name"), "fakeboardchip\n");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/fan1_input"), "930\n");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/fan2_label"), "Pump\n");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/fan3_input"), "0\n");
-    assert!(!t.root().join("sys/class/hwmon/hwmon0/fan1_label").exists());
+fn another_chip_is_a_platform_device_with_one_temperature() {
+    let t = tree("other-chip");
+    other_chip(&t, OTHER_CHIP).expect("another chip");
+    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/name"), "fakeotherchip\n");
+    assert_eq!(read(&t, "sys/class/hwmon/hwmon0/temp1_input"), "35000\n");
     assert_eq!(
         resolved(&t, "sys/class/hwmon/hwmon0/device"),
-        "sys/devices/platform/fakeboardchip.656"
+        "sys/devices/platform/fakeotherchip.656"
     );
 }
 
@@ -353,12 +343,12 @@ fn the_board_chip_is_a_platform_device_with_its_fans_and_labels() {
 fn hwmon_numbers_are_the_lowest_free_so_a_test_can_change_them() {
     let t = tree("numbers");
     coretemp(&t, 57_000).expect("coretemp");
-    board_fans(&t, BOARD_CHIP, &[(1, 930, None)]).expect("board");
-    assert_eq!(read(&t, "sys/class/hwmon/hwmon1/name"), "fakeboardchip\n");
+    other_chip(&t, OTHER_CHIP).expect("another chip");
+    assert_eq!(read(&t, "sys/class/hwmon/hwmon1/name"), "fakeotherchip\n");
     t.remove("sys/class/hwmon/hwmon0").expect("the link");
     t.remove("sys/devices/platform/coretemp.0")
         .expect("the device");
-    board_fans(&t, "otherfakechip", &[(1, 700, None)]).expect("another chip");
+    other_chip(&t, "otherfakechip").expect("another chip");
     assert_eq!(read(&t, "sys/class/hwmon/hwmon0/name"), "otherfakechip\n");
 }
 

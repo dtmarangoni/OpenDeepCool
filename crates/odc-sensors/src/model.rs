@@ -172,29 +172,17 @@ pub enum Reading {
     Unavailable(Unavailable),
 }
 
-/// The cooler's fans or its pump: the reading, in RPM, of the fan input the user chose for them,
-/// or none chosen, as by default (`docs/spec/sensors.md`, Fan and pump speed).
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Fan {
-    NotChosen,
-    Chosen(Reading),
-}
-
-/// Every metric's reading at one moment, and the speeds of the cooler's fans and pump.
+/// Every metric's reading at one moment.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Snapshot {
     metrics: [Reading; Metric::ALL.len()],
-    pub cooler_fans: Fan,
-    pub pump: Fan,
 }
 
 impl Snapshot {
     /// A snapshot with `reading(metric)` for each metric, asked in the order of [`Metric::ALL`].
-    pub fn new(reading: impl FnMut(Metric) -> Reading, cooler_fans: Fan, pump: Fan) -> Snapshot {
+    pub fn new(reading: impl FnMut(Metric) -> Reading) -> Snapshot {
         Snapshot {
             metrics: Metric::ALL.map(reading),
-            cooler_fans,
-            pump,
         }
     }
 

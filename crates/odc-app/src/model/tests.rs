@@ -140,7 +140,6 @@ fn base() -> State {
         music_peak_fall: Some(FallStop::Slow),
         audio_connected: Some(false),
         audio_wanted: Some(false),
-        ..State::default()
     }
 }
 
@@ -1027,7 +1026,6 @@ prop_compose! {
             music_peak_fall: Some(stops[music.2]),
             audio_connected: Some(music.3),
             audio_wanted: Some(music.3),
-            ..State::default()
         }
     }
 }

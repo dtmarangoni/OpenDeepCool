@@ -10,7 +10,7 @@ use std::process::ExitCode;
 use std::sync::Arc;
 
 use odc_device::{Connector, HidrawConnector, Lp360, ROTATE_AT, Recording, RecordingHandle};
-use odc_sensors::{Registry, Roots, SystemClock, fan_inputs};
+use odc_sensors::{Registry, Roots, SystemClock};
 use odc_service::dbus::{Bus, Checks};
 use odc_service::engine::Choices;
 use odc_service::log::{Journal, Priority, Stderr};
@@ -82,12 +82,9 @@ fn run(dev: bool, journal: &Arc<dyn Journal>) -> Result<(), String> {
     for (priority, line) in &found.lines {
         journal.write(*priority, line);
     }
-    let inputs = fan_inputs(&roots.sys);
     let mut sensors = RegistrySensors {
-        sys: roots.sys.clone(),
         registry: Registry::from_rules(SystemClock, roots),
         gpus: found.gpus.clone(),
-        fan_inputs: inputs.clone(),
     };
     sensors.choose(&Choices::of(&settings));
     let connector = HidrawConnector::system();
@@ -96,7 +93,6 @@ fn run(dev: bool, journal: &Arc<dyn Journal>) -> Result<(), String> {
         store,
         sensors,
         gpus: found.gpus,
-        fan_inputs: inputs,
         journal: Arc::clone(journal),
     };
     let (running, recording) = if dev {
@@ -143,7 +139,6 @@ struct Parts {
     store: SettingsStore,
     sensors: RegistrySensors<SystemClock>,
     gpus: Vec<odc_sensors::Gpu>,
-    fan_inputs: Vec<odc_sensors::FanInput>,
     journal: Arc<dyn Journal>,
 }
 
@@ -163,7 +158,6 @@ where
         lp360,
         sensors: parts.sensors,
         gpus: parts.gpus,
-        fan_inputs: parts.fan_inputs,
         bus: Bus::System,
         checks: Checks::Polkit,
         journal: parts.journal,

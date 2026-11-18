@@ -14,7 +14,7 @@ use odc_device::fake::{FakeConnector, Presence};
 use odc_device::{Connector, Link, Lp360, OpenError, Transport};
 use odc_protocol::{Frame, Message, Report, decode};
 use odc_sensors::fake::{FakeClock, FakeReadings};
-use odc_sensors::{Binding, Clock, Exact, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
+use odc_sensors::{Binding, Clock, Exact, Metric, Reading, Readings, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Choices, Engine, Published, Requests};
 use odc_service::runtime::{
     Device, DeviceControl, DeviceEvent, FrameTap, Outputs, Progress, SensorLoop, SensorRequest,
@@ -23,14 +23,10 @@ use odc_service::runtime::{
 use odc_service::settings::Settings;
 
 fn snapshot(cpu: Reading) -> Snapshot {
-    Snapshot::new(
-        |metric| match metric {
-            Metric::CpuUsage => cpu.clone(),
-            other => Reading::Value(Exact::whole(10 + other as i64)),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    )
+    Snapshot::new(|metric| match metric {
+        Metric::CpuUsage => cpu.clone(),
+        other => Reading::Value(Exact::whole(10 + other as i64)),
+    })
 }
 
 fn usage(n: i64) -> Snapshot {
@@ -382,7 +378,7 @@ fn the_tick_never_waits_for_a_slow_write_or_snapshot() {
                 &requests,
                 &published,
                 &progress,
-                &mut |_, _| {},
+                &mut |_| {},
                 &stop,
             );
         })
@@ -645,7 +641,7 @@ fn a_changed_reading_shows_within_ten_ticks() {
                 &requests,
                 &published,
                 &progress,
-                &mut |_, _| {},
+                &mut |_| {},
                 &stop,
             );
         })

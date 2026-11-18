@@ -64,7 +64,6 @@ impl Apply {
 pub struct Override {
     pub id: u64,
     /// The seven metrics' readings, from the tick that takes it until a clear; `None` clears it.
-    /// The fans in it are ignored: they keep their real readings.
     pub readings: Option<Snapshot>,
 }
 
@@ -77,7 +76,7 @@ pub struct Published {
 }
 
 /// What the engine asks of the sensor thread after a tick. The D-Bus side sends the rest itself,
-/// as each call arrives: the new GPU and fan inputs, and a snapshot for Refresh or another GPU.
+/// as each call arrives: the new GPU, and a snapshot for Refresh or another GPU.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Requests {
     /// Start the readings averaged over the interval again: a wake-up.
@@ -88,16 +87,12 @@ pub struct Requests {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Choices {
     pub gpu: Option<String>,
-    pub cooler_fan_input: Option<crate::settings::SavedInput>,
-    pub pump_input: Option<crate::settings::SavedInput>,
 }
 
 impl Choices {
     pub fn of(settings: &Settings) -> Choices {
         Choices {
             gpu: settings.gpu_choice.clone(),
-            cooler_fan_input: settings.cooler_fan_input.clone(),
-            pump_input: settings.pump_input.clone(),
         }
     }
 }
@@ -151,7 +146,7 @@ impl Top {
 /// spectrum.
 pub struct Engine {
     settings: Settings,
-    /// The readings drawn: the real ones, or the override's metrics with the real fans.
+    /// The readings drawn: the real ones, or the override's.
     snapshot: Snapshot,
     /// The last real snapshot.
     real: Snapshot,
@@ -198,15 +193,6 @@ fn picture_of(mode: Mode, settings: &Settings, snapshot: &Snapshot) -> Option<Pi
         Kind::Music => value_picture(mode, &values, unit),
         _ => Some(picture(mode, &values, unit).expect("a drawn mode")),
     }
-}
-
-/// The override's metrics with the real snapshot's fans.
-fn overlay(readings: &Snapshot, real: &Snapshot) -> Snapshot {
-    Snapshot::new(
-        |metric| readings.get(metric).clone(),
-        real.cooler_fans.clone(),
-        real.pump.clone(),
-    )
 }
 
 fn rotation(settings: &Settings) -> Rotation {
@@ -365,10 +351,10 @@ impl Engine {
         }
     }
 
-    /// The readings to draw: the real ones, or the override's metrics with the real fans.
+    /// The readings to draw: the real ones, or the override's.
     fn drawn(&self) -> Snapshot {
         match &self.overridden {
-            Some(readings) => overlay(readings, &self.real),
+            Some(readings) => readings.clone(),
             None => self.real.clone(),
         }
     }

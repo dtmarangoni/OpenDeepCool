@@ -10,7 +10,7 @@ use std::sync::{Arc, OnceLock};
 
 use odc_protocol::Rotation;
 use odc_render::{Mode, WINDOW, draws};
-use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
+use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, FakeAudio};
 use odc_service::engine::{
     Apply, Drawn, Engine, LATE_SOURCE_TICKS, Override, Published, availability,
@@ -24,20 +24,16 @@ use odc_testkit::spectrum::signals;
 /// `NotYet`, which shows dashes.
 fn snapshot(readings: &[(String, Option<Exact>)]) -> Snapshot {
     let all = every_metric(readings);
-    Snapshot::new(
-        |metric| {
-            let (_, value) = all
-                .iter()
-                .find(|(m, _)| *m == metric)
-                .expect("every metric");
-            match value {
-                Some(v) => Reading::Value(*v),
-                None => Reading::Unavailable(Unavailable::NotYet),
-            }
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    )
+    Snapshot::new(|metric| {
+        let (_, value) = all
+            .iter()
+            .find(|(m, _)| *m == metric)
+            .expect("every metric");
+        match value {
+            Some(v) => Reading::Value(*v),
+            None => Reading::Unavailable(Unavailable::NotYet),
+        }
+    })
 }
 
 fn fresh(readings: &[(String, Option<Exact>)]) -> Published {
@@ -523,15 +519,11 @@ fn another_gpu_resets_with_the_new_gpu_s_values() {
 }
 
 fn with(cpu: Reading, gpu: Reading) -> Snapshot {
-    Snapshot::new(
-        |metric| match metric {
-            Metric::CpuUsage => cpu.clone(),
-            Metric::GpuUsage | Metric::GpuTemperature | Metric::GpuPower => gpu.clone(),
-            _ => Reading::Value(Exact::whole(50)),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    )
+    Snapshot::new(|metric| match metric {
+        Metric::CpuUsage => cpu.clone(),
+        Metric::GpuUsage | Metric::GpuTemperature | Metric::GpuPower => gpu.clone(),
+        _ => Reading::Value(Exact::whole(50)),
+    })
 }
 
 fn value(n: i64) -> Reading {
@@ -679,16 +671,12 @@ fn only_modes_this_build_draws_are_available() {
 // modes stay.
 #[test]
 fn mode_7_leaves_available_modes_without_a_cpu_temperature_rule() {
-    let no_rule = Snapshot::new(
-        |metric| match metric {
-            Metric::CpuTemperature => Reading::Unavailable(Unavailable::NoRule {
-                driver: "made-up-temp".to_owned(),
-            }),
-            _ => value(50),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    );
+    let no_rule = Snapshot::new(|metric| match metric {
+        Metric::CpuTemperature => Reading::Unavailable(Unavailable::NoRule {
+            driver: "made-up-temp".to_owned(),
+        }),
+        _ => value(50),
+    });
     for settled in [false, true] {
         let a = availability(&no_rule, settled);
         assert!(!a.modes.contains(&7), "{:?}", a.modes);
@@ -702,14 +690,10 @@ fn mode_7_leaves_available_modes_without_a_cpu_temperature_rule() {
 #[test]
 fn mode_8_leaves_available_modes_without_a_gpu_or_a_gpu_temperature_rule() {
     let gpu = |reading: Reading| {
-        Snapshot::new(
-            |metric| match metric {
-                Metric::GpuTemperature => reading.clone(),
-                _ => value(50),
-            },
-            Fan::NotChosen,
-            Fan::NotChosen,
-        )
+        Snapshot::new(|metric| match metric {
+            Metric::GpuTemperature => reading.clone(),
+            _ => value(50),
+        })
     };
     let no_gpu = gpu(Reading::Unavailable(Unavailable::NoDevice));
     assert!(
@@ -740,15 +724,11 @@ fn mode_9_leaves_available_modes_when_either_temperature_has_no_rule() {
         })
     };
     let temperatures = |cpu: Reading, gpu: Reading| {
-        Snapshot::new(
-            |metric| match metric {
-                Metric::CpuTemperature => cpu.clone(),
-                Metric::GpuTemperature => gpu.clone(),
-                _ => value(50),
-            },
-            Fan::NotChosen,
-            Fan::NotChosen,
-        )
+        Snapshot::new(|metric| match metric {
+            Metric::CpuTemperature => cpu.clone(),
+            Metric::GpuTemperature => gpu.clone(),
+            _ => value(50),
+        })
     };
     let cases = [
         (no_rule("made-up-temp"), value(38), "CPU Temperature"),
@@ -778,16 +758,12 @@ fn mode_9_leaves_available_modes_when_either_temperature_has_no_rule() {
 // counter, mode 10 leaves AvailableModes at once, with its reason; it's never drawn as 0 W.
 #[test]
 fn mode_10_leaves_available_modes_when_the_cpu_power_counter_is_denied() {
-    let denied = Snapshot::new(
-        |metric| match metric {
-            Metric::CpuPower => Reading::Unavailable(Unavailable::PermissionDenied {
-                path: "/sys/fake/energy_uj".into(),
-            }),
-            _ => value(50),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    );
+    let denied = Snapshot::new(|metric| match metric {
+        Metric::CpuPower => Reading::Unavailable(Unavailable::PermissionDenied {
+            path: "/sys/fake/energy_uj".into(),
+        }),
+        _ => value(50),
+    });
     for settled in [false, true] {
         let a = availability(&denied, settled);
         assert!(!a.modes.contains(&10), "{:?}", a.modes);
@@ -803,14 +779,10 @@ fn mode_10_leaves_available_modes_when_the_cpu_power_counter_is_denied() {
 #[test]
 fn mode_11_leaves_available_modes_when_the_gpu_power_cant_be_shown() {
     let gpu_power = |reading: Reading| {
-        Snapshot::new(
-            |metric| match metric {
-                Metric::GpuPower => reading.clone(),
-                _ => value(50),
-            },
-            Fan::NotChosen,
-            Fan::NotChosen,
-        )
+        Snapshot::new(|metric| match metric {
+            Metric::GpuPower => reading.clone(),
+            _ => value(50),
+        })
     };
     let lasting = [
         (
@@ -851,15 +823,11 @@ fn mode_11_leaves_available_modes_when_the_gpu_power_cant_be_shown() {
 #[test]
 fn mode_12_leaves_available_modes_when_either_power_cant_be_shown() {
     let powers = |cpu: Reading, gpu: Reading| {
-        Snapshot::new(
-            |metric| match metric {
-                Metric::CpuPower => cpu.clone(),
-                Metric::GpuPower => gpu.clone(),
-                _ => value(50),
-            },
-            Fan::NotChosen,
-            Fan::NotChosen,
-        )
+        Snapshot::new(|metric| match metric {
+            Metric::CpuPower => cpu.clone(),
+            Metric::GpuPower => gpu.clone(),
+            _ => value(50),
+        })
     };
     let denied = || {
         Reading::Unavailable(Unavailable::PermissionDenied {

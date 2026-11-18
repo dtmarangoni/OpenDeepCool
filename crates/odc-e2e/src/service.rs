@@ -439,11 +439,7 @@ fn timing_fake(tick: Duration) -> Result<String, String> {
         fn notify(&mut self, _: &str) {}
         fn skipped(&mut self, _: u64, _: u64) {}
     }
-    let snapshot = odc_sensors::Snapshot::new(
-        |_| Reading::Value(Exact::whole(42)),
-        odc_sensors::Fan::NotChosen,
-        odc_sensors::Fan::NotChosen,
-    );
+    let snapshot = odc_sensors::Snapshot::new(|_| Reading::Value(Exact::whole(42)));
     let mut times = Times(Vec::new());
     let began = Instant::now();
     run_engine(

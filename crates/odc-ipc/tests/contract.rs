@@ -8,8 +8,8 @@ use std::fs;
 
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, ERROR_PREFIX, Error,
-    FEED_AUDIO_ACTION, FallStop, FanInput, FanSpeed, Gpu, GpuKind, INTERFACE, Input, OBJECT_PATH,
-    STATE_KEYS, State, StateError, TemperatureUnit, USE_ACTION,
+    FEED_AUDIO_ACTION, FallStop, Gpu, GpuKind, INTERFACE, OBJECT_PATH, STATE_KEYS, State,
+    StateError, TemperatureUnit, USE_ACTION,
 };
 use zbus::DBusError;
 use zbus::names::{ErrorName, InterfaceName, WellKnownName};
@@ -101,23 +101,6 @@ fn full() -> State {
         ]),
         chosen_gpu: Some("0000:0a:00.0".to_owned()),
         gpu_in_use: Some("0000:0a:00.0".to_owned()),
-        fan_inputs: Some(vec![FanInput {
-            chip: "fakeboardchip".to_owned(),
-            device: "devices/platform/fakeboardchip.2592".to_owned(),
-            input: 2,
-            label: String::new(),
-            rpm: FanSpeed::Rpm(2345),
-        }]),
-        cooler_fan_input: Some(Some(Input {
-            chip: "fakeboardchip".to_owned(),
-            device: "devices/platform/fakeboardchip.2592".to_owned(),
-            input: 1,
-        })),
-        pump_input: Some(None),
-        cooler_fan_input_present: Some(false),
-        pump_input_present: Some(true),
-        cooler_fan_rpm: Some(FanSpeed::Rpm(1234)),
-        pump_rpm: Some(FanSpeed::Unavailable),
         music_peaks: Some(false),
         music_bar_fall: Some(FallStop::Faster),
         music_peak_fall: Some(FallStop::Slower),
@@ -214,7 +197,7 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
         State::from_dict(&one("Gpus", variant(gpus))),
         Err(StateError::BadValue("Gpus", "big".into()))
     );
-    // Phase 9's shapes of Gpus and FanInputs, without the IDs, the rule flag and the RPM.
+    // Phase 9's shape of Gpus, without the IDs and the rule flag.
     let old_gpus = vec![(
         "0000:0a:00.0".to_owned(),
         "amdgpu".to_owned(),
@@ -224,36 +207,6 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
         State::from_dict(&one("Gpus", variant(old_gpus))),
         Err(StateError::WrongType("Gpus"))
     );
-    let old_inputs = vec![(
-        "chip".to_owned(),
-        "devices/x".to_owned(),
-        1_u32,
-        String::new(),
-    )];
-    assert_eq!(
-        State::from_dict(&one("FanInputs", variant(old_inputs))),
-        Err(StateError::WrongType("FanInputs"))
-    );
-    let inputs = vec![(
-        "chip".to_owned(),
-        "devices/x".to_owned(),
-        1_u32,
-        String::new(),
-        12_000.0,
-    )];
-    assert!(matches!(
-        State::from_dict(&one("FanInputs", variant(inputs))),
-        Err(StateError::BadValue("FanInputs", _))
-    ));
-    for rpm in [10_000.0, -1.0, 1.5, f64::INFINITY] {
-        assert!(
-            matches!(
-                State::from_dict(&one("PumpRpm", variant(rpm))),
-                Err(StateError::BadValue("PumpRpm", _))
-            ),
-            "{rpm}"
-        );
-    }
 }
 
 #[test]
@@ -277,7 +230,7 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
     let older = full();
     let newer = State {
         rotation: Some(1),
-        pump_rpm: Some(FanSpeed::Rpm(2900)),
+        music_peaks: Some(true),
         ..full()
     };
     let changes = newer.changed_since(&older);
@@ -285,7 +238,7 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
         changes,
         State {
             rotation: Some(1),
-            pump_rpm: Some(FanSpeed::Rpm(2900)),
+            music_peaks: Some(true),
             ..State::default()
         }
     );

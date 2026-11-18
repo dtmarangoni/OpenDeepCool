@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 22] = [
+pub const STATE_KEYS: [(&str, &str); 15] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -20,13 +20,6 @@ pub const STATE_KEYS: [(&str, &str); 22] = [
     ("Gpus", "a(sssqqb)"),
     ("ChosenGpu", "s"),
     ("GpuInUse", "s"),
-    ("FanInputs", "a(ssusd)"),
-    ("CoolerFanInput", "(ssu)"),
-    ("PumpInput", "(ssu)"),
-    ("CoolerFanInputPresent", "b"),
-    ("PumpInputPresent", "b"),
-    ("CoolerFanRpm", "d"),
-    ("PumpRpm", "d"),
     ("MusicPeaks", "b"),
     ("MusicBarFall", "s"),
     ("MusicPeakFall", "s"),
@@ -117,35 +110,6 @@ pub struct Gpu {
     pub has_rule: bool,
 }
 
-/// One fan input of `FanInputs`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct FanInput {
-    pub chip: String,
-    /// Relative to the sysfs root, `devices/…`, as Phase 6's `FanInput` keeps it.
-    pub device: String,
-    pub input: u32,
-    /// The driver's label, empty when it gives none.
-    pub label: String,
-    /// Its speed now, as `CoolerFanRpm` gives the chosen one's (Phase 10).
-    pub rpm: FanSpeed,
-}
-
-/// A chosen fan input, `CoolerFanInput` or `PumpInput`.
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Input {
-    pub chip: String,
-    pub device: String,
-    pub input: u32,
-}
-
-/// A fan speed, `CoolerFanRpm` or `PumpRpm`: whole RPM capped at 9999 (owner, 2026-10-25), NaN
-/// on the bus when it can't be read.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FanSpeed {
-    Rpm(u16),
-    Unavailable,
-}
-
 /// The state, each key present or not.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct State {
@@ -162,15 +126,6 @@ pub struct State {
     pub chosen_gpu: Option<String>,
     /// The GPU the readings come from: the chosen one, or Automatic's; empty with no GPU.
     pub gpu_in_use: Option<String>,
-    pub fan_inputs: Option<Vec<FanInput>>,
-    /// `None` inside: no input chosen, sent as empty strings and 0.
-    pub cooler_fan_input: Option<Option<Input>>,
-    pub pump_input: Option<Option<Input>>,
-    /// Whether the chosen input is there; true when none is chosen.
-    pub cooler_fan_input_present: Option<bool>,
-    pub pump_input_present: Option<bool>,
-    pub cooler_fan_rpm: Option<FanSpeed>,
-    pub pump_rpm: Option<FanSpeed>,
     pub music_peaks: Option<bool>,
     pub music_bar_fall: Option<FallStop>,
     pub music_peak_fall: Option<FallStop>,
@@ -202,20 +157,6 @@ impl std::error::Error for StateError {}
 
 fn owned<'a>(value: impl Into<Variant<'a>>) -> OwnedVariant {
     OwnedVariant::try_from(value.into()).expect("the state holds no file descriptor")
-}
-
-fn input_tuple(input: &Option<Input>) -> (String, String, u32) {
-    match input {
-        Some(i) => (i.chip.clone(), i.device.clone(), i.input),
-        None => (String::new(), String::new(), 0),
-    }
-}
-
-fn speed_number(speed: FanSpeed) -> f64 {
-    match speed {
-        FanSpeed::Rpm(rpm) => f64::from(rpm),
-        FanSpeed::Unavailable => f64::NAN,
-    }
 }
 
 impl State {
@@ -267,39 +208,6 @@ impl State {
         }
         if let Some(gpu) = &self.gpu_in_use {
             put("GpuInUse", owned(gpu.as_str()));
-        }
-        if let Some(inputs) = &self.fan_inputs {
-            let list: Vec<(String, String, u32, String, f64)> = inputs
-                .iter()
-                .map(|i| {
-                    (
-                        i.chip.clone(),
-                        i.device.clone(),
-                        i.input,
-                        i.label.clone(),
-                        speed_number(i.rpm),
-                    )
-                })
-                .collect();
-            put("FanInputs", owned(list));
-        }
-        if let Some(input) = &self.cooler_fan_input {
-            put("CoolerFanInput", owned(input_tuple(input)));
-        }
-        if let Some(input) = &self.pump_input {
-            put("PumpInput", owned(input_tuple(input)));
-        }
-        if let Some(present) = self.cooler_fan_input_present {
-            put("CoolerFanInputPresent", owned(present));
-        }
-        if let Some(present) = self.pump_input_present {
-            put("PumpInputPresent", owned(present));
-        }
-        if let Some(speed) = self.cooler_fan_rpm {
-            put("CoolerFanRpm", owned(speed_number(speed)));
-        }
-        if let Some(speed) = self.pump_rpm {
-            put("PumpRpm", owned(speed_number(speed)));
         }
         if let Some(peaks) = self.music_peaks {
             put("MusicPeaks", owned(peaks));
@@ -355,35 +263,6 @@ impl State {
                 .map(|t| parse(&t).ok_or(StateError::BadValue(key, t)))
                 .transpose()
         }
-        fn input(
-            dict: &HashMap<String, OwnedVariant>,
-            key: &'static str,
-        ) -> Result<Option<Option<Input>>, StateError> {
-            Ok(
-                get::<(String, String, u32)>(dict, key)?.map(|(chip, device, input)| {
-                    (!(chip.is_empty() && device.is_empty() && input == 0)).then_some(Input {
-                        chip,
-                        device,
-                        input,
-                    })
-                }),
-            )
-        }
-        fn rpm(key: &'static str, n: f64) -> Result<FanSpeed, StateError> {
-            if n.is_nan() {
-                Ok(FanSpeed::Unavailable)
-            } else if (0.0..=9999.0).contains(&n) && n.fract() == 0.0 {
-                Ok(FanSpeed::Rpm(n as u16))
-            } else {
-                Err(StateError::BadValue(key, n.to_string()))
-            }
-        }
-        fn speed(
-            dict: &HashMap<String, OwnedVariant>,
-            key: &'static str,
-        ) -> Result<Option<FanSpeed>, StateError> {
-            get::<f64>(dict, key)?.map(|n| rpm(key, n)).transpose()
-        }
         let rotation = get::<u8>(dict, "Rotation")?;
         if let Some(r) = rotation
             && r > 3
@@ -408,21 +287,6 @@ impl State {
                     .collect::<Result<Vec<_>, StateError>>()
             })
             .transpose()?;
-        let fan_inputs = get::<Vec<(String, String, u32, String, f64)>>(dict, "FanInputs")?
-            .map(|list| {
-                list.into_iter()
-                    .map(|(chip, device, input, label, speed)| {
-                        Ok(FanInput {
-                            chip,
-                            device,
-                            input,
-                            label,
-                            rpm: rpm("FanInputs", speed)?,
-                        })
-                    })
-                    .collect::<Result<Vec<_>, StateError>>()
-            })
-            .transpose()?;
         Ok(State {
             mode: get(dict, "Mode")?,
             rotation,
@@ -434,13 +298,6 @@ impl State {
             gpus,
             chosen_gpu: get(dict, "ChosenGpu")?,
             gpu_in_use: get(dict, "GpuInUse")?,
-            fan_inputs,
-            cooler_fan_input: input(dict, "CoolerFanInput")?,
-            pump_input: input(dict, "PumpInput")?,
-            cooler_fan_input_present: get(dict, "CoolerFanInputPresent")?,
-            pump_input_present: get(dict, "PumpInputPresent")?,
-            cooler_fan_rpm: speed(dict, "CoolerFanRpm")?,
-            pump_rpm: speed(dict, "PumpRpm")?,
             music_peaks: get(dict, "MusicPeaks")?,
             music_bar_fall: text(dict, "MusicBarFall", FallStop::parse)?,
             music_peak_fall: text(dict, "MusicPeakFall", FallStop::parse)?,
@@ -469,13 +326,6 @@ impl State {
             gpus,
             chosen_gpu,
             gpu_in_use,
-            fan_inputs,
-            cooler_fan_input,
-            pump_input,
-            cooler_fan_input_present,
-            pump_input_present,
-            cooler_fan_rpm,
-            pump_rpm,
             music_peaks,
             music_bar_fall,
             music_peak_fall,
@@ -506,13 +356,6 @@ impl State {
             gpus,
             chosen_gpu,
             gpu_in_use,
-            fan_inputs,
-            cooler_fan_input,
-            pump_input,
-            cooler_fan_input_present,
-            pump_input_present,
-            cooler_fan_rpm,
-            pump_rpm,
             music_peaks,
             music_bar_fall,
             music_peak_fall,

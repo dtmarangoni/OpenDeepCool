@@ -32,8 +32,8 @@ pub const USAGE: &str =
 
   --require <list>  capabilities that must run real: lp360, lp360-reconnect,
                     cpu-temp, cpu-power, proc-stat, meminfo, gpu-amdgpu, gpu-i915,
-                    gpu-xe, gpu-nvidia, gpu-other, board-fans, sensors-tool,
-                    gpu-load-tool, dev-service, pipewire, weston, container
+                    gpu-xe, gpu-nvidia, gpu-other, sensors-tool, gpu-load-tool,
+                    dev-service, pipewire, weston, container
   --only <area>     run one area's checks: device, display, gpu-rank, sensors,
                     service, music, app; or, only when named, baseline, the dev
                     service's resource use over 10 minutes, and package, the Arch

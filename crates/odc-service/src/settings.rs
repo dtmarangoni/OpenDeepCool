@@ -1,7 +1,7 @@
 //! Settings v1 (Phase 7 plan, Task 5; `docs/spec/settings.md`): one TOML file in the service's
 //! state directory, written only by the service. The file is checked for form only: a saved GPU
-//! or fan input may be missing from the PC for now, and it's kept for when it's back (owner,
-//! 2026-10-26; solution review OV-14). Fields a later build added are kept and written back
+//! may be missing from the PC for now, and it's kept for when it's back (owner, 2026-10-26;
+//! solution review OV-14). Fields a later build added are kept and written back
 //! unchanged, so moving to an older build and back loses nothing (owner, 2026-10-27; solution
 //! review P7-12).
 
@@ -20,6 +20,9 @@ pub const FILE: &str = "settings.toml";
 
 /// This build's format.
 pub const VERSION: u32 = 1;
+
+/// Keys an older build wrote and this one no longer has (Phase 11a): dropped at load.
+const RETIRED_KEYS: [&str; 2] = ["cooler_fan_input", "pump_input"];
 
 /// How many invalid files are kept, renamed aside (solution review P7-12).
 const KEPT_INVALID: usize = 3;
@@ -104,16 +107,6 @@ fn peaks_slow() -> Fall {
     Fall::Slow
 }
 
-/// A chosen fan input: its chip's name, its device path relative to the sysfs root, and its
-/// number, as Phase 6's `FanInput` identifies it, never by hwmon index.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct SavedInput {
-    pub chip: String,
-    pub device_path: String,
-    pub input: u32,
-}
-
 /// The settings (`docs/spec/settings.md`; the defaults are OpenDeepCool's, the same as
 /// DeepCreative's first start).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -126,10 +119,6 @@ pub struct Settings {
     /// Cleared at start when the GPUs changed (owner, 2026-11-04).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub gpu_choice: Option<String>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub cooler_fan_input: Option<SavedInput>,
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub pump_input: Option<SavedInput>,
     /// The Music settings (`docs/spec/music.md` point 7; Phase 9): a file written before them
     /// gets Winamp's defaults, peak dots on, bars moderate, peaks slow.
     #[serde(default = "peaks_on")]
@@ -151,8 +140,6 @@ impl Default for Settings {
             rotation: 0,
             temperature_unit: TemperatureUnit::Celsius,
             gpu_choice: None,
-            cooler_fan_input: None,
-            pump_input: None,
             music_peaks: peaks_on(),
             music_bar_fall: bars_moderate(),
             music_peak_fall: peaks_slow(),
@@ -162,6 +149,15 @@ impl Default for Settings {
 }
 
 impl Settings {
+    /// Drops the keys a retired feature left in `later` (the cooler's fan and pump inputs, which
+    /// the product no longer has; owner, 2026-11-18), so the next save writes none of them. Their
+    /// contents are never read, so a file with them out of form still loads.
+    fn drop_retired_keys(&mut self) {
+        for key in RETIRED_KEYS {
+            self.later.remove(key);
+        }
+    }
+
     /// The Music settings the spectrum is drawn with.
     pub fn music(&self) -> MusicSettings {
         MusicSettings {
@@ -189,14 +185,6 @@ impl Settings {
         if let Some(gpu) = &self.gpu_choice {
             check_pci(gpu).map_err(|why| format!("gpu_choice: {why}"))?;
         }
-        for (name, input) in [
-            ("cooler_fan_input", &self.cooler_fan_input),
-            ("pump_input", &self.pump_input),
-        ] {
-            if let Some(input) = input {
-                check_input(input).map_err(|why| format!("{name}: {why}"))?;
-            }
-        }
         Ok(())
     }
 }
@@ -209,35 +197,6 @@ pub fn check_pci(text: &str) -> Result<PciAddr, String> {
     } else {
         Err(format!("{text:?} isn't written as {address}"))
     }
-}
-
-/// The chip name at most 64 bytes; the device path relative to the sysfs root, `devices/…`, of
-/// normal components only and at most 1024 bytes; the input numbered from 1.
-pub fn check_input(input: &SavedInput) -> Result<(), String> {
-    if input.chip.is_empty() || input.chip.len() > 64 {
-        return Err(format!("a chip name of {} bytes", input.chip.len()));
-    }
-    check_device_path(&input.device_path)?;
-    if input.input == 0 {
-        return Err("input 0; inputs are numbered from 1".into());
-    }
-    Ok(())
-}
-
-/// A device path as Phase 6's `FanInput` keeps it: relative to the sysfs root, under `devices/`,
-/// with no `/` at the start, no empty, `.` or `..` component, at most 1024 bytes.
-pub fn check_device_path(path: &str) -> Result<(), String> {
-    if path.len() > 1024 {
-        return Err(format!("a device path of {} bytes", path.len()));
-    }
-    let mut components = path.split('/');
-    let normal = path
-        .split('/')
-        .all(|c| !c.is_empty() && c != "." && c != "..");
-    if components.next() != Some("devices") || components.next().is_none() || !normal {
-        return Err(format!("{path:?} isn't a device path under devices/"));
-    }
-    Ok(())
 }
 
 /// What loading found.
@@ -281,8 +240,11 @@ impl SettingsStore {
                 return Ok((settings, Found::Created));
             }
             Ok(Some(text)) => match toml::from_str::<Settings>(&text) {
-                Ok(settings) => match settings.check() {
-                    Ok(()) => return Ok((settings, Found::Read)),
+                Ok(mut settings) => match settings.check() {
+                    Ok(()) => {
+                        settings.drop_retired_keys();
+                        return Ok((settings, Found::Read));
+                    }
                     Err(why) => why,
                 },
                 Err(e) => e.message().to_owned(),

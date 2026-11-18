@@ -18,14 +18,11 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use odc_device::{Link, Reason, RecordingHandle};
-use odc_ipc::{
-    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, FanSpeed, Input, OBJECT_PATH, State,
-    frame_pixels,
-};
+use odc_ipc::{BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, OBJECT_PATH, State, frame_pixels};
 use odc_protocol::Frame;
-use odc_render::{Mode, Shown, number};
+use odc_render::Mode;
 use odc_sensors::{
-    Binding, Exact, Fan, Metric, PciAddr, Reading, Snapshot, Unavailable, choose, has_gpu_rule,
+    Binding, Exact, Metric, PciAddr, Reading, Snapshot, Unavailable, choose, has_gpu_rule,
 };
 use zbus::fdo::DBusProxy;
 use zbus::message::{Header, Type};
@@ -40,7 +37,7 @@ use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
 use crate::runtime::{DeviceControl, Durations, SensorRequest, Slot};
-use crate::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
+use crate::settings::{Fall, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
 use crate::watchers::{Checked, Watch, Watchers};
@@ -51,10 +48,9 @@ const CHECK_EVERY: Duration = Duration::from_secs(1);
 /// How long the start waits for the bus.
 const START_TIMEOUT: Duration = Duration::from_secs(30);
 
-/// A string argument longer than this, in bytes, is refused before any lookup; a device path may
-/// have up to [`PATH_LIMIT`] (owner, 2026-10-26; solution review OV-14).
+/// A string argument longer than this, in bytes, is refused before any lookup (owner, 2026-10-26;
+/// solution review OV-14).
 const STRING_LIMIT: usize = 64;
-const PATH_LIMIT: usize = 1024;
 
 /// What `Busy` says.
 const BUSY: &str = "a test is running on this dev copy";
@@ -312,29 +308,6 @@ impl Shared {
             return Err(invalid(format!("{pci:?} isn't listed in Gpus")));
         }
         self.save(|s| s.gpu_choice = Some(pci.to_owned()))
-    }
-
-    /// The input listed in `FanInputs` with this chip, device path and number, or none for all
-    /// empty.
-    fn fan_input(&self, chip: &str, device: &str, input: u32) -> Result<Option<SavedInput>, Error> {
-        within("a chip name", chip, STRING_LIMIT)?;
-        within("a device path", device, PATH_LIMIT)?;
-        if chip.is_empty() && device.is_empty() && input == 0 {
-            return Ok(None);
-        }
-        let listed = read(&self.status).fan_inputs.iter().any(|found| {
-            found.chip == chip && found.device.to_str() == Some(device) && found.input == input
-        });
-        if !listed {
-            return Err(invalid(format!(
-                "{chip:?}, {device:?}, {input} isn't listed in FanInputs"
-            )));
-        }
-        Ok(Some(SavedInput {
-            chip: chip.to_owned(),
-            device_path: device.to_owned(),
-            input,
-        }))
     }
 
     /// The whole state: the settings' keys from the saved settings, the rest from the status and
@@ -606,14 +579,6 @@ impl Shared {
 /// helper's pipe is attached.
 fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected: bool) -> State {
     let (connected, cooler) = cooler_state(status);
-    let input = |saved: &Option<SavedInput>| {
-        saved.as_ref().map(|s| Input {
-            chip: s.chip.clone(),
-            device: s.device_path.clone(),
-            input: s.input,
-        })
-    };
-    let fans = status.snapshot.as_ref();
     let fall =
         |fall: Fall| FallStop::parse(fall.name()).expect("the five stops have the same names");
     let mode = shown_mode(settings, drawn);
@@ -668,26 +633,6 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
             .map(|gpu| gpu.pci.to_string())
             .unwrap_or_default(),
         ),
-        fan_inputs: Some(
-            status
-                .fan_inputs
-                .iter()
-                .enumerate()
-                .map(|(i, found)| odc_ipc::FanInput {
-                    chip: found.chip.clone(),
-                    device: found.device.to_string_lossy().into_owned(),
-                    input: found.input,
-                    label: found.label.clone().unwrap_or_default(),
-                    rpm: rpm(status.fan_rpms.get(i)),
-                })
-                .collect(),
-        ),
-        cooler_fan_input: Some(input(&settings.cooler_fan_input)),
-        pump_input: Some(input(&settings.pump_input)),
-        cooler_fan_input_present: Some(present(fans.map(|s| &s.cooler_fans))),
-        pump_input_present: Some(present(fans.map(|s| &s.pump))),
-        cooler_fan_rpm: Some(speed(fans.map(|s| &s.cooler_fans))),
-        pump_rpm: Some(speed(fans.map(|s| &s.pump))),
         music_peaks: Some(settings.music_peaks),
         music_bar_fall: Some(fall(settings.music_bar_fall)),
         music_peak_fall: Some(fall(settings.music_peak_fall)),
@@ -708,34 +653,6 @@ fn cooler_state(status: &Status) -> (bool, CoolerState) {
         Some(Link::Disconnected(Reason::NoAccess { .. })) => (false, CoolerState::NoAccess),
         Some(Link::Disconnected(Reason::WriteFailed { .. })) => (false, CoolerState::WriteFailed),
     }
-}
-
-/// A fan's speed in whole RPM, capped at 9999, like every number the display draws.
-fn speed(fan: Option<&Fan>) -> FanSpeed {
-    match fan {
-        Some(Fan::Chosen(reading)) => rpm(Some(reading)),
-        _ => FanSpeed::Unavailable,
-    }
-}
-
-/// A fan input's reading in whole RPM, capped at 9999.
-fn rpm(reading: Option<&Reading>) -> FanSpeed {
-    match reading {
-        Some(Reading::Value(rpm)) => match number(Some(*rpm)) {
-            Shown::Number(n) => FanSpeed::Rpm(n),
-            Shown::Dashes => FanSpeed::Unavailable,
-        },
-        _ => FanSpeed::Unavailable,
-    }
-}
-
-/// Whether a chosen fan input is there: its reading isn't "no device"; true with none chosen, or
-/// before the first snapshot.
-fn present(fan: Option<&Fan>) -> bool {
-    !matches!(
-        fan,
-        Some(Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)))
-    )
 }
 
 /// `Diagnostics()`: each metric, in the spec's order, with its source and its state (owner,
@@ -836,11 +753,9 @@ fn overridden(
     if let Some(missing) = Metric::ALL.iter().find(|m| !readings.contains_key(m)) {
         return Err(invalid(format!("{} is missing", missing.spec_name())));
     }
-    Ok(Snapshot::new(
-        |metric| readings.remove(&metric).expect("every metric"),
-        Fan::NotChosen,
-        Fan::NotChosen,
-    ))
+    Ok(Snapshot::new(|metric| {
+        readings.remove(&metric).expect("every metric")
+    }))
 }
 
 /// The main interface (`docs/spec/dbus.md`, Main interface). It has no properties: the state is
@@ -904,38 +819,6 @@ impl Main {
         let sender = self.shared.changer(&header, call).await?;
         self.shared
             .logged(call, &sender, self.shared.choose_gpu(pci))
-    }
-
-    async fn set_cooler_fan_input(
-        &self,
-        #[zbus(header)] header: Header<'_>,
-        chip: &str,
-        device: &str,
-        input: u32,
-    ) -> Result<(), Error> {
-        let call = "SetCoolerFanInput";
-        let sender = self.shared.changer(&header, call).await?;
-        let result = self
-            .shared
-            .fan_input(chip, device, input)
-            .and_then(|chosen| self.shared.save(|s| s.cooler_fan_input = chosen));
-        self.shared.logged(call, &sender, result)
-    }
-
-    async fn set_pump_input(
-        &self,
-        #[zbus(header)] header: Header<'_>,
-        chip: &str,
-        device: &str,
-        input: u32,
-    ) -> Result<(), Error> {
-        let call = "SetPumpInput";
-        let sender = self.shared.changer(&header, call).await?;
-        let result = self
-            .shared
-            .fan_input(chip, device, input)
-            .and_then(|chosen| self.shared.save(|s| s.pump_input = chosen));
-        self.shared.logged(call, &sender, result)
     }
 
     /// Fresh readings at once, and the picture from home; nothing is saved.
@@ -1426,16 +1309,11 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
         let changes = state.changed_since(&sent);
         let watchers = lock(&shared.watchers).allowed(Watch::State);
         for name in watchers {
-            let mut send = if again.contains(&name) {
+            let send = if again.contains(&name) {
                 state.clone()
             } else {
                 changes.clone()
             };
-            // The fan speeds change every second: only the settings app, which watches frames,
-            // asks for them (`docs/spec/dbus.md`, `WatchFrames`).
-            if !lock(&shared.watchers).watches(&name, Watch::Frames) {
-                send.fan_inputs = None;
-            }
             if send.is_empty() {
                 continue;
             }

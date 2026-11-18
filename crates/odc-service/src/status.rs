@@ -1,6 +1,6 @@
 //! What the service knows about itself, for its D-Bus side and journal (Phase 7 plan, Tasks 6
 //! and 7): the link to the cooler, which modes can be shown, each metric's binding and reading,
-//! the GPUs and fan inputs found, and the dev copy's release and override. The engine, device and
+//! the GPUs found, and the dev copy's release and override. The engine, device and
 //! sensor threads each write their part; the D-Bus side only reads (one `Arc<RwLock<Status>>`).
 //! The settings aren't here: the D-Bus side keeps the saved ones itself.
 
@@ -8,8 +8,7 @@ use std::path::Path;
 
 use odc_device::Link;
 use odc_sensors::{
-    Binding, Exact, FanInput, Gpu, Metric, RANK_FILE, Reading, Snapshot, delete_stale, gpus,
-    review_ranking,
+    Binding, Exact, Gpu, Metric, RANK_FILE, Reading, Snapshot, delete_stale, gpus, review_ranking,
 };
 
 use crate::dbus::{kind_of, reason_of};
@@ -68,10 +67,6 @@ pub struct Status {
     pub availability: Availability,
     pub bindings: Vec<(Metric, Binding)>,
     pub gpus: Vec<Gpu>,
-    pub fan_inputs: Vec<FanInput>,
-    /// Each of `fan_inputs`' speed, in its order, from the sensor thread's last snapshot (Phase
-    /// 10); empty before the first.
-    pub fan_rpms: Vec<Reading>,
     /// The readings drawn; `None` before the engine's first tick.
     pub snapshot: Option<Snapshot>,
     /// The last readings override the engine took: its number and its tick.
@@ -159,23 +154,19 @@ pub fn gpus_at_start(
 
 #[cfg(test)]
 mod tests {
-    use odc_sensors::{Fan, Unavailable};
+    use odc_sensors::Unavailable;
 
     use super::*;
 
     #[test]
     fn the_first_readings_line_reads_back_exactly() {
-        let snapshot = Snapshot::new(
-            |metric| match metric {
-                Metric::CpuUsage => Reading::Unavailable(Unavailable::NotYet),
-                Metric::GpuPower => Reading::Unavailable(Unavailable::IntegratedGpuPower),
-                other => {
-                    Reading::Value(Exact::new(45_000 + other as i64, 1000).expect("a denominator"))
-                }
-            },
-            Fan::NotChosen,
-            Fan::NotChosen,
-        );
+        let snapshot = Snapshot::new(|metric| match metric {
+            Metric::CpuUsage => Reading::Unavailable(Unavailable::NotYet),
+            Metric::GpuPower => Reading::Unavailable(Unavailable::IntegratedGpuPower),
+            other => {
+                Reading::Value(Exact::new(45_000 + other as i64, 1000).expect("a denominator"))
+            }
+        });
         let line = first_readings(&snapshot);
         assert!(line.starts_with("first readings: CPU Temperature 45000/1000, CPU Usage not-yet"));
         let read = parse_first_readings(&line).expect("it reads back");

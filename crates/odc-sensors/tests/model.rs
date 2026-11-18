@@ -6,7 +6,7 @@ use std::fs;
 use std::path::Path;
 
 use odc_sensors::fake::FakeReadings;
-use odc_sensors::{Exact, Fan, Metric, Reading, Readings, Snapshot, Unavailable};
+use odc_sensors::{Exact, Metric, Reading, Readings, Snapshot, Unavailable};
 use odc_testkit::expected::load_mode;
 
 /// The number of every `mode-NNN.txt` in `docs/spec/frames/`.
@@ -145,23 +145,16 @@ fn own_value(metric: Metric) -> Reading {
 
 #[test]
 fn a_snapshot_gives_each_metric_its_own_reading() {
-    let fans = Fan::Chosen(Reading::Value(Exact::whole(930)));
-    let pump = Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice));
-    let snapshot = Snapshot::new(own_value, fans.clone(), pump.clone());
+    let snapshot = Snapshot::new(own_value);
     for metric in Metric::ALL {
         assert_eq!(snapshot.get(metric), &own_value(metric), "{metric:?}");
     }
-    assert_eq!((snapshot.cooler_fans, snapshot.pump), (fans, pump));
 }
 
 #[test]
 fn the_fake_plays_its_script_repeats_the_last_snapshot_and_counts_restarts() {
-    let first = Snapshot::new(own_value, Fan::NotChosen, Fan::NotChosen);
-    let second = Snapshot::new(
-        |_| Reading::Unavailable(Unavailable::NotYet),
-        Fan::NotChosen,
-        Fan::NotChosen,
-    );
+    let first = Snapshot::new(own_value);
+    let second = Snapshot::new(|_| Reading::Unavailable(Unavailable::NotYet));
     let mut fake = FakeReadings::new([first.clone(), second.clone()]);
     assert_eq!(fake.snapshot(), first);
     assert_eq!(fake.snapshot(), second);

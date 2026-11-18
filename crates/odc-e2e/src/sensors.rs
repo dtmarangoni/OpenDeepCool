@@ -22,17 +22,16 @@ use odc_sensors::fake::{FakeClock, FakeNvml};
 use odc_sensors::json::{self, Json};
 use odc_sensors::{
     Binding, Clock, Gpu, GpuKind, Metric, PciAddr, Ranked, RankedKind, Ranking, Reading, Readings,
-    Registry, SystemClock, Unavailable, fan_inputs, fan_rpm, gpus,
+    Registry, SystemClock, Unavailable, gpus,
 };
 use odc_testkit::fake_tree::FakeTree;
 use odc_testkit::fixtures::{
-    BOARD_CHIP, amdgpu_dgpu, board_fans, coretemp, i915, nouveau, nvidia_proprietary, proc_meminfo,
-    proc_stat, rapl, xe,
+    amdgpu_dgpu, coretemp, i915, nouveau, nvidia_proprietary, proc_meminfo, proc_stat, rapl, xe,
 };
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 
 /// The capabilities this area needs, the GPUs' included (Task 9 probes them too).
-const SENSORS: [Capability; 12] = [
+const SENSORS: [Capability; 11] = [
     Capability::CpuTemp,
     Capability::CpuPower,
     Capability::ProcStat,
@@ -42,7 +41,6 @@ const SENSORS: [Capability; 12] = [
     Capability::GpuXe,
     Capability::GpuNvidia,
     Capability::GpuOther,
-    Capability::BoardFans,
     Capability::SensorsTool,
     Capability::GpuLoadTool,
 ];
@@ -56,14 +54,13 @@ const GPUS: [Capability; 5] = [
 ];
 
 /// The checks besides the GPUs', each with the capability whose mode decides how it runs.
-const CHECKS: [(&str, Capability); 7] = [
+const CHECKS: [(&str, Capability); 6] = [
     ("cpu_temp", Capability::CpuTemp),
     ("cpu_temp_load", Capability::CpuTemp),
     ("cpu_usage", Capability::ProcStat),
     ("cpu_power", Capability::CpuPower),
     ("memory_load", Capability::Meminfo),
-    ("fans", Capability::BoardFans),
-    ("sensors_cost", Capability::BoardFans),
+    ("sensors_cost", Capability::CpuTemp),
 ];
 
 /// The Gpu usage check's load lasts this long, and the reading must drop within as long after.
@@ -102,7 +99,6 @@ pub fn run(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
     let real = |capability: Capability| *found(capability) == Probe::Real;
     let real_gpu = GPUS.iter().any(|&c| real(c));
     let needs_sensors = real(Capability::CpuTemp)
-        || real(Capability::BoardFans)
         || [
             Capability::GpuAmdgpu,
             Capability::GpuI915,
@@ -276,7 +272,6 @@ impl<'a> RealPc<'a> {
                 let reference = free_load(&self.tools.free)?;
                 memory_load(&ours, reference).map(|note| format!("real: {note}"))
             }
-            "fans" => self.fans(),
             "sensors_cost" => {
                 let sys = self.roots.sysfs.clone();
                 // The GPU the service would read, chosen as it chooses: the best ranked, or the
@@ -285,7 +280,7 @@ impl<'a> RealPc<'a> {
                 let found = gpus(&sys, Some(&ranking));
                 self.registry.choose_gpu(odc_sensors::choose(&found, None));
                 let registry = &mut self.registry;
-                sensors_cost_over(&sys, COST_PASSES, Duration::from_secs(1), || {
+                sensors_cost_over(COST_PASSES, Duration::from_secs(1), || {
                     registry.snapshot();
                 })
                 .map(|note| format!("real: {note}"))
@@ -366,26 +361,6 @@ impl<'a> RealPc<'a> {
             load_temp,
             load_sensors,
         })
-    }
-
-    /// Every fan input the product lists, against `sensors -j`'s reading of the same chip and
-    /// input.
-    fn fans(&mut self) -> Result<String, String> {
-        let sys = &self.roots.sysfs;
-        let inputs = fan_inputs(sys);
-        let ours: Vec<(String, u32, Reading)> = inputs
-            .iter()
-            .map(|input| (input.chip.clone(), input.input, fan_rpm(sys, input)))
-            .collect();
-        let sensors = sensors_json(self.tools.sensors.as_ref())?;
-        for (chip, n, reading) in &ours {
-            let reference = fan_reference(&sensors, chip, *n)?;
-            fan(chip, *n, reading, reference)?;
-        }
-        Ok(format!(
-            "real: {} fan inputs agree with sensors",
-            ours.len()
-        ))
     }
 
     /// Each real GPU on `capability`'s driver: chosen in turn and checked.
@@ -535,8 +510,6 @@ struct FakePc {
 const PACKAGE_MILLIC: i64 = 57_000;
 const MEM_TOTAL_KB: u64 = 16_000_000;
 const MEM_AVAILABLE_KB: u64 = 6_000_000;
-const FANS: [(u32, u64, Option<&str>); 3] =
-    [(1, 1_234, None), (2, 3_456, Some("Pump")), (3, 0, None)];
 const CARD: &str = "0000:0a:00.0";
 const IGPU: &str = "0000:00:02.0";
 const CARD2: &str = "0000:0b:00.0";
@@ -553,7 +526,6 @@ impl FakePc {
             &[("intel-rapl:0", "package-0", 1_000_000, 262_143_328_850)],
         )
         .and_then(|()| proc_meminfo(&tree, MEM_TOTAL_KB, MEM_AVAILABLE_KB))
-        .and_then(|_| board_fans(&tree, BOARD_CHIP, &FANS))
         .and_then(|_| amdgpu_dgpu(&tree, CARD, 41_000, 37, 182_000_000))
         .and_then(|_| i915(&tree, IGPU, 44_000, 9_100_000))
         .and_then(|_| xe(&tree, CARD2, 47_000, 7_300_000))
@@ -645,32 +617,9 @@ impl FakePc {
                         .map_err(|e| e.to_string())?;
                 memory_load(&ours, reference)?
             }
-            "fans" => {
-                let sys = self.tree.roots().sysfs;
-                let inputs = fan_inputs(&sys);
-                if inputs.len() != FANS.len() {
-                    return Err(format!(
-                        "{} fan inputs listed, not {}",
-                        inputs.len(),
-                        FANS.len()
-                    ));
-                }
-                for input in &inputs {
-                    let (_, rpm, _) = FANS
-                        .iter()
-                        .find(|(n, _, _)| *n == input.input)
-                        .ok_or_else(|| format!("fan{} isn't the fixture's", input.input))?;
-                    let rpm = i64::try_from(*rpm).map_err(|e| e.to_string())? * 1_000;
-                    fan(&input.chip, input.input, &fan_rpm(&sys, input), rpm)?;
-                }
-                format!("{} fan inputs agree with the fixture", inputs.len())
-            }
-            "sensors_cost" => {
-                let sys = self.tree.roots().sysfs;
-                sensors_cost_over(&sys, 3, Duration::from_millis(1), || {
-                    registry.snapshot();
-                })?
-            }
+            "sensors_cost" => sensors_cost_over(3, Duration::from_millis(1), || {
+                registry.snapshot();
+            })?,
             _ => return Err(format!("no check {name}")),
         };
         Ok(format!("fake: {note}"))
@@ -842,9 +791,8 @@ fn close(what: &str, ours: i64, reference: i64, tolerance: i64) -> Result<String
 }
 
 /// How many seconds the sensor thread's work is timed, one pass a second as the service does it.
-/// The board's and the GPU's drivers cache their readings for about a second, so passes in a row
-/// would measure the cache, not the work (Phase 11: ten fan inputs cost 0.03 ms read in a row and
-/// 0.24 ms read once a second; two AMD GPU values cost 1.4 ms read once a second).
+/// The GPU's drivers cache their readings for about a second, so passes in a row would measure the
+/// cache, not the work (Phase 11: two AMD GPU values cost 1.4 ms read once a second).
 const COST_PASSES: u32 = 12;
 
 /// The most CPU the sensor thread's work in one second may cost: 100 ms, 10 % of one core. It costs
@@ -863,44 +811,30 @@ fn thread_cpu() -> Duration {
     )
 }
 
-/// What the sensor thread does each second, as the service does it: a registry snapshot, and the
-/// speed of every fan input, each found again through its chip (Phase 10 added the speeds, for the
-/// app's list). Both are timed in each of `passes` passes, `every` apart, and together must stay
-/// within [`SENSORS_CEILING_MS`].
+/// What the sensor thread does each second, as the service does it: a registry snapshot. It is
+/// timed in each of `passes` passes, `every` apart, and must stay within [`SENSORS_CEILING_MS`].
 fn sensors_cost_over(
-    sys: &Path,
     passes: u32,
     every: Duration,
     mut snapshot: impl FnMut(),
 ) -> Result<String, String> {
-    let inputs = fan_inputs(sys);
-    let (mut snapshot_used, mut fans_used) = (Duration::ZERO, Duration::ZERO);
+    let mut used = Duration::ZERO;
     for _ in 0..passes {
         let before = thread_cpu();
         snapshot();
-        let middle = thread_cpu();
-        for input in &inputs {
-            let _ = fan_rpm(sys, input);
-        }
-        let after = thread_cpu();
-        snapshot_used += middle.saturating_sub(before);
-        fans_used += after.saturating_sub(middle);
+        used += thread_cpu().saturating_sub(before);
         thread::sleep(every);
     }
-    let ms = |used: Duration| used.as_secs_f64() * 1_000.0 / f64::from(passes.max(1));
-    sensors_cost(ms(snapshot_used), ms(fans_used), inputs.len())
+    sensors_cost(used.as_secs_f64() * 1_000.0 / f64::from(passes.max(1)))
 }
 
-/// The verdict on the two costs, each in ms of CPU for one pass, and the note that tells them
-/// apart.
-fn sensors_cost(snapshot_ms: f64, fans_ms: f64, inputs: usize) -> Result<String, String> {
-    let total = snapshot_ms + fans_ms;
+/// The verdict on the cost of one pass, in ms of CPU.
+fn sensors_cost(snapshot_ms: f64) -> Result<String, String> {
     let note = format!(
-        "a second's work costs {total:.2} ms of CPU ({:.3} % of one core): the snapshot \
-         {snapshot_ms:.2} ms, the {inputs} fan inputs' speeds {fans_ms:.2} ms",
-        total / 10.0
+        "a second's work costs {snapshot_ms:.2} ms of CPU ({:.3} % of one core)",
+        snapshot_ms / 10.0
     );
-    if total > SENSORS_CEILING_MS {
+    if snapshot_ms > SENSORS_CEILING_MS {
         Err(format!("{note}, above the {SENSORS_CEILING_MS} ms ceiling"))
     } else {
         Ok(note)
@@ -995,13 +929,6 @@ fn cpu_power(idle: &Reading, load: &Reading) -> Result<String, String> {
 /// Memory Load within half a point of the reference share.
 fn memory_load(ours: &Reading, reference: i64) -> Result<String, String> {
     close("Memory Load, %", milli(ours)?, reference, 500)
-}
-
-/// A fan input within 3 % of the reference, both in thousandths of RPM.
-fn fan(chip: &str, n: u32, ours: &Reading, reference: i64) -> Result<(), String> {
-    let ours = milli(ours).map_err(|e| format!("{chip} fan{n}: {e}"))?;
-    let tolerance = reference.abs() * 3 / 100;
-    close(&format!("{chip} fan{n}, RPM"), ours, reference, tolerance).map(|_| ())
 }
 
 /// Gpu power within 10 % or 5 W of the reference, whichever is larger, in thousandths of a watt.
@@ -1225,29 +1152,6 @@ fn gpu_temperature(json: &Json, chip_name: &str, driver: &str) -> Result<i64, St
         _ => feature_value(members, None, |s| s == "temp2_input"),
     };
     found.ok_or_else(|| format!("sensors shows no GPU temperature for {chip_name}"))
-}
-
-/// `sensors -j`'s reading of fan `n` of the one chip named `chip-…`.
-fn fan_reference(json: &Json, chip_name: &str, n: u32) -> Result<i64, String> {
-    let Json::Object(chips) = json else {
-        return Err("sensors -j isn't an object".into());
-    };
-    let subfeature = format!("fan{n}_input");
-    let found: Vec<i64> = chips
-        .iter()
-        .filter(|(name, _)| name.starts_with(&format!("{chip_name}-")))
-        .filter_map(|(_, members)| match members {
-            Json::Object(members) => feature_value(members, None, |s| s == subfeature),
-            _ => None,
-        })
-        .collect();
-    match found.as_slice() {
-        [one] => Ok(*one),
-        [] => Err(format!("sensors shows no {subfeature} for {chip_name}")),
-        _ => Err(format!(
-            "sensors shows {subfeature} for more than one {chip_name}"
-        )),
-    }
 }
 
 /// `free -b`'s used share, (total − available) ÷ total, in thousandths of a percent.
@@ -1490,13 +1394,10 @@ mod tests {
     fn sensors_json_gives_the_values_the_rules_read() {
         let text = r#"{
   "coretemp-isa-0000": {"Adapter": "ISA adapter", "Package id 0": {"temp1_input": 57.000}, "Core 0": {"temp2_input": 53.000}},
-  "fakeboardchip-isa-0a20": {"fan1": {"fan1_input": 1234.000}, "fan2": {"fan2_input": 3456.000}},
   "amdgpu-pci-0a00": {"edge": {"temp1_input": 41.000}, "junction": {"temp2_input": 77.000}, "PPT": {"power1_average": 182.000}}
 }"#;
         let json = json::parse(text).expect("JSON");
         assert_eq!(cpu_package(&json), Ok(57_000));
-        assert_eq!(fan_reference(&json, "fakeboardchip", 2), Ok(3_456_000));
-        assert!(fan_reference(&json, "fakeboardchip", 3).is_err());
         assert_eq!(
             gpu_temperature(&json, "amdgpu-pci-0a00", "amdgpu"),
             Ok(41_000)
@@ -1643,23 +1544,21 @@ mod tests {
             thread_cpu() - burned >= Duration::from_millis(20),
             "a busy 30 ms costs CPU"
         );
-        assert!(sensors_cost(0.5, 0.5, 10).is_ok());
+        assert!(sensors_cost(1.0).is_ok());
         assert!(
-            sensors_cost(12.0, 4.0, 10).is_ok(),
+            sensors_cost(16.0).is_ok(),
             "a CPU ten times as slow as the development PC's"
         );
-        assert!(sensors_cost(50.0, 50.0, 10).is_ok(), "exactly the ceiling");
-        assert!(sensors_cost(50.0, 50.01, 10).is_err(), "above it");
+        assert!(sensors_cost(100.0).is_ok(), "exactly the ceiling");
+        assert!(sensors_cost(100.01).is_err(), "above it");
         assert!(
-            sensors_cost(0.1, 120.0, 10)
-                .expect_err("the fans' speeds")
-                .contains("120.00 ms"),
-            "the note tells the two apart"
+            sensors_cost(240.0)
+                .expect_err("a loop that no longer waits")
+                .contains("240.00 ms"),
+            "the note names the cost"
         );
         assert!(memory_load(&value(62_400), 62_500).is_ok());
         assert!(memory_load(&value(61_900), 62_500).is_err());
-        assert!(fan("chip", 1, &value(1_000_000), 1_030_000).is_ok());
-        assert!(fan("chip", 1, &value(1_000_000), 1_040_000).is_err());
         assert!(gpu_power(&value(30_000), 25_000).is_ok(), "5 W");
         assert!(gpu_power(&value(200_000), 182_000).is_ok(), "10 %");
         assert!(gpu_power(&value(210_000), 182_000).is_err());

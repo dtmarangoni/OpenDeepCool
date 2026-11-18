@@ -11,7 +11,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use futures_core::Stream;
-use odc_ipc::{BUS_NAME, CoolerState, Error, FanSpeed, OpenDeepCoolProxy, State};
+use odc_ipc::{BUS_NAME, CoolerState, Error, OpenDeepCoolProxy, State};
 use odc_testkit::bus::{PrivateBus, within};
 use odc_testkit::fake_service::{CALL_LOG, FakeService, STATE_FILE};
 use zbus::fdo::DBusProxy;
@@ -22,8 +22,6 @@ use zbus::{Connection, MatchRule, Message, MessageStream, connection};
 
 const ON: &str = "serial = 1\non_bus = true\nreads = true";
 
-const FANS: &str = r#"FanInputs = [["acme6000", "devices/platform/acme6000.2592", 1, "", 1180.0], ["acme6000", "devices/platform/acme6000.2592", 2, "", nan]]"#;
-
 const REST: &str = r#"
 Rotation = 1
 TemperatureUnit = "celsius"
@@ -32,12 +30,10 @@ AvailableModes = [1, 7]
 UnavailableReasons = { 2 = "Gpu usage: no device found" }
 Gpus = [["0000:0a:00.0", "acmegpu", "dedicated", 4660, 22136, true]]
 ChosenGpu = ""
-CoolerFanInput = ["acme6000", "devices/platform/acme6000.2592", 1]
-CoolerFanRpm = 1180
 "#;
 
-fn state(mode: u32, fans: &str) -> String {
-    format!("Mode = {mode}\n{fans}\n{REST}")
+fn state(mode: u32) -> String {
+    format!("Mode = {mode}\n{REST}")
 }
 
 fn dir(name: &str) -> PathBuf {
@@ -110,7 +106,7 @@ fn it_serves_the_file_s_state_and_logs_every_call() {
     zbus::block_on(async {
         let conn = connect(&bus).await;
         assert_eq!(owner(&conn).await, None, "no state file yet: no service");
-        write(&dir, ON, &state(7, FANS));
+        write(&dir, ON, &state(7));
         logged(&dir, "state 1");
         assert!(owner(&conn).await.is_some());
         let proxy = OpenDeepCoolProxy::new(&conn).await.expect("the proxy");
@@ -120,17 +116,11 @@ fn it_serves_the_file_s_state_and_logs_every_call() {
         assert_eq!(read.rotation, Some(1));
         assert_eq!(read.cooler_state, Some(CoolerState::Connected));
         assert_eq!(read.gpus.as_ref().map(|g| g[0].vendor), Some(4660));
-        let inputs = read.fan_inputs.expect("the inputs");
-        assert_eq!(inputs[1].rpm, FanSpeed::Unavailable);
         assert_eq!(
             read.unavailable_reasons.and_then(|r| r.get(&2).cloned()),
             Some("Gpu usage: no device found".to_owned())
         );
         proxy.set_mode(5).await.expect("answered");
-        proxy
-            .set_cooler_fan_input("acme6000", "devices/platform/acme6000.2592", 2)
-            .await
-            .expect("answered");
         proxy.choose_gpu("").await.expect("answered");
         assert!(matches!(
             proxy.attach_audio().await,
@@ -145,7 +135,6 @@ fn it_serves_the_file_s_state_and_logs_every_call() {
             "state 1",
             "GetState()",
             "SetMode(5)",
-            "SetCoolerFanInput(\"acme6000\", \"devices/platform/acme6000.2592\", 2)",
             "ChooseGpu(\"\")",
             "AttachAudio() refused AudioNotWanted",
             "GetState()",
@@ -154,11 +143,11 @@ fn it_serves_the_file_s_state_and_logs_every_call() {
 }
 
 #[test]
-fn watchers_get_the_changed_keys_and_fan_inputs_only_while_they_watch_frames() {
+fn watchers_get_the_changed_keys() {
     let dir = dir("watchers");
     let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
     let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
-    write(&dir, ON, &state(7, FANS));
+    write(&dir, ON, &state(7));
     logged(&dir, "state 1");
     zbus::block_on(async {
         let conn = connect(&bus).await;
@@ -172,20 +161,11 @@ fn watchers_get_the_changed_keys_and_fan_inputs_only_while_they_watch_frames() {
             .expect("subscribed");
         let proxy = OpenDeepCoolProxy::new(&conn).await.expect("the proxy");
         proxy.watch().await.expect("watching");
-        let fans = FANS.replace("1180.0", "1200.0");
-        write(
-            &dir,
-            "serial = 2\non_bus = true\nreads = true",
-            &state(8, &fans),
-        );
+        write(&dir, "serial = 2\non_bus = true\nreads = true", &state(8));
         assert_eq!(changed_keys(&mut changes).await, ["Mode"]);
         proxy.watch_frames().await.expect("watching frames");
-        write(
-            &dir,
-            "serial = 3\non_bus = true\nreads = true",
-            &state(9, FANS),
-        );
-        assert_eq!(changed_keys(&mut changes).await, ["FanInputs", "Mode"]);
+        write(&dir, "serial = 3\non_bus = true\nreads = true", &state(9));
+        assert_eq!(changed_keys(&mut changes).await, ["Mode"]);
     });
 }
 
@@ -195,7 +175,7 @@ fn it_refuses_as_told_and_leaves_the_bus() {
     let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
     let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
     let refusing = format!("{ON}\nrefuse = \"ModeUnavailable: Gpu usage: no device found\"");
-    write(&dir, &refusing, &state(7, FANS));
+    write(&dir, &refusing, &state(7));
     logged(&dir, "state 1");
     zbus::block_on(async {
         let conn = connect(&bus).await;
@@ -208,22 +188,14 @@ fn it_refuses_as_told_and_leaves_the_bus() {
             proxy.refresh().await,
             Err(Error::ModeUnavailable(_))
         ));
-        write(
-            &dir,
-            "serial = 2\non_bus = true\nreads = false",
-            &state(7, FANS),
-        );
+        write(&dir, "serial = 2\non_bus = true\nreads = false", &state(7));
         logged(&dir, "state 2");
         assert!(matches!(
             proxy.get_state().await,
             Err(Error::NotAuthorized(_))
         ));
         assert!(matches!(proxy.watch().await, Err(Error::NotAuthorized(_))));
-        write(
-            &dir,
-            "serial = 3\non_bus = false\nreads = true",
-            &state(7, FANS),
-        );
+        write(&dir, "serial = 3\non_bus = false\nreads = true", &state(7));
         logged(&dir, "state 3");
         assert_eq!(owner(&conn).await, None);
     });
@@ -245,11 +217,7 @@ fn a_file_it_can_t_take_is_logged_and_the_fake_goes_on() {
     let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
     write(&dir, ON, "Mood = 1");
     logged(&dir, "state error: Mood isn't a state key");
-    write(
-        &dir,
-        "serial = 2\non_bus = true\nreads = true",
-        &state(7, FANS),
-    );
+    write(&dir, "serial = 2\non_bus = true\nreads = true", &state(7));
     logged(&dir, "state 2");
 }
 
@@ -323,7 +291,7 @@ fn a_new_frame_goes_to_frame_watchers_once() {
     let dir = dir("frames");
     let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
     let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
-    write(&dir, ON, &state(7, FANS));
+    write(&dir, ON, &state(7));
     logged(&dir, "state 1");
     let dots = |lit: usize| {
         let mut dots = vec!['0'; 196];
@@ -353,7 +321,7 @@ fn a_new_frame_goes_to_frame_watchers_once() {
                 dots(lit)
             )
         };
-        write(&dir, &with(2, 0), &state(7, FANS));
+        write(&dir, &with(2, 0), &state(7));
         logged(&dir, "state 2");
         assert_eq!(
             next_frame(&mut frames, Duration::from_millis(300)).await,
@@ -361,13 +329,13 @@ fn a_new_frame_goes_to_frame_watchers_once() {
             "no frame without WatchFrames()"
         );
         proxy.watch_frames().await.expect("watching frames");
-        write(&dir, &with(3, 14), &state(7, FANS));
+        write(&dir, &with(3, 14), &state(7));
         assert_eq!(
             next_frame(&mut frames, Duration::from_secs(5)).await,
             Some(pixels(14))
         );
         // The same frame again sends nothing.
-        write(&dir, &with(4, 14), &state(8, FANS));
+        write(&dir, &with(4, 14), &state(8));
         logged(&dir, "state 4");
         assert_eq!(
             next_frame(&mut frames, Duration::from_millis(300)).await,

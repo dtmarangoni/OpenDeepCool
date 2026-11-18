@@ -9,7 +9,7 @@ use odc_sensors::fake::FakeClock;
 use odc_sensors::{Binding, Clock, Exact, Metric, Reading, Readings, Registry, Roots, Unavailable};
 use odc_testkit::fake_tree::FakeTree;
 use odc_testkit::fixtures::{
-    BOARD_CHIP, amdgpu_dgpu, board_fans, coretemp, hwmon, k10temp, k10temp_pre17h,
+    OTHER_CHIP, amdgpu_dgpu, coretemp, hwmon, k10temp, k10temp_pre17h, other_chip,
 };
 
 fn tree(name: &str) -> FakeTree {
@@ -75,7 +75,7 @@ fn k10temp_prefers_tdie_then_tctl_and_has_no_rule_before_family_17h() {
 #[test]
 fn without_a_cpu_temperature_driver_the_metric_has_no_device() {
     let t = tree("none");
-    board_fans(&t, BOARD_CHIP, &[(1, 930, None)]).expect("board");
+    other_chip(&t, OTHER_CHIP).expect("another chip");
     amdgpu_dgpu(&t, "0000:0a:00.0", 41_000, 37, 182_000_000).expect("amdgpu");
     assert_eq!(
         cpu_temperature(&t),
@@ -84,18 +84,18 @@ fn without_a_cpu_temperature_driver_the_metric_has_no_device() {
 }
 
 #[test]
-fn a_board_chip_with_a_package_id_0_label_isnt_the_cpu() {
+fn another_chip_with_a_package_id_0_label_isnt_the_cpu() {
     let t = tree("foreign-label");
     hwmon(
         &t,
-        "sys/devices/platform/fakeboardchip.656",
-        BOARD_CHIP,
+        "sys/devices/platform/fakeotherchip.656",
+        OTHER_CHIP,
         &[
             ("temp1_label".into(), "Package id 0".into()),
             ("temp1_input".into(), "33000".into()),
         ],
     )
-    .expect("a board chip");
+    .expect("another chip");
     assert_eq!(
         cpu_temperature(&t),
         Reading::Unavailable(Unavailable::NoDevice)
@@ -105,8 +105,8 @@ fn a_board_chip_with_a_package_id_0_label_isnt_the_cpu() {
 #[test]
 fn an_hwmon_number_change_between_scans_still_finds_the_driver_by_name() {
     let t = tree("renumbered");
-    board_fans(&t, "fakechipa", &[(1, 930, None)]).expect("a chip");
-    board_fans(&t, "fakechipb", &[(1, 940, None)]).expect("a chip");
+    other_chip(&t, "fakechipa").expect("a chip");
+    other_chip(&t, "fakechipb").expect("a chip");
     let first = coretemp(&t, 57_000).expect("coretemp");
     assert!(first.ends_with("hwmon2"), "{}", first.display());
     let clock = FakeClock::new();
@@ -121,7 +121,7 @@ fn an_hwmon_number_change_between_scans_still_finds_the_driver_by_name() {
     t.remove("sys/devices/platform/coretemp.0")
         .expect("the old device");
     for chip in ["fakechipc", "fakechipd", "fakechipe"] {
-        board_fans(&t, chip, &[(1, 950, None)]).expect("a chip");
+        other_chip(&t, chip).expect("a chip");
     }
     let again = coretemp(&t, 58_000).expect("coretemp");
     assert!(again.ends_with("hwmon5"), "{}", again.display());

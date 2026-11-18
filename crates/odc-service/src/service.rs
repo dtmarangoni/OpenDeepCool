@@ -11,7 +11,7 @@ use std::time::Instant;
 
 use odc_device::{Connector, Link, Lp360, Reason, RecordingHandle};
 use odc_protocol::Frame;
-use odc_sensors::{Binding, FanInput, Gpu, Metric, Reading};
+use odc_sensors::{Binding, Gpu, Metric};
 
 use crate::audio::PipeAudio;
 use crate::dbus::{self, Bus, Checks};
@@ -32,9 +32,8 @@ pub struct Config<C: Connector, S: Sensors> {
     pub store: SettingsStore,
     pub lp360: Lp360<C>,
     pub sensors: S,
-    /// The GPUs and fan inputs found at start.
+    /// The GPUs found at start.
     pub gpus: Vec<Gpu>,
-    pub fan_inputs: Vec<FanInput>,
     pub bus: Bus,
     pub checks: Checks,
     pub journal: Arc<dyn Journal>,
@@ -172,7 +171,6 @@ impl Running {
         let status = Arc::new(RwLock::new(Status {
             bindings,
             gpus: config.gpus,
-            fan_inputs: config.fan_inputs,
             ..Status::default()
         }));
         // The session's sound, which the D-Bus side attaches and the engine hears (Phase 9).
@@ -193,22 +191,13 @@ impl Running {
                     Arc::clone(&progress),
                     Arc::clone(&stop),
                 );
-                let (status, journal, pulse) = (
-                    Arc::clone(&status),
-                    Arc::clone(&journal),
-                    Arc::clone(&pulse),
-                );
+                let (status, journal) = (Arc::clone(&status), Arc::clone(&journal));
                 move || {
-                    let mut on_read = |bindings: Vec<(Metric, Binding)>, rpms: Vec<Reading>| {
+                    let mut on_read = |bindings: Vec<(Metric, Binding)>| {
                         let mut status = write(&status);
                         if status.bindings != bindings {
                             journal.write(Priority::Info, &binding_lines(&bindings));
                             status.bindings = bindings;
-                        }
-                        if status.fan_rpms != rpms {
-                            status.fan_rpms = rpms;
-                            drop(status);
-                            pulse.send();
                         }
                     };
                     run_sensors(

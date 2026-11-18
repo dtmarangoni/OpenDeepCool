@@ -10,7 +10,7 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 
 use odc_protocol::Frame;
-use odc_sensors::{Exact, Fan, Reading, Snapshot};
+use odc_sensors::{Exact, Reading, Snapshot};
 use odc_service::engine::{Apply, Engine, Published, Requests};
 use odc_service::runtime::{Outputs, Progress, Slot, SystemTicker, abort_on_panic, run_engine};
 use odc_service::settings::Settings;
@@ -36,11 +36,7 @@ fn child() {
         .expect("the child's core dump turned off");
     abort_on_panic();
     let engine = thread::spawn(|| {
-        let snapshot = Snapshot::new(
-            |_| Reading::Value(Exact::whole(42)),
-            Fan::NotChosen,
-            Fan::NotChosen,
-        );
+        let snapshot = Snapshot::new(|_| Reading::Value(Exact::whole(42)));
         let engine = Engine::new(Settings::default(), snapshot);
         let progress = Progress::new(std::time::Instant::now());
         run_engine(

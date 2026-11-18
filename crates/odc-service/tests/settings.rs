@@ -4,9 +4,7 @@
 use std::fs;
 use std::path::PathBuf;
 
-use odc_service::settings::{
-    FILE, Fall, Found, SavedInput, Settings, SettingsStore, TemperatureUnit, check_device_path,
-};
+use odc_service::settings::{FILE, Fall, Found, Settings, SettingsStore, TemperatureUnit};
 
 /// An empty directory of its own under `CARGO_TARGET_TMPDIR`.
 fn dir(name: &str) -> PathBuf {
@@ -33,23 +31,13 @@ fn invalid_copies(dir: &PathBuf) -> Vec<String> {
     names
 }
 
-/// Every field set, with made-up devices (AGENTS.md rule 10).
+/// Every field set (AGENTS.md rule 10: made-up values only).
 fn every_field() -> Settings {
     Settings {
         mode: 5,
         rotation: 2,
         temperature_unit: TemperatureUnit::Fahrenheit,
         gpu_choice: Some("0000:0a:00.0".to_owned()),
-        cooler_fan_input: Some(SavedInput {
-            chip: "fakeboardchip".to_owned(),
-            device_path: "devices/platform/fakeboardchip.2592".to_owned(),
-            input: 1,
-        }),
-        pump_input: Some(SavedInput {
-            chip: "fakeboardchip".to_owned(),
-            device_path: "devices/platform/fakeboardchip.2592".to_owned(),
-            input: 2,
-        }),
         music_peaks: false,
         music_bar_fall: Fall::Faster,
         music_peak_fall: Fall::Slower,
@@ -62,14 +50,14 @@ fn a_fresh_directory_gets_the_defaults_written() {
     let d = dir("fresh");
     let (settings, found) = SettingsStore::new(&d).load().expect("loads");
     assert_eq!(found, Found::Created);
-    // settings.md: mode 1, rotation 0, Celsius, no fan inputs.
+    // settings.md: mode 1, rotation 0, Celsius.
     let defaults = Settings::default();
     assert_eq!(settings, defaults);
     assert_eq!(
         (settings.mode, settings.rotation, settings.temperature_unit),
         (1, 0, TemperatureUnit::Celsius)
     );
-    assert!(settings.gpu_choice.is_none() && settings.cooler_fan_input.is_none());
+    assert!(settings.gpu_choice.is_none());
     let text = fs::read_to_string(d.join(FILE)).expect("written");
     assert!(text.contains("version = 1"), "{text}");
     let (again, found) = SettingsStore::new(&d).load().expect("loads");
@@ -96,11 +84,6 @@ fn load_text(name: &str, text: &str) -> (Settings, Found, PathBuf) {
 #[test]
 fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
     let base = "version = 1\nmode = 4\nrotation = 1\ntemperature_unit = \"celsius\"\n";
-    let input = |path: &str| {
-        format!(
-            "{base}[pump_input]\nchip = \"fakeboardchip\"\ndevice_path = \"{path}\"\ninput = 2\n"
-        )
-    };
     let cases = [
         ("garbage", "this isn't = = toml".to_owned()),
         ("mode", base.replace("mode = 4", "mode = 24")),
@@ -113,11 +96,6 @@ fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
             "gpu-junk",
             format!("{base}gpu_choice = \"../../etc/shadow\"\n"),
         ),
-        ("dotdot", input("devices/../../etc")),
-        ("absolute", input("/etc")),
-        ("sysfs-absolute", input("/sys/devices/platform/x")),
-        ("dot", input("devices/./platform")),
-        ("long", input(&format!("devices/{}", "a".repeat(1100)))),
         ("future", base.replace("version = 1", "version = 2")),
         ("stop", format!("{base}music_bar_fall = \"fastest\"\n")),
         ("stop-case", format!("{base}music_peak_fall = \"Slow\"\n")),
@@ -171,6 +149,33 @@ fn a_field_a_later_build_added_is_kept_through_a_load_and_a_store() {
     assert!(written.contains("bar_fall = \"moderate\""), "{written}");
 }
 
+// The cooler's fan and pump inputs are gone from the product (Phase 11a): a file an older build
+// wrote with them loads, whatever they hold, and the next save writes none of them.
+#[test]
+fn the_retired_fan_keys_are_dropped_at_the_next_save_and_never_read() {
+    let text = "version = 1\nmode = 3\nrotation = 2\ntemperature_unit = \"celsius\"\n\
+                [cooler_fan_input]\nchip = \"fakeboardchip\"\ndevice_path = \"../../etc\"\ninput = 0\n\n\
+                [pump_input]\nchip = 7\nanything = true\n\n[music]\nbar_fall = \"moderate\"\n";
+    let (mut settings, found, d) = load_text("retired-keys", text);
+    assert_eq!(found, Found::Read, "their contents are never checked");
+    assert_eq!((settings.mode, settings.rotation), (3, 2));
+    assert!(!settings.later.contains_key("cooler_fan_input"));
+    assert!(!settings.later.contains_key("pump_input"));
+    assert!(
+        settings.later.contains_key("music"),
+        "other later fields stay"
+    );
+    settings.rotation = 1;
+    let store = SettingsStore::new(&d);
+    store.store(&settings).expect("stores");
+    let written = fs::read_to_string(d.join(FILE)).expect("written");
+    assert!(
+        !written.contains("fan_input") && !written.contains("pump_input"),
+        "{written}"
+    );
+    assert!(written.contains("bar_fall"), "{written}");
+}
+
 #[test]
 fn an_interrupted_write_leaves_the_good_file() {
     let d = dir("interrupted");
@@ -218,27 +223,6 @@ fn a_link_in_the_file_s_place_is_moved_aside_never_followed() {
     assert_eq!(settings, Settings::default());
     assert!(matches!(found, Found::Replaced { .. }), "{found:?}");
     assert!(target.exists(), "the link's target is left alone");
-}
-
-#[test]
-fn device_paths_are_relative_to_the_sysfs_root() {
-    for good in [
-        "devices/platform/fakeboardchip.2592",
-        "devices/pci0000:00/0000:00:1f.3/hwmon",
-    ] {
-        assert_eq!(check_device_path(good), Ok(()), "{good}");
-    }
-    for bad in [
-        "",
-        "devices",
-        "devices/",
-        "/devices/x",
-        "devices//x",
-        "class/hwmon/hwmon3",
-        "devices/x/..",
-    ] {
-        assert!(check_device_path(bad).is_err(), "{bad:?}");
-    }
 }
 
 #[test]

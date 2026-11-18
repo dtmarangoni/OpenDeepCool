@@ -8,8 +8,8 @@ use std::path::PathBuf;
 use odc_sensors::{NvmlSource, RealNvml};
 use odc_testkit::fake_tree::{FakeTree, LP360_HID_ID};
 use odc_testkit::fixtures::{
-    BOARD_CHIP, amdgpu_apu, amdgpu_dgpu, board_fans, coretemp, i915, k10temp, nouveau,
-    nvidia_proprietary, proc_meminfo, proc_stat, rapl, render_node, xe,
+    amdgpu_apu, amdgpu_dgpu, coretemp, i915, k10temp, nouveau, nvidia_proprietary, proc_meminfo,
+    proc_stat, rapl, render_node, xe,
 };
 use odc_testkit::hardware::{Capability, DEV_INTERFACE_FIX, Probe, SERVICE_FIX, SETUP_FIX, probe};
 use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR};
@@ -126,7 +126,6 @@ fn cpu_and_memory_sources_are_real_where_their_files_are() {
         Capability::CpuPower,
         Capability::ProcStat,
         Capability::Meminfo,
-        Capability::BoardFans,
     ] {
         assert!(
             matches!(probe(capability, &t.roots()), Probe::Absent { .. }),
@@ -145,29 +144,17 @@ fn cpu_and_memory_sources_are_real_where_their_files_are() {
     )
     .expect("stat");
     proc_meminfo(&t, 16_000_000, 6_000_000).expect("meminfo");
-    board_fans(&t, BOARD_CHIP, &[(1, 1_234, None)]).expect("board fans");
     for capability in [
         Capability::CpuTemp,
         Capability::CpuPower,
         Capability::ProcStat,
         Capability::Meminfo,
-        Capability::BoardFans,
     ] {
         assert_eq!(probe(capability, &t.roots()), Probe::Real, "{capability:?}");
     }
     let amd = tree("cpu-k10temp");
     k10temp(&amd, 61_000, Some(55_000)).expect("k10temp");
     assert_eq!(probe(Capability::CpuTemp, &amd.roots()), Probe::Real);
-}
-
-#[test]
-fn a_graphics_cards_fan_alone_isnt_the_boards() {
-    let t = tree("card-fan-only");
-    amdgpu_dgpu(&t, "0000:0a:00.0", 41_000, 17, 23_000_000).expect("a card with a fan");
-    assert!(matches!(
-        probe(Capability::BoardFans, &t.roots()),
-        Probe::Absent { .. }
-    ));
 }
 
 #[test]
@@ -269,7 +256,6 @@ fn capability_names_are_what_require_takes() {
         ("cpu-power", Capability::CpuPower),
         ("proc-stat", Capability::ProcStat),
         ("meminfo", Capability::Meminfo),
-        ("board-fans", Capability::BoardFans),
         ("sensors-tool", Capability::SensorsTool),
         ("gpu-load-tool", Capability::GpuLoadTool),
         ("gpu-amdgpu", Capability::GpuAmdgpu),

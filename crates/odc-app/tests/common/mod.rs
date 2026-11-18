@@ -185,7 +185,6 @@ pub fn base() -> State {
         music_peak_fall: Some(FallStop::Slow),
         audio_connected: Some(true),
         audio_wanted: Some(false),
-        ..State::default()
     }
 }
 

@@ -2,7 +2,7 @@
 //! `docs/spec/music.md`, Modes).
 
 use odc_render::{Kind, Mode, Unit, Values, draws, mode_info, picture};
-use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
+use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 
 #[test]
 fn the_table_lists_each_mode_s_metrics_top_first() {
@@ -83,21 +83,17 @@ fn draws_says_exactly_which_modes_picture_draws() {
 
 #[test]
 fn a_snapshot_gives_each_metric_its_own_value_or_none() {
-    let snapshot = Snapshot::new(
-        |metric| match metric {
-            Metric::GpuUsage => Reading::Unavailable(Unavailable::NoDevice),
-            Metric::CpuUsage => Reading::Unavailable(Unavailable::NotYet),
-            other => Reading::Value(Exact::whole(match other {
-                Metric::CpuTemperature => 57,
-                Metric::CpuPower => 65,
-                Metric::GpuTemperature => 38,
-                Metric::GpuPower => 250,
-                _ => 85,
-            })),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    );
+    let snapshot = Snapshot::new(|metric| match metric {
+        Metric::GpuUsage => Reading::Unavailable(Unavailable::NoDevice),
+        Metric::CpuUsage => Reading::Unavailable(Unavailable::NotYet),
+        other => Reading::Value(Exact::whole(match other {
+            Metric::CpuTemperature => 57,
+            Metric::CpuPower => 65,
+            Metric::GpuTemperature => 38,
+            Metric::GpuPower => 250,
+            _ => 85,
+        })),
+    });
     let values = Values::of(&snapshot);
     assert_eq!(values.get(Metric::CpuUsage), None);
     assert_eq!(values.get(Metric::GpuUsage), None);

@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use odc_device::HidrawConnector;
-use odc_sensors::{NvmlSource, RealNvml, display_devices, fan_inputs, rapl_package_zones};
+use odc_sensors::{NvmlSource, RealNvml, display_devices, rapl_package_zones};
 
 use crate::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
@@ -40,8 +40,6 @@ pub enum Capability {
     GpuNvidia,
     /// A GPU on a driver without a kind signal, such as nouveau; nothing on it is opened.
     GpuOther,
-    /// A fan input outside a graphics card: the board's sensor driver is loaded.
-    BoardFans,
     /// lm-sensors' `sensors`, whose `sensors -j` the readings are compared with.
     SensorsTool,
     /// `ffmpeg`, whose Vulkan filters load a GPU for the Gpu usage check.
@@ -67,7 +65,7 @@ pub enum Capability {
 const SIGNAL_DRIVERS: [&str; 4] = ["amdgpu", "i915", "xe", "nvidia"];
 
 impl Capability {
-    pub const ALL: [Capability; 18] = [
+    pub const ALL: [Capability; 17] = [
         Capability::Lp360,
         Capability::Lp360Reconnect,
         Capability::CpuTemp,
@@ -79,7 +77,6 @@ impl Capability {
         Capability::GpuXe,
         Capability::GpuNvidia,
         Capability::GpuOther,
-        Capability::BoardFans,
         Capability::SensorsTool,
         Capability::GpuLoadTool,
         Capability::DevService,
@@ -102,7 +99,6 @@ impl Capability {
             Capability::GpuXe => "gpu-xe",
             Capability::GpuNvidia => "gpu-nvidia",
             Capability::GpuOther => "gpu-other",
-            Capability::BoardFans => "board-fans",
             Capability::SensorsTool => "sensors-tool",
             Capability::GpuLoadTool => "gpu-load-tool",
             Capability::DevService => "dev-service",
@@ -278,15 +274,6 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
                 Probe::Real
             } else {
                 absent("no GPU on a driver without a kind signal")
-            }
-        }
-        Capability::BoardFans => {
-            if fan_inputs(&roots.sysfs).is_empty() {
-                absent(
-                    "no fan input outside a graphics card: the board's sensor driver isn't loaded",
-                )
-            } else {
-                Probe::Real
             }
         }
         Capability::SensorsTool => tool(

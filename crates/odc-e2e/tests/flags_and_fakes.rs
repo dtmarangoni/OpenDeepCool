@@ -91,12 +91,12 @@ fn flags_are_read_and_anything_unknown_is_refused() {
     assert_eq!(
         parse_args(&args(&[
             "--require",
-            "cpu-temp,board-fans",
+            "cpu-temp,sensors-tool",
             "--only",
             "sensors"
         ])),
         Ok(Some(Options {
-            require: vec![Capability::CpuTemp, Capability::BoardFans],
+            require: vec![Capability::CpuTemp, Capability::SensorsTool],
             only: Some(Area::Sensors),
             attended: false,
             modes: None,
@@ -241,13 +241,7 @@ fn with_no_cooler_every_check_but_the_app_s_runs_against_fakes_and_passes() {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
     assert!(!table.contains("gpu_rank_real"), "no real GPU: {table}");
-    for capability in [
-        "cpu-temp",
-        "cpu-power",
-        "proc-stat",
-        "meminfo",
-        "board-fans",
-    ] {
+    for capability in ["cpu-temp", "cpu-power", "proc-stat", "meminfo"] {
         assert!(table.contains(&format!("{capability:<16} fake")), "{table}");
     }
     for tool in ["sensors-tool", "gpu-load-tool"] {
@@ -259,7 +253,6 @@ fn with_no_cooler_every_check_but_the_app_s_runs_against_fakes_and_passes() {
         "cpu_usage",
         "cpu_power",
         "memory_load",
-        "fans",
         "gpu_amdgpu",
         "gpu_i915",
         "gpu_xe",

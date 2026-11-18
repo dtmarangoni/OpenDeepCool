@@ -744,11 +744,9 @@ pub fn fake_capture(drawn: Drawn) -> Result<String, String> {
     };
     let mut engine = Engine::with_audio(
         settings,
-        odc_sensors::Snapshot::new(
-            |_| odc_sensors::Reading::Unavailable(odc_sensors::Unavailable::NotYet),
-            odc_sensors::Fan::NotChosen,
-            odc_sensors::Fan::NotChosen,
-        ),
+        odc_sensors::Snapshot::new(|_| {
+            odc_sensors::Reading::Unavailable(odc_sensors::Unavailable::NotYet)
+        }),
         std::sync::Arc::clone(&audio) as std::sync::Arc<dyn AudioSource>,
         drawn,
     );

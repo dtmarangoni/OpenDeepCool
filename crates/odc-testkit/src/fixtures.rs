@@ -15,7 +15,11 @@ use std::path::{Path, PathBuf};
 
 use crate::fake_tree::FakeTree;
 
-/// The made-up name of the board's sensor chip in [`board_fans`] (AGENTS.md rule 10).
+/// The made-up name of an unrelated hwmon chip in [`other_chip`] (AGENTS.md rule 10).
+pub const OTHER_CHIP: &str = "fakeotherchip";
+
+/// The made-up name of the board's sensor chip in [`board_fans`], which the sensor detection's
+/// tests use and which goes with the detection (Phase 11a Task 5) (AGENTS.md rule 10).
 pub const BOARD_CHIP: &str = "fakeboardchip";
 
 /// PCI class codes as sysfs writes them (`Documentation/ABI/testing/sysfs-bus-pci`, `class`;
@@ -217,14 +221,13 @@ pub fn k10temp_pre17h(tree: &FakeTree) -> io::Result<PathBuf> {
 
 /// The amdgpu files of one GPU (`Documentation/gpu/amdgpu/thermal.rst`): `gpu_busy_percent` on
 /// the PCI device, and an hwmon device with the given temperatures `(label, millidegrees)`, the
-/// power file `(name, microwatts)` and, on a card, its own fan.
+/// power file `(name, microwatts)`.
 fn amdgpu(
     tree: &FakeTree,
     pci: &str,
     temperatures: &[(&str, i64)],
     busy_percent: u32,
     power: (&str, u64),
-    fan_rpm: Option<u64>,
 ) -> io::Result<PathBuf> {
     let gpu = pci_device(tree, pci, PCI_CLASS_VGA, Some("amdgpu"))?;
     tree.file(
@@ -239,9 +242,6 @@ fn amdgpu(
         ]);
     }
     files.push(kv(power.0, power.1));
-    if let Some(rpm) = fan_rpm {
-        files.push(kv("fan1_input", rpm));
-    }
     hwmon(tree, &gpu, "amdgpu", &files)?;
     drm_card(tree, &gpu)?;
     Ok(tree.root().join(gpu))
@@ -267,12 +267,11 @@ pub fn amdgpu_dgpu(
         ],
         busy_percent,
         ("power1_average", power_average_uw),
-        Some(1_200),
     )
 }
 
-/// AMD integrated graphics: only the `edge` temperature, `power1_average`, no fan of its own.
-/// Returns the PCI device's folder.
+/// AMD integrated graphics: only the `edge` temperature and `power1_average`. Returns the PCI
+/// device's folder.
 pub fn amdgpu_apu(
     tree: &FakeTree,
     pci: &str,
@@ -286,7 +285,6 @@ pub fn amdgpu_apu(
         &[("edge", edge_millic)],
         busy_percent,
         ("power1_average", power_average_uw),
-        None,
     )
 }
 
@@ -309,7 +307,6 @@ pub fn amdgpu_power_input_only(
         ],
         busy_percent,
         ("power1_input", power_input_uw),
-        Some(1_200),
     )
 }
 
@@ -357,15 +354,10 @@ pub fn nvidia_proprietary(tree: &FakeTree, pci: &str) -> io::Result<PathBuf> {
 }
 
 /// A GPU on nouveau, whose hwmon readings no kernel document describes. It still has a
-/// temperature and a fan, which no rule may read. Returns the PCI device's folder.
+/// temperature, which no rule may read. Returns the PCI device's folder.
 pub fn nouveau(tree: &FakeTree, pci: &str) -> io::Result<PathBuf> {
     let gpu = pci_device(tree, pci, PCI_CLASS_VGA, Some("nouveau"))?;
-    hwmon(
-        tree,
-        &gpu,
-        "nouveau",
-        &[kv("temp1_input", 52_000), kv("fan1_input", 1_500)],
-    )?;
+    hwmon(tree, &gpu, "nouveau", &[kv("temp1_input", 52_000)])?;
     drm_card(tree, &gpu)?;
     Ok(tree.root().join(gpu))
 }
@@ -456,6 +448,17 @@ pub fn proc_meminfo(tree: &FakeTree, total_kb: u64, available_kb: u64) -> io::Re
     ]
     .concat();
     tree.file("proc/meminfo", text)
+}
+
+/// An unrelated hwmon chip, a platform device named `chip` (usually [`OTHER_CHIP`]), with one
+/// temperature, which no rule for a named driver may read. Returns the hwmon folder.
+pub fn other_chip(tree: &FakeTree, chip: &str) -> io::Result<PathBuf> {
+    hwmon(
+        tree,
+        &format!("sys/devices/platform/{chip}.656"),
+        chip,
+        &[kv("temp1_input", 35_000)],
+    )
 }
 
 /// The board's sensor chip, a platform device named `chip` (usually [`BOARD_CHIP`]), with fan

@@ -15,7 +15,7 @@ use std::time::{Duration, Instant};
 use odc_ipc::Error;
 use odc_protocol::{Frame, Message, Rotation, decode};
 use odc_render::{Column, Kind as ModeKind, Mode, WINDOW, draws, mode_info, with_spectrum};
-use odc_sensors::{Exact, Fan, Metric, Reading, Snapshot, Unavailable};
+use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, FakeAudio};
 use odc_service::engine::{Apply, Engine, Published};
 use odc_service::settings::{Fall, Settings, TemperatureUnit};
@@ -828,15 +828,11 @@ pub fn play_engine_drawing(
 /// read.
 fn snapshot(readings: &[(String, Option<Exact>)]) -> Snapshot {
     let all = every_metric(readings);
-    Snapshot::new(
-        |metric| {
-            let value = all.iter().find(|(m, _)| *m == metric).and_then(|(_, v)| *v);
-            match value {
-                Some(exact) => Reading::Value(exact),
-                None => Reading::Unavailable(Unavailable::NotYet),
-            }
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    )
+    Snapshot::new(|metric| {
+        let value = all.iter().find(|(m, _)| *m == metric).and_then(|(_, v)| *v);
+        match value {
+            Some(exact) => Reading::Value(exact),
+            None => Reading::Unavailable(Unavailable::NotYet),
+        }
+    })
 }

@@ -25,14 +25,12 @@ use odc_device::fake::{FakeConnector, FakeLog, Presence};
 use odc_device::{Link, Lp360, Recording};
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, DevProxy, Error,
-    FallStop, FanSpeed, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
+    FallStop, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, STATE_KEYS, State, USE_ACTION,
     frame_from_pixels,
 };
 use odc_protocol::{Frame, Message, decode};
 use odc_render::{Mode, WINDOW, draws};
-use odc_sensors::{
-    Binding, Exact, Fan, FanInput, Gpu, GpuKind, Metric, PciAddr, Reading, Snapshot, Unavailable,
-};
+use odc_sensors::{Binding, Exact, Gpu, GpuKind, Metric, PciAddr, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, PipeAudio};
 use odc_service::dbus::{Bus, Checks, Parts, Side, kind_of, reason_of};
 use odc_service::engine::{Apply, Choices, Drawn, Engine, availability, availability_of};
@@ -43,7 +41,7 @@ use odc_service::polkit::{
 use odc_service::pulse::Pulse;
 use odc_service::runtime::{DeviceControl, Durations, SensorLoop, SensorRequest, Sensors, Slot};
 use odc_service::service::{Config, Running};
-use odc_service::settings::{Fall, SavedInput, Settings, SettingsStore, TemperatureUnit};
+use odc_service::settings::{Fall, Settings, SettingsStore, TemperatureUnit};
 use odc_service::status::{FIRST_READINGS, Status, parse_first_readings};
 use odc_testkit::bus::{PrivateBus, sleep, within};
 use odc_testkit::capture::read_recording;
@@ -60,9 +58,6 @@ const GROUP: u32 = 960;
 const WAIT: Duration = Duration::from_secs(3);
 /// How long a signal that mustn't come is waited for.
 const QUIET: Duration = Duration::from_millis(400);
-
-const CHIP: &str = "fakeboardchip";
-const CHIP_DEVICE: &str = "devices/platform/fakeboardchip.2592";
 
 fn dir(name: &str) -> PathBuf {
     let dir = PathBuf::from(env!("CARGO_TARGET_TMPDIR"))
@@ -183,14 +178,10 @@ fn value(n: i64) -> Reading {
 
 /// Readings with a distinct value per metric, and `gpu_usage` for Gpu usage.
 fn readings(gpu_usage: Reading) -> Snapshot {
-    Snapshot::new(
-        |metric| match metric {
-            Metric::GpuUsage => gpu_usage.clone(),
-            other => value(11 + 10 * other as i64),
-        },
-        Fan::Chosen(Reading::Value(Exact::new(24_685, 20).expect("a fraction"))),
-        Fan::NotChosen,
-    )
+    Snapshot::new(|metric| match metric {
+        Metric::GpuUsage => gpu_usage.clone(),
+        other => value(11 + 10 * other as i64),
+    })
 }
 
 fn gpus() -> Vec<Gpu> {
@@ -210,17 +201,6 @@ fn gpus() -> Vec<Gpu> {
             device: None,
         },
     ]
-}
-
-fn fan_inputs() -> Vec<FanInput> {
-    (1..=2)
-        .map(|input| FanInput {
-            chip: CHIP.to_owned(),
-            device: PathBuf::from(CHIP_DEVICE),
-            input,
-            label: None,
-        })
-        .collect()
 }
 
 /// Every metric bound but CPU Power, which this account may not read.
@@ -246,7 +226,6 @@ fn status(snapshot: Snapshot) -> Status {
         availability: availability(&snapshot, true),
         bindings: bindings(),
         gpus: gpus(),
-        fan_inputs: fan_inputs(),
         snapshot: Some(snapshot),
         ..Status::default()
     }
@@ -608,7 +587,6 @@ fn arguments_outside_what_the_service_found_are_refused() {
         let caller = h.client().await;
         let before = h.saved();
         let long = "x".repeat(65);
-        let long_path = format!("devices/{}", "y".repeat(1020));
         let refusals = [
             caller.main.set_rotation(4).await,
             caller.main.set_temperature_unit("kelvin").await,
@@ -616,20 +594,6 @@ fn arguments_outside_what_the_service_found_are_refused() {
             caller.main.choose_gpu("0000:0c:00.0").await,
             caller.main.choose_gpu(" ").await,
             caller.main.choose_gpu(&long).await,
-            caller.main.set_cooler_fan_input(CHIP, CHIP_DEVICE, 3).await,
-            caller
-                .main
-                .set_cooler_fan_input(CHIP, "../../etc/shadow", 1)
-                .await,
-            caller.main.set_cooler_fan_input(CHIP, &long_path, 1).await,
-            caller
-                .main
-                .set_cooler_fan_input(&long, CHIP_DEVICE, 1)
-                .await,
-            caller
-                .main
-                .set_pump_input("otherchip", CHIP_DEVICE, 1)
-                .await,
         ];
         for (i, refusal) in refusals.into_iter().enumerate() {
             assert!(
@@ -663,38 +627,15 @@ fn the_choices_listed_are_stored() {
             .expect("chosen");
         caller
             .main
-            .set_cooler_fan_input(CHIP, CHIP_DEVICE, 1)
-            .await
-            .expect("chosen");
-        caller
-            .main
-            .set_pump_input(CHIP, CHIP_DEVICE, 2)
-            .await
-            .expect("chosen");
-        caller
-            .main
             .set_temperature_unit("fahrenheit")
             .await
             .expect("saved");
         let saved = h.saved_settings();
         assert_eq!(saved.gpu_choice.as_deref(), Some("0000:00:02.0"));
-        assert_eq!(
-            saved.pump_input,
-            Some(SavedInput {
-                chip: CHIP.to_owned(),
-                device_path: CHIP_DEVICE.to_owned(),
-                input: 2,
-            })
-        );
         assert_eq!(saved.temperature_unit, TemperatureUnit::Fahrenheit);
-        // All empty: none.
-        caller.main.set_pump_input("", "", 0).await.expect("none");
-        assert_eq!(h.saved_settings().pump_input, None);
         let state =
             State::from_dict(&caller.main.get_state().await.expect("the state")).expect("a state");
         assert_eq!(state.chosen_gpu.as_deref(), Some("0000:00:02.0"));
-        assert_eq!(state.pump_input, Some(None));
-        assert_eq!(state.cooler_fan_input.flatten().map(|i| i.input), Some(1));
         // Empty: back to Automatic (owner, 2026-11-04).
         caller.main.choose_gpu("").await.expect("automatic");
         assert_eq!(h.saved_settings().gpu_choice, None);
@@ -737,11 +678,6 @@ fn choosing_what_is_already_set_changes_nothing() {
         rotation: 2,
         temperature_unit: TemperatureUnit::Fahrenheit,
         gpu_choice: Some("0000:0a:00.0".to_owned()),
-        cooler_fan_input: Some(SavedInput {
-            chip: CHIP.to_owned(),
-            device_path: CHIP_DEVICE.to_owned(),
-            input: 1,
-        }),
         ..Settings::default()
     };
     let h = Harness::start("already", settings, status(readings(value(51))), false);
@@ -764,16 +700,6 @@ fn choosing_what_is_already_set_changes_nothing() {
         caller
             .main
             .choose_gpu("0000:0a:00.0")
-            .await
-            .expect("success");
-        caller
-            .main
-            .set_cooler_fan_input(CHIP, CHIP_DEVICE, 1)
-            .await
-            .expect("success");
-        caller
-            .main
-            .set_pump_input("", "", 0)
             .await
             .expect("success");
         h.nothing_stored_or_applied(&before);
@@ -873,8 +799,7 @@ fn refresh_asks_the_sensor_thread_at_once_and_resets_on_the_next_frame() {
 }
 
 // S25 (owner, 2026-11-06): another GPU reaches the sensor thread as the call arrives, then a
-// request for a snapshot of it, whose number the engine waits for; a fan input reaches it with no
-// snapshot, since it resets nothing.
+// request for a snapshot of it, whose number the engine waits for.
 #[test]
 fn another_gpu_reaches_the_sensor_thread_at_once_with_a_snapshot_request() {
     let h = Harness::start(
@@ -902,15 +827,6 @@ fn another_gpu_reaches_the_sensor_thread_at_once_with_a_snapshot_request() {
             ],
             "the GPU first, so the answer reads it"
         );
-        caller
-            .main
-            .set_pump_input(CHIP, CHIP_DEVICE, 2)
-            .await
-            .expect("chosen");
-        let applied = h.apply.take().expect("handed to the engine");
-        assert_eq!(applied.asked, None);
-        let settings = applied.settings.expect("the new settings");
-        assert_eq!(h.sent(), [SensorRequest::Choices(Choices::of(&settings))]);
         // Another setting: nothing for the sensor thread.
         caller.main.set_rotation(1).await.expect("turned");
         assert_eq!(h.apply.take().and_then(|a| a.asked), None);
@@ -984,33 +900,21 @@ fn get_state_returns_every_key_of_the_contract_with_its_type() {
         assert_eq!(state.mode, Some(1));
         assert_eq!(state.cooler_state, Some(CoolerState::Connected));
         assert_eq!(state.chosen_gpu.as_deref(), Some(""));
-        // 24 685 / 20 = 1234.25 RPM, drawn as 1234.
-        assert_eq!(state.cooler_fan_rpm, Some(odc_ipc::FanSpeed::Rpm(1234)));
-        assert_eq!(state.pump_rpm, Some(odc_ipc::FanSpeed::Unavailable));
         let gpus = state.gpus.expect("Gpus");
         assert_eq!(gpus[0].pci, "0000:0a:00.0");
         assert_eq!(gpus[0].kind, odc_ipc::GpuKind::Dedicated);
-        let inputs = state.fan_inputs.expect("FanInputs");
-        assert_eq!(
-            (inputs[1].device.as_str(), inputs[1].input),
-            (CHIP_DEVICE, 2)
-        );
     });
 }
 
 #[test]
 fn diagnostics_list_each_metric_with_its_source_and_state() {
     let mut readings = readings(value(51));
-    readings = Snapshot::new(
-        |metric| match metric {
-            Metric::CpuPower => Reading::Unavailable(Unavailable::PermissionDenied {
-                path: PathBuf::from("/fake/energy_uj"),
-            }),
-            other => readings.get(other).clone(),
-        },
-        Fan::NotChosen,
-        Fan::NotChosen,
-    );
+    readings = Snapshot::new(|metric| match metric {
+        Metric::CpuPower => Reading::Unavailable(Unavailable::PermissionDenied {
+            path: PathBuf::from("/fake/energy_uj"),
+        }),
+        other => readings.get(other).clone(),
+    });
     let h = Harness::start("diagnostics", Settings::default(), status(readings), false);
     zbus::block_on(async {
         let caller = h.client().await;
@@ -1435,13 +1339,7 @@ fn a_watcher_that_stops_passing_is_skipped_then_gets_the_whole_state() {
             .flatten()
             .expect("the whole state");
         let changes = signal.args().expect("its changes").changes;
-        // Every key in one signal, but FanInputs, which only a frame watcher gets (Phase 10).
-        assert_eq!(
-            changes.len(),
-            STATE_KEYS.len() - 1,
-            "every key in one signal"
-        );
-        assert!(!changes.contains_key("FanInputs"));
+        assert_eq!(changes.len(), STATE_KEYS.len(), "every key in one signal");
         assert_eq!(State::from_dict(&changes).expect("a state").mode, Some(3));
     });
 }
@@ -1694,7 +1592,6 @@ impl Service {
             lp360: Lp360::new(recording),
             sensors: FixedSensors(readings(value(51))),
             gpus: gpus(),
-            fan_inputs: fan_inputs(),
             bus: Bus::Address(bus.address().to_owned()),
             checks: Checks::Given {
                 authorizer: Box::new(FakePolkit::default()),
@@ -1742,8 +1639,7 @@ fn an_override_applies_from_the_tick_it_returns_and_a_release_hands_the_cooler_o
             .override_readings(values, HashMap::new())
             .await
             .expect("the override's tick");
-        let overridden =
-            Snapshot::new(|m| value(13 + 7 * m as i64), Fan::NotChosen, Fan::NotChosen);
+        let overridden = Snapshot::new(|m| value(13 + 7 * m as i64));
         // The recording is flushed once a second.
         sleep(Duration::from_millis(1500)).await;
         let from_tick: Vec<Frame> = read_recording(&s.recording)
@@ -2496,54 +2392,10 @@ fn only_authorized_callers_get_frames_and_a_refused_watcher_waits_for_its_check(
     });
 }
 
-// FanInputs, whose speeds change every second, reaches only callers that watch frames too;
-// GetState always has the speeds.
-#[test]
-fn fan_speeds_reach_only_frame_watchers_and_follow_the_readings() {
-    let h = Harness::start(
-        "fan-speeds",
-        Settings::default(),
-        status(readings(value(51))),
-        false,
-    );
-    zbus::block_on(async {
-        let (app, other) = (h.client().await, h.client().await);
-        app.main.watch().await.expect("watches");
-        app.main.watch_frames().await.expect("watches frames");
-        other.main.watch().await.expect("watches");
-        let mut app_changes = app.main.receive_state_changed().await.expect("a stream");
-        let mut other_changes = other.main.receive_state_changed().await.expect("a stream");
-        h.status.write().expect("the status").fan_rpms = vec![value(1234), value(12_345)];
-        let signal = within(WAIT, next(&mut app_changes))
-            .await
-            .flatten()
-            .expect("the speeds");
-        let changes =
-            State::from_dict(&signal.args().expect("its changes").changes).expect("a state");
-        let speeds: Vec<FanSpeed> = changes
-            .fan_inputs
-            .expect("FanInputs")
-            .iter()
-            .map(|i| i.rpm)
-            .collect();
-        assert_eq!(speeds, [FanSpeed::Rpm(1234), FanSpeed::Rpm(9999)], "capped");
-        assert!(
-            within(QUIET, next(&mut other_changes)).await.is_none(),
-            "not to a plain watcher"
-        );
-        let state =
-            State::from_dict(&other.main.get_state().await.expect("the state")).expect("a state");
-        assert_eq!(
-            state.fan_inputs.expect("FanInputs")[0].rpm,
-            FanSpeed::Rpm(1234)
-        );
-    });
-}
-
 // The GPU in use follows the choice, Automatic reading the first GPU; each GPU has its IDs and
-// rule flag; the present flags follow a chosen input vanishing.
+// rule flag.
 #[test]
-fn the_state_names_the_gpu_in_use_its_ids_and_whether_the_inputs_are_there() {
+fn the_state_names_the_gpu_in_use_and_its_ids() {
     let h = Harness::start(
         "gpu-in-use",
         Settings::default(),
@@ -2565,21 +2417,12 @@ fn the_state_names_the_gpu_in_use_its_ids_and_whether_the_inputs_are_there() {
             gpus.iter().all(|g| g.has_rule),
             "amdgpu and i915 have rules"
         );
-        assert_eq!(now.cooler_fan_input_present, Some(true));
-        assert_eq!(now.pump_input_present, Some(true), "none chosen");
         caller
             .main
             .choose_gpu("0000:00:02.0")
             .await
             .expect("chosen");
         assert_eq!(state().await.gpu_in_use.as_deref(), Some("0000:00:02.0"));
-        let gone = Snapshot::new(
-            |metric| value(11 + 10 * metric as i64),
-            Fan::Chosen(Reading::Unavailable(Unavailable::NoDevice)),
-            Fan::NotChosen,
-        );
-        h.status.write().expect("the status").snapshot = Some(gone);
-        assert_eq!(state().await.cooler_fan_input_present, Some(false));
     });
 }
 
@@ -2622,7 +2465,7 @@ fn a_scrolling_value_gives_ten_frames_a_second_even_with_no_cooler() {
             "{} frames in 2 s",
             got.len()
         );
-        let snapshot = Snapshot::new(|m| value(reading(m)), Fan::NotChosen, Fan::NotChosen);
+        let snapshot = Snapshot::new(|m| value(reading(m)));
         let mut engine = Engine::new(Settings::default(), snapshot);
         let cycle: Vec<Frame> = (0..60)
             .filter_map(|_| engine.tick(None, None, false).frame)
