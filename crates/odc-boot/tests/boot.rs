@@ -16,8 +16,8 @@ use std::path::{Path, PathBuf};
 use std::process::{self, Command};
 
 use odc_boot::{
-    ACTION, FAILED, HELPER, PROGRAM, Programs, REFUSED, Refusal, Request, SERVICE, check,
-    effective_uid, run, steps,
+    ACTION_OFF, ACTION_ON, FAILED, HELPER, PROGRAM, Programs, REFUSED, Refusal, Request, SERVICE,
+    check, effective_uid, run, steps,
 };
 
 type Test = (&'static str, fn());
@@ -56,8 +56,8 @@ const TESTS: [Test; 10] = [
         the_effective_user_id_is_read_from_proc,
     ),
     (
-        "the_polkit_action_asks_the_administrator_at_every_change",
-        the_polkit_action_asks_the_administrator_at_every_change,
+        "the_polkit_actions_ask_the_administrator_at_every_change_and_say_which",
+        the_polkit_actions_ask_the_administrator_at_every_change_and_say_which,
     ),
     (
         "the_program_and_its_units_are_the_packages",
@@ -400,28 +400,55 @@ fn block<'a>(text: &'a str, start: &str, tag: &str) -> &'a str {
     &rest[..end]
 }
 
-// polkit(8) and pkexec(1): `pkexec` picks the action whose `exec.path` is the program's full path.
-// Only the user at the PC, with the administrator's password every time (`auth_admin`, never
-// `auth_admin_keep`), and no GUI variables for the program (`exec.allow_gui`).
-fn the_polkit_action_asks_the_administrator_at_every_change() {
+// polkit(8) and pkexec(1): `pkexec` picks the action whose `exec.path` is the program's full path
+// and, where it has an `exec.argv1`, whose value is the program's first argument: one action for
+// `on` and one for `off`, so the prompt says what is asked (owner, 2026-11-19). Only the user at
+// the PC, with the administrator's password every time (`auth_admin`, never `auth_admin_keep`),
+// and no GUI variables for the program (`exec.allow_gui`).
+fn the_polkit_actions_ask_the_administrator_at_every_change_and_say_which() {
     let text = fs::read_to_string(packaging(
         "polkit/io.github.dtmarangoni.OpenDeepCool1.policy",
     ))
     .expect("the policy");
-    let action = block(&text, &format!("<action id=\"{ACTION}\">"), "action");
-    for line in [
-        "<allow_any>no</allow_any>",
-        "<allow_inactive>no</allow_inactive>",
-        "<allow_active>auth_admin</allow_active>",
-        &format!("<annotate key=\"org.freedesktop.policykit.exec.path\">{PROGRAM}</annotate>"),
+    for (id, argument, message, description) in [
+        (
+            ACTION_ON,
+            "on",
+            "Automatically start the cooler service at boot.",
+            "Start the cooler service automatically at boot",
+        ),
+        (
+            ACTION_OFF,
+            "off",
+            "Disable automatic cooler service start at boot.",
+            "Stop starting the cooler service automatically at boot",
+        ),
     ] {
-        assert!(action.contains(line), "{line}");
+        let action = block(&text, &format!("<action id=\"{id}\">"), "action");
+        for line in [
+            "<allow_any>no</allow_any>",
+            "<allow_inactive>no</allow_inactive>",
+            "<allow_active>auth_admin</allow_active>",
+            &format!("<message>{message}</message>"),
+            &format!("<description>{description}</description>"),
+            &format!("<annotate key=\"org.freedesktop.policykit.exec.path\">{PROGRAM}</annotate>"),
+            &format!(
+                "<annotate key=\"org.freedesktop.policykit.exec.argv1\">{argument}</annotate>"
+            ),
+        ] {
+            assert!(action.contains(line), "{id}: {line}");
+        }
+        assert!(!action.contains("allow_gui"), "{id}");
     }
-    assert!(!action.contains("allow_gui"));
-    assert!(!action.contains("exec.argv1"));
+    // Two actions for the program, no third: an argument the program refuses has no action of its
+    // own, so pkexec falls back to its generic one, and the program refuses it.
     assert_eq!(
         text.matches("org.freedesktop.policykit.exec.path").count(),
-        1
+        2
+    );
+    assert_eq!(
+        text.matches("org.freedesktop.policykit.exec.argv1").count(),
+        2
     );
 }
 

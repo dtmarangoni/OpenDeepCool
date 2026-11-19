@@ -1,6 +1,7 @@
 //! `opendeepcool-boot`, the settings app's Start at boot switch (`docs/spec/settings.md`, Start at
 //! boot; Phase 11 plan, Task 3). It runs as root through `pkexec`, under the polkit action
-//! [`ACTION`], and turns OpenDeepCool on at boot, or off, with systemd's own `systemctl`.
+//! [`ACTION_ON`] or [`ACTION_OFF`], by its one argument, and turns OpenDeepCool on at boot, or
+//! off, with systemd's own `systemctl`.
 //!
 //! `pkexec` lets whoever starts it choose the arguments, so the program takes exactly one, `on` or
 //! `off`, and nothing else: no path, unit name or option ever comes from its caller, and the
@@ -17,8 +18,10 @@ use std::process::{Command, ExitStatus, Stdio};
 /// `org.freedesktop.policykit.exec.path` names it, so `pkexec` runs nothing else under the action,
 /// and the settings app starts it by this path.
 pub const PROGRAM: &str = "/usr/lib/opendeepcool/opendeepcool-boot";
-/// The polkit action `pkexec` checks: the administrator's password at every change.
-pub const ACTION: &str = "io.github.dtmarangoni.OpenDeepCool1.start-at-boot";
+/// The polkit actions `pkexec` checks, one for each argument, so the prompt says which: the
+/// administrator's password at every change.
+pub const ACTION_ON: &str = "io.github.dtmarangoni.OpenDeepCool1.start-at-boot-on";
+pub const ACTION_OFF: &str = "io.github.dtmarangoni.OpenDeepCool1.start-at-boot-off";
 /// The display service, a system unit.
 pub const SERVICE: &str = "opendeepcool.service";
 /// The sound helper, a user unit, turned on for every user's session (`systemctl --global`).

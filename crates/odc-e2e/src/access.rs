@@ -19,15 +19,17 @@ pub const POLICY_DIRS: [&str; 2] = ["/usr/share/polkit-1/actions", "/etc/polkit-
 pub const COMMITTED: &str =
     include_str!("../../../packaging/polkit/io.github.dtmarangoni.OpenDeepCool1.policy");
 
-const START_AT_BOOT_ACTION: &str = "io.github.dtmarangoni.OpenDeepCool1.start-at-boot";
+const START_AT_BOOT_ON: &str = odc_boot::ACTION_ON;
+const START_AT_BOOT_OFF: &str = odc_boot::ACTION_OFF;
 
 /// Each action and the one default that may be set: `allow_active`. `allow_any` and
 /// `allow_inactive` are `no` in every action.
-const EXPECTED: [(&str, &str); 4] = [
+const EXPECTED: [(&str, &str); 5] = [
     (USE_ACTION, "yes"),
     (CHANGE_SETTINGS_ACTION, "yes"),
     (FEED_AUDIO_ACTION, "yes"),
-    (START_AT_BOOT_ACTION, "auth_admin"),
+    (START_AT_BOOT_ON, "auth_admin"),
+    (START_AT_BOOT_OFF, "auth_admin"),
 ];
 
 /// The text between `<tag>` and `</tag>` in `text`, trimmed.
@@ -42,7 +44,7 @@ fn action<'a>(text: &'a str, id: &str) -> Option<&'a str> {
     Some(&rest[..rest.find("</action>")?])
 }
 
-/// Whether `policy` holds the four actions with exactly those defaults, and no other action.
+/// Whether `policy` holds the five actions with exactly those defaults, and no other action.
 ///
 /// # Errors
 ///
@@ -72,7 +74,7 @@ pub fn check_policy(policy: &str) -> Result<String, String> {
     }
     Ok(
         "use, change-settings and feed-audio are for the active local session only, \
-        start-at-boot asks the administrator's password"
+        start-at-boot-on and start-at-boot-off ask the administrator's password"
             .to_owned(),
     )
 }

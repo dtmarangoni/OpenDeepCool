@@ -24,14 +24,15 @@ fn changed(from: &str, to: &str) -> String {
 #[test]
 fn the_committed_policy_is_what_the_package_must_have() {
     let note = check_policy(COMMITTED).expect("the committed policy");
-    assert!(note.contains("start-at-boot"), "{note}");
+    assert!(note.contains("start-at-boot-on"), "{note}");
+    assert!(note.contains("start-at-boot-off"), "{note}");
     assert!(fake().is_ok());
 }
 
 #[test]
 fn every_default_that_is_looser_or_missing_fails_and_names_the_action() {
     // The first `<allow_any>no`, `<allow_inactive>no` and `<allow_active>yes` are the `use`
-    // action's, and the last `<allow_active>auth_admin` is `start-at-boot`'s.
+    // action's, and the first `<allow_active>auth_admin` is `start-at-boot-on`'s.
     for (from, to, says) in [
         ("<allow_any>no", "<allow_any>yes", "use: allow_any"),
         (
@@ -47,12 +48,12 @@ fn every_default_that_is_looser_or_missing_fails_and_names_the_action() {
         (
             "<allow_active>auth_admin",
             "<allow_active>yes",
-            "start-at-boot: allow_active is \"yes\"",
+            "start-at-boot-on: allow_active is \"yes\"",
         ),
         (
             "<allow_active>auth_admin",
             "<allow_active>auth_admin_keep",
-            "start-at-boot: allow_active is \"auth_admin_keep\"",
+            "start-at-boot-on: allow_active is \"auth_admin_keep\"",
         ),
         (
             "<allow_active>yes",
@@ -79,7 +80,7 @@ fn an_action_that_is_missing_extra_or_without_a_default_fails() {
     };
     // One fewer: the count, and the extra action, are both what's wrong.
     let why = check_policy(&without("feed-audio")).expect_err("one fewer");
-    assert!(why.contains("3 actions, not 4"), "{why}");
+    assert!(why.contains("4 actions, not 5"), "{why}");
     let extra = COMMITTED.replacen(
         "</policyconfig>",
         "<action id=\"io.github.dtmarangoni.OpenDeepCool1.more\"><defaults>\
@@ -87,13 +88,20 @@ fn an_action_that_is_missing_extra_or_without_a_default_fails() {
         1,
     );
     let why = check_policy(&extra).expect_err("one more");
-    assert!(why.contains("5 actions, not 4"), "{why}");
-    // Four actions, but one of ours renamed: it's missing.
+    assert!(why.contains("6 actions, not 5"), "{why}");
+    // Five actions, but one of ours renamed: it's missing.
     let renamed = COMMITTED.replacen("OpenDeepCool1.feed-audio", "OpenDeepCool1.feed-sound", 1);
     assert!(
         check_policy(&renamed)
             .expect_err("renamed")
             .contains("no action feed-audio")
+    );
+    // The switch's two actions: each is needed on its own.
+    let renamed = COMMITTED.replacen("start-at-boot-off", "start-at-boot-of", 1);
+    assert!(
+        check_policy(&renamed)
+            .expect_err("renamed")
+            .contains("no action start-at-boot-off")
     );
     // A default that isn't in its own action but in the next one's isn't taken for it.
     let moved = COMMITTED.replacen("<allow_inactive>no</allow_inactive>", "", 1);

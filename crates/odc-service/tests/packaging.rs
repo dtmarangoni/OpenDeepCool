@@ -192,8 +192,9 @@ fn block<'a>(text: &'a str, start: &str, tag: &str) -> &'a str {
 fn the_polkit_actions_are_for_the_active_session_and_owned_by_the_service() {
     let path = packaging(POLKIT);
     let text = fs::read_to_string(&path).expect("the policy");
-    // The fourth is pkexec's, for the Start at boot switch: `odc-boot`'s tests check it.
-    assert_eq!(text.matches("<action id=").count(), 4);
+    // The fourth and fifth are pkexec's, for the Start at boot switch, one each for turning it on
+    // and off: `odc-boot`'s tests check them.
+    assert_eq!(text.matches("<action id=").count(), 5);
     for action in [USE_ACTION, CHANGE_SETTINGS_ACTION, FEED_AUDIO_ACTION] {
         let block = block(&text, &format!("<action id=\"{action}\">"), "action");
         for line in [

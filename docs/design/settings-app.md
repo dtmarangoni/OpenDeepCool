@@ -1015,7 +1015,7 @@ When the switch reads off and something is set up, one note under the row says w
 
 ### Who may flip it
 
-- Only the user of the active local session, as with every change: the polkit action `io.github.dtmarangoni.OpenDeepCool1.start-at-boot` has `allow_active` `auth_admin` (the administrator's password at every change, no keep) and `allow_any` and `allow_inactive` `no` (Phase 11 plan). It's the only password in the app.
+- Only the user of the active local session, as with every change: the polkit actions `io.github.dtmarangoni.OpenDeepCool1.start-at-boot-on` and `…start-at-boot-off`, picked by the program's path and its argument, have `allow_active` `auth_admin` (the administrator's password at every change, no keep) and `allow_any` and `allow_inactive` `no` (Phase 11 plan; one action each from Phase 11a Task 17). The password prompt says which is asked: "Automatically start the cooler service at boot." when the switch is turned on, and "Disable automatic cooler service start at boot." when it is turned off (owner, 2026-11-19). It's the only password in the app.
 - When the app is [not available in this session](#not-available-in-this-session), the window shows the message alone, as before.
 - While the service is down, the app can't ask it about the session, but logind can tell: its session's `Active` and `Remote` properties (org.freedesktop.login1(5), read 2026-11-11). The app already follows `Active` to connect again ([Unverified points](#unverified-points-answered-phase-10-task-1-2026-11-06)). In a session that isn't both active and local, the off screen has no Startup card, since polkit would refuse the flip there: only its heading, its text and the terminal commands.
 

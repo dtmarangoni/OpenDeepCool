@@ -48,17 +48,33 @@
 
   <!--
     Phase 11: the settings app's Start at boot switch runs opendeepcool-boot through pkexec,
-    which picks this action by the program's full path (pkexec(1)). The administrator's password
-    at every change, stricter than systemd's own auth_admin_keep for its unit actions.
+    which picks an action by the program's full path and, where an action has the argv1
+    annotation, only when the program's first argument is that value (pkexec(1)). Phase 11a:
+    one action for `on` and one for `off`, so the password prompt says which of the two is
+    asked (owner, 2026-11-19). The administrator's password at every change, stricter than
+    systemd's own auth_admin_keep for its unit actions.
   -->
-  <action id="io.github.dtmarangoni.OpenDeepCool1.start-at-boot">
-    <description>Turn the cooler display on or off at boot</description>
-    <message>Authentication is required to turn the cooler display on or off at boot</message>
+  <action id="io.github.dtmarangoni.OpenDeepCool1.start-at-boot-on">
+    <description>Start the cooler service automatically at boot</description>
+    <message>Automatically start the cooler service at boot.</message>
     <defaults>
       <allow_any>no</allow_any>
       <allow_inactive>no</allow_inactive>
       <allow_active>auth_admin</allow_active>
     </defaults>
     <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/opendeepcool/opendeepcool-boot</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">on</annotate>
+  </action>
+
+  <action id="io.github.dtmarangoni.OpenDeepCool1.start-at-boot-off">
+    <description>Stop starting the cooler service automatically at boot</description>
+    <message>Disable automatic cooler service start at boot.</message>
+    <defaults>
+      <allow_any>no</allow_any>
+      <allow_inactive>no</allow_inactive>
+      <allow_active>auth_admin</allow_active>
+    </defaults>
+    <annotate key="org.freedesktop.policykit.exec.path">/usr/lib/opendeepcool/opendeepcool-boot</annotate>
+    <annotate key="org.freedesktop.policykit.exec.argv1">off</annotate>
   </action>
 </policyconfig>
