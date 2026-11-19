@@ -146,7 +146,7 @@ button { font: inherit; color: inherit; }
 :root[data-theme="light"] .warn-text { color: var(--yellow); }
 
 /* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
-.content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; /* the toast is centred over this panel */ }
 .page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 18px 0; }
 .page-title { flex: 1; margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
 /* A page's margins are 18 px (design, Window, Page bar; Spacing), 6 px under the page bar. */
@@ -897,7 +897,7 @@ function render() {
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
-    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div>` + toast;
+    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}${toast}</main></div>`;
   paintAll();
 }
 // One moment of what the app draws (design, Display page, Live tiles): the preview and every tile from the same readings.

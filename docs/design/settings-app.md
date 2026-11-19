@@ -43,6 +43,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D20 | Reduced motion and the pause control (Task 14; the owner's D5 leaves WCAG 2.2 SC 2.2.2 open) | No control, as decided. The tiles stand still, as a picture at rest, while the system asks for reduced motion (`gtk-interface-reduced-motion` is `reduce`) or has toolkit animations off (`gtk-enable-animations` false); the app reads the two settings and changes neither. The preview keeps mirroring the cooler ([Reduced motion](#reduced-motion)) | The settings belong to the user, as the design already holds for `gtk-enable-animations`; reading them is not overriding them. They are the one mechanism the platform gives that the design can honour without a control or a new setting, and the false positive (animations switched off for speed) costs a still picture, where the false negative costs motion that may cause discomfort |
 | D21 | The scales' knobs (Phase 11a Task 27, 2026-11-19, from the owner's list: "a little bit smaller. Not the slider bars, just the slider buttons") | A plain round **16 px** knob in `--fg` replaces GTK's pin, a 22 × 26 px bitmap the theme draws on a scale with marks; the bar keeps its 4 px ([The scales' knobs](#the-scales-knobs)) | The pin is a bitmap, so its size can't be set by a length; a round knob can, takes the app's colour tokens, matches the switches' knobs and keeps the bar's height and the scale's 34 px |
 | D22 | The gap between the Configuration page's cards (Phase 11a Task 28, 2026-11-19, from the owner's list: "smaller ... only the vertical gap in between the boards, and not between the boards and the window, top bar, etc.") | **10 px**, from 18, between a card and the next; the page's margins (6 px under the bar, 18 at the sides and at the foot) and the gap between the column and the pages don't change | Three gaps shorten the page by 24 px; 10 px is still more than the 2 px and 14 px that group a card's own lines, so the cards read as separate groups |
+| D23 | Where the Refreshed and refusal label stands (Phase 11a Task 29, 2026-11-19, from the owner's list: "centralized in the right panel, and not in the window") | Centred over the **pages**, the right panel, at its foot (16 px up), by moving the `GtkOverlay` from around the window's scroller to around the `pages` stack | The label never stands over the preview column's picture or status; the mockups' toast sits in the same panel |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -107,7 +108,7 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
 - **Refresh while the service isn't running:** it belongs to the Display page, which the off screen replaces, so it isn't drawn then. The gear stays visible but insensitive, as the page switcher was (Configuration can't be reached while the service is down, and Start at boot is on the off screen, D10). In a session that can't use OpenDeepCool only the title and the close icon show.
 - **The temperature unit's control:** (a) a `GtkDropDown`: two choices behind a click; (b) a `GtkSwitch` "Fahrenheit": a switch is for on and off, and °C isn't "off"; (c) **chosen:** the two linked toggles that Rotation has. Both choices show, it's one click, the widgets and their names are the ones the Display page had, and "each control is one D-Bus call, shown as the service confirms it" stays as it was.
 - **The shortcuts:** Ctrl+1 and Ctrl+2 went with the tabs. GNOME's standard list gives Preferences Ctrl+, and Back Alt+← (developer.gnome.org/hig, Keyboard, read 2026-11-19), and libadwaita's navigation view goes back with Escape and Alt+← (its `AdwNavigationView` page, read 2026-11-19), so the app binds Ctrl+, (open Configuration), and Escape and Alt+Left (back), the last two only while the Configuration page shows, so Escape is free everywhere else. F5 and Ctrl+R stay for Refresh. The mouse's back button isn't bound: nobody asked.
-- **Where the "Refreshed" and refusal label sits:** it was at the top right of the content, which is where Refresh is now. It moves to the bottom centre of the content, as the mockups' toast always drew it, so it never hides a control.
+- **Where the "Refreshed" and refusal label sits:** it was at the top right of the content, which is where Refresh is now. It moves to the bottom centre of the content, as the mockups' toast always drew it, so it never hides a control. **Since Task 29 (owner, 2026-11-19: "centralized in the right panel, and not in the window") the centre is the right panel's, the pages', not the window's:** the overlay is around the `pages` stack, so the label is centred over the page and stands beside the preview column, never over it.
 
 ### Answers decided on 2026-11-19, Task 8
 
@@ -299,19 +300,19 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
 
   ```
   GtkApplicationWindow       resizable false; no default size; no size request; titlebar: the GtkHeaderBar
-  └─ GtkOverlay              its overlay child is the "Refreshed" / "Not changed" label, outside every scroller
-     └─ GtkScrolledWindow "window scroller"     the cap, and the sideways scroll (table below)
-        └─ GtkBox (vertical) "content"
-           ├─ GtkRevealer                        the cooler banner, transition none
-           └─ GtkStack "screens"                 hhomogeneous false, vhomogeneous false, transition none
-              ├─ "main"  GtkBox (horizontal)
-              │  ├─ GtkScrolledWindow "column"   class `side`
-              │  │  └─ GtkBox                    the preview column, 262 px wide
-              │  └─ GtkStack "pages"             hhomogeneous true, vhomogeneous true, transition none, hexpand, vexpand
-              │     ├─ "display"  GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the tiles
-              │     ├─ "config"   GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the cards
-              │     └─ "off"      GtkScrolledWindow "page" holding the off screen
-              └─ "not-available"  GtkBox (vertical), centred, 24 px of margin all round
+  └─ GtkScrolledWindow "window scroller"        the cap, and the sideways scroll (table below)
+     └─ GtkBox (vertical) "content"
+        ├─ GtkRevealer                           the cooler banner, transition none
+        └─ GtkStack "screens"                    hhomogeneous false, vhomogeneous false, transition none
+           ├─ "main"  GtkBox (horizontal)
+           │  ├─ GtkScrolledWindow "column"      class `side`
+           │  │  └─ GtkBox                       the preview column, 262 px wide
+           │  └─ GtkOverlay "pages area"         hexpand, vexpand; its overlay child is the "Refreshed" / "Not changed" label, outside every scroller (Task 29: it was around the whole window)
+           │     └─ GtkStack "pages"             hhomogeneous true, vhomogeneous true, transition none, hexpand, vexpand
+           │        ├─ "display"  GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the tiles
+           │        ├─ "config"   GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the cards
+           │        └─ "off"      GtkScrolledWindow "page" holding the off screen
+           └─ "not-available"  GtkBox (vertical), centred, 24 px of margin all round
   ```
 
   | Scrolled window | `hscrollbar-policy` | `vscrollbar-policy` | `propagate-natural-width` / `-height` | `max-content-width` / `-height` | Also |
@@ -863,7 +864,7 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 - **The control:** a frameless icon button at the right end of the Display page's [page bar](#window), at the top right of the page: a `GtkButton` with `icon-name` `view-refresh-symbolic`, the class `icon-button`, action `win.refresh`, accessible name "Refresh display", tooltip "Refresh the display: fresh readings, and the picture starts again". It is above the Load group and doesn't scroll away.
 - It calls `Refresh()`: fresh readings, and the picture restarts from home (display.md, Mode switches).
 - **F5 and Ctrl+R** do the same from either page while the service runs. The icon is on the Display page only, and the action is enabled in every state where the window shows its pages.
-- A small confirmation label, "Refreshed", shows in the `GtkOverlay` around the window's content for about 1.5 s, without animation, at the bottom centre (`halign` center, `valign` end, 16 px from the bottom), so it never covers a control. A static picture often looks the same after a refresh, so the user needs this confirmation.
+- A small confirmation label, "Refreshed", shows in the `GtkOverlay` around the pages (the right panel, beside the preview column) for about 1.5 s, without animation, at the bottom centre of that panel (`halign` center, `valign` end, 16 px from the bottom), so it never covers a control. A static picture often looks the same after a refresh, so the user needs this confirmation.
 - Refresh shows only where OpenDeepCool can be used. It's on the Display page, so it isn't drawn when the app is [not available in this session](#not-available-in-this-session), nor on the [off screen](#the-off-screen) (the previous header kept it insensitive; the page has no place for a control that can't work), and its action is disabled in both states, so F5 and Ctrl+R do nothing there. If the service refuses it anyway (`NotAuthorized`, for example under an administrator's own polkit rule that allows reading but refuses changes), that's shown like any [refused change](#refused-changes).
 
 ## Refused changes
@@ -1125,7 +1126,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | A GPU without a reading rule in use | GPU tiles disabled with "no reading for this GPU's driver"; a hint under the GPU dropdown | [configuration.html](mockups/configuration.html): choose "Unknown type · othergpu · 0000:07:00.0" |
 | Another `CoolerState` (the dev copy's `released`, or a later value) | As `not-found` | (as cooler-disconnected) |
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
-| A change refused | The control stays on the saved value; the overlay label, at the bottom centre, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
+| A change refused | The control stays on the saved value; the overlay label, at the bottom centre of the right panel, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
 | Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
 | A large screen | The window opens at the natural size of its content (estimated about 1016 × 984 px after Task 28, 1008 before: the widest page beside the 262 px column, under the tallest page, which has the Theme card since Task 11), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 1007 high) |
 | A small screen | The window is never larger than the smallest monitor less 48 px in each direction. The pages scroll down under their page bars, with the preview column and the banner in place; the whole content scrolls sideways below about 850 px; the column scrolls by itself on a screen under about 540 px high | every mockup: a browser window shorter than the mockup scrolls the page inside it (only the page scrolls sideways there, not the whole content) |
@@ -1389,7 +1390,7 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Back | `GtkButton` (button), icon only, class `icon-button`, action `win.back`, tooltip "Back to Display" | `Back` | on the Configuration page's bar only |
 | Page titles | `GtkLabel` (label), class `page-title` | their text: `Display`, `Configuration` | not named by the app: a label is named by its own text. A test tells the `Configuration` title from the gear by their roles (label, toggle button) |
 | Refresh | `GtkButton` (button), icon only, class `icon-button`, action `win.refresh`, tooltip "Refresh the display: fresh readings, and the picture starts again" | `Refresh display` | on the Display page's bar only, so absent on the off screen and when not available in this session |
-| Refresh and refusal label | `GtkBox` (group) in the `GtkOverlay`, around the `GtkLabel` | `Change feedback` | its label's text ("Refreshed", or "Not changed." and the reason) |
+| Refresh and refusal label | `GtkBox` (group) in the `GtkOverlay` around the pages, around the `GtkLabel` | `Change feedback` | its label's text ("Refreshed", or "Not changed." and the reason) |
 | Off screen message | `GtkBox` (group) holding the heading and text `GtkLabel`s | `Service message` | description: its text ("OpenDeepCool is off" or "OpenDeepCool isn't running", then the text). It replaces Phase 10's `Service banner` and its `Copy start command` (D10) |
 | Not-available message | `GtkBox` (group) holding two `GtkLabel`s | `Not available in this session` | description: its text |
 | Cooler banner | `GtkBox` (group) in `GtkRevealer` | `Cooler banner` | description: its text: not connected, no access or sending fails ([Banners](#banners)) |

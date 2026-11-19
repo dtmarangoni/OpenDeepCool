@@ -523,6 +523,33 @@ fn feedback(app: &gtk::Application) {
         window.feedback().as_deref(),
         Some("Not changed. This session may not change settings.")
     );
+    // The label is centred over the right panel (the pages), 16 px above its foot, not over the
+    // whole window (owner, 2026-11-19).
+    run_for(Duration::from_millis(100));
+    let label = window.names().find("Change feedback").expect("the label");
+    let panel = label.parent().expect("the pages' overlay");
+    let place = |widget: &gtk::Widget| {
+        widget
+            .compute_bounds(window.widget())
+            .expect("a place in the window")
+    };
+    let (label_at, panel_at) = (place(&label), place(&panel));
+    let middle = |b: &gtk::graphene::Rect| b.x() + b.width() / 2.0;
+    assert!(
+        (middle(&label_at) - middle(&panel_at)).abs() <= 1.0,
+        "the label {label_at:?} is not centred over the panel {panel_at:?}"
+    );
+    let window_at = place(window.widget().upcast_ref());
+    assert!(
+        panel_at.x() > window_at.x() + 100.0
+            && (middle(&label_at) - middle(&window_at)).abs() > 20.0,
+        "the panel {panel_at:?} sits right of the column, so its middle is not the window's"
+    );
+    assert_eq!(
+        (panel_at.y() + panel_at.height()) - (label_at.y() + label_at.height()),
+        16.0,
+        "the label stands 16 px above the panel's foot"
+    );
     window.refusal(
         Refused::Refresh,
         &Reason::Message("the service failed".to_owned()),

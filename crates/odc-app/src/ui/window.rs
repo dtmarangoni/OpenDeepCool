@@ -348,7 +348,14 @@ impl Window {
         keep_natural_height(&column_scroller);
         let main = gtk::Box::builder().vexpand(true).build();
         main.append(&column_scroller);
-        main.append(&pages);
+        // The feedback label is centred over the pages, the right panel, not over the window
+        // (owner, 2026-11-19); the pages keep the window's room as they did.
+        let pages_area = gtk::Overlay::builder()
+            .child(&pages)
+            .hexpand(true)
+            .vexpand(true)
+            .build();
+        main.append(&pages_area);
 
         // Not available in this session: two labels, centred, wrapping.
         // A named box takes the group role: ARIA lets no generic one carry a name (D48).
@@ -389,7 +396,7 @@ impl Window {
         screens.add_named(&not_available, Some("not-available"));
         content.append(&screens);
 
-        // The feedback label over everything.
+        // The feedback label over the pages (added to their overlay below).
         let feedback_icon = gtk::Image::from_icon_name("dialog-warning-symbolic");
         feedback_icon.add_css_class("warn-text");
         let feedback_label = label("", &[]);
@@ -420,9 +427,8 @@ impl Window {
             window_scroller.set_max_content_width(width);
             window_scroller.set_max_content_height(height - size::HEADER);
         }
-        let overlay = gtk::Overlay::builder().child(&window_scroller).build();
-        overlay.add_overlay(&feedback);
-        window.set_child(Some(&overlay));
+        pages_area.add_overlay(&feedback);
+        window.set_child(Some(&window_scroller));
 
         // The one style provider, at APPLICATION priority (Theme, How it's applied).
         let provider = gtk::CssProvider::new();

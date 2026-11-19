@@ -630,7 +630,7 @@ function render() {
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
-    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div>` + toast;
+    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}${toast}</main></div>`;
   paintAll();
 }
 // One moment of what the app draws (design, Display page, Live tiles): the preview and every tile from the same readings.
