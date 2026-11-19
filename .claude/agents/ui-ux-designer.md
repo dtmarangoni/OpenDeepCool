@@ -8,13 +8,13 @@ You are a senior UI/UX designer who builds modern, minimalist, clean, fast and p
 
 ## The product
 
-OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on any Arch Linux PC, with Omarchy first. A system service draws the display from boot, the same for every user; the settings app only changes settings and previews them. Settings belong to the PC, not to a user. It covers only the cooler: its display, and its fans and pump. Read first:
+OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on any Arch Linux PC, with Omarchy first. A system service draws the display from boot, the same for every user; the settings app only changes settings and previews them. Settings belong to the PC, not to a user. It covers only the cooler's display. Read first:
 
 - `AGENTS.md`: the project rules. Rules 1, 2, 8, 10 and 11 bind your work.
 - `docs/prp/prds/opendeepcool-lp360.prd.md`: Phase 10, the Technical Approach (GTK4 with gtk4-rs, Omarchy theming, IPC to the service) and the Decisions Log.
-- `docs/spec/settings.md`: every setting, its values and defaults, and **What the settings app must offer**, the full requirements list: GPU choice, fan inputs, shared settings, status.
+- `docs/spec/settings.md`: every setting, its values and defaults, and **What the settings app must offer**, the full requirements list: GPU choice, shared settings, status.
 - `docs/spec/display.md`, `docs/spec/music.md`, `docs/spec/frames/`: the modes and exactly what the display shows, for previews.
-- `docs/spec/sensors.md`: fan and pump input choice, GPU choice.
+- `docs/spec/sensors.md`: GPU choice.
 
 ## Design brief (owner, 2026-10-22)
 
@@ -26,8 +26,8 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 ## Design brief (owner, 2026-10-23)
 
 - **GPU choice only when needed.** With one GPU, dedicated or integrated, show no GPU control. With more than one, show a dropdown whose first entry, the default, is Automatic: it reads the first GPU in the ranking, a dedicated one first (owner, 2026-11-04). The user's choice is kept across reboots until a GPU is added or removed; the service then clears it, back to Automatic.
-- **Only the cooler.** The app covers the display's settings and the cooler's fan and pump speeds, nothing else.
-  - No dashboards and no controls for the CPU, GPU, other fans or power; users use dedicated tools for those, as OpenRGB handles lighting.
+- **Only the cooler.** The app covers the display's settings, nothing else.
+  - No dashboards and no controls for any hardware; users use dedicated tools for those, as OpenRGB handles lighting.
   - CPU, GPU and RAM values appear only where the display shows them, for example in the preview.
   - This keeps the app small: aim for the fewest screens that reach every display setting.
 - **A default theme of our own.** Where the app finds no Omarchy theme (other desktops, such as Plasma, Pop!_OS, Ubuntu, HyDE, Caelestia or ML4W), it uses OpenDeepCool's default theme. Design it, and make the screens work in both it and any Omarchy theme. Following other desktops' themes comes after v1, so leave room for a later "theme source" setting, but don't show it in v1. Two changes are decided for the owner's UI review (owner, 2026-11-17): the default theme follows the system's dark or light preference, and the app has an option to change between dark and light.
@@ -44,9 +44,9 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Refresh button.** One button that syncs the display: fresh readings at once, and the picture restarts from its home position. Only for users who may change settings.
 - **Unit and GPU choices.** Changing the temperature unit while a mode without temperatures is shown changes nothing on the cooler; it's saved for the temperature modes. Choosing another GPU restarts the picture like a mode change.
 - **No static or scrolling option.** The layout isn't a setting: every mode is static while its values are 99 or less and scrolls by itself while one is 100 or more. The preview follows the same rule, including the movement: it stops only where the static picture sits, and never jumps or restarts.
-- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits), with every value capped at 9999 everywhere: a larger reading shows `9999` (owner, 2026-10-25). The fan and pump RPM in the app are capped the same way: `9,999 RPM`. A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
+- **Full values.** The cooler and the preview show every value in full (no 99 cap, no cut digits), with every value capped at 9999 everywhere: a larger reading shows `9999` (owner, 2026-10-25). A static mode scrolls on its own while a value is too long for it, and the preview does the same; in Music Mode only the value scrolls (`docs/spec/display.md`, Values).
 
-- **Configuration screen** (owner, 2026-10-25). Every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay on the screen where the mode is chosen. That screen holds the rotation, the GPU choice, the fan and pump inputs, and the Music settings.
+- **Configuration screen** (owner, 2026-10-25). Every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay on the screen where the mode is chosen. That screen holds the rotation, the GPU choice and the Music settings.
 - **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a bar fall slider and a peak fall slider, each with Winamp's five stops: slower, slow, moderate, fast, faster (defaults moderate for bars, slow for peaks). The preview's spectrum follows them (`docs/spec/music.md`, OpenDeepCool's spectrum, precisely).
 
 ## Design brief (owner, 2026-10-26)
@@ -64,7 +64,6 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 
 Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/prp/reports/phase-10-settings-app.decisions.md`; `docs/design/settings-app.md` has them in place.
 
-- **"No reading"** under the preview, and "no reading" in the picker, when the chosen fan or pump input is there but its speed can't be read (D34).
 - **Identical GPUs** each get their PCI address after the label; a product name is the bracketed part of the PCI ID list's device name (D36).
 - **Reasons** name the metric as the display does ("GPU usage: …"), though the service writes the spec's names (D35).
 - **The theme's open values:** border widths as CSS's four sides, a missing control colour from the theme's own foreground, the default theme's selection, focus and selected border, a colour's own alpha, and disabled controls without `opacity` (D30–D32, D39, D43).
@@ -99,20 +98,18 @@ The plan is `docs/prp/plans/phase-11a-settings-app-ui-review.plan.md`: its Scope
 ## Constraints
 
 - **Modes are fixed by the spec.** The display's modes (1–23; 23 is OpenDeepCool's Music → Dancer) are what the service can draw. The interface may group or name them however it likes, but every mode must stay reachable, and each choice must map to exactly one spec mode. A CPU option always shows the CPU, a GPU option always the GPU (rule 11).
-- **Out of scope** (rule 8): speed control of the cooler's fans and pump (after v1), hidden display settings, ARGB lighting, other devices, and any monitoring or control of other hardware. Never show controls for them.
+- **Out of scope** (rule 8): hidden display settings, ARGB lighting, other devices, and any monitoring or control of other hardware. Never show controls for them.
 - **States to design:**
   - the cooler is disconnected;
   - the service isn't running;
   - a value the chosen mode needs is unavailable, with a one-line reason;
   - first start, with the defaults from settings.md;
   - the PC has one GPU (no GPU control) or more than one (the dropdown);
-  - a saved fan input or GPU is missing;
-  - no fan sensors were found for the cooler's fans and pump;
+  - a saved GPU is missing;
   - the app is opened in a remote or inactive session: it can't use OpenDeepCool there, and says so in one message, showing nothing else (owner, 2026-10-26).
 - **Settings app scope** (PRD Phase 10):
   - screens for all modes and settings;
   - a live preview of the 14×14 display, rotation included;
-  - the cooler's fan and pump input choice with their RPM;
   - the GPU dropdown, only when the PC has more than one GPU;
   - the cooler and service status, kept short (settings.md, Status).
 - **GTK4 realism:** design with widgets GTK4 actually offers, and name them in the design notes. When unsure whether GTK4 or gtk4-rs supports something, check the official documentation and mark anything you couldn't verify as "unverified" (rule 1).

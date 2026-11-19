@@ -244,7 +244,7 @@ fn amdgpu(
 }
 
 /// An AMD graphics card: `edge`, `junction` (edge + 36 °C) and `mem` (edge + 25 °C)
-/// temperatures, `power1_average`, the card's own fan, and the busy percentage. Returns the PCI
+/// temperatures, `power1_average`, and the busy percentage. Returns the PCI
 /// device's folder.
 pub fn amdgpu_dgpu(
     tree: &FakeTree,

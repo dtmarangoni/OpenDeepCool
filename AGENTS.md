@@ -9,7 +9,7 @@ OpenDeepCool replaces DeepCreative, DeepCool's Windows app, on Linux. It is writ
 - A system service drives the LP360's 14×14 dot-matrix display from boot, the same for every user.
 - A GTK4 app changes the settings. It follows the current Omarchy theme live when there is one, and uses its own default theme everywhere else.
 
-It covers only the DeepCool cooler: its display, and its fans and pump (owner, 2026-10-23). The CPU, GPU and RAM are read only for the values the display shows.
+It covers only the DeepCool cooler's display (owner, 2026-10-23; the cooler's fans and pump left the product on 2026-11-18, and what was learned about them is kept in `docs/spec/fans-and-pump.md`). The CPU, GPU and RAM are read only for the values the display shows.
 
 It is a personal project in a public repository, MIT-licensed, and not affiliated with DeepCool.
 
@@ -71,7 +71,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
    - Creative Mode (DeepCreative's image editor, modes 100 and 100 + n), in any version (owner, 2026-10-25);
    - ARGB lighting: OpenRGB handles it;
    - other devices (sensors, though, must work on any PC: rule 12);
-   - monitoring or controlling any hardware other than the cooler (owner, 2026-10-23): read the CPU, GPU and RAM only for the display's values, never write a CPU, GPU, fan or power setting, and leave that to dedicated tools, as OpenRGB handles lighting;
+   - monitoring or controlling any hardware other than the cooler (owner, 2026-10-23): read the CPU, GPU and RAM only for the display's values, never write a CPU, GPU or power setting, and leave that to dedicated tools, as OpenRGB handles lighting;
    - following other desktops' themes: v1 uses its default theme there.
 9. **Device safety.**
    - Send the LP360 only messages documented in the spec.
@@ -83,7 +83,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
       - the make, model, BIOS or firmware of the owner's PC parts, or its OS and kernel versions;
       - how the owner's PC logs in or encrypts its disk.
     - The same holds for all other outward-facing text (owner, 2026-10-27): tag messages, release notes, the AUR repository and its comments, issues and published pages.
-    - Queries to outside services, such as web searches and MCP tools, never carry the owner's name, email, usernames, serial numbers or local paths, nor how the PC logs in or encrypts its disk. They may name a part or driver when a task needs it, such as the fan chip to find its driver (owner, 2026-10-27).
+    - Queries to outside services, such as web searches and MCP tools, never carry the owner's name, email, usernames, serial numbers or local paths, nor how the PC logs in or encrypts its disk. They may name a part or driver when a task needs it, such as a sensor chip to find its driver (owner, 2026-10-27).
     - Put such facts in `docs/local/` (git-ignored) and refer to them only as "see `docs/local/`".
     - Commit with the repository's configured identity (GitHub no-reply email). Never change it.
     - **Exception** (owner, 2026-10-22): the kernel driver and module names and sensor labels that the sensor rules need may appear in code, tests, packaging and the spec. Part models, serials and all other machine facts still may not; test fixtures use made-up chip names.
@@ -91,7 +91,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 11. **Every metric shows itself.** A CPU reading is shown as the CPU, a GPU reading as the GPU, and so on, everywhere: renderers, settings, the app, tests. Never swap or mix metrics, even where DeepCreative does (owner, 2026-10-22). The spec marks each such DeepCreative quirk and what OpenDeepCool does instead.
 12. **Never rely on the owner's PC** (owner, 2026-10-23). The code must work on any PC with an LP360.
     - Find devices, drivers and sensors at runtime, from rules taken from primary documentation.
-    - Where the hardware can't tell (which fan input is the pump), the user chooses.
+    - Where the hardware can't tell (which of two GPUs the display shows), the user chooses.
     - Facts about the owner's PC serve only for testing on it.
 13. **Rust everywhere** (owner, 2026-10-28: "If the project is made with Rust, all testing framework should be made using rust as well").
     - The program, its tests and its tools are Rust. The tools are the expected-frame generator (`tools/oracle/`), the commit guard and its tests (`tools/guard/`), the dev setup tool (`tools/dev/`), the generator of the GPU helper's kernel structures (`tools/bindings/`, from Phase 6; owner, 2026-10-28) and the mockup generator (`tools/mockups/`, from Phase 10).
@@ -104,7 +104,7 @@ It is a personal project in a public repository, MIT-licensed, and not affiliate
 ## Verified facts (details in the PRD Research Summary)
 
 - **LP360**: USB HID device `3633:000c` ("DeepCool LP-Series") with a 14×14 display. Its USB messages are in `docs/spec/protocol.md`, and the display modes in `docs/spec/display.md` (1–12) and `docs/spec/music.md` (13–23). The Phase 1 report (`docs/research/phase1-wine-spike.md`) is history: the spec supersedes it, and its mode list is DeepCreative's, Creative Mode included.
-- **The owner's PC**: board, sensor chip and driver, fan inputs, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files or other outward-facing text (rule 10), and never make the code depend on it (rule 12).
+- **The owner's PC**: board, sensor drivers, CPU and GPU are in `docs/local/machine.md`, which is local only. Read it on this machine, but never copy it into committed files or other outward-facing text (rule 10), and never make the code depend on it (rule 12).
 - **Device lookup**: find hwmon and DRM devices by name or driver, never by index, because indexes change between boots.
 - **Omarchy 4 theming**: theme colours live in `~/.local/state/omarchy/current/theme/colors.toml`. App templates live in each user's `~/.config/omarchy/themed/*.tpl` and in Omarchy's own `$OMARCHY_PATH/default/themed/` (its `omarchy-theme-set-templates` script, read 2026-10-23).
 

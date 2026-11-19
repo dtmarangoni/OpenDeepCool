@@ -9,12 +9,11 @@ Every DeepCreative 1.2.14 setting that affects the LP360: its values, its defaul
 | Mode | LP page: the mode family and its option | modes 1–22; OpenDeepCool adds 23 (Dancer) | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
 | Rotate Screen | LP page: one button | 0–3. Each press adds a quarter turn clockwise, and 3 wraps to 0 | **0** | yes | [rotation](display.md#rotation) |
 | Temperature Display | app Settings page, for all devices | Celsius (0), Fahrenheit (1) | **Celsius** | yes | modes 7–9, 18 and 19 ([values](display.md#values)) |
-| CPU Fan I/O, Pump Fan I/O | LP page | one of the board's fan inputs | none chosen | unverified: under Wine the list is empty | the RPM on DeepCreative's own device card, never the cooler ([sensors.md](sensors.md#fan-and-pump-speed)) |
 
 Evidence:
 - **Defaults:** capture and code: DeepCreative started with its data folder moved aside, 2026-10-22.
   - It drew mode 1 at once, unrotated, with the real CPU usage.
-  - Its stores held mode 1, rotation 0, no fan inputs, and the unit Celsius.
+  - Its stores held mode 1, rotation 0 and the unit Celsius.
   - The data folder was restored afterwards.
 - **Restore:** capture: mode 9, Fahrenheit and rotation 2 were set, DeepCreative was quit and restarted, and every steady frame was the restored picture (render check). Owner: 2026-10-22, `32°F` twice, upside down and scrolling, on the cooler after the restart. A previous session restored mode 4 the same way.
 - **Rotate Screen** is one button that steps the value: code, LP page.
@@ -39,7 +38,7 @@ Evidence:
 
 ## OpenDeepCool's defaults
 
-The same as DeepCreative's first start: mode 1, rotation 0, Celsius, no fan inputs chosen.
+The same as DeepCreative's first start: mode 1, rotation 0, Celsius.
 
 OpenDeepCool's own settings: Music peak dots on, bar fall moderate, peak fall slow (Winamp's defaults) ([music.md](music.md#opendeepcools-spectrum-precisely); owner, 2026-10-25).
 
@@ -49,14 +48,14 @@ GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([senso
 
 The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` agent designs from this list; the app has its own design, not DeepCreative's ([below](#deepcreative-interface-quirks-not-reproduced)).
 
-**UI review** (owner, 2026-11-18; decided, not yet built): the changes in the [Phase 11a plan](../prp/plans/phase-11a-settings-app-ui-review.plan.md) supersede the lines below where they disagree. The app shows no fans or pump, so "Only the cooler", "Every setting above" and "A configuration screen" lose the fan and pump inputs and their RPM. The temperature unit moves to the configuration screen, after Rotation. A Theme card, first on the configuration screen, holds two settings the service keeps for the whole PC (use the system theme; dark or light), so "No app-only settings in v1" stays true, and OpenDeepCool's own theme is redesigned in the same review (owner, 2026-11-18). Each task changes these lines when it is built; until then they describe what is built.
+**UI review** (owner, 2026-11-18; decided, not yet built): the changes in the [Phase 11a plan](../prp/plans/phase-11a-settings-app-ui-review.plan.md) supersede the lines below where they disagree. The app shows no fans or pump (removed on 2026-11-18, kept in [fans-and-pump.md](fans-and-pump.md)), and the lines below no longer mention them. The temperature unit moves to the configuration screen, after Rotation. A Theme card, first on the configuration screen, holds two settings the service keeps for the whole PC (use the system theme; dark or light), so "No app-only settings in v1" stays true, and OpenDeepCool's own theme is redesigned in the same review (owner, 2026-11-18). Each task changes these lines when it is built; until then they describe what is built.
 
-**Only the cooler** (owner, 2026-10-23): the app covers the display's settings and the cooler's fans and pump, nothing else. It shows no other hardware information and no controls for the CPU, GPU, other fans or power. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
+**Only the cooler** (owner, 2026-10-23): the app covers the display's settings, nothing else. It shows no hardware information beyond what the display needs, and no controls for any hardware. Users use dedicated tools for those, as OpenRGB handles lighting. Keep the app as small as that allows.
 
-- **Every setting above:** mode, rotation, temperature unit, the cooler's fan and pump inputs.
+- **Every setting above:** mode, rotation, temperature unit.
 - **Changes apply at once** (2026-10-25): every choice in the app goes to the service, and so to the cooler, when it's made. There's no Apply button and no unsaved state. The preview shows what the cooler shows.
 - **No app-only settings in v1** (2026-10-25): the app offers no settings of its own (start at login, language); it's in English.
-- **A configuration screen** (owner, 2026-10-25): every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay where the mode is chosen. So the configuration screen holds the rotation, the GPU choice, the cooler's fan and pump inputs, and the Music settings below.
+- **A configuration screen** (owner, 2026-10-25): every OpenDeepCool setting sits on one configuration screen, except choosing the mode and the temperature unit, which stay where the mode is chosen. So the configuration screen holds the rotation, the GPU choice and the Music settings below.
 - **Music settings** (owner, 2026-10-25): peak dots on or off (on by default); a *bar fall* slider and a *peak fall* slider, each with Winamp's five stops, slower, slow, moderate, fast and faster (defaults: moderate for bars, slow for peaks, as in Winamp). The preview draws them the same way ([music.md](music.md#opendeepcools-spectrum-precisely)).
 - **Mode names** (owner, 2026-10-24): Load, Temperature, Power and Music. Never DeepCreative's "Temperature Guardian", "Power Guardian" or "… Mode" ([display.md](display.md#modes)).
 - **Refresh button** (owner, 2026-10-24): syncs the display. The service takes fresh readings at once and redraws the picture from its home position, so a scrolling value starts its cycle again (and stops at home if it now fits). Allowed to the same users as settings changes.
@@ -67,16 +66,11 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - a dropdown with **Automatic** first, the default, then the PC's GPUs, dedicated before integrated. Automatic reads the first GPU in that order, and choosing it again clears the user's choice (owner, 2026-11-04). Each GPU is named by its kind and its product name from the system's PCI ID list (`/usr/share/hwdata/pci.ids`, package `hwdata`), or by its kind, driver and PCI address when the list has no entry (2026-10-25); two GPUs that would read the same also show their PCI addresses (Phase 10 decisions log D36, pending the owner's review);
   - the user's choice is kept across reboots, until a GPU is added or removed: the service then clears it at start, back to Automatic, and the user picks again if they want (owner, 2026-11-04);
   - it only chooses which GPU the display's GPU metrics come from. The app shows no other GPU information.
-- **Fan inputs** ([sensors.md](sensors.md#fan-and-pump-speed)):
-  - one picker for the cooler's fans (DeepCreative's CPU Fan I/O) and one for its pump. Each lists every fan input in the PC except a graphics card's own fans, with its chip's name, its label when the driver has one, and its live RPM;
-  - "none" is the default;
-  - a saved input that's missing shows as not found, and one that's there but whose speed can't be read shows "No reading"; neither shows another input's RPM (Phase 10 decisions log D34, pending the owner's review);
-  - the app shows the cooler's fan and pump RPM from the chosen inputs, capped at 9,999 RPM like every other value: a faster reading shows `9,999 RPM` (owner, 2026-10-25). These speeds never reach the cooler's display.
 - **Start at boot** (owner, 2026-11-10; Phase 11 plan, Task 3): the package turns nothing on when it's installed, as Arch's packages don't. One switch in the app turns OpenDeepCool on or off for the whole PC. It isn't an app setting: it shows and changes systemd's own state for OpenDeepCool's units.
   - **On:** the display service starts at every boot and starts now, and the sound helper starts in every user's session at login, and now in this one. Turning it on always starts at once whatever isn't running yet, besides setting it to start at boot (owner, 2026-11-11). **Off:** neither starts any more, and both stop.
   - Every change asks for the administrator's password, every time (polkit `auth_admin`). Nothing else in the app asks for one.
   - **The switch is on only when OpenDeepCool is fully on and ready to use** (owner, 2026-11-11): the display service is enabled at boot and running, and the sound helper is enabled for every user and running in this session. In any other case it's off, a service that stopped included, with a note saying what's missing, and flipping it on finishes the setup and starts what isn't running. There's no separate start button: the switch does it (owner, 2026-11-11). When the only part missing is the sound helper in this session, flipping on just starts it, without a password, since nothing changes for the whole PC (owner, 2026-11-11).
-    - What counts: only these two units. The display service starts its one-shot helpers itself (the GPU ranking, and the sensor detection on a PC without an lm-sensors setup), which run and exit, so they don't count. The metrics aren't services: the display service reads them from the kernel's files. The sound helper only waits in the session, and takes sound only while a Music mode is shown (owner, 2026-10-26).
+    - What counts: only these two units. The display service starts its one-shot helper itself (the GPU ranking), which runs and exits, so it doesn't count. The metrics aren't services: the display service reads them from the kernel's files. The sound helper only waits in the session, and takes sound only while a Music mode is shown (owner, 2026-10-26).
     - The switch shows systemd's state, read without a password, so a change made in a terminal, or a service that stops, shows too.
   - It works while the service isn't running, which is how a new install is turned on.
   - When the change doesn't happen (the password is refused or its dialog closed, no polkit agent runs in the session, or a step fails), the switch goes back to systemd's state and the app shows the commands that do the same from a terminal, for the way the switch was flipped (owner, 2026-11-11):
@@ -101,8 +95,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
   - in a Music mode, whether sound is coming in from the session at the PC (the service's `AudioConnected`; without it the spectrum is silent);
   - the settings app talks to the service over the D-Bus system bus; polkit lets the user of the active local session read and change settings without a password, and refuses every other session (PRD, Settings app ↔ service);
   - when a value the chosen mode needs is unavailable, a one-line reason, for example "no reading for this GPU's driver";
-  - in the fan and pump pickers, a note when no fan sensors were found.
-- **What the service gives the app for this** (Phase 10; [dbus.md](dbus.md)): the preview's frames, every frame the engine draws, rotation included, whether or not the cooler got it, sent only to the app that watches them (`WatchFrames`, `Frame`); every fan input's live RPM (`FanInputs`); the GPU the readings come from, so Automatic can name it (`GpuInUse`); each GPU's PCI vendor and device ID, for its product name, and whether its driver has a reading rule (`Gpus`); and whether each chosen fan input is there (`CoolerFanInputPresent`, `PumpInputPresent`).
+- **What the service gives the app for this** (Phase 10; [dbus.md](dbus.md)): the preview's frames, every frame the engine draws, rotation included, whether or not the cooler got it, sent only to the app that watches them (`WatchFrames`, `Frame`); the GPU the readings come from, so Automatic can name it (`GpuInUse`); and each GPU's PCI vendor and device ID, for its product name, and whether its driver has a reading rule (`Gpus`).
 
   Details, such as which source each value comes from, and the first readings at each start, exact (`first readings: CPU Temperature 45000/1000, CPU Usage not-yet, …`; owner, 2026-11-04), go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme): the app follows the current Omarchy theme live, and uses OpenDeepCool's own default theme when it finds none. Choosing another desktop's theme comes after v1.

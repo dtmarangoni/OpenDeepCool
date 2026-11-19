@@ -249,7 +249,7 @@ impl Shared {
             );
             return Err(Error::Failed(format!("the settings can't be saved: {e}")));
         }
-        // The sensor thread reads the new GPU or fan inputs from now on, and another GPU's reset
+        // The sensor thread reads the new GPU from now on, and another GPU's reset
         // waits for a snapshot of it, asked for now: the choices go first, so the answer reads
         // the new GPU.
         let mut asked = None;
@@ -724,7 +724,7 @@ pub fn kind_of(reason: &Unavailable) -> &'static str {
 }
 
 /// `OverrideReadings`' arguments as readings: all seven metrics, each in exactly one map, by the
-/// spec's names (owner, 2026-10-29). The fans are left as they are.
+/// spec's names (owner, 2026-10-29).
 fn overridden(
     values: &HashMap<String, (i64, u64)>,
     unavailable: &HashMap<String, String>,
@@ -1098,8 +1098,8 @@ pub struct Parts {
     pub status: Arc<RwLock<Status>>,
     pub apply: Arc<Slot<Apply>>,
     pub device: Sender<DeviceControl>,
-    /// The sensor thread's requests: the GPU and fan inputs chosen, and the snapshots Refresh and
-    /// another GPU ask for.
+    /// The sensor thread's requests: the GPU chosen, and the snapshots Refresh and another GPU ask
+    /// for.
     pub sensors: Sender<SensorRequest>,
     pub pulse: Arc<Pulse>,
     /// The newest frame the engine drew, and the pulse that says one came (Phase 10).

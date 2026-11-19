@@ -14,7 +14,7 @@ Pre-alpha. The service, the settings app and the Arch package are built and test
 - **Phase 4** (done, 2026-10-25): one implementation plan for each of Phases 5–11.
 - **Solution reviews** (done, 2026-10-27): every plan's [review](docs/prp/solution-reviews/README.md) was crossed with the owner, and the PRD, plans and spec follow the decisions.
 - **Phase 5** (done, 2026-10-28): the Rust workspace. Frames reach the cooler byte-exact, without root, and keep reaching it after a reconnect, all tested unattended on the real cooler. CI runs on every push. See [the report](docs/prp/reports/phase-5-device-protocol-core.report.md).
-- **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind, and a once-per-board detection loads the board's fan driver. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md).
+- **Phase 6** (done, 2026-10-29): the sensors. The display's seven readings come from built-in driver rules on any PC. A short-lived helper tells each GPU's kind. Every test runs unattended: real where the PC has the device, through fakes where it hasn't. See [the report](docs/prp/reports/phase-6-sensors.report.md).
 - **Phase 7** (done, 2026-11-05): the MVP. A sandboxed system service shows Load on the cooler from boot, keeps its settings in one file, and takes changes over D-Bus, each checked with polkit. On the development PC, its end-to-end checks drive the real service through every Load mode and each scenario type a run can drive, unattended. See [the report](docs/prp/reports/phase-7-service-settings-load-mode.report.md).
 - **Phase 8** (done, 2026-11-05): Temperature and Power. The service shows the CPU's and the GPU's temperatures in °C or °F and their power in W, each alone or one over the other, every value in full up to 9999. Every scenario of modes 1–12 runs in-process in all four rotations, and each mode ran on the real cooler before its commit. See [the report](docs/prp/reports/phase-8-temperature-power.report.md).
 - **Phase 9** (done, 2026-11-06): Music. The service shows the sound the PC plays as a 14-column spectrum with falling peak dots, alone, under one of four emoji animations, or under a value; and OpenDeepCool's own Dancer, who dances to the bass. A small helper in each user's session hands the service that sound, only while a Music mode is shown. Every mode from 1 to 23 is now drawn, and each ran on the real cooler before its commit. See [the report](docs/prp/reports/phase-9-music.report.md).
@@ -27,14 +27,13 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 
 ## Scope
 
-- **Hardware and system**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Arch Linux or an Arch-based distribution that uses systemd and Arch's packages. Distributions without systemd are out of scope for now and planned for a future version. It finds the PC's CPU, GPU and board fan sensors itself. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
+- **Hardware and system**: DeepCool LP360 (USB `3633:000c`) on any desktop PC running Arch Linux or an Arch-based distribution that uses systemd and Arch's packages. Distributions without systemd are out of scope for now and planned for a future version. It finds the PC's CPU and GPU sensors itself, and loads no kernel driver: a reading whose driver the kernel hasn't loaded disables the modes that need it, and the app says why. Tested on real hardware only on the owner's PC; the other sensor drivers are tested against simulated sensor files.
 - **Planned**:
   - a system service that starts at boot, the same for every user;
   - a GTK4 settings app that follows the current Omarchy theme live when there is one, with its own default theme everywhere else;
-  - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer;
-  - the cooler's fan and pump speed readings.
-- **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls other hardware. To monitor or control the CPU, GPU, other fans or power, use dedicated tools, as OpenRGB for lighting.
-- **Not in v1**: speed control of the cooler's fans and pump, display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
+  - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer.
+- **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls any hardware. To monitor or control the rest of the PC, use dedicated tools, as OpenRGB for lighting.
+- **Not in v1**: display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
 - **Never**: DeepCreative's Creative Mode, its 14×14 image editor.
 
 ## Documentation
