@@ -366,22 +366,14 @@ fn start_at_boot(app: &gtk::Application) {
         window.names().description("Start at boot").as_deref(),
         startup.note().as_deref()
     );
-    // Closed dialog: back at off, sensitive, the failure's note; announced, focus back.
+    // Closed dialog: back at off, sensitive, with no note (it changed nothing, and the switch
+    // shows the state; owner, 2026-11-19); announced as the switch's state, focus back.
     said.borrow_mut().clear();
     flipping.end(Some(Failure::Dismissed(Direction::On)), false);
     window.boot(flipping);
     assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
-    assert_eq!(
-        startup.note().as_deref(),
-        Some("Not changed: the password dialog was closed.")
-    );
-    assert_eq!(
-        *said.borrow(),
-        [
-            "Start at boot is off.",
-            "Not changed: the password dialog was closed."
-        ]
-    );
+    assert_eq!(startup.note(), None, "no note for a closed dialog");
+    assert_eq!(*said.borrow(), ["Start at boot is off."]);
     run_until("the focus comes back", || switch.is_focus());
 
     // A remote or inactive session: the heading and the commands, no card.

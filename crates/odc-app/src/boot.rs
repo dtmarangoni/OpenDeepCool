@@ -153,7 +153,8 @@ pub enum Flip {
 /// How a flip ended, when it didn't change what it was meant to.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Failure {
-    /// `pkexec` 126: the password dialog was closed.
+    /// `pkexec` 126: the password dialog was closed. Nothing changed, and the switch shows the
+    /// state, so it has no note and isn't kept (owner, 2026-11-19); it only ends the flip.
     Dismissed(Direction),
     /// `pkexec` 127: not authorized, or no polkit agent, or another error of pkexec's own.
     NotAuthorized(Direction),
@@ -174,10 +175,10 @@ impl Failure {
         }
     }
 
-    /// Its note (States and their text).
-    pub fn text(&self) -> String {
-        match self {
-            Failure::Dismissed(_) => "Not changed: the password dialog was closed.".to_owned(),
+    /// Its note (States and their text); none for a closed dialog, which changed nothing.
+    pub fn text(&self) -> Option<String> {
+        Some(match self {
+            Failure::Dismissed(_) => return None,
             Failure::NotAuthorized(_) => {
                 "Not changed: the password wasn't accepted, or no password \
                                           dialog could open in this session."
@@ -195,7 +196,7 @@ impl Failure {
                                          It stops when you log out."
                     .to_owned()
             }
-        }
+        })
     }
 
     /// The commands it shows: its direction's, or none once the change for the whole PC was
@@ -441,7 +442,8 @@ impl Boot {
             } if failure.is_none() && !owned => Flip::Waiting { was_off },
             _ => Flip::Idle,
         };
-        self.failure = failure;
+        // A closed dialog ended the flip and is forgotten: it has no note to keep.
+        self.failure = failure.filter(|failure| failure.text().is_some());
     }
 
     /// The service's bus name has an owner, or the 5 s wait after `on` ended.
@@ -573,12 +575,16 @@ pub fn switch(boot: &Boot, place: Place) -> Switch {
             text: line.to_owned(),
         };
         (Some(plain), None)
-    } else if let Some(failure) = &boot.failure {
+    } else if let Some((failure, text)) = boot
+        .failure
+        .as_ref()
+        .and_then(|failure| Some((failure, failure.text()?)))
+    {
         let commands = failure.commands().map(|lines| Commands {
             lead: FROM_A_TERMINAL,
             lines,
         });
-        (Some(warning(failure.text())), commands)
+        (Some(warning(text)), commands)
     } else {
         match (&boot.known, facts) {
             (Known::Failed, _) => (

@@ -937,7 +937,7 @@ When the switch reads off and something is set up, one note under the row says w
 | Turning on | on / off / no | "Turning on… Your desktop asks for the administrator's password first." (foreground, no icon) | none |
 | Turning on, only the sound in this session missing | on / off / no | "Turning on… Starting the sound for Music in this session." | none |
 | Turning off (only from on) | off / on / no | "Turning off… Your desktop asks for the administrator's password first." | none |
-| Not changed: dialog dismissed (pkexec 126) | systemd's state / sensitive | warning: "Not changed: the password dialog was closed." | "From a terminal instead:", the commands for the flip's direction |
+| Dialog closed (pkexec 126) | systemd's state / sensitive | none: nothing changed and the switch shows the state, so there is no note and the failure isn't kept (owner, 2026-11-19; Phase 11a Task 18) | none |
 | Not changed: not authorized, or no polkit agent (pkexec 127) | systemd's state / sensitive | warning: "Not changed: the password wasn't accepted, or no password dialog could open in this session." | the same |
 | Didn't finish: a step failed (the program's exit 1; any exit code but 0, 126 and 127 alike) | systemd's state / sensitive | warning: "Didn't finish: ‹the program's message›. The switch shows what's set now; the journal says more." | the same |
 | Didn't finish: the sound didn't start in this session (the app's own step, after `on` or as the flip without a password) | off (the sound isn't running here) / sensitive | warning: "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more." | the on commands |
@@ -1093,7 +1093,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Turning on, only the sound in this session missing | As boot-changing, in the Configuration card, with "Turning on… Starting the sound for Music in this session."; no password | (as boot-changing) |
 | Turning off | The same, the other way; the window turns to the off screen as the service stops | (as boot-changing) |
 | Not turned on: password not accepted, or no polkit agent (127) | The switch back at off; the reason under it; the commands below | [boot-not-changed.html](mockups/boot-not-changed.html) |
-| Not changed: dialog closed (126) | As 127, with "Not changed: the password dialog was closed." | (as boot-not-changed) |
+| Dialog closed (126) | The switch back at its state, sensitive, with no note and no commands; it is the page as before the flip (owner, 2026-11-19) | (as the Configuration mockups) |
 | A step failed (exit 1) | The switch at systemd's state; "Didn't finish: …" under it; the commands for the flip's direction | (as boot-not-changed, or in the Configuration card with the commands under the note) |
 | Not fully on, the service running (the Configuration page) | The switch off, with the note naming what's missing; one flip finishes it | [boot-partly.html](mockups/boot-partly.html) |
 | Not fully on: only the sound in this session | The note ends "Turn it on to start it, with no password." | (as boot-partly) |
@@ -1497,7 +1497,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Every change asks for the administrator's password, and nothing else in the app does | The desktop's polkit dialog, and the changing line ("Turning on… Your desktop asks for the administrator's password first."). The card's hint doesn't repeat it (owner, 2026-11-18) | boot-changing |
 | The switch shows systemd's state, a terminal change and a stopped service included | Read at start, after a flip, on window activation and on the bus name's changes | boot-partly, service-not-running |
 | It works while the service isn't running | The off screen holds the switch | boot-off, service-not-running |
-| A change that doesn't happen: the switch goes back to systemd's state, and the commands for the flip's direction show (three lines to turn on, two to turn off) | The note under the switch: dialog dismissed (126), not authorized or no agent (127, `--disable-internal-agent`), a step failed (the program's code) | boot-not-changed |
+| A change that doesn't happen: the switch goes back to systemd's state, and the commands for the flip's direction show (three lines to turn on, two to turn off) | The note under the switch: not authorized or no agent (127, `--disable-internal-agent`), a step failed (the program's code); none for a dismissed dialog (126), which changed nothing | boot-not-changed |
 | Unknown | Insensitive at off, with the reason and the commands | boot-unknown |
 | The service-not-running command is `sudo systemctl enable --now opendeepcool.service` | The off screen's terminal commands, first line | boot-off, service-not-running |
 | Only the user at the PC may flip it | polkit `allow_active` only; no switch when not available, nor on the off screen in a remote or inactive session | not-available |

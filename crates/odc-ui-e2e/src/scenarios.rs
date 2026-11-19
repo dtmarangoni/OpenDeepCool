@@ -1529,15 +1529,26 @@ fn boot_flip(run: &mut Run) -> Result<String> {
 }
 
 /// A flip that doesn't happen: the dialog closed (126), not authorized or no agent (127), and a
-/// failed step (1, the program's message). The switch goes back, usable, with the failure's
-/// note and the commands for the flip's direction; the app's own step is skipped. The note goes
-/// once systemd shows what the flip wanted (States and their text).
+/// failed step (1, the program's message). The switch goes back, usable; a closed dialog has no
+/// note (it changed nothing: owner, 2026-11-19), the others a note and the commands for the
+/// flip's direction; the app's own step is skipped. The note goes once systemd shows what the
+/// flip wanted (States and their text).
 fn boot_refused(run: &mut Run) -> Result<String> {
     run.reset()?;
     run.units(Units::all_on())?;
     run.page("Configuration")?;
+    // A closed dialog: the switch back, usable, with no note.
+    let mark = run.flip("off")?;
+    run.expect_state("switch", BOOT, State::Sensitive, false)?;
+    run.systemd.answer(126, "")?;
+    run.expect_state("switch", BOOT, State::Sensitive, true)?;
+    run.check_state("switch", BOOT, State::Checked, true)?;
+    run.gone("group", "Start at boot status")?;
+    let calls = run.systemd.calls_since(mark)?;
+    if calls.iter().any(|c| c.contains("StopUnit")) {
+        return Err(format!("the sound stopped after exit 126: {calls:?}"));
+    }
     for (code, stderr, note) in [
-        (126, "", "Not changed: the password dialog was closed."),
         (
             127,
             "the fake pkexec: not authorized\n",

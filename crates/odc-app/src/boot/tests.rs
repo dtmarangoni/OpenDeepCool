@@ -362,10 +362,6 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
 fn each_failure_shows_its_note_and_its_direction_s_commands() {
     let on_failures = [
         (
-            Failure::Dismissed(Direction::On),
-            "Not changed: the password dialog was closed.",
-        ),
-        (
             Failure::NotAuthorized(Direction::On),
             "Not changed: the password wasn't accepted, or no password dialog could open in this \
              session.",
@@ -406,7 +402,6 @@ fn each_failure_shows_its_note_and_its_direction_s_commands() {
         assert_eq!(switch(&b, Place::OffScreen).commands, Some(ON));
     }
     for failure in [
-        Failure::Dismissed(Direction::Off),
         Failure::NotAuthorized(Direction::Off),
         Failure::Step(Direction::Off, "step 1 of 2 failed".to_owned()),
     ] {
@@ -442,7 +437,7 @@ fn each_failure_shows_its_note_and_its_direction_s_commands() {
     // The failure note wins over the missing parts', which come back once it goes.
     let mut b = read(facts(DISABLED, Run::Running, DISABLED, false));
     b.begin(Direction::On).expect("a flip");
-    b.end(Some(Failure::Dismissed(Direction::On)), true);
+    b.end(Some(Failure::NotAuthorized(Direction::On)), true);
     b.read(Known::Facts(facts(DISABLED, Run::Running, DISABLED, false)));
     assert!(note(&b).is_some_and(|(_, t)| t.starts_with("Not changed")));
     b.failure = None;
@@ -464,7 +459,7 @@ fn a_failure_s_note_goes_once_the_state_it_wanted_shows() {
 
     let mut b = read(all_on());
     b.begin(Direction::Off).expect("a flip");
-    b.end(Some(Failure::Dismissed(Direction::Off)), true);
+    b.end(Some(Failure::NotAuthorized(Direction::Off)), true);
     b.read(Known::Facts(all_on()));
     assert!(b.failure.is_some());
     b.read(Known::Facts(facts(DISABLED, Run::Failed, DISABLED, false)));
@@ -473,12 +468,12 @@ fn a_failure_s_note_goes_once_the_state_it_wanted_shows() {
     // The next flip clears it.
     let mut b = read(new_install());
     b.begin(Direction::On).expect("a flip");
-    b.end(Some(Failure::Dismissed(Direction::On)), false);
+    b.end(Some(Failure::NotAuthorized(Direction::On)), false);
     b.read(Known::Facts(new_install()));
     b.begin(Direction::On).expect("again");
     assert_eq!(b.failure, None);
     // A failed read keeps it.
-    b.end(Some(Failure::Dismissed(Direction::On)), false);
+    b.end(Some(Failure::NotAuthorized(Direction::On)), false);
     b.read(Known::Failed);
     assert!(b.failure.is_some());
     assert!(
@@ -708,5 +703,41 @@ fn the_commands_and_the_card_s_words_as_the_design_writes_them() {
     assert_eq!(
         OFF_SCREEN_TEXT,
         "The cooler shows nothing until the display service runs."
+    );
+}
+
+// Owner, 2026-11-19: a closed password dialog changed nothing, and the switch shows the state, so
+// it has no note and isn't kept: the card is exactly what it was, the flip is over (a dismissed
+// `on` doesn't wait for the service), and the state's own notes show as before.
+#[test]
+fn a_closed_password_dialog_leaves_no_note_and_nothing_kept() {
+    assert_eq!(Failure::Dismissed(Direction::On).text(), None);
+    assert_eq!(Failure::Dismissed(Direction::Off).text(), None);
+    for (direction, facts_before) in [
+        (Direction::On, new_install()),
+        (Direction::Off, all_on()),
+        (Direction::On, facts(ENABLED, Run::Running, ENABLED, false)),
+        (
+            Direction::On,
+            facts(DISABLED, Run::Running, DISABLED, false),
+        ),
+    ] {
+        for place in [Place::Card, Place::OffScreen] {
+            let untouched = switch(&read(facts_before.clone()), place);
+            for owned in [false, true] {
+                let mut b = read(facts_before.clone());
+                b.begin(direction).expect("a flip");
+                b.end(Some(Failure::Dismissed(direction)), owned);
+                assert_eq!(b.failure, None, "not kept");
+                assert_eq!(b.flip, Flip::Idle, "the flip is over, not waiting");
+                // The switch is as it was before the flip, and sensitive.
+                assert_eq!(switch(&b, place), untouched, "{direction:?} {place:?}");
+            }
+        }
+    }
+    // pkexec's 126 is still the closed dialog; it is what ends the flip.
+    assert_eq!(
+        pkexec_failure(Direction::On, &Exit::Code(126), ""),
+        Some(Failure::Dismissed(Direction::On))
     );
 }
