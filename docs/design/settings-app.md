@@ -41,6 +41,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D18 | The mode tiles go live (Phase 11a Task 14, 2026-11-19, from the owner's decisions of 2026-11-18, D4 and D5) | Every tile shows its mode drawn with the service's live readings, upright, in the current unit and with the current peak dots, by the same code as the cooler (`odc_render`). One 100 ms tick, from the window's frame clock, steps all of them together; a tile redraws only when its picture changed. The tick runs only while the tiles are on screen, and each tile obeys the cooler's own movement rules. The tiles have no pause control (D5) ([Live tiles](#live-tiles)) | A tile is then the picture the cooler would show for that mode now, which is what it was always meant to be: a value that scrolls scrolls, a reading that is lost shows dashes. The motion is the product's own content, not chrome, so the "no motion in the chrome" rule stands beside it |
 | D19 | The Music and Dancer tiles (Task 14, owner's D4) | Live only while the service says sound is attached **and** a Music mode (13 to 23) is the one shown; then their spectrum and the Dancer follow the `Levels` the service sends. Otherwise they show the still sample. The emoji tiles' loops play always, and the spectrum rows under them follow the Music rule. Nothing in the app asks for sound ([Music and Dancer tiles](#music-and-dancer-tiles)) | The window must never make the helper capture sound the user didn't ask for: the sound is taken only while a Music mode is shown (owner, 2026-10-26), so the tiles only listen to what is already there |
 | D20 | Reduced motion and the pause control (Task 14; the owner's D5 leaves WCAG 2.2 SC 2.2.2 open) | No control, as decided. The tiles stand still, as a picture at rest, while the system asks for reduced motion (`gtk-interface-reduced-motion` is `reduce`) or has toolkit animations off (`gtk-enable-animations` false); the app reads the two settings and changes neither. The preview keeps mirroring the cooler ([Reduced motion](#reduced-motion)) | The settings belong to the user, as the design already holds for `gtk-enable-animations`; reading them is not overriding them. They are the one mechanism the platform gives that the design can honour without a control or a new setting, and the false positive (animations switched off for speed) costs a still picture, where the false negative costs motion that may cause discomfort |
+| D21 | The scales' knobs (Phase 11a Task 27, 2026-11-19, from the owner's list: "a little bit smaller. Not the slider bars, just the slider buttons") | A plain round **16 px** knob in `--fg` replaces GTK's pin, a 22 × 26 px bitmap the theme draws on a scale with marks; the bar keeps its 4 px ([The scales' knobs](#the-scales-knobs)) | The pin is a bitmap, so its size can't be set by a length; a round knob can, takes the app's colour tokens, matches the switches' knobs and keeps the bar's height and the scale's 34 px |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -755,7 +756,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 ### Music
 
 - **Peak dots:** a `GtkSwitch` ([The switches](#the-switches)), on by default. It calls `SetMusicPeaks`.
-- **Bar fall** and **Peak fall:** two horizontal `GtkScale`s on a 0–4 adjustment (step 1, no value drawn), with five labelled marks: Slower, Slow, Moderate, Fast, Faster (`gtk_scale_add_mark`, verified). Each is 320 px wide (`width-request`), so a scale and the GPU dropdown end at the same x, `halign` start, `valign` start, so the title beside it lines up with the trough and the marks hang below ([Rows](#rows)).
+- **Bar fall** and **Peak fall:** two horizontal `GtkScale`s on a 0–4 adjustment (step 1, no value drawn, the knob [round and 16 px](#the-scales-knobs)), with five labelled marks: Slower, Slow, Moderate, Fast, Faster (`gtk_scale_add_mark`, verified). Each is 320 px wide (`width-request`), so a scale and the GPU dropdown end at the same x, `halign` start, `valign` start, so the title beside it lines up with the trough and the marks hang below ([Rows](#rows)).
   - Bar fall defaults to Moderate, Peak fall to Slow.
   - A change calls `SetMusicBarFall` or `SetMusicPeakFall` with the stop's name when the value lands on a new stop.
   - Snapping to whole stops during a drag (with `round-digits` 0 and a `change-value` handler) is **unverified**.
@@ -768,7 +769,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
 ### The switches
 
-The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32 × 18 px** (owner, 2026-11-18: "a little bit smaller", made 40 × 22; owner, 2026-11-19: "too big", made 32 × 18; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs stay GTK's own.
+The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32 × 18 px** (owner, 2026-11-18: "a little bit smaller", made 40 × 22; owner, 2026-11-19: "too big", made 32 × 18; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs are set in [The scales' knobs](#the-scales-knobs).
 
 - **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size changes, and the knob of an on switch becomes `--bg` (Phase 11a Task 11: `switch:checked > slider`, [Theme card](#theme-card), The look), so the knob shows against an `--accent` trough in every theme. The knob is the trough's height less 4 px, 14 px, the relation of Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 14 px.
 - **The stylesheet** gets two sizes in `app.css`, in the rules the switch already has. Colours stay tokens; the test that no colour literal or `opacity` appears outside `:root` still passes, because a length isn't either:
@@ -799,6 +800,36 @@ The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32
   - The icon buttons are 32 × 32, the toggle buttons and the dropdown are taller than 24, and a scale is GTK's own, so no other control relies on an exception.
 - **Placement:** `halign` start in its row (Start at boot's was end), `valign` center ([Rows](#rows)).
 - **The mockups** draw the three switches at 32 × 18 with a 14 px knob, in every state: off, on (the knob `--bg` on the `--accent` trough), the handle ahead of the trough while a flip runs, and insensitive (a `--muted` knob, no opacity).
+
+### The scales' knobs
+
+The knobs of the Bar fall and Peak fall scales are **round and 16 px** (owner, 2026-11-19: "a little bit smaller. Not the slidder bars, just the slidder buttons"). The bars, the marks and the scale's size don't change.
+
+- **What GTK draws today.** The theme gives a horizontal scale that has marks below it (`marks-after`, as these) a knob that is a **bitmap pin**, `slider-horz-scale-has-marks-below.png`, 22 × 26 px with the tip at the bar, in `scale.horizontal.marks-after:not(.marks-before) > trough > slider` and its `:hover`, `:active` and `:disabled` states (read 2026-11-19 from GTK 4.24's own `Default-light.css`, the `/org/gtk/libgtk/theme/Default/` resource of libgtk). A length can't resize a bitmap that the theme places with fixed margins, so a smaller pin would need its own margins and `background-size`, for every state. The first try, `min-width` and `min-height` alone on `scale > trough > slider`, changed nothing under 22 px: measured through `gtk_range_get_slider_range`, the slider stayed 20 px wide, and at 60 px it was 60.
+- **What the design asks for.** One rule for the node, in the stylesheet, every value a token or a length:
+
+  ```css
+  scale > trough > slider {
+    min-width: 16px;
+    min-height: 16px;
+    margin: -7px;
+    border-style: none;
+    border-radius: 100%;
+    background-image: none;
+    background-color: var(--fg);
+    box-shadow: none;
+  }
+
+  scale > trough > slider:disabled {
+    background-color: var(--muted);
+  }
+  ```
+
+  A knob of `--fg`, the colour of an off switch's knob, and `--muted` while insensitive, no `opacity`. The theme's `:hover` and `:active` knobs are not repeated: the app's rule overrides them all, since a provider at APPLICATION priority beats the theme's whatever the selector, so the knob does not change colour under the pointer. The focus ring is the scale's own (`scale:focus:focus-visible > trough`, the theme's).
+- **The margin is the bar's height.** GTK sizes the trough from its slider: the slider's size less its margins, plus the trough's 1 px borders. The theme's pin leaves 2 px (22 − 20) and the trough 4 px. The knob's 16 px with a margin of −7 px on every side leaves 2 px as well, so the trough, the bar, the scale (34 px with its marks) and the rows keep their sizes. Measured: before and after, the range rectangle is 296 × 4 px and the scale 34 px high. With a margin of −8 px the trough fell to 2 px, and the bar with it.
+- **The test** pins the outcome, not the lengths: for both scales, `slider_range()` spans 16 px and `range_rect()` is 4 px high.
+- **The mockups** draw the two scales with a 4 px bar (1 px border, the fill up to the knob in `--accent`) and a round 16 px knob in `--fg`, `--muted` when insensitive, in WebKit's and Firefox's range pseudo-elements.
+- **The pointer target.** The knob is 16 × 16 px, under WCAG 2.2 SC 2.5.8's 24 × 24 px. The criterion's **spacing** exception holds as for the switches: no other target lies within 4 px of it (the rows are 14 px apart and the marks are labels), and a click or tap on the bar moves the knob there, so the control has a larger target than the knob. The scale keeps its keyboard operation (arrows, Home and End).
 
 ## Banners
 
@@ -1442,6 +1473,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | A change of either setting is refused: the controls stay on the saved state | The overlay label ([Refused changes](#refused-changes)) | — |
 | Labels beside their controls, left-aligned, with the space between cut to a 24 px gap (owner, 2026-11-18) | Every row of the Configuration page and of the Startup card on the off screen: [Rows](#rows) | configuration, one-gpu, boot-partly, boot-off |
 | The switches (Use system theme, Peak dots, Start at boot) a little smaller (owner, 2026-11-18); the rotation and unit toggles unchanged | 32 × 18 px: [The switches](#the-switches) | configuration, boot-off |
+| The scales' knobs smaller, the bars as they were (owner, 2026-11-19) | A round 16 px knob: [The scales' knobs](#the-scales-knobs) | configuration |
 | The preview column holds the picture, its caption, the lost reading's reason and the status; no "Shown on the cooler now", and no other line under the caption (owner, 2026-11-18) | [Preview column](#preview-column) | every mockup with the column |
 | Both pages reachable with no tab: the gear opens Configuration; the back icon, the gear again, Escape and Alt+Left return to Display | Header bar; the Configuration page's bar; [Keyboard](#keyboard) | display, configuration |
 | The app closes from its own window | The close icon at the right of the header bar (the desktop's window buttons are off), Ctrl+W, Ctrl+Q | every mockup |
@@ -1576,6 +1608,8 @@ The points the Configuration rows, the switches and the preview column depend on
 | `GtkGrid` and rows with no visible child | **Unverified:** the class page says nothing of such rows or their spacing. Not relied on: the rows are `GtkBox`es ([Answers decided on 2026-11-19, Task 8](#answers-decided-on-2026-11-19-task-8)) | docs.gtk.org, `Gtk.Grid` |
 | What `min-width` and `min-height` measure | **Unverified:** the CSS Properties page lists them and names no box. Task 1's 34 × 18 doesn't say whether the app's 1 px border was in it. The test pins the switch's outer size, 32 × 18, not the numbers ([The switches](#the-switches)) | docs.gtk.org, GTK CSS Properties; the Task 1 row, "Smaller switches" |
 | The slider's height inside the trough | **Unverified:** `GtkSwitch`'s page lists the nodes `switch`, `image` and `slider` and no sizes. The mockups draw a 14 px knob with 1 px beside the border; the app takes what GTK draws | docs.gtk.org, `Gtk.Switch`, CSS nodes |
+| The knob of a scale with marks in GTK's theme | Verified from GTK 4.24's own stylesheet (the `Default-light.css` resource, read 2026-11-19): a bitmap pin of 22 × 26 px with the margins `-10px` and `-14px`, replaced here by a round knob | libgtk's `/org/gtk/libgtk/theme/Default/Default-light.css` |
+| What sets a scale's trough height | **Measured**, not documented: the slider's size less its negative margins, plus the trough's borders: a 16 px knob with a −7 px margin leaves the trough at 4 px, −8 px at 2 px (GTK 4.24, `gtk_range_get_range_rect`) | Phase 11a Task 27's probe |
 | The pointer target of a 32 × 18 switch | Verified from the criterion's text: SC 2.5.8's spacing exception holds when no other target, nor another undersized target's 24 px circle, lies within the circle centred on the switch's box (3 px beyond it, above and below). The rows are 14 px apart | w3.org, Understanding SC 2.5.8 (Target Size (Minimum)) |
 | Where a form puts a label in a narrow window | KDE's Kirigami `FormLayout` stacks a label above its control when there is no room. The app doesn't: its window isn't resizable (Task 9), and a `GtkBox` can't wrap a control under its label, so the content scrolls sideways | develop.kde.org, Kirigami form layouts (read 2026-11-19; as the search summary gave it, the page itself was not opened) |
 | The `small` style class | **Unverified** whether GTK's own theme defines it; the app's stylesheet doesn't (no match in `crates/odc-app/src`, 2026-11-19). The design never relies on GTK's size: Task 11's type scale gives it 0.83em ([Type](#type)) | grep of the tree |

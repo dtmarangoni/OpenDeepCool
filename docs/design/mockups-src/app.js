@@ -583,7 +583,7 @@ function configPage() {
   }
   const stops = ["Slower", "Slow", "Moderate", "Fast", "Faster"];
   const slider = (id, name, v) => `<div class="row"><div class="row-l"><span id="${id}-l">${name}</span></div>
-    <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" aria-labelledby="${id}-l"
+    <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" style="--p: calc(8px + (100% - 16px) * ${v / 4})" aria-labelledby="${id}-l"
       aria-valuetext="${stops[v]}" aria-label="${name}"${dis()} oninput="setStop('${id}', this.value)">
       <div class="marks">${stops.map((s, i) => `<span class="${i === v ? "on" : ""}">${s}</span>`).join("")}</div></div></div></div>`;
   // The temperature unit, the row after Rotation: the same linked toggles (design, Configuration page, Display).

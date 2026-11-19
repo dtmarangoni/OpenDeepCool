@@ -263,6 +263,25 @@ scale > trough > highlight {
   background-color: var(--accent);
 }
 
+/* The scales' knobs, smaller (owner, 2026-11-19), the troughs as they were. With marks, GTK's
+   theme draws the knob as a bitmap pin 22 x 26 px; this is a plain round one, 16 px, like the
+   switches' knobs. The negative margin of 7 px leaves the knob 2 px of layout, so the trough
+   keeps its 4 px (its border and those 2 px) and the bar is as it was. */
+scale > trough > slider {
+  min-width: 16px;
+  min-height: 16px;
+  margin: -7px;
+  border-style: none;
+  border-radius: 100%;
+  background-image: none;
+  background-color: var(--fg);
+  box-shadow: none;
+}
+
+scale > trough > slider:disabled {
+  background-color: var(--muted);
+}
+
 /* The switches are 32 x 18 outside, well under GTK's 48 x 24 (Window, The switches; owner,
    2026-11-19: smaller than 40 x 22): the 1 px border is outside min-width and min-height, so
    these are 2 px less. */

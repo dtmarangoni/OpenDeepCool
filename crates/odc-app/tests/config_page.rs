@@ -43,7 +43,7 @@ const CHECKS: [(&str, Check); 8] = [
 
 // The rows (Rows): each label block and its control side by side, 24 px apart, left-aligned;
 // the controls of every card start at one x, with or without the GPU row; a long hint wraps at
-// its 28 characters; the switches are 32 x 18; the Startup card's label block shares the
+// its 28 characters; the switches are 32 x 18 and the scales' knobs 16; the Startup card's label block shares the
 // group's width on the page and has its own on the off screen.
 fn rows(app: &gtk::Application) {
     let (window, _) = shown(app);
@@ -104,6 +104,13 @@ fn rows(app: &gtk::Application) {
     assert_eq!(hint.text(), "A dot above each bar that falls slowly");
     assert!(hint.wraps());
     assert_eq!((hint.width_chars(), hint.max_width_chars()), (28, 28));
+    // The scales' knobs are round and 16 px, and the bars keep their 4 px (The scales' knobs).
+    for name in ["Bar fall", "Peak fall"] {
+        let scale = find::<gtk::Scale>(&window, name);
+        let (start, end) = scale.slider_range();
+        assert_eq!(end - start, 16, "{name}: the knob");
+        assert_eq!(scale.range_rect().height(), 4, "{name}: the bar");
+    }
     // The switches.
     for name in ["Peak dots", "Start at boot"] {
         let switch = find::<gtk::Switch>(&window, name);
