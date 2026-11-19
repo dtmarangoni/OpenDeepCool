@@ -171,15 +171,19 @@ fn banners_and_states(app: &gtk::Application) {
     assert_eq!(window.actions_enabled(), [false; 3]);
     assert_eq!(
         window.column_words(),
-        [
-            "No picture",
-            "The service draws the picture",
-            "Cooler: unknown"
-        ]
+        ["No picture", "Cooler: unknown"],
+        "no line under the caption"
+    );
+    assert_eq!(
+        window
+            .names()
+            .description("Cooler display preview")
+            .as_deref(),
+        Some("No picture")
     );
     window.boot(new_install());
     assert_eq!(window.off_heading().as_deref(), Some("OpenDeepCool is off"));
-    assert_eq!(window.column_words()[3], "Service off");
+    assert_eq!(window.column_words()[2], "Service off");
     assert_eq!(
         window.names().description("Service message").as_deref(),
         Some("OpenDeepCool is off. The cooler shows nothing until the display service runs.")
@@ -194,7 +198,7 @@ fn banners_and_states(app: &gtk::Application) {
         window.off_heading().as_deref(),
         Some("OpenDeepCool isn't running")
     );
-    assert_eq!(window.column_words()[3], "Service not running");
+    assert_eq!(window.column_words()[2], "Service not running");
     assert_eq!(window.preview().frame(), None, "all unlit");
     window.boot(all_on());
 
@@ -209,37 +213,40 @@ fn banners_and_states(app: &gtk::Application) {
     assert!(refresh.is_visible() && refresh.is_sensitive());
     assert_eq!(
         window.column_words(),
-        [
-            "Load · CPU",
-            "Shown on the cooler now",
-            "Cooler connected",
-            "Service running"
-        ]
+        ["Load · CPU", "Cooler connected", "Service running"]
     );
-    for (cooler, banner, status, line) in [
+    assert_eq!(
+        window
+            .names()
+            .description("Cooler display preview")
+            .as_deref(),
+        Some("Load · CPU"),
+        "the caption alone while the cooler has the picture"
+    );
+    for (cooler, banner, status, away) in [
         (
             Some(CoolerState::NotFound),
             "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back.",
             "Cooler not connected",
-            "Not on the cooler: it isn't connected",
+            "Not on the cooler: it isn't connected.",
         ),
         (
             Some(CoolerState::NoAccess),
             "The cooler is plugged in, but the service can't open it. The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more.",
             "Cooler: no access",
-            "Not on the cooler: the service can't open it",
+            "Not on the cooler: the service can't open it.",
         ),
         (
             Some(CoolerState::Released),
             "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back.",
             "Cooler not connected",
-            "Not on the cooler: it isn't connected",
+            "Not on the cooler: it isn't connected.",
         ),
         (
             None,
             "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back.",
             "Cooler not connected",
-            "Not on the cooler: it isn't connected",
+            "Not on the cooler: it isn't connected.",
         ),
     ] {
         let mut state = base();
@@ -247,8 +254,16 @@ fn banners_and_states(app: &gtk::Application) {
         window.state(state);
         assert_banners(&window, Some(banner), &format!("{cooler:?}"));
         let words = window.column_words();
-        assert_eq!(words[1], line, "{cooler:?}");
-        assert_eq!(words[2], status, "{cooler:?}");
+        assert_eq!(words.len(), 3, "the column keeps its lines: {cooler:?}");
+        assert_eq!(words[1], status, "{cooler:?}");
+        assert_eq!(
+            window
+                .names()
+                .description("Cooler display preview")
+                .as_deref(),
+            Some(format!("Load · CPU. {away}").as_str()),
+            "{cooler:?}"
+        );
         assert_eq!(
             window.header(),
             [(true, true), (true, true)],
@@ -260,7 +275,7 @@ fn banners_and_states(app: &gtk::Application) {
     let mut state = base();
     state.mode = Some(13);
     window.state(state);
-    assert_eq!(window.column_words()[4], "Sound connected");
+    assert_eq!(window.column_words()[3], "Sound connected");
 
     // The off screen's note was announced when it showed (Accessible names).
     assert_eq!(
@@ -485,7 +500,7 @@ fn sending_fails(app: &gtk::Application) {
             "The cooler is connected, but sending it the picture fails. The service keeps trying by itself, and changes are still saved. The journal says more."
         )
     );
-    assert_eq!(window.column_words()[2], "Cooler: sending fails");
+    assert_eq!(window.column_words()[1], "Cooler: sending fails");
     // Connected again: the banner goes; failing again waits 2 s again.
     window.state(base());
     assert_banners(&window, None, "connected again");

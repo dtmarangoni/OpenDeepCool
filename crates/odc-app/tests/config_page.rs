@@ -21,7 +21,8 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 5] = [
+const CHECKS: [(&str, Check); 6] = [
+    ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
         "the_unit_sits_after_rotation_and_changes_once_the_service_says_so",
@@ -31,6 +32,101 @@ const CHECKS: [(&str, Check); 5] = [
     ("a_refused_change_shows_the_saved_value_again", refused),
     ("the_page_saved_as_a_picture", picture_file),
 ];
+
+// The rows (Rows): each label block and its control side by side, 24 px apart, left-aligned;
+// the controls of every card start at one x, with or without the GPU row; a long hint wraps at
+// its 28 characters; the switches are 40 x 22; the Startup card's label block shares the
+// group's width on the page and has its own on the off screen.
+fn rows(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    let page = window.config_page().cards().clone();
+    let place = |widget: &gtk::Widget| {
+        widget
+            .compute_bounds(&page)
+            .expect("the widget has a place")
+    };
+    let parent = |name: &str| {
+        find::<gtk::Widget>(&window, name)
+            .parent()
+            .expect("a parent")
+    };
+    // Each row's control: the box around the toggles, the dropdown's box, the switch, the scale.
+    let controls: Vec<(&str, gtk::Widget)> = vec![
+        ("Rotation", parent("Rotation 0°")),
+        ("Temperature unit", parent("Celsius")),
+        ("GPU", parent("GPU")),
+        ("Peak dots", find::<gtk::Widget>(&window, "Peak dots")),
+        ("Bar fall", find::<gtk::Widget>(&window, "Bar fall")),
+        ("Peak fall", find::<gtk::Widget>(&window, "Peak fall")),
+        (
+            "Start at boot",
+            find::<gtk::Widget>(&window, "Start at boot"),
+        ),
+    ];
+    let x_of = |name: &str| place(&controls.iter().find(|(n, _)| *n == name).expect(name).1).x();
+    for (name, control) in &controls {
+        let block = control.prev_sibling().expect(name);
+        let (block_box, control_box) = (place(&block), place(control));
+        let gap = control_box.x() - (block_box.x() + block_box.width());
+        assert!(
+            (gap - 24.0).abs() <= 1.0,
+            "{name}: {gap} px between label and control"
+        );
+        assert!(!control.hexpands(), "{name} doesn't expand");
+    }
+    let x0 = x_of("Rotation");
+    for (name, _) in &controls {
+        assert!(
+            (x_of(name) - x0).abs() <= 1.0,
+            "{name} starts at {}, not at {x0}",
+            x_of(name)
+        );
+    }
+    // The unit's hint wraps to two lines at 28 characters.
+    let hint = parent("Celsius")
+        .prev_sibling()
+        .and_then(|block| block.last_child())
+        .and_then(|w| w.downcast::<gtk::Label>().ok())
+        .expect("the unit's hint");
+    assert_eq!(hint.layout().line_count(), 2, "{}", hint.text());
+    // The switches.
+    for name in ["Peak dots", "Start at boot"] {
+        let switch = find::<gtk::Switch>(&window, name);
+        // The outside size, border included: `width()` is the content box, 2 px less.
+        let bounds = place(switch.upcast_ref());
+        assert_eq!((bounds.width(), bounds.height()), (40.0, 22.0), "{name}");
+    }
+    // The Startup card's block: the group's width here, its own on the off screen.
+    let startup_block = |window: &Window| {
+        window
+            .startup()
+            .switch()
+            .parent()
+            .and_then(|row| row.first_child())
+            .expect("the Startup row's block")
+    };
+    let group_width = place(&controls[0].1.prev_sibling().expect("a block")).width();
+    let on_page = startup_block(&window).width() as f32;
+    assert!(
+        (on_page - group_width).abs() <= 1.0,
+        "{on_page} px on the page, the group {group_width}"
+    );
+    // The same columns without the GPU row.
+    window.state(base());
+    run_for(Duration::from_millis(250));
+    assert!(
+        window.config_page().gpu_row().is_none(),
+        "one GPU: no GPU row"
+    );
+    for (name, control) in controls.iter().filter(|(n, _)| *n != "GPU") {
+        let moved = place(control).x();
+        assert!((moved - x0).abs() <= 1.0, "{name} moved to {moved}");
+    }
+    close(window);
+}
 
 // The temperature unit is a row of the Display card after Rotation, with the same kind of
 // control; a toggle asks for its unit and shows it once the service's state says so.

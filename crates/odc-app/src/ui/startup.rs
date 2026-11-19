@@ -20,6 +20,10 @@ const NOTE_CHARS: i32 = 64;
 pub struct StartupCard {
     card: gtk::Box,
     heading: gtk::Label,
+    /// The row's label block: in the Configuration page's size group while the card is on the
+    /// page, so its switch starts where the other controls do (Rows).
+    block: gtk::Box,
+    in_group: Cell<bool>,
     switch: gtk::Switch,
     note_box: gtk::Box,
     note_icon: gtk::Image,
@@ -68,7 +72,7 @@ impl StartupCard {
         card.append(&heading);
 
         let switch = gtk::Switch::builder()
-            .halign(gtk::Align::End)
+            .halign(gtk::Align::Start)
             .valign(gtk::Align::Center)
             .build();
         names.name(&switch, boot::TITLE);
@@ -86,7 +90,8 @@ impl StartupCard {
         let left = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(2)
-            .hexpand(true)
+            .halign(gtk::Align::Start)
+            .valign(gtk::Align::Start)
             .build();
         left.append(&small(boot::TITLE, &[]));
         left.append(&small(boot::SUBTITLE, &["muted", "small"]));
@@ -148,6 +153,8 @@ impl StartupCard {
         StartupCard {
             card,
             heading,
+            block: left,
+            in_group: Cell::new(false),
             switch,
             note_box,
             note_icon,
@@ -162,9 +169,22 @@ impl StartupCard {
     }
 
     /// Puts the card at `place`: at the end of `parent`, and the commands inside it, or after it
-    /// in `parent` on the off screen.
-    pub fn place(&self, place: Place, parent: &gtk::Box) {
+    /// in `parent` on the off screen. On the page its label block joins `labels`, the page's
+    /// size group, so the switch starts where the other controls do; on the off screen, where
+    /// the card is alone, it leaves the group and takes only its own width (Rows).
+    pub fn place(&self, place: Place, parent: &gtk::Box, labels: &gtk::SizeGroup) {
         move_to(&self.card, parent);
+        match (place, self.in_group.get()) {
+            (Place::Card, false) => {
+                labels.add_widget(&self.block);
+                self.in_group.set(true);
+            }
+            (Place::OffScreen, true) => {
+                labels.remove_widget(&self.block);
+                self.in_group.set(false);
+            }
+            _ => {}
+        }
         match place {
             Place::Card => move_to(&self.terminal, &self.inside),
             Place::OffScreen => move_to(&self.terminal, parent),

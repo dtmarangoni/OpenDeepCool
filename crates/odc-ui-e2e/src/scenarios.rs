@@ -589,7 +589,6 @@ fn first_start(run: &mut Run) -> Result<String> {
     run.gone("group", "Music sound status")?;
     run.expect_description("image", "Cooler display preview", "Load · CPU")?;
     run.node("label", "Load · CPU")?;
-    run.node("label", "Shown on the cooler now")?;
     run.check_state("toggle button", "Configuration", State::Sensitive, true)?;
     run.check_state("toggle button", "Configuration", State::Pressed, false)?;
     run.check_state("button", "Close", State::Sensitive, true)?;
@@ -1087,8 +1086,9 @@ fn refused(run: &mut Run) -> Result<String> {
     NO_NOTE
 }
 
-/// The cooler's states: one banner at a time, the status and the caption's line, everything
-/// still changeable; `write-failed` as connected for its first 2 s (Banners; States).
+/// The cooler's states: one banner at a time, the status and the preview's description (no line
+/// of the column says it), everything still changeable; `write-failed` as connected for its
+/// first 2 s (Banners; States).
 fn cooler_states(run: &mut Run) -> Result<String> {
     run.reset()?;
     const NOT_CONNECTED: (Option<&str>, &str, &str) = (
@@ -1097,9 +1097,9 @@ fn cooler_states(run: &mut Run) -> Result<String> {
              when it's back.",
         ),
         "Cooler not connected",
-        "Not on the cooler: it isn't connected",
+        "Load · CPU. Not on the cooler: it isn't connected.",
     );
-    for (state, (banner, status, line)) in [
+    for (state, (banner, status, described)) in [
         ("not-found", NOT_CONNECTED),
         (
             "no-access",
@@ -1110,16 +1110,13 @@ fn cooler_states(run: &mut Run) -> Result<String> {
                      PC; if that doesn't help, reinstall OpenDeepCool. The journal says more.",
                 ),
                 "Cooler: no access",
-                "Not on the cooler: the service can't open it",
+                "Load · CPU. Not on the cooler: the service can't open it.",
             ),
         ),
         // The dev copy's own state, and one a later service might send: as not-found.
         ("released", NOT_CONNECTED),
         ("on fire", NOT_CONNECTED),
-        (
-            "connected",
-            (None, "Cooler connected", "Shown on the cooler now"),
-        ),
+        ("connected", (None, "Cooler connected", "Load · CPU")),
     ] {
         run.fake.service.cooler = state;
         run.fake.write()?;
@@ -1129,7 +1126,8 @@ fn cooler_states(run: &mut Run) -> Result<String> {
         }
         run.expect_texts("group", "Cooler status", &[status])
             .map_err(|e| format!("{state}: {e}"))?;
-        run.node("label", line)?;
+        run.expect_description("image", "Cooler display preview", described)
+            .map_err(|e| format!("{state}: {e}"))?;
         // Nothing is disabled.
         let tile = run.node("grid cell", "Load: GPU")?;
         if !run.driver.has(&tile, State::Sensitive)? {
@@ -1142,7 +1140,7 @@ fn cooler_states(run: &mut Run) -> Result<String> {
     thread::sleep(Duration::from_millis(500));
     run.gone("group", "Cooler banner")?;
     run.check_texts("group", "Cooler status", &["Cooler connected"])?;
-    run.node("label", "Shown on the cooler now")?;
+    run.expect_description("image", "Cooler display preview", "Load · CPU")?;
     run.expect_description(
         "group",
         "Cooler banner",
@@ -1154,7 +1152,11 @@ fn cooler_states(run: &mut Run) -> Result<String> {
         return Err(format!("write-failed's banner after {after:?}, not 2 s"));
     }
     run.expect_texts("group", "Cooler status", &["Cooler: sending fails"])?;
-    run.node("label", "Not on the cooler: sending it fails")?;
+    run.expect_description(
+        "image",
+        "Cooler display preview",
+        "Load · CPU. Not on the cooler: sending it fails.",
+    )?;
     run.fake.service.cooler = "connected";
     run.fake.write()?;
     run.gone("group", "Cooler banner")?;
@@ -1401,7 +1403,7 @@ fn boot_on(run: &mut Run) -> Result<String> {
     run.node(
         "label",
         "When it's on, the display service starts at every boot, and the sound for the Music \
-         options at every login. Each change asks for the administrator's password.",
+         options at every login.",
     )?;
     run.page("Display")?;
     NO_NOTE

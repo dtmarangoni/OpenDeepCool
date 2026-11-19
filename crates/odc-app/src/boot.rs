@@ -240,8 +240,7 @@ pub const OFF_SCREEN_TEXT: &str = "The cooler shows nothing until the display se
 pub const TITLE: &str = "Start at boot";
 pub const SUBTITLE: &str = "For the whole PC";
 pub const HINT: &str = "When it's on, the display service starts at every boot, and the sound for \
-                        the Music options at every login. Each change asks for the \
-                        administrator's password.";
+                        the Music options at every login.";
 
 /// A running flip's lines.
 pub const TURNING_ON: &str =

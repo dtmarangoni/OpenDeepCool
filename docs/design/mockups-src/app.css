@@ -92,7 +92,6 @@ button { font: inherit; color: inherit; }
 .side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius); }
 .pv-caption { margin-top: 10px; font-weight: 600; }
-.pv-sub { font-size: 12px; }
 .reason { display: flex; gap: 6px; font-size: 12px; margin-top: 8px; }
 .status { list-style: none; padding: 0; margin: 16px 0 0; font-size: 13px; }
 .status li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
@@ -118,29 +117,38 @@ button { font: inherit; color: inherit; }
 .tile-flag svg { width: 11px; height: 11px; }
 
 .config .card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin-bottom: 14px; }
-.row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
+/* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
+   left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
+   GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
+   from the top (the GPU box, a scale) starts level with the title; a toggle group or a switch centres on the block. */
+.row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
 .row:last-of-type { border-bottom: 0; }
-.row-l { display: flex; flex-direction: column; }
-.row-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
+.row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.row-r.mid { align-self: center; }
+/* The Startup card on the off screen is outside the page's size group: its block takes its own width */
+.off-screen .row-l { width: auto; }
 .hint { display: flex; gap: 6px; font-size: 12px; margin-top: 6px; max-width: 520px; }
-.row-r .hint { margin-top: 0; }
+.row-r .hint { margin-top: 0; max-width: 320px; }
 .dd { position: relative; }
-.dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 340px; padding: 6px 10px; text-align: left; }
-.dd-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 380px; width: max-content; max-width: 600px; background: var(--surface);
+.dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 6px 10px; text-align: left; }
+.dd-pop { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
 .dd-item.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); }
 .dd-check { color: var(--accent); }
-.switch { width: 42px; height: 24px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+/* The switches (design, Configuration page, The switches): 40 x 22 (GTK's own is 48 x 24), an 18 px knob, 1 px from the
+   1 px border. The padding box is 38 x 20, so the knob rests at left 1 and, switched on, at left 19. */
+.switch { width: 40px; height: 22px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
-.switch.on span { left: 21px; background: var(--bg); }
+.switch.on span { left: 19px; background: var(--bg); }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
 .switch.state-on span { background: var(--bg); }
-.switch.handle-on span { left: 21px; }
+.switch.handle-on span { left: 19px; }
 /* The Startup card in the window's body while the service is down, and the terminal commands */
 .empty .boot-card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin: 18px auto 0;
   width: 560px; max-width: 100%; text-align: left; }
@@ -149,7 +157,7 @@ button { font: inherit; color: inherit; }
 .terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
 .terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px ui-monospace, monospace; padding: 4px 8px;
   background: color-mix(in srgb, var(--fg) 8%, transparent); }
-.scale { width: 340px; }
+.scale { width: 320px; }
 .scale input { width: 100%; accent-color: var(--accent); }
 .marks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 .marks span.on { color: var(--fg); font-weight: 600; }

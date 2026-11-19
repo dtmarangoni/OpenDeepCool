@@ -99,7 +99,6 @@ button { font: inherit; color: inherit; }
 .side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius); }
 .pv-caption { margin-top: 10px; font-weight: 600; }
-.pv-sub { font-size: 12px; }
 .reason { display: flex; gap: 6px; font-size: 12px; margin-top: 8px; }
 .status { list-style: none; padding: 0; margin: 16px 0 0; font-size: 13px; }
 .status li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
@@ -125,29 +124,38 @@ button { font: inherit; color: inherit; }
 .tile-flag svg { width: 11px; height: 11px; }
 
 .config .card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin-bottom: 14px; }
-.row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
+/* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
+   left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
+   GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
+   from the top (the GPU box, a scale) starts level with the title; a toggle group or a switch centres on the block. */
+.row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
 .row:last-of-type { border-bottom: 0; }
-.row-l { display: flex; flex-direction: column; }
-.row-r { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; }
+.row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
+.row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.row-r.mid { align-self: center; }
+/* The Startup card on the off screen is outside the page's size group: its block takes its own width */
+.off-screen .row-l { width: auto; }
 .hint { display: flex; gap: 6px; font-size: 12px; margin-top: 6px; max-width: 520px; }
-.row-r .hint { margin-top: 0; }
+.row-r .hint { margin-top: 0; max-width: 320px; }
 .dd { position: relative; }
-.dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; min-width: 340px; padding: 6px 10px; text-align: left; }
-.dd-pop { position: absolute; right: 0; top: calc(100% + 4px); z-index: 5; min-width: 380px; width: max-content; max-width: 600px; background: var(--surface);
+.dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 6px 10px; text-align: left; }
+.dd-pop { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
 .dd-item.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); }
 .dd-check { color: var(--accent); }
-.switch { width: 42px; height: 24px; border-radius: 12px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+/* The switches (design, Configuration page, The switches): 40 x 22 (GTK's own is 48 x 24), an 18 px knob, 1 px from the
+   1 px border. The padding box is 38 x 20, so the knob rests at left 1 and, switched on, at left 19. */
+.switch { width: 40px; height: 22px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: var(--muted); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
-.switch.on span { left: 21px; background: var(--bg); }
+.switch.on span { left: 19px; background: var(--bg); }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
 .switch.state-on span { background: var(--bg); }
-.switch.handle-on span { left: 21px; }
+.switch.handle-on span { left: 19px; }
 /* The Startup card in the window's body while the service is down, and the terminal commands */
 .empty .boot-card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin: 18px auto 0;
   width: 560px; max-width: 100%; text-align: left; }
@@ -156,7 +164,7 @@ button { font: inherit; color: inherit; }
 .terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
 .terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px ui-monospace, monospace; padding: 4px 8px;
   background: color-mix(in srgb, var(--fg) 8%, transparent); }
-.scale { width: 340px; }
+.scale { width: 320px; }
 .scale input { width: 100%; accent-color: var(--accent); }
 .marks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
 .marks span.on { color: var(--fg); font-weight: 600; }
@@ -174,7 +182,7 @@ button { font: inherit; color: inherit; }
 <body>
 <div class="mock-bar" aria-label="Mockup controls">
   <h1>Mockup: Cooler found, no access</h1>
-  <p>The cooler is plugged in, but the service can't open it (no-access), for example because its udev rule is missing or not applied yet. Its own red banner names the fix; nothing is disabled, and the preview still shows the service's picture.</p>
+  <p>The cooler is plugged in, but the service can't open it (no-access), for example because its udev rule is missing or not applied yet. Its own red banner names the fix; nothing is disabled, and the preview still shows the service's picture, with no line under the caption.</p>
   <div class="row2">
     <span class="mock-theme"><span class="label">Theme:</span>
       <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>
@@ -231,6 +239,17 @@ const CONFIG = {"theme": "omarchy", "page": "display", "service": true, "cooler"
 //   page bar holds the back icon and the title "Configuration"; its Display card has the unit row after Rotation.
 // - Keys: Escape or Alt+Left go back from the Configuration page (Escape closes an open GPU list first), Ctrl+,
 //   opens it. After a page change focus goes to the back icon, or to the gear.
+//
+// Rows, switches and the preview column (Phase 11a Task 8, 2026-11-19; docs/design/settings-app.md, Rows, The switches,
+// Preview column). No new CONFIG key: the states are the same, drawn differently.
+// - The preview column holds the picture, the caption, the lost reading's reason and the status items; there is no line
+//   under the caption. That the picture isn't on the cooler (not connected, no access, sending fails) is said by the
+//   banner, the status item and the preview's accessible description (here aria-description on the picture).
+// - A Configuration row is a label block (the title, its hint under it) and its control, side by side and left-aligned,
+//   24 px apart; the label blocks share one width (a GtkSizeGroup in the app, 28 characters here) so the controls start
+//   in one column. The Startup card on the off screen keeps its block at its own width.
+// - The two switches (Peak dots, Start at boot) are 40 x 22 with an 18 px knob.
+// - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -444,9 +463,10 @@ function coolerState() {
   const st = S.coolerState === undefined ? (S.cooler ? "connected" : "not-found") : S.coolerState;
   return COOLER_STATES.includes(st) ? st : "not-found";
 }
-// Per state: the status dot, the status text, and the line under the preview's caption.
+// Per state: the status dot, the status text, and the words the preview's accessible description adds after the
+// caption while the picture isn't on the cooler (design, Preview column). Nothing is drawn under the caption.
 const COOLER = {
-  "connected": ["good", "Cooler connected", "Shown on the cooler now"],
+  "connected": ["good", "Cooler connected", ""],
   "not-found": ["warn", "Cooler not connected", "Not on the cooler: it isn't connected"],
   "no-access": ["bad", "Cooler: no access", "Not on the cooler: the service can't open it"],
   "write-failed": ["warn", "Cooler: sending fails", "Not on the cooler: sending it fails"]
@@ -550,10 +570,10 @@ function bootCard(where) {
   const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
   return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
     <div class="row"><div class="row-l"><span>Start at boot</span><span class="muted small">For the whole PC</span></div>
-      <div class="row-r">${bootSwitch(note)}</div></div>
+      <div class="row-r mid">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
     ${note && note.cmds && where === "config" ? terminalBlock(note.cmds, note.lead) : ""}
-    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password.</span></div>
+    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login.</span></div>
   </section>`;
 }
 
@@ -612,12 +632,14 @@ function side() {
     if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
   }
-  let caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
-  let sub = !S.service ? "The service draws the picture" : COOLER[coolerState()][2];
+  const caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
+  // The picture's accessible description (design, Preview column): the caption, then, while the cooler isn't showing
+  // the picture, the words of the cooler's state. Nothing is drawn under the caption.
+  const note = S.service ? COOLER[coolerState()][2] : "";
+  const desc = note ? `${caption}. ${note}.` : caption;
   return `<aside class="side">
-    <div class="preview" role="img" aria-label="Cooler display preview" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
+    <div class="preview" role="img" aria-label="Cooler display preview" aria-description="${esc(desc)}" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
     <div class="pv-caption">${esc(caption)}</div>
-    <div class="pv-sub muted">${sub}</div>
     ${lost ? `<div class="reason warn-text" role="status" aria-label="Unavailable reading">${ICON.warn}<span>${METRIC[lost.metric]}: ${esc(lost.reason)}. The cooler shows dashes until it's back.</span></div>` : ""}
     <ul class="status" aria-label="Status">${status}</ul>
   </aside>`;
@@ -699,14 +721,14 @@ function configPage() {
   return pageBar("config") + `<div class="page-scroll"><div class="page config">
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
       <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span><span class="muted small">Used wherever the display shows a temperature</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
       ${gpuRow}
     </section>
     <section class="card" aria-label="Music settings"><h3>Music</h3>
       <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
-        <div class="row-r"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
+        <div class="row-r mid"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
       ${slider("bar", "Bar fall", S.barFall)}
       ${slider("peak", "Peak fall", S.peakFall)}
       <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>

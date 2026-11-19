@@ -87,7 +87,6 @@ struct StatusRow {
 
 struct ColumnWidgets {
     caption: gtk::Label,
-    line: gtk::Label,
     reason_box: gtk::Box,
     reason: gtk::Label,
     status: [StatusRow; 3],
@@ -225,7 +224,6 @@ impl Window {
             .build();
         frame.append(preview.widget());
         let caption = label("", &["caption"]);
-        let line = label("", &["muted", "small"]);
         let reason = label("", &["warn-text", "small"]);
         // A label's fixed name goes on a group around it: GTK names a label by its own text,
         // again at each change, so a name never sticks to it (decisions log D72).
@@ -262,13 +260,12 @@ impl Window {
         column_box.add_css_class("side");
         column_box.set_hexpand(false);
         column_box.set_width_request(COLUMN_WIDTH);
-        for line in [&caption, &line, &reason] {
+        for line in [&caption, &reason] {
             line.set_max_width_chars(COLUMN_CHARS);
         }
         for widget in [
             frame.upcast_ref::<gtk::Widget>(),
             caption.upcast_ref(),
-            line.upcast_ref(),
             reason_box.upcast_ref(),
             status_box.upcast_ref(),
         ] {
@@ -426,7 +423,6 @@ impl Window {
             note_said: RefCell::new(None),
             column: ColumnWidgets {
                 caption,
-                line,
                 reason_box,
                 reason,
                 status,
@@ -746,7 +742,11 @@ impl Window {
                     .display
                     .show(&inner.names, &normal.display, normal.config.peaks);
                 inner.config.show(&inner.names, &normal.config);
-                inner.startup.place(Place::Card, inner.config.cards());
+                inner.startup.place(
+                    Place::Card,
+                    inner.config.cards(),
+                    inner.config.label_group(),
+                );
                 inner.startup.show(&inner.names, &normal.startup);
                 self.announce_note(normal.startup.note.as_ref());
             }
@@ -759,7 +759,7 @@ impl Window {
     fn show_off_screen(&self, screen: &boot::OffScreen) {
         let inner = &self.0;
         let startup = &inner.startup;
-        startup.place(Place::OffScreen, &inner.off);
+        startup.place(Place::OffScreen, &inner.off, inner.config.label_group());
         let Some(heading) = screen.heading else {
             inner.off_message.set_visible(false);
             startup.hide_all();
@@ -807,8 +807,7 @@ impl Window {
         let widgets = &self.0.column;
         let names = &self.0.names;
         widgets.caption.set_text(&column.caption);
-        widgets.line.set_text(column.line);
-        names.describe(self.0.preview.widget(), Some(&column.caption));
+        names.describe(self.0.preview.widget(), Some(&column.description()));
         widgets.reason_box.set_visible(column.reason.is_some());
         widgets
             .reason
@@ -916,10 +915,10 @@ impl Window {
         &self.0.header.gear
     }
 
-    /// The column's words: caption, line, reason and the status items shown.
+    /// The column's words: caption, reason and the status items shown.
     pub fn column_words(&self) -> Vec<String> {
         let c = &self.0.column;
-        let mut words = vec![c.caption.text().to_string(), c.line.text().to_string()];
+        let mut words = vec![c.caption.text().to_string()];
         if c.reason_box.is_visible() {
             words.push(c.reason.text().to_string());
         }

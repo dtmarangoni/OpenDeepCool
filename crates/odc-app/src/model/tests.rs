@@ -254,7 +254,7 @@ fn base_view() -> Normal {
         banner: None,
         column: Column {
             caption: "Temperature · CPU + GPU".to_owned(),
-            line: "Shown on the cooler now",
+            away: None,
             reason: None,
             status: vec![CONNECTED, RUNNING],
         },
@@ -427,11 +427,12 @@ fn first_start() {
     assert_eq!(view_of(state), want);
 }
 
-/// The base view with the cooler shown as `status`, `line` and `banner`.
-fn cooler_view(status: (&'static str, Dot), line: &'static str, banner: Option<Banner>) -> Normal {
+/// The base view with the cooler shown as `status`, `away` (why the picture isn't on the
+/// cooler, in the preview's description) and `banner`.
+fn cooler_view(status: (&'static str, Dot), away: &'static str, banner: Option<Banner>) -> Normal {
     let mut want = base_view();
     want.banner = banner;
-    want.column.line = line;
+    want.column.away = Some(away);
     want.column.status[0] = Status {
         name: "Cooler status",
         text: status.0,
@@ -449,7 +450,7 @@ fn cooler_not_found() {
         view_of(state),
         cooler_view(
             ("Cooler not connected", Dot::Warn),
-            "Not on the cooler: it isn't connected",
+            "Not on the cooler: it isn't connected.",
             Some(Banner::NotConnected)
         )
     );
@@ -464,7 +465,7 @@ fn cooler_no_access() {
         view_of(state),
         cooler_view(
             ("Cooler: no access", Dot::Bad),
-            "Not on the cooler: the service can't open it",
+            "Not on the cooler: the service can't open it.",
             Some(Banner::NoAccess)
         )
     );
@@ -488,7 +489,7 @@ fn cooler_sending_fails_for_2_s() {
         view_with(state, ui),
         cooler_view(
             ("Cooler: sending fails", Dot::Warn),
-            "Not on the cooler: sending it fails",
+            "Not on the cooler: sending it fails.",
             Some(Banner::SendingFails)
         )
     );
@@ -501,6 +502,50 @@ fn cooler_sending_fails_under_2_s() {
     let mut state = base();
     state.cooler_state = Some(CoolerState::WriteFailed);
     assert_eq!(view_of(state), base_view());
+}
+
+// The preview's description (Preview column, by state): the caption alone while the cooler has
+// the picture, then the caption and why it hasn't; the column has no line of its own for it.
+#[test]
+fn the_previews_description_says_why_the_picture_isnt_on_the_cooler() {
+    let caption = "Temperature · CPU + GPU";
+    let described = |cooler: Option<CoolerState>, long: bool| {
+        let mut state = base();
+        state.cooler_state = cooler;
+        let ui = Ui {
+            sending_failed_long: long,
+            ..Ui::default()
+        };
+        view_with(state, ui).column.description()
+    };
+    assert_eq!(described(Some(CoolerState::Connected), false), caption);
+    assert_eq!(described(Some(CoolerState::WriteFailed), false), caption);
+    assert_eq!(
+        described(Some(CoolerState::NotFound), false),
+        format!("{caption}. Not on the cooler: it isn't connected.")
+    );
+    assert_eq!(
+        described(Some(CoolerState::Released), false),
+        format!("{caption}. Not on the cooler: it isn't connected.")
+    );
+    assert_eq!(
+        described(Some(CoolerState::NoAccess), false),
+        format!("{caption}. Not on the cooler: the service can't open it.")
+    );
+    assert_eq!(
+        described(Some(CoolerState::WriteFailed), true),
+        format!("{caption}. Not on the cooler: sending it fails.")
+    );
+    // The service down: "No picture", and nothing about the cooler.
+    let View::ServiceDown(down) = view(
+        &Service::Down,
+        Ui::default(),
+        &HashMap::new(),
+        &Boot::default(),
+    ) else {
+        panic!("the off screen");
+    };
+    assert_eq!(down.column.description(), "No picture");
 }
 
 // The 2 s on a fake clock: the wait starts when the state becomes `write-failed`, a timer is
@@ -556,7 +601,7 @@ fn service_not_running() {
         }));
         Column {
             caption: "No picture".to_owned(),
-            line: "The service draws the picture",
+            away: None,
             reason: None,
             status,
         }
@@ -794,7 +839,7 @@ fn another_cooler_state() {
             view_of(state),
             cooler_view(
                 ("Cooler not connected", Dot::Warn),
-                "Not on the cooler: it isn't connected",
+                "Not on the cooler: it isn't connected.",
                 Some(Banner::NotConnected)
             ),
             "{state_value:?}"
@@ -908,7 +953,7 @@ fn texts(view: &View) -> Vec<String> {
     let mut out = Vec::new();
     let mut column = |c: &Column| {
         out.push(c.caption.clone());
-        out.push(c.line.to_owned());
+        out.extend(c.away.map(str::to_owned));
         out.extend(c.reason.clone());
         out.extend(c.status.iter().map(|s| s.text.to_owned()));
     };

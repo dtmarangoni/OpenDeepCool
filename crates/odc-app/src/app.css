@@ -253,7 +253,11 @@ scale > trough > highlight {
   background-color: var(--accent);
 }
 
+/* The switches are 40 x 22 outside, a little under GTK's 48 x 24 (Window, The switches): the
+   1 px border is outside min-width and min-height, so these are 2 px less. */
 switch {
+  min-width: 38px;
+  min-height: 20px;
   background-color: var(--ctl-normal-fill);
   border: 1px solid var(--ctl-normal-border);
 }
@@ -263,6 +267,8 @@ switch:checked {
 }
 
 switch > slider {
+  min-width: 18px;
+  min-height: 18px;
   background-color: var(--fg);
 }
 

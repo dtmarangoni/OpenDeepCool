@@ -193,7 +193,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "display.html",
             "Display screen",
-            "The mode screen: the header with the title in the middle and a gear and a close icon at the right; the page bar with the Display title and the Refresh icon; 23 mode tiles in four groups; the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU). Click the gear for Configuration.",
+            "The mode screen: the header with the title in the middle and a gear and a close icon at the right; the page bar with the Display title and the Refresh icon; 23 mode tiles in four groups; the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU). Nothing stands under the preview's caption but the status items. Click the gear for Configuration.",
             base(),
         ),
         page(
@@ -211,7 +211,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. Rotation, Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
+            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. Rotation, Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it. Each label sits beside its control, left-aligned, with the controls in one column; the Peak dots and Start at boot switches are 40 × 22.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -245,7 +245,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "cooler-disconnected.html",
             "Cooler disconnected",
-            "The service finds no cooler (not-found). Everything still works and is saved; the banner and the status line say the cooler isn't connected.",
+            "The service finds no cooler (not-found). Everything still works and is saved; the banner and the cooler's status item say the cooler isn't connected, and no line under the caption does.",
             base()
                 .with("cooler", Json::Bool(false))
                 .with("coolerState", s("not-found")),
@@ -253,7 +253,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "cooler-no-access.html",
             "Cooler found, no access",
-            "The cooler is plugged in, but the service can't open it (no-access), for example because its udev rule is missing or not applied yet. Its own red banner names the fix; nothing is disabled, and the preview still shows the service's picture.",
+            "The cooler is plugged in, but the service can't open it (no-access), for example because its udev rule is missing or not applied yet. Its own red banner names the fix; nothing is disabled, and the preview still shows the service's picture, with no line under the caption.",
             base()
                 .with("cooler", Json::Bool(false))
                 .with("coolerState", s("no-access")),
@@ -261,7 +261,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "cooler-write-failed.html",
             "Sending to the cooler fails",
-            "The cooler opens, but writing the picture to it keeps failing (write-failed for 2 s or more; a shorter failure, such as while the cooler is unplugged, shows nothing). The banner says the service keeps trying.",
+            "The cooler opens, but writing the picture to it keeps failing (write-failed for 2 s or more; a shorter failure, such as while the cooler is unplugged, shows nothing). The banner says the service keeps trying, and the status item reads \"Cooler: sending fails\".",
             base()
                 .with("cooler", Json::Bool(false))
                 .with("coolerState", s("write-failed")),

@@ -53,10 +53,12 @@ pub fn page_bar(
     bar
 }
 
-/// A scrolled window holding `child`, vertical only.
+/// A scrolled window holding `child`: vertically as the content needs, and sideways only where
+/// the window is narrower than the content's own minimum (Rows, Narrow windows), so the
+/// content's minimum never sets the window's.
 pub fn scrolled(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
     gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Never)
+        .hscrollbar_policy(gtk::PolicyType::Automatic)
         .hexpand(true)
         .vexpand(true)
         .child(child)

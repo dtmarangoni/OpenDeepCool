@@ -702,7 +702,7 @@ fn the_commands_and_the_card_s_words_as_the_design_writes_them() {
     assert_eq!(
         HINT,
         "When it's on, the display service starts at every boot, and the sound for the Music \
-         options at every login. Each change asks for the administrator's password."
+         options at every login."
     );
     assert_eq!((TITLE, SUBTITLE), ("Start at boot", "For the whole PC"));
     assert_eq!(

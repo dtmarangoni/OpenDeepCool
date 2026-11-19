@@ -69,6 +69,8 @@ pub struct ConfigPage {
     root: gtk::Box,
     /// The box the cards are in: the Startup card moves into it.
     cards: gtk::Box,
+    /// Every row's label block, in one horizontal size group.
+    labels: gtk::SizeGroup,
     back: gtk::Button,
     rotations: [gtk::ToggleButton; 4],
     celsius: gtk::ToggleButton,
@@ -97,24 +99,47 @@ fn small(text: &str, classes: &[&str]) -> gtk::Label {
         .build()
 }
 
-/// A card's row: the setting's name and hint on the left, its control on the right.
+/// The most characters a hint under a row's title asks room for: the label block, and so the
+/// column of controls, stays about this wide (Rows).
+const HINT_WIDTH_CHARS: i32 = 28;
+
+/// A card's row (`docs/design/settings-app.md`, Rows): the label block, the setting's title with
+/// its hint under it, then the control, 24 px apart and left-aligned, nothing expanding. Every
+/// label block is in `labels`, so the controls of all the cards start at one x. `centred` puts
+/// the control level with the middle of the block (the toggles and the switches), else with its
+/// top (the dropdown and the scales).
 fn row(
     card: &gtk::Box,
+    labels: &gtk::SizeGroup,
     title: &str,
     hint: Option<&str>,
     control: &impl IsA<gtk::Widget>,
+    centred: bool,
 ) -> gtk::Box {
     let line = gtk::Box::builder().spacing(24).build();
-    let left = gtk::Box::builder()
+    let block = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(2)
-        .hexpand(true)
+        .halign(gtk::Align::Start)
+        .valign(gtk::Align::Start)
         .build();
-    left.append(&small(title, &[]));
+    block.append(&small(title, &[]));
     if let Some(hint) = hint {
-        left.append(&small(hint, &["muted", "small"]));
+        let hint = small(hint, &["muted", "small"]);
+        hint.set_wrap_mode(gtk::pango::WrapMode::Word);
+        hint.set_width_chars(HINT_WIDTH_CHARS);
+        hint.set_max_width_chars(HINT_WIDTH_CHARS);
+        block.append(&hint);
     }
-    line.append(&left);
+    labels.add_widget(&block);
+    control.set_halign(gtk::Align::Start);
+    control.set_hexpand(false);
+    control.set_valign(if centred {
+        gtk::Align::Center
+    } else {
+        gtk::Align::Start
+    });
+    line.append(&block);
     line.append(control);
     card.append(&line);
     line
@@ -137,7 +162,8 @@ fn card(root: &gtk::Box, heading: &str, name: &str, names: &Names) -> gtk::Box {
 /// widening its control.
 const HINT_CHARS: i32 = 40;
 
-fn right(width: i32) -> gtk::Box {
+/// A control made of several lines, `width` wide.
+fn control_box(width: i32) -> gtk::Box {
     gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .spacing(6)
@@ -169,6 +195,8 @@ impl ConfigPage {
             .margin_start(18)
             .margin_end(18)
             .build();
+        // Every row's label block, so the controls of all the cards start at one x (Rows).
+        let labels = gtk::SizeGroup::new(gtk::SizeGroupMode::Horizontal);
         let confirmed = Rc::new(RefCell::new(Confirmed::default()));
         let applying = Rc::new(Cell::new(false));
         let asked: Rc<[Cell<Option<FallStop>>; 2]> = Rc::new([Cell::new(None), Cell::new(None)]);
@@ -213,9 +241,11 @@ impl ConfigPage {
         }
         row(
             &display,
+            &labels,
             "Rotation",
             Some("Turns the picture clockwise"),
             &toggles,
+            true,
         );
 
         // The temperature unit, after Rotation: the same kind of control.
@@ -259,9 +289,11 @@ impl ConfigPage {
         }
         row(
             &display,
+            &labels,
             "Temperature unit",
             Some("Used wherever the display shows a temperature"),
             &unit_toggles,
+            true,
         );
 
         let gpu = Dropdown::new();
@@ -274,15 +306,17 @@ impl ConfigPage {
         for line in [&gpu_in_use, &gpu_hint] {
             line.set_max_width_chars(HINT_CHARS);
         }
-        let gpu_box = right(320);
+        let gpu_box = control_box(320);
         gpu_box.append(gpu.widget());
         gpu_box.append(&gpu_in_use_group);
         gpu_box.append(&gpu_hint);
         let gpu_row = row(
             &display,
+            &labels,
             "GPU",
             Some("Where the display's GPU values come from"),
             &gpu_box,
+            false,
         );
         let (s, c) = (Rc::clone(&send), Rc::clone(&confirmed));
         gpu.connect_picked(move |position| {
@@ -293,10 +327,7 @@ impl ConfigPage {
 
         // Music: the peak dots and the two falls.
         let music = card(&root, "Music", "Music settings", names);
-        let peaks = gtk::Switch::builder()
-            .halign(gtk::Align::End)
-            .valign(gtk::Align::Center)
-            .build();
+        let peaks = gtk::Switch::builder().build();
         names.name(&peaks, "Peak dots");
         let (s, a) = (Rc::clone(&send), Rc::clone(&applying));
         // The switch keeps its state until the service confirms the change (GtkSwitch's
@@ -309,9 +340,11 @@ impl ConfigPage {
         });
         row(
             &music,
+            &labels,
             "Peak dots",
             Some("A dot above each bar that falls slowly"),
             &peaks,
+            true,
         );
         let bar_fall = scale(names, "Bar fall");
         let peak_fall = scale(names, "Peak fall");
@@ -344,8 +377,8 @@ impl ConfigPage {
                 });
             });
         }
-        row(&music, "Bar fall", None, &bar_fall);
-        row(&music, "Peak fall", None, &peak_fall);
+        row(&music, &labels, "Bar fall", None, &bar_fall, false);
+        row(&music, &labels, "Peak fall", None, &peak_fall, false);
         music.append(&small(
             "For every Music option except Dancer. Changes show on the next frame.",
             &["muted", "small"],
@@ -364,6 +397,7 @@ impl ConfigPage {
         ConfigPage {
             root: page,
             cards: root,
+            labels,
             back,
             rotations,
             celsius,
@@ -390,6 +424,11 @@ impl ConfigPage {
     /// The box the cards are in.
     pub fn cards(&self) -> &gtk::Box {
         &self.cards
+    }
+
+    /// The size group of the rows' label blocks, which the Startup card joins on this page.
+    pub fn label_group(&self) -> &gtk::SizeGroup {
+        &self.labels
     }
 
     /// The back icon, which takes the focus when the page opens.

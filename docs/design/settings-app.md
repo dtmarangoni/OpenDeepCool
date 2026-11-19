@@ -32,6 +32,9 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D10 | The window while the service isn't running (2026-11-11, revised the same day) | One screen, the **off screen**, with no banner: the heading "OpenDeepCool is off" (the display service doesn't start at boot) or "OpenDeepCool isn't running" (it does, but it's stopped, failed or starting), the Startup card with its note, and the terminal commands. The red service banner is gone | The switch now reads off whenever OpenDeepCool isn't ready, and a flip on starts a stopped service, so the switch is the fix in every case. A banner would say the same thing as the note, and its terminal command would come before the app's own control. The heading and the status dot ("Service off", hollow, or "Service not running", red) still tell a deliberate off from a fault |
 | D11 | What the switch reads (2026-11-11, revised the same day: "on means ready to use", owner) | **On** only when the display service starts at boot and runs, and the sound starts at every login and runs in this session. Anything else reads **off**, with **one note** built from what's missing: at most one phrase for the display service and one for the sound ([The note](#the-note)) | A flip on always finishes the setup and starts what isn't running, so off-with-a-note is always one flip from ready. One composed note needs 7 phrases, against 15 combinations to word one by one, and still says exactly what's missing |
 | D12 | The header, the page change, Refresh and the temperature unit (Phase 11a Task 7, 2026-11-19, from the owner's review of 2026-11-18) | The header bar holds the centred title and, at the right, two frameless icon buttons: a gear toggle (Configuration) and a close icon. Each page has its own **page bar**: Display has the title "Display" and the Refresh icon at the right; Configuration has a back icon at the start and the title "Configuration". The two pages are two children of one `GtkStack` with no transition. The temperature unit is a row of the Configuration page's Display card, after Rotation | The page change is one icon and one icon back, with no tab to explain. Every control stays a single click or key. The options weighed are in [Answers decided on 2026-11-19](#answers-decided-on-2026-11-19) |
+| D13 | The preview column's line under the caption (Phase 11a Task 8, 2026-11-19, from the owner's review of 2026-11-18) | Gone in every state. What it said lives in the cooler banner, the cooler's status item and the preview's accessible description ([Preview column](#preview-column)). The column is the picture, its caption, the lost reading's reason when there is one, and the status items | In the one state where nothing is wrong it said "Shown on the cooler now", and in the three failures it repeated the banner above the window and the status item right below it. Without the line the column has the same layout in every cooler state, so nothing under the caption jumps when the cooler comes and goes |
+| D14 | The Configuration page's rows (Task 8) | A row is its **label block** (the title, with its hint under it) and its **control**, side by side and left-aligned: one horizontal `GtkBox` per row, one `GtkSizeGroup` over every label block of the page so the controls start in one column, a 24 px gap, and nothing that expands ([Rows](#rows)) | Labels beside their controls, with the space between them cut to the gap (owner, 2026-11-18). Sizing the label column from one group keeps the controls' left edges straight, which a row-by-row layout wouldn't |
+| D15 | The switches' size (Task 8) | 40 × 22 px for the two `GtkSwitch`es, from GTK's 48 × 24 ([The switches](#the-switches)) | "A little smaller" is a sixth narrower and a twelfth lower: seen at once, still a switch. 34 × 18, which Task 1 measured, is 29 % narrower and 25 % lower |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -97,6 +100,29 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
 - **The temperature unit's control:** (a) a `GtkDropDown`: two choices behind a click; (b) a `GtkSwitch` "Fahrenheit": a switch is for on and off, and °C isn't "off"; (c) **chosen:** the two linked toggles that Rotation has. Both choices show, it's one click, the widgets and their names are the ones the Display page had, and "each control is one D-Bus call, shown as the service confirms it" stays as it was.
 - **The shortcuts:** Ctrl+1 and Ctrl+2 went with the tabs. GNOME's standard list gives Preferences Ctrl+, and Back Alt+← (developer.gnome.org/hig, Keyboard, read 2026-11-19), and libadwaita's navigation view goes back with Escape and Alt+← (its `AdwNavigationView` page, read 2026-11-19), so the app binds Ctrl+, (open Configuration), and Escape and Alt+Left (back), the last two only while the Configuration page shows, so Escape is free everywhere else. F5 and Ctrl+R stay for Refresh. The mouse's back button isn't bound: nobody asked.
 - **Where the "Refreshed" and refusal label sits:** it was at the top right of the content, which is where Refresh is now. It moves to the bottom centre of the content, as the mockups' toast always drew it, so it never hides a control.
+
+### Answers decided on 2026-11-19, Task 8
+
+Decided under the same delegation, for the owner's four items of 2026-11-18 that are about structure and sizes: the preview column's line, the Start at boot hint, the Configuration page's rows and the switches. Each choice, with the options weighed:
+
+- **The preview column's "Not on the cooler: …" lines** (the owner removed "Shown on the cooler now"; the plan left these three to the design):
+  - (a) keep them as one line that shows only while the cooler can't show the picture: the facts stay visible, but the line says again what the banner above the window and the status item right below it say, and it adds a row to the column that comes and goes with the cooler, so the status items under it jump when a cooler is plugged in;
+  - (b) fold them into the status items by lengthening their words ("Cooler not connected: not shown"): the items get longer than the 226 px column's lines, and the information is still the banner's;
+  - (c) **chosen:** the line goes in every state, and its sentence becomes the second sentence of the preview's accessible description. The banner has the full text and the fix, the status item the state in two or three words, and the picture's own description, which is what a screen reader reads when it reaches the picture, says that the picture isn't on the cooler. Nothing is lost, the column keeps one layout, and a sighted user is told twice, not three times.
+  - The service-down line, "The service draws the picture", goes with it: the off screen says "The cooler shows nothing until the display service runs." in the window's body, and the column's caption says "No picture".
+- **The Start at boot hint:** the second sentence, "Each change asks for the administrator's password.", is removed (owner, 2026-11-18). The password is said where it matters: the line "Turning on… Your desktop asks for the administrator's password first." shows the moment a flip starts, and the desktop's own dialog is the authority. The hint keeps its first sentence.
+- **How a Configuration row is laid out:**
+  - (a) keep the row as it is, label block expanding and the control at the right edge: the owner's complaint;
+  - (b) a `GtkGrid` per card, label block in column 0 and control in column 1: right, but a hidden row (the GPU row on a PC with one GPU) must hide two cells, and whether the grid then drops that row's spacing is not in the documentation (**unverified**). The page would also need one grid per card, with three columns of controls that don't align between cards;
+  - (c) **chosen:** one horizontal `GtkBox` per row, the label block and the control, with one `GtkSizeGroup` over the page's label blocks. A row stays one widget (the GPU row hides with one `set_visible`, as it does today), the controls of all the cards start at one x, and the existing `row()` helper keeps its shape.
+  - **Where the hint goes**, with the title in the block:
+    - (c1) **chosen:** under the title, in the label block, wrapping at 28 characters. The title and its explanation stay together, as the rows had them, and the block is about 28 characters wide, not the 45 of the longest hint;
+    - (c2) under the control, in the control's column, as a form layout does: the label column would be only as wide as the longest title, the tightest layout, but the explanations move away from their titles, a switch gets a caption under it, and the GPU's static hint would join its two dynamic lines under the dropdown. If the owner still finds the gap wide after this review, (c2) is the next step, and a change to the same two helpers.
+  - **Stacking in a narrow window** (KDE's Kirigami `FormLayout` puts a label above its control when there's no room): no. The window isn't resizable by the user (Task 9), so a page is narrow only on a small monitor, where the page scrolls ([Rows](#rows), Narrow windows), and a `GtkBox` can't wrap a control under its label anyway.
+- **The switches' size:**
+  - (a) 34 × 18, the size Task 1 measured: 29 % narrower and 25 % lower than GTK's 48 × 24, which is more than "a little bit smaller" (owner, 2026-11-18), with a 14 px knob and a pointer target 6 px under WCAG 2.2's 24 px minimum;
+  - (b) 36 × 20: 25 % narrower and 17 % lower, still a clear step down, with a 4 px shortfall on the target;
+  - (c) **chosen:** 40 × 22. The width falls by a sixth and the height by a twelfth, so the change is plain at a glance and the pill keeps a ratio (1.8 : 1) near GTK's (2 : 1). The height is 2 px under WCAG 2.2's 24 px target minimum, so the spacing exception is the rule that holds ([The switches](#the-switches)).
 
 ## Window
 
@@ -173,17 +199,29 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
   - `queue_draw()` runs only when a new frame differs from the last one. A static picture costs nothing; a moving one redraws at the cooler's 100 ms tick.
   - It also redraws once on a theme change.
   - The app watches frames (`WatchFrames()`) only while the window is mapped, and stops watching when it's hidden or minimised.
-- **Caption:** the current mode, `<group> · <option>` (for example "Temperature · CPU + GPU"). Below it, one line, from `CoolerState` ([Banners](#banners)):
-  - "Shown on the cooler now" (`connected`, and `write-failed` in its first 2 s);
-  - "Not on the cooler: it isn't connected" (`not-found`);
-  - "Not on the cooler: the service can't open it" (`no-access`);
-  - "Not on the cooler: sending it fails" (`write-failed` for 2 s or more);
-  - "No picture", with "The service draws the picture" under it, while the service isn't running.
-- **Reason line**, when the saved mode has lost a reading: a warning icon and `<metric>: <reason>. The cooler shows dashes until it's back.` The reason text comes from the service (`UnavailableReasons`).
+- **Caption:** the current mode, `<group> · <option>` (for example "Temperature · CPU + GPU"), or "No picture" while the service isn't running. A `GtkLabel`, class `caption`, wrapping at 28 characters. **Nothing stands under it:** the column has no line of its own for the cooler's state (owner, 2026-11-18; D13). The status item says it in a few words, and the banner has the full sentence and the fix ([Banners](#banners)).
+- **Reason line**, when the saved mode has lost a reading: a warning icon and `<metric>: <reason>. The cooler shows dashes until it's back.` The reason text comes from the service (`UnavailableReasons`). It's the one line that can stand between the caption and the status.
 - **Status line:** a `GtkBox` of up to three items. Each is a coloured dot plus words, never colour alone:
-  - cooler, from `CoolerState`: "Cooler connected" (green), "Cooler not connected" (yellow), "Cooler: no access" (red) or "Cooler: sending fails" (yellow), with the same 2 s rule as the caption. While the service is down it says "Cooler: unknown" (hollow dot);
+  - cooler, from `CoolerState`: "Cooler connected" (green), "Cooler not connected" (yellow), "Cooler: no access" (red) or "Cooler: sending fails" (yellow). `write-failed` reads "Cooler connected" for its first 2 s and "Cooler: sending fails" after (the same rule as the banner). While the service is down it says "Cooler: unknown" (hollow dot);
   - service: "Service running" (green); while it's down, on the [off screen](#the-off-screen), "Service off" (hollow dot: it doesn't start at boot, off on purpose) or "Service not running" (red: it's set to start but stopped, failed or starting);
   - Music sound, **only while a Music mode is chosen** (`AudioConnected`): "Sound connected" or "No sound: spectrum is silent".
+- **The picture isn't on the cooler:** the preview keeps drawing the service's picture while the cooler is away (the banners' text says so), so the picture alone can't tell. Three places do, and none of them is a line under the caption:
+  - the **banner** above the window, with the sentence and the fix;
+  - the **cooler's status item**, yellow or red, with its words;
+  - the **preview's accessible description**, which a screen reader reads when it reaches the picture: the caption, a full stop and the words of the cooler's state, in the table below.
+- **What the column holds, by state.** The cooler's state changes the words and the dot of its status item and the picture's description, never the number of lines, so nothing in the column moves when the cooler comes and goes:
+
+  | State | Caption | Cooler status item | Preview's description (`Cooler display preview`) |
+  |---|---|---|---|
+  | `connected`, or `write-failed` for under 2 s | the mode's | "Cooler connected", green | the caption alone: "Temperature · CPU + GPU" |
+  | `not-found` (and any value the app doesn't know, such as the dev copy's `released`) | the mode's | "Cooler not connected", yellow | "Temperature · CPU + GPU. Not on the cooler: it isn't connected." |
+  | `no-access` | the mode's | "Cooler: no access", red | "Temperature · CPU + GPU. Not on the cooler: the service can't open it." |
+  | `write-failed` for 2 s or more | the mode's | "Cooler: sending fails", yellow | "Temperature · CPU + GPU. Not on the cooler: sending it fails." |
+  | the saved mode lost a reading | the mode's, with the reason line under it | as the cooler's state | as the cooler's state |
+  | the service isn't running | "No picture" | "Cooler: unknown", hollow | "No picture" |
+  | not available in this session | the column isn't there ([Not available in this session](#not-available-in-this-session)) | | |
+
+- **Widgets:** the column is a vertical `GtkBox` (class `side`, 10 px between its children, 262 px wide) of the frame, the caption, the reason box (hidden unless a reading is lost) and the status box. The description is set on the `GtkDrawingArea` by the app each time the caption or the cooler's state changes (`names.describe`), and the caption label is only a label.
 
 ## Display page
 
@@ -223,7 +261,58 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
 
 ## Configuration page
 
-**Purpose:** every setting but the mode, on one screen (settings.md, A configuration screen; the temperature unit joined it on 2026-11-18). The gear opens it, and the back icon, Escape or Alt+Left leave it ([Window](#window)). It is a [page bar](#window) with the back icon and the title "Configuration", and under it, in the scrolled area, three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot). Phase 11a Task 11 adds the Theme card in front of Display.
+**Purpose:** every setting but the mode, on one screen (settings.md, A configuration screen; the temperature unit joined it on 2026-11-18). The gear opens it, and the back icon, Escape or Alt+Left leave it ([Window](#window)). It is a [page bar](#window) with the back icon and the title "Configuration", and under it, in the scrolled area, three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label block (the title, with its hint under it) and its control, side by side at the left of the card ([Rows](#rows)). The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot). Phase 11a Task 11 adds the Theme card in front of Display, with rows of the same kind.
+
+### Rows
+
+**What the owner asked** (2026-11-18): the labels sit close to their controls, left-aligned, and no longer fill the space between them with the control pushed to the right edge. Each card is a vertical `GtkBox` (14 px between its children, 14 px above and below and 16 px at the sides: the stylesheet's `.card`), as before.
+
+```
+┌ card ───────────────────────────────────────────────────────────────────────┐
+│ Display                                                                     │
+│ Rotation                    [ 0° ][ 90° ][ 180° ][ 270° ]                   │
+│ Turns the picture clockwise                                                 │
+│ Temperature unit            [ °C ][ °F ]                                    │
+│ Used wherever the display                                                   │
+│ shows a temperature                                                         │
+│ GPU                         [ Automatic                         v ]         │
+│ Where the display's GPU     Using Dedicated · Contoso Graphics R870.        │
+│ values come from                                                            │
+└─────────────────────────────────────────────────────────────────────────────┘
+  |<- label block: 28 characters ->|<24>|<- control ->|  the rest stays empty
+```
+
+- **A row** is a horizontal `GtkBox` of two children, 24 px apart (`spacing` 24): the label block, then the control. Nothing in it has `hexpand`, so the row is as wide as the two and the rest of the card stays empty at the right. That is the layout the owner asked for: left-sided.
+- **The label block** is a vertical `GtkBox` (`spacing` 2, `hexpand` false, `halign` start, `valign` start) of:
+  - the **title**, a `GtkLabel` (`xalign` 0);
+  - the **hint**, when the setting has one, a `GtkLabel` with the classes `muted` and `small`, `xalign` 0, `wrap` true, `wrap-mode` word, `max-width-chars` **28**.
+  - **How a hint wraps.** docs.gtk.org's GtkLabel page: "For wrapping labels, width-chars is used as the minimum width, if specified, and max-width-chars is used as the natural width", and "wrapping labels will be rewrapped to use all of the available width" (read 2026-11-19). So a hint asks for about 28 characters and breaks at word boundaries there: "Used wherever the display shows a temperature" takes two lines, "Turns the picture clockwise" one. A hint never makes its block wider than 28 characters, which is what keeps the controls close, and it takes the full width of the block once the size group (below) widens it.
+  - The hint's size is the class `small`, which `app.css` has no rule for (nothing in `crates/odc-app/src` styles it, 2026-11-19; whether GTK's own theme gives it a size is **unverified**). Phase 11a Task 11's type scale defines it; the 28 characters don't depend on it. The mockups draw it at 12 px.
+- **One column of controls.** Every label block of the Configuration page is in one `GtkSizeGroup` (`mode` horizontal). GTK's docs: "the size requested for each widget in a GtkSizeGroup is the maximum of the sizes that would have been requested" (class page, read 2026-11-19). So the group's width is the widest block's, which is the 28-character hint (about 176 px in the mockups' type), and all the page's controls start at the same x, across the Display, Music and Startup cards. Task 11's Theme card joins the same group.
+  - The Startup card leaves the group while it stands on the [off screen](#the-off-screen), where it is alone and needs only its own width; it joins again when it moves back into the Configuration page (`StartupCard::place`).
+  - Whether a hidden member still counts toward the group's width is **unverified** (the class page doesn't say). It changes nothing here: the one row that hides, GPU, has a block no wider than the others' (the same 28 characters). Fallback: remove the block from the group while its row is hidden.
+- **The control** has `hexpand` false and `halign` start. Its `valign` says which row it is:
+
+  | Row | Control | `valign` of the control | Width |
+  |---|---|---|---|
+  | Rotation, Temperature unit | the linked toggles (`GtkBox`, class `linked`) | center | natural |
+  | Peak dots, Start at boot | a `GtkSwitch` ([The switches](#the-switches)) | center | 40 px |
+  | GPU | a vertical `GtkBox`: the dropdown, the "Using …" line, the "No reading …" hint | start | 320 px (`width-request`) |
+  | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
+
+  The toggles and the switches are shorter than a block of a title and a hint, so they centre against it. The dropdown's box and the scales hang from the top, level with the title, since a scale's marks and the dropdown's lines hang below them.
+- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the terminal commands, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group.
+- **Hidden rows.** The GPU row hides with one `set_visible(false)`, as it does today. The card's 14 px spacing skips hidden children (GtkBox), so a PC with one GPU has no gap there.
+- **Narrow windows.**
+  - The window now opens at the size of its content and isn't resizable by the user (Task 9), so a narrow page comes only from a small monitor, where the content is capped to the screen and scrolls.
+  - A row needs its label block, 24 px and its control: about 176 + 24 + 320 = 520 px, 588 px with the card's padding and the page's margins, 850 px with the preview column beside it. Below that, the label block narrows first (a hint wraps at its longest word), and then the page scrolls sideways: Task 9 sets each page's `GtkScrolledWindow` to scroll horizontally when it must (`hscrollbar-policy` automatic; `scrolled()` sets `Never` today).
+  - No row stacks its control under its label, and the GPU box and the scales keep their 320 px (`width-request`) and don't shrink. (Whether GTK could give a scale a smaller minimum than its natural width isn't in the documentation: **unverified**, and not needed, since the page scrolls.)
+- **Right-to-left text** mirrors the rows by itself (a `GtkBox` follows the text direction): the block at the right, the control at its left.
+- **What the tests check** (the app's layout tests, which need a realised window: `--features weston-tests`):
+  - in every row, the control's left edge is 24 px (±1) right of its block's right edge, and the block's width is the group's;
+  - every control of the page starts at the same x (±1), and that x doesn't change when the GPU row hides;
+  - the Temperature unit hint has wrapped to two lines: the group's width is less than that hint's one-line width;
+  - the Startup card on the off screen has its block at its own width, and on the Configuration page it has the group's.
 
 ### Display
 
@@ -233,7 +322,7 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
   - In a mode without a temperature, the unit is only saved and the cooler doesn't change (display.md, Mode switches). Nothing in the app needs to say so, because the preview stays the same.
   - The temperature tiles on the Display page redraw in the confirmed unit.
 - **GPU:** "Where the display's GPU values come from".
-  - A `GtkDropDown`, shown only when the PC has more than one GPU. Its `factory` draws the button, with the label alone. Its `list-factory` draws the popup's entries: a check mark, the label, and a muted note at the right (GtkDropDown:list-factory, "the factory for populating list items in the popup", docs.gtk.org, read 2026-11-06).
+  - A `GtkDropDown`, shown only when the PC has more than one GPU. It and the lines under it stand in one vertical `GtkBox` 320 px wide (`width-request`), `halign` start, `valign` start ([Rows](#rows)); the dropdown fills it, and the open list opens at least as wide as the button, aligned with its left edge. Its `factory` draws the button, with the label alone. Its `list-factory` draws the popup's entries: a check mark, the label, and a muted note at the right (GtkDropDown:list-factory, "the factory for populating list items in the popup", docs.gtk.org, read 2026-11-06).
   - **Automatic** is the first entry and the default (owner, 2026-11-04). It reads "Automatic", in the list and on the button, and choosing it calls `ChooseGpu("")`. Its entry has no note.
   - **The GPU in use:** while Automatic is chosen, a muted `GtkLabel` under the dropdown names the GPU it reads: "Using Dedicated · Contoso Graphics R870."
     - The name comes from `GpuInUse`, with the same label as that GPU's entry, and the line follows `GpuInUse` when it changes.
@@ -254,8 +343,8 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
 
 ### Music
 
-- **Peak dots:** a `GtkSwitch`, on by default. It calls `SetMusicPeaks`.
-- **Bar fall** and **Peak fall:** two horizontal `GtkScale`s on a 0–4 adjustment (step 1, no value drawn), with five labelled marks: Slower, Slow, Moderate, Fast, Faster (`gtk_scale_add_mark`, verified).
+- **Peak dots:** a `GtkSwitch` ([The switches](#the-switches)), on by default. It calls `SetMusicPeaks`.
+- **Bar fall** and **Peak fall:** two horizontal `GtkScale`s on a 0–4 adjustment (step 1, no value drawn), with five labelled marks: Slower, Slow, Moderate, Fast, Faster (`gtk_scale_add_mark`, verified). Each is 320 px wide (`width-request`), so a scale and the GPU dropdown end at the same x, `halign` start, `valign` start, so the title beside it lines up with the trough and the marks hang below ([Rows](#rows)).
   - Bar fall defaults to Moderate, Peak fall to Slow.
   - A change calls `SetMusicBarFall` or `SetMusicPeakFall` with the stop's name when the value lands on a new stop.
   - Snapping to whole stops during a drag (with `round-digits` 0 and a `change-value` handler) is **unverified**.
@@ -263,8 +352,42 @@ Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 1
 
 ### Startup
 
-- **Start at boot:** "For the whole PC". A `GtkSwitch`, on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password."
+- **Start at boot:** "For the whole PC". A `GtkSwitch` ([The switches](#the-switches)), on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." (One sentence: the password is said by the "Turning on…" and "Turning off…" lines at the moment a flip asks for it, owner, 2026-11-18.)
 - It's the last card, because it's flipped about once per PC. Its states, texts and flows are in [Start at boot](#start-at-boot).
+
+### The switches
+
+The two `GtkSwitch`es, Peak dots and Start at boot, are **40 × 22 px** (owner, 2026-11-18: "a little bit smaller"; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs stay GTK's own.
+
+- **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size changes. The knob is the trough's height less 4 px, 18 px, the same relation as in Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 18 px.
+- **The stylesheet** gets two sizes in `app.css`, in the rules the switch already has. Colours stay tokens; the test that no colour literal or `opacity` appears outside `:root` still passes, because a length isn't either:
+
+  ```css
+  switch {
+    min-width: 40px;
+    min-height: 22px;
+    background-color: var(--ctl-normal-fill);
+    border: 1px solid var(--ctl-normal-border);
+  }
+
+  switch > slider {
+    background-color: var(--fg);
+    min-width: 18px;
+    min-height: 18px;
+  }
+  ```
+
+  The rules for `switch:checked`, `switch:disabled`, `switch:disabled:checked` and `switch:disabled > slider` stay as they are.
+- **The size is the design, the numbers are the means.** docs.gtk.org's CSS Properties page lists `min-width` and `min-height` and doesn't say which box they measure, and Task 1 didn't record whether its 34 × 18 had the border of the app's stylesheet (**unverified**). The test pins the outcome: with the app's stylesheet loaded, the switch's minimum and natural size, in both directions, is 40 × 22 (`measure()` of the realised widget), so the implementer adjusts the four lengths until it is. Whether GTK lets the slider leave a gap inside the trough, or fills its height as GTK's own theme may do, is also **unverified**: the mockups draw the gap (1 px beside the 1 px border), and the app takes what GTK draws at an 18 px slider.
+- **Why 40 × 22:**
+  - GTK's default is 2 : 1. 40 × 22 is 1.8 : 1, so it reads as the same control, a sixth narrower and a twelfth lower: "a little smaller" is a change the eye sees at once without making a switch that looks like a checkbox.
+  - 34 × 18 (Task 1's) is about a quarter off in both directions, and 18 px high is a quarter under the 24 px pointer target; 36 × 20 is a smaller step but still leaves a 4 px shortfall.
+- **The pointer target** (WCAG 2.2 SC 2.5.8, Target Size (Minimum), AA). The criterion asks for 24 × 24 CSS px "except when" the target satisfies one of its exceptions; the **spacing** one reads: "Undersized targets (those less than 24 by 24 CSS pixels) are positioned so that if a 24 CSS pixel diameter circle is centered on the bounding box of each, the circles do not intersect another target or the circle for another undersized target" (w3.org, Understanding SC 2.5.8, read 2026-11-19).
+  - The switch is 2 px short of 24 in height. A 24 px circle centred on its box stays inside its 40 px width and reaches 1 px above it and 1 px below it.
+  - Nothing that takes a pointer lies within 1 px of it: the rows are 14 px apart (the card's spacing), a label beside it is no target, and the scale below the Peak dots switch hangs 14 px lower. So the spacing exception applies, and the AA level holds with no change to the hit area.
+  - The icon buttons are 32 × 32, the toggle buttons and the dropdown are taller than 24, and a scale is GTK's own, so no other control relies on an exception.
+- **Placement:** `halign` start in its row (Start at boot's was end), `valign` center ([Rows](#rows)).
+- **The mockups** draw both switches at 40 × 22 with an 18 px knob, in every state: off, on, the handle ahead of the trough while a flip runs, and insensitive.
 
 ## Banners
 
@@ -272,9 +395,9 @@ A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `Gt
 
 | Banner | When | Text | Effect on the window |
 |---|---|---|---|
-| Cooler not connected (warning) | `CoolerState` is `not-found` | "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back." | Nothing is disabled. The preview keeps mirroring the service's picture, captioned "Not on the cooler: it isn't connected". Status "Cooler not connected" |
-| Cooler, no access (error) | `CoolerState` is `no-access`: the service finds the cooler but can't open its device node, a permissions problem such as a missing udev rule (settings.md, Status; solution review P5-02) | "**The cooler is plugged in, but the service can't open it.** The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." | Nothing is disabled, and changes are saved. The preview keeps mirroring the service's picture, captioned "Not on the cooler: the service can't open it". Status "Cooler: no access", with a red dot. There's no button and no command, because both fixes are the user's own and the app can't do either |
-| Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. Caption "Not on the cooler: sending it fails". Status "Cooler: sending fails", with a yellow dot |
+| Cooler not connected (warning) | `CoolerState` is `not-found` | "The cooler isn't connected. Changes are still saved, and the cooler shows them when it's back." | Nothing is disabled. The preview keeps mirroring the service's picture, and its description adds "Not on the cooler: it isn't connected." ([Preview column](#preview-column)). Status "Cooler not connected" |
+| Cooler, no access (error) | `CoolerState` is `no-access`: the service finds the cooler but can't open its device node, a permissions problem such as a missing udev rule (settings.md, Status; solution review P5-02) | "**The cooler is plugged in, but the service can't open it.** The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." | Nothing is disabled, and changes are saved. The preview keeps mirroring the service's picture, and its description adds "Not on the cooler: the service can't open it." Status "Cooler: no access", with a red dot. There's no button and no command, because both fixes are the user's own and the app can't do either |
+| Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. The preview's description adds "Not on the cooler: sending it fails." Status "Cooler: sending fails", with a yellow dot |
 
 - **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the gear is insensitive, the pages (and so Refresh) aren't shown, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
 - **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service is down, there's no cooler banner, because the cooler's state is unknown then.
@@ -352,7 +475,7 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 - **The trough** (`state`) is on only when all four facts hold; **the handle** (`active`) is the latest flip. A flip from off always goes to on, and from on to off.
 - **Insensitive** while a flip runs, while the state is unknown, and while the display service is starting. The stylesheet draws an insensitive switch with the normal fill and border and a `--muted` slider, without `opacity` (decisions log D43); a checked one keeps the `--accent` trough, so a running flip's "off / on" (the trough at systemd's state) still shows (Phase 11 Task 3, as built).
 - The handle's slide is GTK's own and follows the user's `gtk-enable-animations` setting, as the peak dots switch does.
-- **Row:** the label "Start at boot", the muted subtitle "For the whole PC", and the switch at the right (`valign` center). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password."
+- **Row:** a label block, the title "Start at boot" with the muted subtitle "For the whole PC" under it, and the switch beside it, left-aligned, 24 px from the block ([Rows](#rows): `halign` start, `valign` center). The switch is 40 × 22 ([The switches](#the-switches)). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." It no longer says that each change asks for the administrator's password (owner, 2026-11-18). The "Turning on…" and "Turning off…" lines say so at the moment a flip asks, and the desktop's own dialog is the authority.
 
 ### The note
 
@@ -469,7 +592,7 @@ When the switch reads off and something is set up, one note under the row says w
   - "OpenDeepCool is off" while the display service doesn't start at boot, or a flip toward off runs. The status reads "Service off", with a hollow dot: off on purpose, not a fault;
   - "OpenDeepCool isn't running" otherwise: it's set to start at boot but is stopped, failed or starting, or the state is unknown. The status reads "Service not running", with a red dot.
 - **Text** under the heading, in `--muted`, the same for both: "The cooler shows nothing until the display service runs."
-- **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:".
+- **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:". Its row is the same label block and switch as on the Configuration page, left-aligned in the card; the block is at its own width here, since the card leaves the page's size group on the off screen ([Rows](#rows)).
 - **No banner.** The note says what's wrong, and the switch is the fix.
 - **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` and without a page bar. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
 - **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on. The gear is insensitive here, so a page that was closed by the service going down gives its focus to this switch, not to the gear.
@@ -527,7 +650,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | State | What the app shows | Mockup |
 |---|---|---|
-| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery; status "Cooler connected", "Service running". Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery. The preview column: the picture, the caption ("Temperature · CPU + GPU") and the status items "Cooler connected" and "Service running", with no line between the caption and the status. Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it, each label beside its control and the controls in one column, and the Peak dots and Start at boot switches at 40 × 22 | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
 | The Configuration page is open | The gear is pressed; the back icon, Escape or Alt+Left, or the gear again, return to the Display page, and focus goes to the gear | [configuration.html](mockups/configuration.html): click the back icon, the gear, or press Escape |
 | The temperature unit | A row of the Display card after Rotation; the temperature tiles on the Display page follow it | [configuration.html](mockups/configuration.html), [display-scrolling.html](mockups/display-scrolling.html) (the tiles show °F) |
 | GPU list open | Automatic first; a GPU whose kind query failed as "Unknown type · …" with "driver couldn't be asked"; a GPU without a reading rule last, with "no readings"; the line under the dropdown names the integrated GPU, which Automatic reads here | [configuration-gpu-list.html](mockups/configuration-gpu-list.html) |
@@ -535,9 +658,9 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | A Music mode | The status line adds "Sound connected" or "No sound: spectrum is silent" | [display-music.html](mockups/display-music.html) |
 | A value of 100 or more, °F | The preview mirrors the scrolling strip; the temperature tiles show °F | [display-scrolling.html](mockups/display-scrolling.html) |
 | First start | Load · CPU, 0°, °C, peak dots on, Moderate / Slow, the GPU on Automatic | [first-start.html](mockups/first-start.html) |
-| Cooler disconnected (`not-found`) | Cooler banner; status "Cooler not connected"; everything still changeable | [cooler-disconnected.html](mockups/cooler-disconnected.html) |
-| Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; caption "Not on the cooler: the service can't open it"; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
-| Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; caption "Not on the cooler: sending it fails"; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
+| Cooler disconnected (`not-found`) | Cooler banner; status "Cooler not connected"; the preview's description adds "Not on the cooler: it isn't connected."; the column has the same lines as when connected; everything still changeable | [cooler-disconnected.html](mockups/cooler-disconnected.html) |
+| Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; the preview's description adds "Not on the cooler: the service can't open it."; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
+| Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; the preview's description adds "Not on the cooler: sending it fails."; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
 | Sending fails, under 2 s (one bad write, or the cooler being unplugged) | As connected: no banner, until the state changes or 2 s pass | (as display) |
 | Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the terminal commands under the card; the header keeps the title and the close icon, with the gear visible but insensitive, and there's no Refresh (it belongs to the Display page); nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
 | The same, just stopped | As above, with "the display service is stopped" and no journal sentence | (as service-not-running) |
@@ -691,7 +814,7 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Off screen message | `GtkBox` (group) holding the heading and text `GtkLabel`s | `Service message` | description: its text ("OpenDeepCool is off" or "OpenDeepCool isn't running", then the text). It replaces Phase 10's `Service banner` and its `Copy start command` (D10) |
 | Not-available message | `GtkBox` (group) holding two `GtkLabel`s | `Not available in this session` | description: its text |
 | Cooler banner | `GtkBox` (group) in `GtkRevealer` | `Cooler banner` | description: its text: not connected, no access or sending fails ([Banners](#banners)) |
-| Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
+| Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU"; while the cooler isn't showing the picture, the caption, a full stop and the words of the cooler's state: "Temperature · CPU + GPU. Not on the cooler: it isn't connected." (`not-found`), "… Not on the cooler: the service can't open it." (`no-access`) or "… Not on the cooler: sending it fails." (`write-failed` for 2 s or more); while the service isn't running, "No picture". It changes with the caption and the cooler's state, and nothing else in the column carries these words ([Preview column](#preview-column)) |
 | Reason under the preview | `GtkBox` (group) around the icon and the `GtkLabel` | `Unavailable reading` | its label's text |
 | Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown"; `Service status`: "Service running", "Service not running" or "Service off") |
 | Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
@@ -712,6 +835,8 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Copy terminal commands | `GtkButton` (button) | `Copy terminal commands` | — (it copies every line) |
 
 A scale's value text reaches AT-SPI as its Value interface's text, the stop's name (`GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT`; the layer 4 run reads "Moderate").
+
+A Configuration row, its label block and its hint (Task 8, [Rows](#rows)) are a plain `GtkBox` and `GtkLabel`s with no name of their own: a title and a hint read as the labels they are, in the page's order, and each control keeps the fixed name above. The two switches' size (40 × 22) changes no name, role or state. The preview column has no line under the caption to name (a label is named by its own text, D72): the layer 4 scenarios that look for the cooler's words read the preview's description instead.
 
 ## Text
 
@@ -760,11 +885,15 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Peak dots on or off | Configuration → Music | configuration |
 | Bar fall, peak fall, five stops, defaults | Configuration → Music | configuration |
 | Configuration screen holds everything but the mode (owner, 2026-11-18: the unit too) | Configuration page | configuration |
+| Labels beside their controls, left-aligned, with the space between cut to a 24 px gap (owner, 2026-11-18) | Every row of the Configuration page and of the Startup card on the off screen: [Rows](#rows) | configuration, one-gpu, boot-partly, boot-off |
+| The two switches (Peak dots, Start at boot) a little smaller (owner, 2026-11-18); the rotation and unit toggles unchanged | 40 × 22 px: [The switches](#the-switches) | configuration, boot-off |
+| The preview column holds the picture, its caption, the lost reading's reason and the status; no "Shown on the cooler now", and no other line under the caption (owner, 2026-11-18) | [Preview column](#preview-column) | every mockup with the column |
 | Both pages reachable with no tab: the gear opens Configuration; the back icon, the gear again, Escape and Alt+Left return to Display | Header bar; the Configuration page's bar; [Keyboard](#keyboard) | display, configuration |
 | The app closes from its own window | The close icon at the right of the header bar (the desktop's window buttons are off), Ctrl+W, Ctrl+Q | every mockup |
 | Refresh, only for the user at the PC | The icon at the top right of the Display page; not drawn when not available in this session or while the service isn't running (the gear is insensitive then); F5 and Ctrl+R from either page while the service runs; a refusal shows as a refused change | display, service-not-running, not-available |
 | Status: cooler connected | Status line; cooler banner | cooler-disconnected |
-| Status: the cooler found but not usable (`no-access`), told apart from not connected, with the fix | Its own error banner; status line; caption | cooler-no-access |
+| Status: the cooler found but not usable (`no-access`), told apart from not connected, with the fix | Its own error banner; status line; the preview's description | cooler-no-access |
+| The picture isn't on the cooler (`not-found`, `no-access`, `write-failed` for 2 s or more): still said, without a line under the caption | The banner; the cooler's status item; the preview's accessible description ([Preview column](#preview-column)) | cooler-disconnected, cooler-no-access, cooler-write-failed |
 | Status: sending to the cooler fails (`write-failed`), passing or lasting | Banner after 2 s, nothing before | cooler-write-failed |
 | Status: service running | Status line; the off screen's heading and status dot | service-not-running, boot-off |
 | Status: Music sound (`AudioConnected`) | Status line, Music modes only | display-music |
@@ -784,7 +913,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | A flip on finishes the setup and starts what isn't running; no separate start button | [A flip, step by step](#a-flip-step-by-step); the off screen has no banner and no start button (D10) | boot-off (flip it), service-not-running |
 | Only the sound missing in this session: a flip on starts it, without a password | A flip, step by step; the note's ending | (text: boot-partly's state with only the sound not running) |
 | Off: neither starts any more, and both stop | A flip, step by step | configuration (flip it) |
-| Every change asks for the administrator's password, and nothing else in the app does | The card's hint; the changing line | boot-changing |
+| Every change asks for the administrator's password, and nothing else in the app does | The desktop's polkit dialog, and the changing line ("Turning on… Your desktop asks for the administrator's password first."). The card's hint doesn't repeat it (owner, 2026-11-18) | boot-changing |
 | The switch shows systemd's state, a terminal change and a stopped service included | Read at start, after a flip, on window activation and on the bus name's changes | boot-partly, service-not-running |
 | It works while the service isn't running | The off screen holds the switch | boot-off, service-not-running |
 | A change that doesn't happen: the switch goes back to systemd's state, and the commands for the flip's direction show (three lines to turn on, two to turn off) | The note under the switch: dialog dismissed (126), not authorized or no agent (127, `--disable-internal-agent`), a step failed (the program's code) | boot-not-changed |
@@ -870,3 +999,19 @@ The points the header and page design depends on. Read in the official documents
 | Where the back button sits | GNOME's HIG: "In left-to-right locales, the standard position for the back button is the top-left." KDE's HIG names back and forward buttons "in the toolbar" and no side, so GNOME's rule decides | developer.gnome.org/hig, Browsing; develop.kde.org/hig, Layout and navigation |
 | `pack_end`'s order | The documents say only "packed with reference to the end", so the design packs one box holding the gear then the close icon, whose order is plain | docs.gtk.org, `Gtk.HeaderBar.pack_end` |
 | The gear icon's name | `emblem-system-symbolic`, found by Phase 11a Task 1. A theme without it falls back to Adwaita's; if a desktop's own theme draws it as something else, the tooltip still says "Configuration" | The Task 1 row, "Our own close icon" |
+
+## Unverified points, answered (Phase 11a Task 8, 2026-11-19)
+
+The points the Configuration rows, the switches and the preview column depend on. Read in the official documents on 2026-11-19; nothing was run, since the designer has no shell. What only a window can show is marked **unverified**, with the fallback, and the implementer's layout tests check it.
+
+| Point | Answer | Source, or the fallback |
+|---|---|---|
+| How a wrapping `GtkLabel`'s width is negotiated | Verified: "For wrapping labels, width-chars is used as the minimum width, if specified, and max-width-chars is used as the natural width", and "Even if max-width-chars specified, wrapping labels will be rewrapped to use all of the available width". So a hint with `max-width-chars` 28 asks for 28 characters, and fills the size group's width once the group is wider | docs.gtk.org, `Gtk.Label`, Text layout |
+| `GtkSizeGroup` and hidden members | **Unverified.** The class page gives the rule for members, "the size requested for each widget in a GtkSizeGroup is the maximum of the sizes that would have been requested", and says nothing of hidden ones. The only hidden row (GPU) has a block no wider than the others, so it changes nothing. Fallback: take the block out of the group while the row is hidden | docs.gtk.org, `Gtk.SizeGroup` |
+| `GtkGrid` and rows with no visible child | **Unverified:** the class page says nothing of such rows or their spacing. Not relied on: the rows are `GtkBox`es ([Answers decided on 2026-11-19, Task 8](#answers-decided-on-2026-11-19-task-8)) | docs.gtk.org, `Gtk.Grid` |
+| What `min-width` and `min-height` measure | **Unverified:** the CSS Properties page lists them and names no box. Task 1's 34 × 18 doesn't say whether the app's 1 px border was in it. The test pins the switch's outer size, 40 × 22, not the numbers ([The switches](#the-switches)) | docs.gtk.org, GTK CSS Properties; the Task 1 row, "Smaller switches" |
+| The slider's height inside the trough | **Unverified:** `GtkSwitch`'s page lists the nodes `switch`, `image` and `slider` and no sizes. The mockups draw an 18 px knob with 1 px beside the border; the app takes what GTK draws | docs.gtk.org, `Gtk.Switch`, CSS nodes |
+| The pointer target of a 40 × 22 switch | Verified from the criterion's text: SC 2.5.8's spacing exception holds when no other target, nor another undersized target's 24 px circle, lies within the circle centred on the switch's box (1 px beyond it, above and below). The rows are 14 px apart | w3.org, Understanding SC 2.5.8 (Target Size (Minimum)) |
+| Where a form puts a label in a narrow window | KDE's Kirigami `FormLayout` stacks a label above its control when there is no room. The app doesn't: its window isn't resizable (Task 9), and a `GtkBox` can't wrap a control under its label, so the page scrolls | develop.kde.org, Kirigami form layouts (read 2026-11-19; as the search summary gave it, the page itself was not opened) |
+| The `small` style class | **Unverified** whether GTK's own theme defines it; the app's stylesheet doesn't (no match in `crates/odc-app/src`, 2026-11-19). The design never relies on its size: Task 11's type scale gives it one | grep of the tree |
+| A description on an image-role `GtkDrawingArea` | `Names::describe` sets `GTK_ACCESSIBLE_PROPERTY_DESCRIPTION` on it today (the preview's description is the caption); the rows above change only its text. AT-SPI reads it as the Phase 10 layer 4 run found for every description | the Accessible names notes; the Phase 10 Task 8 run |

@@ -148,12 +148,24 @@ impl Banner {
 pub struct Column {
     /// `<group> · <option>`, or "No picture".
     pub caption: String,
-    /// Where the picture is.
-    pub line: &'static str,
+    /// Why the picture isn't on the cooler, when it isn't: only the preview's description says
+    /// it (Preview column), since no line of the column does.
+    pub away: Option<&'static str>,
     /// The saved mode's lost reading.
     pub reason: Option<String>,
     /// Up to three status items.
     pub status: Vec<Status>,
+}
+
+impl Column {
+    /// The preview's accessible description: the caption, then, when the picture isn't on the
+    /// cooler, why (Preview column, by state).
+    pub fn description(&self) -> String {
+        match self.away {
+            Some(away) => format!("{}. {away}", self.caption),
+            None => self.caption.clone(),
+        }
+    }
 }
 
 /// A status item: its accessible name, its words and its dot.
@@ -313,7 +325,7 @@ pub fn view(
     }
     let column = Column {
         caption: caption(mode),
-        line: cooler.line(),
+        away: cooler.away(),
         reason: lost.map(|r| format!("{r}. The cooler shows dashes until it's back.")),
         status,
     };
@@ -366,7 +378,7 @@ fn down_column(startup: &Boot) -> Column {
     }));
     Column {
         caption: "No picture".to_owned(),
-        line: "The service draws the picture",
+        away: None,
         reason: None,
         status,
     }
@@ -408,12 +420,12 @@ impl Cooler {
         }
     }
 
-    fn line(self) -> &'static str {
+    fn away(self) -> Option<&'static str> {
         match self {
-            Cooler::Connected => "Shown on the cooler now",
-            Cooler::NotConnected => "Not on the cooler: it isn't connected",
-            Cooler::NoAccess => "Not on the cooler: the service can't open it",
-            Cooler::SendingFails => "Not on the cooler: sending it fails",
+            Cooler::Connected => None,
+            Cooler::NotConnected => Some("Not on the cooler: it isn't connected."),
+            Cooler::NoAccess => Some("Not on the cooler: the service can't open it."),
+            Cooler::SendingFails => Some("Not on the cooler: sending it fails."),
         }
     }
 

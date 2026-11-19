@@ -42,6 +42,17 @@
 //   page bar holds the back icon and the title "Configuration"; its Display card has the unit row after Rotation.
 // - Keys: Escape or Alt+Left go back from the Configuration page (Escape closes an open GPU list first), Ctrl+,
 //   opens it. After a page change focus goes to the back icon, or to the gear.
+//
+// Rows, switches and the preview column (Phase 11a Task 8, 2026-11-19; docs/design/settings-app.md, Rows, The switches,
+// Preview column). No new CONFIG key: the states are the same, drawn differently.
+// - The preview column holds the picture, the caption, the lost reading's reason and the status items; there is no line
+//   under the caption. That the picture isn't on the cooler (not connected, no access, sending fails) is said by the
+//   banner, the status item and the preview's accessible description (here aria-description on the picture).
+// - A Configuration row is a label block (the title, its hint under it) and its control, side by side and left-aligned,
+//   24 px apart; the label blocks share one width (a GtkSizeGroup in the app, 28 characters here) so the controls start
+//   in one column. The Startup card on the off screen keeps its block at its own width.
+// - The two switches (Peak dots, Start at boot) are 40 x 22 with an 18 px knob.
+// - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -255,9 +266,10 @@ function coolerState() {
   const st = S.coolerState === undefined ? (S.cooler ? "connected" : "not-found") : S.coolerState;
   return COOLER_STATES.includes(st) ? st : "not-found";
 }
-// Per state: the status dot, the status text, and the line under the preview's caption.
+// Per state: the status dot, the status text, and the words the preview's accessible description adds after the
+// caption while the picture isn't on the cooler (design, Preview column). Nothing is drawn under the caption.
 const COOLER = {
-  "connected": ["good", "Cooler connected", "Shown on the cooler now"],
+  "connected": ["good", "Cooler connected", ""],
   "not-found": ["warn", "Cooler not connected", "Not on the cooler: it isn't connected"],
   "no-access": ["bad", "Cooler: no access", "Not on the cooler: the service can't open it"],
   "write-failed": ["warn", "Cooler: sending fails", "Not on the cooler: sending it fails"]
@@ -361,10 +373,10 @@ function bootCard(where) {
   const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
   return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
     <div class="row"><div class="row-l"><span>Start at boot</span><span class="muted small">For the whole PC</span></div>
-      <div class="row-r">${bootSwitch(note)}</div></div>
+      <div class="row-r mid">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
     ${note && note.cmds && where === "config" ? terminalBlock(note.cmds, note.lead) : ""}
-    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login. Each change asks for the administrator's password.</span></div>
+    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login.</span></div>
   </section>`;
 }
 
@@ -423,12 +435,14 @@ function side() {
     if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
   }
-  let caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
-  let sub = !S.service ? "The service draws the picture" : COOLER[coolerState()][2];
+  const caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
+  // The picture's accessible description (design, Preview column): the caption, then, while the cooler isn't showing
+  // the picture, the words of the cooler's state. Nothing is drawn under the caption.
+  const note = S.service ? COOLER[coolerState()][2] : "";
+  const desc = note ? `${caption}. ${note}.` : caption;
   return `<aside class="side">
-    <div class="preview" role="img" aria-label="Cooler display preview" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
+    <div class="preview" role="img" aria-label="Cooler display preview" aria-description="${esc(desc)}" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
     <div class="pv-caption">${esc(caption)}</div>
-    <div class="pv-sub muted">${sub}</div>
     ${lost ? `<div class="reason warn-text" role="status" aria-label="Unavailable reading">${ICON.warn}<span>${METRIC[lost.metric]}: ${esc(lost.reason)}. The cooler shows dashes until it's back.</span></div>` : ""}
     <ul class="status" aria-label="Status">${status}</ul>
   </aside>`;
@@ -510,14 +524,14 @@ function configPage() {
   return pageBar("config") + `<div class="page-scroll"><div class="page config">
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
       <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span><span class="muted small">Used wherever the display shows a temperature</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
       ${gpuRow}
     </section>
     <section class="card" aria-label="Music settings"><h3>Music</h3>
       <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
-        <div class="row-r"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
+        <div class="row-r mid"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
       ${slider("bar", "Bar fall", S.barFall)}
       ${slider("peak", "Peak fall", S.peakFall)}
       <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>
