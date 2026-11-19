@@ -653,7 +653,7 @@ function bootCard(where) {
   const icon = note && note.kind === "warn" ? ICON.warn : note && note.kind === "info" ? ICON.info : "";
   const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
   return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
-    <div class="row"><div class="row-l"><span>Start at boot</span><span class="muted small">For the whole PC</span></div>
+    <div class="row"><div class="row-l"><span>Start at boot</span></div>
       <div class="row-r mid">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
     <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login.</span></div>

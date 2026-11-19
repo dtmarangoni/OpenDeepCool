@@ -766,7 +766,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
 ### Startup
 
-- **Start at boot:** "For the whole PC". A `GtkSwitch` ([The switches](#the-switches)), on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." (One sentence: the password is said by the "Turning on…" and "Turning off…" lines at the moment a flip asks for it, owner, 2026-11-18.)
+- **Start at boot:** a `GtkSwitch` ([The switches](#the-switches)), on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." (One sentence: the password is said by the "Turning on…" and "Turning off…" lines at the moment a flip asks for it, owner, 2026-11-18.)
 - It's the last card, because it's flipped about once per PC. Its states, texts and flows are in [Start at boot](#start-at-boot).
 
 ### The switches
@@ -890,7 +890,7 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 - **The trough** (`state`) is on only when all four facts hold; **the handle** (`active`) is the latest flip. A flip from off always goes to on, and from on to off.
 - **Insensitive** while a flip runs, while the state is unknown, and while the display service is starting. The stylesheet draws an insensitive switch with the normal fill and border and a `--muted` slider, without `opacity` (decisions log D43); a checked one keeps the `--accent` trough, so a running flip's "off / on" (the trough at systemd's state) still shows (Phase 11 Task 3, as built).
 - The handle's slide is GTK's own and follows the user's `gtk-enable-animations` setting, as the peak dots switch does.
-- **Row:** a label block, the title "Start at boot" with the muted subtitle "For the whole PC" under it, and the switch beside it, left-aligned, 24 px from the block ([Rows](#rows): `halign` start, `valign` center). The switch is 40 × 22 ([The switches](#the-switches)). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." It no longer says that each change asks for the administrator's password (owner, 2026-11-18). The "Turning on…" and "Turning off…" lines say so at the moment a flip asks, and the desktop's own dialog is the authority.
+- **Row:** a label block, the title "Start at boot" alone (the subtitle "For the whole PC" went on 2026-11-19), and the switch beside it, left-aligned, 24 px from the block ([Rows](#rows): `halign` start, `valign` center). The switch is 40 × 22 ([The switches](#the-switches)). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." It no longer says that each change asks for the administrator's password (owner, 2026-11-18). The "Turning on…" and "Turning off…" lines say so at the moment a flip asks, and the desktop's own dialog is the authority.
 
 ### The note
 
@@ -987,8 +987,7 @@ Until Phase 11a the card showed the commands, with a Copy button, under a failur
 │ ○ Cooler: unknown    │   service runs.                                     │
 │ ○ Service off        │  ┌───────────────────────────────────────────────┐  │
 │   (● Service not     │  │ Start at boot                       ( ○    )  │  │
-│    running, red)     │  │ For the whole PC                              │  │
-│                      │  │ ⚠ Not fully on: the display service failed. … │  │
+│    running, red)     │  │ ⚠ Not fully on: the display service failed. … │  │
 │                      │  │ When it's on, the display service starts …    │  │
 │                      │  └───────────────────────────────────────────────┘  │
 └──────────────────────┴─────────────────────────────────────────────────────┘

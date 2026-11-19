@@ -357,6 +357,10 @@ fn start_at_boot(app: &gtk::Application) {
     assert!(startup.card().is_visible());
     assert!(!startup.heading_shown());
     assert_no_terminal(&window);
+    // The row is its title and the switch: no subtitle under the title (owner, 2026-11-19).
+    let mut texts = Vec::new();
+    label_texts(startup.card().upcast_ref(), &mut texts);
+    assert!(texts.iter().all(|t| !t.contains("whole PC")), "{texts:?}");
     assert_eq!(startup.note(), None, "a new install has no note");
     assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
     run_until("the switch takes the first focus", || switch.is_focus());

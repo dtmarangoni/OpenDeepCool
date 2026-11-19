@@ -88,7 +88,6 @@ impl StartupCard {
             .valign(gtk::Align::Start)
             .build();
         left.append(&small(boot::TITLE, &[]));
-        left.append(&small(boot::SUBTITLE, &["muted", "small"]));
         line.append(&left);
         line.append(&switch);
         card.append(&line);

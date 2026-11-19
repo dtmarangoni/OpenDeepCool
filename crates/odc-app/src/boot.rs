@@ -207,7 +207,6 @@ pub const OFF_SCREEN_TEXT: &str = "The cooler shows nothing until the display se
 
 /// The row's words and the card's hint (Configuration page, Startup).
 pub const TITLE: &str = "Start at boot";
-pub const SUBTITLE: &str = "For the whole PC";
 pub const HINT: &str = "When it's on, the display service starts at every boot, and the sound for \
                         the Music options at every login.";
 
