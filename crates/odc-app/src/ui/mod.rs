@@ -8,6 +8,7 @@ pub mod display_page;
 pub mod dots;
 pub mod dropdowns;
 pub mod names;
+pub mod page;
 pub mod preview;
 pub mod startup;
 pub mod theme;

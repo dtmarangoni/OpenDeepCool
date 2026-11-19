@@ -96,6 +96,48 @@ button.link label {
   text-decoration-line: underline;
 }
 
+/* Icon buttons (the gear, the close icon, Back and Refresh): 32 x 32, no frame in any state
+   (Window, Icon buttons). The resting fill is the surface they sit on, since a transparent one
+   would be a literal; these rules read more specifically than the plain button's, so the border
+   stays off in every state. */
+button.icon-button {
+  min-width: 32px;
+  min-height: 32px;
+  padding: 0;
+  background-color: var(--bg);
+  background-image: none;
+  border-style: none;
+  color: var(--fg);
+}
+
+button.icon-button:hover {
+  background-color: var(--ctl-hover-fill);
+}
+
+button.icon-button:focus-visible {
+  background-color: var(--ctl-focus-fill);
+}
+
+button.icon-button:active {
+  background-color: var(--ctl-pressed-fill);
+}
+
+button.icon-button:checked {
+  background-color: var(--ctl-selected-fill);
+  color: var(--accent);
+}
+
+button.icon-button:disabled {
+  background-color: var(--bg);
+  color: var(--muted);
+}
+
+/* A page's bar and title (Window, Page bar). */
+.page-title {
+  font-size: 16px;
+  font-weight: 600;
+}
+
 /* Banners. */
 .banner {
   padding: 10px 14px;

@@ -271,20 +271,32 @@ impl Run {
         self.driver.gone(role, name)
     }
 
-    /// Shows the page `name` through its switcher toggle.
+    /// Shows the page `name`: the gear opens Configuration, where it stays pressed, and the
+    /// Back icon returns to Display.
     fn page(&self, name: &str) -> Result<()> {
-        let toggle = self.node("toggle button", name)?;
-        if !self.driver.has(&toggle, State::Pressed)? {
-            self.driver.act(&toggle, "Click")?;
+        let gear = self.node("toggle button", "Configuration")?;
+        let on_config = self.driver.has(&gear, State::Pressed)?;
+        match (name, on_config) {
+            ("Configuration", false) => self.driver.act(&gear, "Click")?,
+            ("Display", true) => {
+                let back = self.node("button", "Back")?;
+                self.driver.act(&back, "Click")?;
+            }
+            _ => {}
         }
-        self.expect_state("toggle button", name, State::Pressed, true)?;
+        self.expect_state(
+            "toggle button",
+            "Configuration",
+            State::Pressed,
+            name == "Configuration",
+        )?;
         // A control of the page, shown.
-        let control = if name == "Display" {
-            "Celsius"
+        let (role, control) = if name == "Display" {
+            ("grid", "Load options")
         } else {
-            "Rotation 0°"
+            ("toggle button", "Rotation 0°")
         };
-        self.node("toggle button", control).map(|_| ())
+        self.node(role, control).map(|_| ())
     }
 
     /// The first start's state on the bus, every answer given, no list open, the Display page;
@@ -307,7 +319,7 @@ impl Run {
         {
             self.activate_again()?;
         }
-        self.node("toggle button", "Display")?;
+        self.node("toggle button", "Configuration")?;
         if let Some(node) = self.driver.find("combo box", "GPU")?
             && self.driver.has(&node, State::Expanded)?
         {
@@ -524,10 +536,12 @@ fn service_down(run: &mut Run) -> Result<String> {
     run.commands(FROM_A_TERMINAL, &ON_LINES)?;
     run.check_state("button", "Copy terminal commands", State::Sensitive, true)?;
     run.node("group", "Startup settings")?;
-    for toggle in ["Display", "Configuration"] {
-        run.check_state("toggle button", toggle, State::Sensitive, false)?;
-    }
-    run.check_state("button", "Refresh display", State::Sensitive, false)?;
+    // The gear stays, dimmed and not pressed; Refresh belongs to the Display page, which the off
+    // screen replaces; the close icon always works.
+    run.check_state("toggle button", "Configuration", State::Sensitive, false)?;
+    run.check_state("toggle button", "Configuration", State::Pressed, false)?;
+    run.check_state("button", "Close", State::Sensitive, true)?;
+    run.gone("button", "Refresh display")?;
     run.expect_texts("group", "Cooler status", &["Cooler: unknown"])?;
     run.expect_texts("group", "Service status", &["Service off"])?;
     run.expect_description("image", "Cooler display preview", "No picture")?;
@@ -576,17 +590,17 @@ fn first_start(run: &mut Run) -> Result<String> {
     run.expect_description("image", "Cooler display preview", "Load · CPU")?;
     run.node("label", "Load · CPU")?;
     run.node("label", "Shown on the cooler now")?;
-    run.check_state("toggle button", "Celsius", State::Pressed, true)?;
-    run.check_state("toggle button", "Fahrenheit", State::Pressed, false)?;
-    for toggle in ["Display", "Configuration"] {
-        run.check_state("toggle button", toggle, State::Sensitive, true)?;
-    }
+    run.check_state("toggle button", "Configuration", State::Sensitive, true)?;
+    run.check_state("toggle button", "Configuration", State::Pressed, false)?;
+    run.check_state("button", "Close", State::Sensitive, true)?;
     run.check_state("button", "Refresh display", State::Sensitive, true)?;
     run.page("Configuration")?;
     for degrees in [0, 90, 180, 270] {
         let name = format!("Rotation {degrees}°");
         run.check_state("toggle button", &name, State::Pressed, degrees == 0)?;
     }
+    run.check_state("toggle button", "Celsius", State::Pressed, true)?;
+    run.check_state("toggle button", "Fahrenheit", State::Pressed, false)?;
     run.expect_texts("combo box", "GPU", &["Automatic"])?;
     run.expect_description("combo box", "GPU", &format!("Using {DEDICATED_LABEL}"))?;
     run.expect_texts(
@@ -611,16 +625,14 @@ fn names(run: &mut Run) -> Result<String> {
             .collect()
     };
     let always = owned(&[
-        ("toggle button", "Display"),
         ("toggle button", "Configuration"),
-        ("button", "Refresh display"),
+        ("button", "Close"),
         ("image", "Cooler display preview"),
         ("group", "Cooler status"),
         ("group", "Service status"),
     ]);
     let mut display = owned(&[
-        ("toggle button", "Celsius"),
-        ("toggle button", "Fahrenheit"),
+        ("button", "Refresh display"),
         ("grid", "Load options"),
         ("grid", "Temperature options"),
         ("grid", "Power options"),
@@ -632,12 +644,15 @@ fn names(run: &mut Run) -> Result<String> {
         display.push(("image", tile(mode)));
     }
     let configuration = owned(&[
+        ("button", "Back"),
         ("group", "Display settings"),
         ("group", "Music settings"),
         ("toggle button", "Rotation 0°"),
         ("toggle button", "Rotation 90°"),
         ("toggle button", "Rotation 180°"),
         ("toggle button", "Rotation 270°"),
+        ("toggle button", "Celsius"),
+        ("toggle button", "Fahrenheit"),
         ("combo box", "GPU"),
         ("group", "GPU in use"),
         ("switch", "Peak dots"),
@@ -733,6 +748,8 @@ fn tiles(run: &mut Run) -> Result<String> {
 /// The temperature unit, both ways (Display page, Temperature unit).
 fn unit(run: &mut Run) -> Result<String> {
     run.reset()?;
+    // The unit is on the Configuration page, after Rotation.
+    run.page("Configuration")?;
     for (name, other, unit) in [
         ("Fahrenheit", "Celsius", "fahrenheit"),
         ("Celsius", "Fahrenheit", "celsius"),
@@ -751,6 +768,7 @@ fn unit(run: &mut Run) -> Result<String> {
             },
         )?;
     }
+    run.page("Display")?;
     NO_NOTE
 }
 
@@ -971,17 +989,17 @@ fn refresh(run: &mut Run) -> Result<String> {
     NO_NOTE
 }
 
-/// The shortcuts' actions, which the window offers AT-SPI: the two pages and Refresh
+/// The shortcuts' actions, which the window offers AT-SPI: Configuration, Back and Refresh
 /// (Keyboard, Shortcuts). A key typed through AT-SPI's device event controller is tried too.
 fn shortcuts(run: &mut Run) -> Result<String> {
     run.reset()?;
     let window = run.node("window", "OpenDeepCool")?;
-    run.driver.act(&window, "win.page-config")?;
+    run.driver.act(&window, "win.configuration")?;
     run.expect_state("toggle button", "Configuration", State::Pressed, true)?;
     run.node("toggle button", "Rotation 0°")?;
-    run.driver.act(&window, "win.page-display")?;
-    run.expect_state("toggle button", "Display", State::Pressed, true)?;
-    run.node("toggle button", "Celsius")?;
+    run.driver.act(&window, "win.back")?;
+    run.expect_state("toggle button", "Configuration", State::Pressed, false)?;
+    run.node("grid", "Load options")?;
     let mark = run.fake.mark()?;
     run.driver.act(&window, "win.refresh")?;
     run.fake.called(mark, "Refresh()")?;
@@ -1023,17 +1041,17 @@ fn refused(run: &mut Run) -> Result<String> {
     run.fake.write()?;
     const NOT_YOURS: &str = "Not changed. This session may not change settings.";
     run.refused(
-        |run| run.act("toggle button", "Fahrenheit", "Click"),
-        "SetTemperatureUnit(\"fahrenheit\") refused NotAuthorized",
-        NOT_YOURS,
-    )?;
-    run.expect_state("toggle button", "Celsius", State::Pressed, true)?;
-    run.refused(
         |run| run.act("button", "Refresh display", "Click"),
         "Refresh() refused NotAuthorized",
         "Not refreshed. This session may not change settings.",
     )?;
     run.page("Configuration")?;
+    run.refused(
+        |run| run.act("toggle button", "Fahrenheit", "Click"),
+        "SetTemperatureUnit(\"fahrenheit\") refused NotAuthorized",
+        NOT_YOURS,
+    )?;
+    run.expect_state("toggle button", "Celsius", State::Pressed, true)?;
     run.refused(
         |run| run.act("toggle button", "Rotation 90°", "Click"),
         "SetRotation(1) refused NotAuthorized",
@@ -1265,7 +1283,7 @@ fn service_stops(run: &mut Run) -> Result<String> {
          service failed.",
     )?;
     run.commands(FROM_A_TERMINAL, &ON_LINES)?;
-    run.expect_state("toggle button", "Display", State::Sensitive, false)?;
+    run.expect_state("toggle button", "Configuration", State::Sensitive, false)?;
     run.gone("grid cell", "Load: CPU")?;
     run.expect_texts("group", "Service status", &["Service not running"])?;
     run.expect_texts("group", "Cooler status", &["Cooler: unknown"])?;
@@ -1303,10 +1321,13 @@ fn not_available(run: &mut Run) -> Result<String> {
         "OpenDeepCool can be used only from the session at the PC. This session is remote or \
          not the active one.",
     )?;
+    // Only the title and the close icon of the header remain.
+    run.node("button", "Close")?;
+    run.check_state("button", "Close", State::Sensitive, true)?;
     for (role, name) in [
-        ("toggle button", "Display"),
         ("toggle button", "Configuration"),
         ("button", "Refresh display"),
+        ("button", "Back"),
         ("image", "Cooler display preview"),
         ("grid cell", "Load: CPU"),
         ("group", "Cooler status"),
@@ -1322,7 +1343,7 @@ fn not_available(run: &mut Run) -> Result<String> {
         .into_iter()
         .map(|(name, _)| name)
         .collect();
-    for action in ["win.refresh", "win.page-display", "win.page-config"] {
+    for action in ["win.refresh", "win.configuration", "win.back"] {
         if actions.iter().any(|a| a == action) {
             return Err(format!("{action} offered when not available"));
         }

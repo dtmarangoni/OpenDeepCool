@@ -264,6 +264,7 @@ fn base_view() -> Normal {
         },
         config: ConfigPage {
             rotation: 0,
+            unit: TemperatureUnit::Celsius,
             gpu: Some(GpuRow {
                 entries: all_gpu_entries(),
                 chosen: 0,
@@ -404,13 +405,14 @@ fn a_music_mode() {
 }
 
 // Row "A value of 100 or more, °F": the preview mirrors the service's frames, and the tiles
-// draw in °F; the view carries the unit.
+// draw in °F; the view carries the unit, for the tiles and for the Configuration page's toggles.
 #[test]
 fn fahrenheit() {
     let mut state = base();
     state.temperature_unit = Some(TemperatureUnit::Fahrenheit);
     let mut want = base_view();
     want.display.unit = TemperatureUnit::Fahrenheit;
+    want.config.unit = TemperatureUnit::Fahrenheit;
     assert_eq!(view_of(state), want);
 }
 

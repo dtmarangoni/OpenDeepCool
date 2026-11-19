@@ -23,21 +23,22 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D1 | Window structure | One window: a persistent preview column on the left, and a `GtkStack` on the right with two pages, **Display** and **Configuration** | The preview stays in view while rotation, GPU or Music settings change. There is no second window to tile in Hyprland |
 | D2 | How the 23 modes are picked | A gallery of picture tiles in four groups, **Load**, **Temperature**, **Power** and **Music**. One tile is one mode | One click per mode, all of them visible, and each tile shows what the mode looks like. No Combined/Separate wording |
 | D3 | Where the preview sits | The top of the left column, on both pages | Every setting's effect shows in place |
-| D4 | Refresh and status | Refresh in the header bar; a status line of up to three items under the preview; a banner only for states that need attention | Status can be read at a glance, and the app only raises an alert when one is needed |
-| D5 | How the configuration screen is reached | A two-segment switcher in the header bar: `Display \| Configuration` | One click each way, and it always shows where you are |
+| D4 | Refresh and status | Refresh as an icon button at the right of the Display page's bar (D12; the header bar held it until Phase 11a); a status line of up to three items under the preview; a banner only for states that need attention | Status can be read at a glance, and the app only raises an alert when one is needed. Refresh sits with the page whose picture it syncs |
+| D5 | How the configuration screen is reached | A gear toggle at the right of the header bar opens it, and a back icon at the start of its own page bar, Escape or Alt+Left closes it (D12). There is no page switcher and no Display tab | The Display page is home, so it needs no tab; one icon reaches Configuration, and the page says where you are |
 | D6 | Apply model | **Instant apply.** Every choice goes to the service, and so to the cooler, when it's made. There is no Apply button and no unsaved state | Fewest clicks; the preview simply mirrors the cooler (settings.md, Changes apply at once) |
 | D7 | Toolkit | Plain GTK4 through gtk4-rs, no libadwaita (PRD Decisions Log) | Every widget needed exists in GTK4, and libadwaita's look would mostly be overridden for Omarchy anyway |
 | D8 | Theming | CSS custom properties in one `GtkCssProvider` at APPLICATION priority, generated from `colors.toml` and the `shell.toml` `[controls]` alphas. A `GFileMonitor` on `current/` triggers a live reload: Omarchy keeps `current/` and replaces only `current/theme` inside it (its `omarchy-theme-set`, read 2026-10-27; solution review P10-06) | [Theme](#theme) |
 | D9 | Where the Start at boot switch sits (2026-11-11) | The last card of the Configuration page, **Startup**, and, while the service isn't running, the window's body, where the pages would be | Configuration already holds every setting but mode and unit, and the switch is flipped about once per PC, so it needn't take the header. While the service is down, Configuration can't be reached, and the body is where the user looks ([Start at boot](#start-at-boot)) |
 | D10 | The window while the service isn't running (2026-11-11, revised the same day) | One screen, the **off screen**, with no banner: the heading "OpenDeepCool is off" (the display service doesn't start at boot) or "OpenDeepCool isn't running" (it does, but it's stopped, failed or starting), the Startup card with its note, and the terminal commands. The red service banner is gone | The switch now reads off whenever OpenDeepCool isn't ready, and a flip on starts a stopped service, so the switch is the fix in every case. A banner would say the same thing as the note, and its terminal command would come before the app's own control. The heading and the status dot ("Service off", hollow, or "Service not running", red) still tell a deliberate off from a fault |
 | D11 | What the switch reads (2026-11-11, revised the same day: "on means ready to use", owner) | **On** only when the display service starts at boot and runs, and the sound starts at every login and runs in this session. Anything else reads **off**, with **one note** built from what's missing: at most one phrase for the display service and one for the sound ([The note](#the-note)) | A flip on always finishes the setup and starts what isn't running, so off-with-a-note is always one flip from ready. One composed note needs 7 phrases, against 15 combinations to word one by one, and still says exactly what's missing |
+| D12 | The header, the page change, Refresh and the temperature unit (Phase 11a Task 7, 2026-11-19, from the owner's review of 2026-11-18) | The header bar holds the centred title and, at the right, two frameless icon buttons: a gear toggle (Configuration) and a close icon. Each page has its own **page bar**: Display has the title "Display" and the Refresh icon at the right; Configuration has a back icon at the start and the title "Configuration". The two pages are two children of one `GtkStack` with no transition. The temperature unit is a row of the Configuration page's Display card, after Rotation | The page change is one icon and one icon back, with no tab to explain. Every control stays a single click or key. The options weighed are in [Answers decided on 2026-11-19](#answers-decided-on-2026-11-19) |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
 - **Tiles:** fixed made-up sample values, drawn locally.
 - **Remote or inactive session** (owner, 2026-10-26, replacing pass 1's view-only session): the window shows one message and nothing else ([Not available in this session](#not-available-in-this-session)). No control is ever shown disabled for lack of rights.
 - **Rotation:** four direct choices.
-- **Temperature unit:** once, at the top of the Display page.
+- **Temperature unit:** once, in the Display card of the Configuration page, after Rotation (owner, 2026-11-18; it was at the top of the Display page until then).
 - **Service not running:** the app explains, shows the start command, and has no start button. Since 2026-11-10, the [Start at boot](#start-at-boot) switch on the [off screen](#the-off-screen) turns OpenDeepCool on, and since 2026-11-11 it also starts a service that's set to start but stopped; it's the only control that changes the system (owner, 2026-11-11: no separate start button).
 - **Window background:** opaque. The `shell.toml` alphas apply to controls only.
 - **Default theme:** dark and light variants. Outside Omarchy in v1, the dark one is used.
@@ -76,28 +77,91 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
 - **State unknown:** (a) the switch sensitive at off, a flip running `on`: safe, since `on` repeats nothing harmful, but the switch's position would say nothing true; (b) **chosen:** insensitive at off, with the reason and the commands.
 - **When the state is read again:** (a) systemd's `UnitFilesChanged` signal after `Subscribe()`: live for the display service, but `Subscribe()` makes the system manager send its signals on the bus while the app runs, and a `--global` change (made on the files, `systemctl --global`) sends nothing at all; (b) **chosen:** at start, after each flip, whenever the window becomes active, and when the service's bus name gets or loses an owner. Someone who types the commands in a terminal comes back to the window, which turns it active. No polling.
 
+### Answers decided on 2026-11-19
+
+Decided under the same delegation, for the owner's review of 2026-11-18 (Phase 11a Task 7: no Display tab, the title in the middle, a gear and a close icon, a back icon, Refresh as an icon on its page, the unit on the Configuration page). Each choice, with the options weighed:
+
+- **The gear while the Configuration page shows:**
+  - (a) hidden: the header's shape changes between the two pages, and the only "you are here" signal is the page title;
+  - (b) insensitive: a disabled control for the page you're on says nothing about why, and a state that is current reads as unavailable;
+  - (c) enabled and doing nothing: a control that does nothing is worse than none;
+  - (d) **chosen:** a toggle, pressed on the Configuration page, that goes back to the Display page when it's pressed again. The header is the same on both pages, the pressed state (a fill and the accent on the icon) is the "you are here" signal, and a gear that opens a panel and closes it again is the common idiom. Assistive technology reads "Configuration, toggle button, pressed".
+- **Where the back icon sits:**
+  - (a) the header bar's start slot, as `AdwHeaderBar` puts the back button of a navigation view: it would sit above the preview column, far from the page it leaves, and the owner asked for it "at the top of the configuration page";
+  - (b) the end side, beside the gear: against GNOME's rule that back is at the top-left in left-to-right text, and KDE's guidelines name no other side;
+  - (c) **chosen:** the start of the Configuration page's own page bar, left of the page title in left-to-right text, so GTK mirrors it by itself for right-to-left text. GNOME's HIG, Browsing: "In left-to-right locales, the standard position for the back button is the top-left" (developer.gnome.org/hig, read 2026-11-19), and its header bar page puts the main actions, back among them, "at the start of the header bar". KDE's HIG puts "back/forward buttons in the toolbar" of Kirigami's page stack (develop.kde.org/hig, Layout and navigation, read 2026-11-19) and states no side, so GNOME's rule decides.
+- **Page bars or none:**
+  - (a) none: Refresh floats over the first group's heading row and the back icon over the first card. They scroll away on a small screen (the window now scrolls where the monitor is small) and a long reason line under "Load" could run under the icon;
+  - (b) **chosen:** one page bar on each page, outside the scrolled area, 32 px high. It costs about the height of the unit row it replaces on the Display page, and it gives both pages a title.
+- **Refresh while the service isn't running:** it belongs to the Display page, which the off screen replaces, so it isn't drawn then. The gear stays visible but insensitive, as the page switcher was (Configuration can't be reached while the service is down, and Start at boot is on the off screen, D10). In a session that can't use OpenDeepCool only the title and the close icon show.
+- **The temperature unit's control:** (a) a `GtkDropDown`: two choices behind a click; (b) a `GtkSwitch` "Fahrenheit": a switch is for on and off, and °C isn't "off"; (c) **chosen:** the two linked toggles that Rotation has. Both choices show, it's one click, the widgets and their names are the ones the Display page had, and "each control is one D-Bus call, shown as the service confirms it" stays as it was.
+- **The shortcuts:** Ctrl+1 and Ctrl+2 went with the tabs. GNOME's standard list gives Preferences Ctrl+, and Back Alt+← (developer.gnome.org/hig, Keyboard, read 2026-11-19), and libadwaita's navigation view goes back with Escape and Alt+← (its `AdwNavigationView` page, read 2026-11-19), so the app binds Ctrl+, (open Configuration), and Escape and Alt+Left (back), the last two only while the Configuration page shows, so Escape is free everywhere else. F5 and Ctrl+R stay for Refresh. The mouse's back button isn't bound: nobody asked.
+- **Where the "Refreshed" and refusal label sits:** it was at the top right of the content, which is where Refresh is now. It moves to the bottom centre of the content, as the mockups' toast always drew it, so it never hides a control.
+
 ## Window
 
 ```
 ┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
-│ GtkHeaderBar   [OpenDeepCool]    [ Display | Configuration ]   [⟳ Refresh] │
+│ GtkHeaderBar                    OpenDeepCool                    [⚙] [✕]   │
 ├────────────────────────────────────────────────────────────────────────────┤
 │ Banner (GtkRevealer > GtkBox): only when needed                            │
 ├──────────────────────┬─────────────────────────────────────────────────────┤
-│ Preview column       │ GtkStack (transition: none)                         │
-│  GtkDrawingArea      │  page "display": unit + tile gallery                │
-│  caption, status     │  page "config":  Display / Music / Startup          │
-│                      │  (each page in a GtkScrolledWindow)                 │
+│ Preview column       │ GtkStack "pages" (transition: none)                 │
+│  GtkDrawingArea      │  "display": page bar  [Display ............ ⟳]     │
+│  caption, status     │             tile gallery (scrolls)                  │
+│                      │  "config":  page bar  [← Configuration]             │
+│                      │             Display / Music settings / Startup      │
+│                      │             (scrolls)                               │
+│                      │  "off":     the off screen (scrolls)                │
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
 - **Size:** default 1040 × 720 px, minimum 720 × 560 px. The tile rows reflow (`GtkFlowBox`), and each page scrolls vertically. Whether Hyprland honours a GTK window's minimum size when it tiles is **unverified**.
-- **Header bar:**
-  - `GtkHeaderBar` with the switcher as its title widget, and the app name as a `GtkLabel` at the start;
-  - window buttons follow the desktop's decoration layout (GtkHeaderBar's default);
-  - Refresh is a `GtkButton` with an icon and the label "Refresh", packed at the end.
+- **Header bar** (`GtkHeaderBar`, `show-title-buttons` false: the desktop's window buttons are off, so no desktop draws a second close button; Phase 11a Task 1 measured it). Its layout:
+  - **Title,** centred: a `GtkLabel` "OpenDeepCool" (class `app-name`, not focusable) as the bar's title widget (`set_title_widget`). GTK's docs say the title "will be centered with respect to the width of the box, even if the children at either side take up different amounts of space" (docs.gtk.org, HeaderBar, read 2026-11-19), so the empty start side doesn't push it. The window's own title, for the window manager, stays "OpenDeepCool" on every page.
+  - **Nothing at the start.**
+  - **At the end:** one horizontal `GtkBox` (4 px between its children), packed with `pack_end`, holding the gear and then the close icon, so the close icon is the window's last control at the right. Packing one box keeps the order from depending on `pack_end`'s.
+    - **Gear:** a `GtkToggleButton` with `icon-name` `emblem-system-symbolic`, the class `icon-button`, accessible name "Configuration", tooltip "Configuration". Pressed while the Configuration page shows. It has no action name: its `toggled` handler goes to the page (guarded while the app sets it itself, as the other toggles are), and Ctrl+, calls the same code.
+    - **Close:** a `GtkButton` with `icon-name` `window-close-symbolic`, the class `icon-button`, action `win.close`, accessible name "Close", tooltip "Close".
+  - **The icons** are Adwaita's symbolic ones: `emblem-system-symbolic` (the gear, in the `legacy` folder of `adwaita-icon-theme`), `window-close-symbolic`, `go-previous-symbolic` and `view-refresh-symbolic`, which Phase 11a Task 1 found in the user's theme. Should an icon theme lack one, the tooltip and the accessible name still say what the button does.
+- **Icon buttons** (gear, close, back, Refresh) have no frame in any state (owner, 2026-11-18). Each is 32 × 32 px with a 16 px icon, so the target is above WCAG 2.2's 24 × 24 minimum (SC 2.5.8). The stylesheet draws them with tokens only (the test that no colour literal appears outside `:root` forbids `transparent`, so the resting fill is the surface they sit on, as `button.link` does):
+
+  | State | Look |
+  |---|---|
+  | rest | fill and text colour `--bg` and `--fg`, no border (`border-style: none`) |
+  | `:hover` | fill `--ctl-hover-fill` |
+  | `:focus-visible` | fill `--ctl-focus-fill`, and the 2 px `--accent` outline every control has |
+  | `:active` | fill `--ctl-pressed-fill` |
+  | `:checked` (the gear on the Configuration page) | fill `--ctl-selected-fill`, icon `--accent` |
+  | `:disabled` | fill `--bg`, icon `--muted`, no `opacity` |
+
+  The rules read `button.icon-button`, `button.icon-button:hover` and so on, which outrank the plain `button` and `button:checked` rules the controls share, and the border stays off in every state. The icon on the selected fill needs 3.0:1 (WCAG 1.4.11); Phase 11a Task 11's contrast table, which replaces the palette, includes that row.
+- **The header, by state:**
+
+  | State | Title | Gear | Close |
+  |---|---|---|---|
+  | Normal, Display page | shown | shown, sensitive, not pressed | shown, sensitive |
+  | Normal, Configuration page | shown | shown, sensitive, **pressed** | shown, sensitive |
+  | Service not running (the [off screen](#the-off-screen)) | shown | shown, **insensitive**, not pressed | shown, sensitive |
+  | [Not available in this session](#not-available-in-this-session) | shown | **hidden** (`visible` false) | shown, sensitive |
+
+  - While the service is down the gear keeps its place, insensitive: Configuration can't be reached then, because Start at boot is on the off screen (D10), and the header keeps its shape.
+  - In a session that can't use OpenDeepCool the gear is hidden, not just insensitive: nothing may suggest a control that could work (owner, 2026-10-26). Only the title and the close icon show.
+  - If the service goes down while the Configuration page shows, the off screen replaces it and the gear lets go; when the service is back, the window returns to the page last shown and the gear is pressed again.
+- **The pages.**
+  - **One `GtkStack`**, `pages`, with three children: `display`, `config` and `off` (the off screen). It is `GTK_STACK_TRANSITION_TYPE_NONE` and homogeneous, so the window doesn't change size when the page changes. The not-available message is in the `screens` stack around it, as before.
+  - **A page** is a vertical `GtkBox` of its page bar (below) and a `GtkScrolledWindow` holding its content, so the bar never scrolls away. Each page keeps its own scroll position while the other shows. The off screen has no page bar.
+  - **The page changes only by the user's action:** the gear, Ctrl+,, the back icon, Escape and Alt+Left (or by the service going down and coming back, as above). No motion.
+  - **Focus.** Opening the Configuration page moves the focus to its back icon, the page's first control, so Tab goes on into Rotation. Closing it moves the focus to the gear, the control that opened it, whichever way the page was left (back icon, Escape, Alt+Left); when the gear itself closed it, the focus is there already. If the gear can't take it (the service went down), the off screen's own rule applies ([The off screen](#the-off-screen)). A page change by the mouse moves the focus too: GTK draws no focus ring after a pointer click, so nothing shows.
+  - **Screen readers** hear the page's title (`gtk_accessible_announce`, since GTK 4.14, verified) when the user changes the page, not when the window returns to a page after the service did.
+- **Page bar.** A horizontal `GtkBox` (class `page-bar`, 8 px between its children, 18 px at its start and end, 12 px above, none below) outside the scrolled area:
+  - **Display:** the title "Display" (a `GtkLabel`, class `page-title`, `hexpand`, `xalign` 0) and the Refresh icon at the end ([Refresh](#refresh));
+  - **Configuration:** the back icon at the start, then the title "Configuration" (`GtkLabel`, class `page-title`):
+    - the back icon is a `GtkButton` with `icon-name` `go-previous-symbolic`, the class `icon-button`, action `win.back`, accessible name "Back", tooltip "Back to Display";
+    - `page-title` is one step above the card headings: weight 600, and a size from Phase 11a Task 11's type scale;
+    - the content's top margin under a page bar is 6 px, so the first row sits close under the bar. (With no bar the page keeps its 18 px margin all round: the off screen.)
 - **No motion in the chrome.** `GtkStack` uses `GTK_STACK_TRANSITION_TYPE_NONE`, and the app's stylesheet sets `transition: none` on everything. The preview is the only thing that moves.
-- **Remote or inactive session:** the header bar keeps only the app name, and the body holds only one message ([Not available in this session](#not-available-in-this-session)).
+- **Remote or inactive session:** the header bar keeps only the title and the close icon, and the body holds only one message ([Not available in this session](#not-available-in-this-session)).
 
 ## Preview column
 
@@ -123,12 +187,10 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
 
 ## Display page
 
-**Purpose:** choose the mode and the temperature unit (settings.md: the only two settings outside the configuration screen).
+**Purpose:** choose the mode (settings.md: the only setting outside the configuration screen). The page is home: the window opens on it, and no tab leads to it.
 
-- **Temperature unit** at the top: "Temperature unit" and two grouped `GtkToggleButton`s, `°C` and `°F` (`gtk_toggle_button_set_group`, verified).
-  - It changes the unit at once.
-  - In a mode without a temperature, the unit is only saved and the cooler doesn't change (display.md, Mode switches). Nothing in the app needs to say so, because the preview stays the same.
-  - The temperature tiles redraw in the chosen unit.
+- **Page bar** at the top, outside the scrolled area ([Window](#window)): the title "Display" at the start, and the Refresh icon at the end ([Refresh](#refresh)). The icon sits at the right end of the bar, above the Load group and level with the title; the preview column is on its left and isn't involved.
+- **The unit** isn't here any more. The temperature tiles show the unit set on the Configuration page, and redraw when the service confirms a change ([The unit](#display)).
 - **Tile gallery:** four groups, each a heading `GtkLabel` and a `GtkFlowBox`.
   - **Load** takes a full row. **Temperature** and **Power** share a row (a horizontal `GtkBox`). **Music** takes two rows.
   - **Tiles:**
@@ -161,11 +223,15 @@ Answers decided on 2026-11-11, under the same delegation, for the Start at boot 
 
 ## Configuration page
 
-**Purpose:** every other setting, on one screen (settings.md, A configuration screen). There are three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot).
+**Purpose:** every setting but the mode, on one screen (settings.md, A configuration screen; the temperature unit joined it on 2026-11-18). The gear opens it, and the back icon, Escape or Alt+Left leave it ([Window](#window)). It is a [page bar](#window) with the back icon and the title "Configuration", and under it, in the scrolled area, three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label (and an optional hint) on the left and the control on the right. The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot). Phase 11a Task 11 adds the Theme card in front of Display.
 
 ### Display
 
 - **Rotation:** "Turns the picture clockwise". Four grouped `GtkToggleButton`s, `0°`, `90°`, `180°`, `270°`, which call `SetRotation`. The preview turns with the next frame.
+- **Temperature unit,** the row after Rotation: "Temperature unit", with the hint "Used wherever the display shows a temperature". The same control as Rotation's: two grouped `GtkToggleButton`s, `°C` and `°F`, linked, with the accessible names "Celsius" and "Fahrenheit" (`gtk_toggle_button_set_group`, verified).
+  - A toggle calls `SetTemperatureUnit` and goes back to the saved unit until the service confirms the change (`StateChanged`), as every control does ([Refused changes](#refused-changes)).
+  - In a mode without a temperature, the unit is only saved and the cooler doesn't change (display.md, Mode switches). Nothing in the app needs to say so, because the preview stays the same.
+  - The temperature tiles on the Display page redraw in the confirmed unit.
 - **GPU:** "Where the display's GPU values come from".
   - A `GtkDropDown`, shown only when the PC has more than one GPU. Its `factory` draws the button, with the label alone. Its `list-factory` draws the popup's entries: a check mark, the label, and a muted note at the right (GtkDropDown:list-factory, "the factory for populating list items in the popup", docs.gtk.org, read 2026-11-06).
   - **Automatic** is the first entry and the default (owner, 2026-11-04). It reads "Automatic", in the list and on the button, and choosing it calls `ChooseGpu("")`. Its entry has no note.
@@ -210,7 +276,7 @@ A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `Gt
 | Cooler, no access (error) | `CoolerState` is `no-access`: the service finds the cooler but can't open its device node, a permissions problem such as a missing udev rule (settings.md, Status; solution review P5-02) | "**The cooler is plugged in, but the service can't open it.** The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." | Nothing is disabled, and changes are saved. The preview keeps mirroring the service's picture, captioned "Not on the cooler: the service can't open it". Status "Cooler: no access", with a red dot. There's no button and no command, because both fixes are the user's own and the app can't do either |
 | Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. Caption "Not on the cooler: sending it fails". Status "Cooler: sending fails", with a yellow dot |
 
-- **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the switcher and Refresh are insensitive, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
+- **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the gear is insensitive, the pages (and so Refresh) aren't shown, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
 - **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service is down, there's no cooler banner, because the cooler's state is unknown then.
 - **Why the fix for `no-access` reads as it does:**
   - At boot, udev applies its rules to every device: systemd's `systemd-udev-trigger.service`, "Coldplug All udev Devices", runs `udevadm trigger --type=all --action=add` (systemd's unit source, read 2026-11-06). So a restart applies a rule that's installed but wasn't applied.
@@ -227,9 +293,11 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 
 ## Refresh
 
+- **The control:** a frameless icon button at the right end of the Display page's [page bar](#window), at the top right of the page: a `GtkButton` with `icon-name` `view-refresh-symbolic`, the class `icon-button`, action `win.refresh`, accessible name "Refresh display", tooltip "Refresh the display: fresh readings, and the picture starts again". It is above the Load group and doesn't scroll away.
 - It calls `Refresh()`: fresh readings, and the picture restarts from home (display.md, Mode switches).
-- A small confirmation label, "Refreshed", shows in a `GtkOverlay` for about 1.5 s, without animation. A static picture often looks the same after a refresh, so the user needs this confirmation.
-- Refresh shows only where OpenDeepCool can be used: it's absent when the app is [not available in this session](#not-available-in-this-session), and insensitive while the service isn't running. If the service refuses it anyway (`NotAuthorized`, for example under an administrator's own polkit rule that allows reading but refuses changes), that's shown like any [refused change](#refused-changes).
+- **F5 and Ctrl+R** do the same from either page while the service runs. The icon is on the Display page only, and the action is enabled in every state where the window shows its pages.
+- A small confirmation label, "Refreshed", shows in the `GtkOverlay` around the window's content for about 1.5 s, without animation, at the bottom centre (`halign` center, `valign` end, 16 px from the bottom), so it never covers a control. A static picture often looks the same after a refresh, so the user needs this confirmation.
+- Refresh shows only where OpenDeepCool can be used. It's on the Display page, so it isn't drawn when the app is [not available in this session](#not-available-in-this-session), nor on the [off screen](#the-off-screen) (the previous header kept it insensitive; the page has no place for a control that can't work), and its action is disabled in both states, so F5 and Ctrl+R do nothing there. If the service refuses it anyway (`NotAuthorized`, for example under an administrator's own polkit rule that allows reading but refuses changes), that's shown like any [refused change](#refused-changes).
 
 ## Refused changes
 
@@ -371,13 +439,13 @@ When the switch reads off and something is set up, one note under the row says w
   - **turning on from the off screen:** the off screen stays, with the switch changing, while the dialog is open and the program runs. The unit is `Type=notify`, so the program's `systemctl start` returns once the service says it's ready. The service's bus name gets an owner, the app connects by itself, and the normal window appears on the page last shown, the Display page after a new install. After a successful `on`, the flip counts as running until the bus name has an owner or 5 s have passed, so the heading and the note can't flash to "isn't running" in between;
   - **turning off from the Configuration page:** the service stops while the program runs. The window turns to the off screen at once, headed "OpenDeepCool is off", and the switch finishes changing there;
   - **a service that stops or crashes** while the window shows the pages: its name loses its owner, the window turns to the off screen headed "OpenDeepCool isn't running", and the note says "stopped" or "failed". A crashing service comes back by itself (`Restart=on-failure`), and the window with it.
-- Refresh and the page switcher stay insensitive while the service is down, as before.
+- While the service is down the gear stays visible but insensitive, and Refresh isn't drawn (it belongs to the Display page, which the off screen replaces). Their shortcuts do nothing.
 
 ### The off screen
 
 ```
 ┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
-│ GtkHeaderBar   [OpenDeepCool]    [ Display | Configuration ]   [⟳ Refresh] │  (insensitive)
+│ GtkHeaderBar                    OpenDeepCool             [⚙ dimmed] [✕]   │
 ├──────────────────────┬─────────────────────────────────────────────────────┤
 │ Preview, all unlit   │      OpenDeepCool is off  (or: … isn't running)     │
 │ No picture           │   The cooler shows nothing until the display        │
@@ -403,8 +471,8 @@ When the switch reads off and something is set up, one note under the row says w
 - **Text** under the heading, in `--muted`, the same for both: "The cooler shows nothing until the display service runs."
 - **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:".
 - **No banner.** The note says what's wrong, and the switch is the fix.
-- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The header bar and the preview column are as before while the service is down.
-- **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on.
+- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` and without a page bar. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
+- **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on. The gear is insensitive here, so a page that was closed by the service going down gives its focus to this switch, not to the gear.
 
 ### Who may flip it
 
@@ -418,7 +486,7 @@ When the switch reads off and something is set up, one note under the row says w
 
 ```
 ┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
-│ GtkHeaderBar   [OpenDeepCool]                                              │
+│ GtkHeaderBar                    OpenDeepCool                          [✕]  │
 ├────────────────────────────────────────────────────────────────────────────┤
 │                                                                            │
 │                                                                            │
@@ -431,10 +499,10 @@ When the switch reads off and something is set up, one note under the row says w
 
 - **Text:** the heading "OpenDeepCool can be used only from the session at the PC", and under it, in `--muted`, "This session is remote or not the active one."
 - **Widgets**, all plain GTK4 (no libadwaita, so no `AdwStatusPage`):
-  - the same `GtkHeaderBar`, with only the app name. The switcher and Refresh are hidden (`visible` false), not just insensitive. The window buttons stay, following the desktop's decoration layout;
+  - the same `GtkHeaderBar`, with the title and the close icon only. The gear is hidden (`visible` false), not just insensitive; Refresh is on the Display page, which isn't shown. The close icon is the app's own: the desktop's window buttons are off ([Window](#window));
   - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the off screen's heading and text;
   - nothing else: no banner, no preview column, no pages, no status, nothing that could show a value.
-- **Keyboard and screen readers:** nothing in the content takes focus. Ctrl+W and Ctrl+Q still close the window; the page and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
+- **Keyboard and screen readers:** nothing in the content takes focus, and in the window only the close icon does. Ctrl+W and Ctrl+Q still close the window; the Configuration, back and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
 - **Trying again,** without polling: when the window becomes active again (`notify::is-active` on `GtkWindow:is-active`, verified) and when the service's bus name gets a new owner (`NameOwnerChanged`). If `GetState()` succeeds then, the normal screens appear with the current state.
 - **The service not running comes first.** Without the service, the app can't tell whether this session may use OpenDeepCool, so it shows the service state, which holds no settings and no picture. In a session logind reports as remote or inactive, that state, the off screen, has no Start at boot switch ([Who may flip it](#who-may-flip-it)).
 - **An administrator's own polkit rule** might allow reading but refuse changes. That's no separate state: the app shows the normal screens, and each change fails with `NotAuthorized`, shown like any [refused change](#refused-changes).
@@ -459,7 +527,9 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | State | What the app shows | Mockup |
 |---|---|---|
-| Normal, several GPUs | Display page; status "Cooler connected", "Service running". Configuration: the GPU on Automatic, and "Using Dedicated · Contoso Graphics R870." under it | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery; status "Cooler connected", "Service running". Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| The Configuration page is open | The gear is pressed; the back icon, Escape or Alt+Left, or the gear again, return to the Display page, and focus goes to the gear | [configuration.html](mockups/configuration.html): click the back icon, the gear, or press Escape |
+| The temperature unit | A row of the Display card after Rotation; the temperature tiles on the Display page follow it | [configuration.html](mockups/configuration.html), [display-scrolling.html](mockups/display-scrolling.html) (the tiles show °F) |
 | GPU list open | Automatic first; a GPU whose kind query failed as "Unknown type · …" with "driver couldn't be asked"; a GPU without a reading rule last, with "no readings"; the line under the dropdown names the integrated GPU, which Automatic reads here | [configuration-gpu-list.html](mockups/configuration-gpu-list.html) |
 | A GPU added or removed since the last start | The choice is back on Automatic (the service cleared it), with no note; the line names the GPU in use | [configuration.html](mockups/configuration.html) |
 | A Music mode | The status line adds "Sound connected" or "No sound: spectrum is silent" | [display-music.html](mockups/display-music.html) |
@@ -469,7 +539,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; caption "Not on the cooler: the service can't open it"; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
 | Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; caption "Not on the cooler: sending it fails"; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
 | Sending fails, under 2 s (one bad write, or the cooler being unplugged) | As connected: no banner, until the state changes or 2 s pass | (as display) |
-| Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the terminal commands under the card; nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
+| Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the terminal commands under the card; the header keeps the title and the close icon, with the gear visible but insensitive, and there's no Refresh (it belongs to the Display page); nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
 | The same, just stopped | As above, with "the display service is stopped" and no journal sentence | (as service-not-running) |
 | The display service starting (at boot or login, before it's ready) | As above, with "The display service is starting." and the switch insensitive | (as service-not-running) |
 | OpenDeepCool is off (a new install, or turned off) | The off screen headed "OpenDeepCool is off": no banner, "Service off", the switch off with no note, the terminal commands under it. Flip it in the mockup to see the window turn on | [boot-off.html](mockups/boot-off.html) |
@@ -486,12 +556,12 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Service down in a remote or inactive session | The off screen without the Startup card: its heading, text and the terminal commands | (as service-not-running, without the card) |
 | Metric unavailable | Tiles disabled with "Unavailable"; each group lists its reasons once | [unavailable-metric.html](mockups/unavailable-metric.html) |
 | The saved mode lost a reading | Tile still selected with "Reading lost"; dashes in the preview; reason under the preview | [reading-lost.html](mockups/reading-lost.html) |
-| Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no Refresh | [not-available.html](mockups/not-available.html) |
+| Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no gear and no Refresh. The header keeps the title and the close icon | [not-available.html](mockups/not-available.html) |
 | One GPU | No GPU row at all | [one-gpu.html](mockups/one-gpu.html) |
 | A GPU without a reading rule in use | GPU tiles disabled with "no reading for this GPU's driver"; a hint under the GPU dropdown | [configuration.html](mockups/configuration.html): choose "Unknown type · othergpu · 0000:07:00.0" |
 | Another `CoolerState` (the dev copy's `released`, or a later value) | As `not-found` | (as cooler-disconnected) |
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
-| A change refused | The control stays on the saved value; the overlay label says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
+| A change refused | The control stays on the saved value; the overlay label, at the bottom centre, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
 | Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
 | Live theme switch | Colours change in place, with no restart and the same page and scroll position | every mockup: the theme buttons above the window |
 | Default theme (no Omarchy theme) | The default dark palette | every mockup: "Default theme, dark" or "Default theme, light" |
@@ -523,7 +593,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | Token | Omarchy source | Used for |
 |---|---|---|
-| `--bg` | `colors.toml` `background` | window, header bar, banner base |
+| `--bg` | `colors.toml` `background` | window, header bar, banner base, the resting fill of the frameless icon buttons ([Window](#window)) |
 | `--surface` | `lighter_background` | preview frame, configuration cards, popovers |
 | `--fg` | `foreground` | text, lit preview dots (unlit dots: `--fg` at 0.12) |
 | `--muted` | `muted` | hints, captions of unavailable tiles, group reason lines |
@@ -579,22 +649,25 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 
 ## Keyboard
 
-- **Tab order:** header switcher → Refresh → banner button (when present) → page content. On the Display page: the unit toggles, then each tile group in turn. On the Configuration page: rotation, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
+- **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
+- **Where focus lands on a page change:** see [Window](#window), The pages. Opening the Configuration page puts it on the back icon; closing the page puts it on the gear. Nothing else moves it.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
 - **Insensitive tiles can't take focus.** Their reasons are visible text under the group heading.
-- **Toggle groups** (unit, rotation, switcher): Tab reaches them; Enter or Space toggles. Arrow keys between the buttons of a group are **unverified** for grouped `GtkToggleButton`s; if GTK doesn't do it, each button is a Tab stop.
-- **Dropdowns:** Enter or Space opens; arrows move; Enter chooses; Escape closes.
+- **Toggle groups** (rotation and the unit): Tab reaches them; Enter or Space toggles. Arrow keys between the buttons of a group are **unverified** for grouped `GtkToggleButton`s; if GTK doesn't do it, each button is a Tab stop. The gear is one toggle on its own, not a group.
+- **Dropdowns:** Enter or Space opens; arrows move; Enter chooses; Escape closes the list. While the list is open Escape closes only the list: the back action doesn't take it (**unverified**: the list is a popover with its own surface and grab, which should get the key first; if a test shows the page going back as well, `win.back` is disabled while the GPU list is open, or Escape is dropped and Alt+Left and the back icon remain).
 - **Scales:** Left and Right move one stop; Home and End go to Slower and Faster.
 - **Switches:** Space toggles. Start at boot is insensitive while a flip runs, so it can't be flipped twice; focus comes back to it when the flip ends. It's also insensitive while its state is unknown and while the display service is starting; Tab then goes straight to Copy.
-- **Not available in this session:** nothing in the window takes focus but the window buttons, and only Ctrl+W and Ctrl+Q work; the page and Refresh actions are disabled.
-- **Shortcuts** (`GtkApplication` accelerators):
+- **Not available in this session:** nothing in the window takes focus but the close icon, and only Ctrl+W and Ctrl+Q work; the Configuration, back and Refresh actions are disabled.
+- **Shortcuts** (`GtkApplication` accelerators, in GTK's accelerator strings: `<Control>comma`, `Escape`, `<Alt>Left`, `F5`, `<Control>r`, `<Control>w`, `<Control>q`; a key is written by its lowercase name, as `gtk_accelerator_parse` asks, docs.gtk.org, read 2026-11-19). One set, the same wherever the design mentions a route:
 
-  | Keys | Action |
-  |---|---|
-  | Ctrl+1 | Display page |
-  | Ctrl+2 | Configuration page |
-  | F5 or Ctrl+R | Refresh |
-  | Ctrl+W or Ctrl+Q | close the window |
+  | Keys | Action | When it works |
+  |---|---|---|
+  | Ctrl+, | open the Configuration page (`win.configuration`) | the window shows its pages; on the Configuration page it does nothing |
+  | Escape or Alt+Left | back to the Display page (`win.back`) | only while the Configuration page shows: the action is disabled elsewhere, so Escape stays free for menus, popovers and everything else |
+  | F5 or Ctrl+R | Refresh (`win.refresh`) | from either page, while the service runs |
+  | Ctrl+W or Ctrl+Q | close the window (`win.close`) | always |
+
+  Ctrl+, is GNOME's standard for Preferences and Alt+← for Back (developer.gnome.org/hig, Keyboard); Escape also goes back in libadwaita's navigation view.
 
 ## Accessible names
 
@@ -609,8 +682,11 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 
 | Widget | GTK4 widget (role) | Accessible name | State and description |
 |---|---|---|---|
-| Page switcher buttons | two grouped `GtkToggleButton`s (toggle button; decisions log D50) | `Display`, `Configuration` | pressed; insensitive while the service isn't running |
-| Refresh | `GtkButton` (button) | `Refresh display` | insensitive while the service isn't running; absent when not available in this session |
+| Gear | `GtkToggleButton` (toggle button), icon only, class `icon-button`, tooltip "Configuration" | `Configuration` | pressed on the Configuration page; insensitive while the service isn't running; hidden when not available in this session |
+| Close | `GtkButton` (button), icon only, class `icon-button`, action `win.close`, tooltip "Close" | `Close` | always present and sensitive |
+| Back | `GtkButton` (button), icon only, class `icon-button`, action `win.back`, tooltip "Back to Display" | `Back` | on the Configuration page's bar only |
+| Page titles | `GtkLabel` (label), class `page-title` | their text: `Display`, `Configuration` | not named by the app: a label is named by its own text. A test tells the `Configuration` title from the gear by their roles (label, toggle button) |
+| Refresh | `GtkButton` (button), icon only, class `icon-button`, action `win.refresh`, tooltip "Refresh the display: fresh readings, and the picture starts again" | `Refresh display` | on the Display page's bar only, so absent on the off screen and when not available in this session |
 | Refresh and refusal label | `GtkBox` (group) in the `GtkOverlay`, around the `GtkLabel` | `Change feedback` | its label's text ("Refreshed", or "Not changed." and the reason) |
 | Off screen message | `GtkBox` (group) holding the heading and text `GtkLabel`s | `Service message` | description: its text ("OpenDeepCool is off" or "OpenDeepCool isn't running", then the text). It replaces Phase 10's `Service banner` and its `Copy start command` (D10) |
 | Not-available message | `GtkBox` (group) holding two `GtkLabel`s | `Not available in this session` | description: its text |
@@ -618,12 +694,12 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Preview | `GtkDrawingArea` (image) | `Cooler display preview` | description: the mode caption, for example "Temperature · CPU + GPU" |
 | Reason under the preview | `GtkBox` (group) around the icon and the `GtkLabel` | `Unavailable reading` | its label's text |
 | Status items | `GtkBox` (group) around the dot and the `GtkLabel` | `Cooler status`, `Service status`, `Music sound status` | their label's text (`Cooler status`: "Cooler connected", "Cooler not connected", "Cooler: no access", "Cooler: sending fails" or "Cooler: unknown"; `Service status`: "Service running", "Service not running" or "Service off") |
-| Unit toggles | `GtkToggleButton` (toggle button) | `Celsius`, `Fahrenheit` | pressed |
 | Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
 | Group reason lines | `GtkBox` (group) around the `GtkLabel` | `Load unavailable reasons` (and so on per group) | its label's text |
 | Tiles | `GtkFlowBoxChild` (grid cell), its picture an image of the same name | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode; action `tile.activate` while sensitive |
 | Configuration cards | `GtkBox` (group) | `Display settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
 | Rotation | `GtkToggleButton` (toggle button) | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | pressed |
+| Unit toggles | `GtkToggleButton` (toggle button), in the Display card after Rotation | `Celsius`, `Fahrenheit` | pressed |
 | GPU | `GtkDropDown` (combo box) | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
 | GPU in use | `GtkBox` (group) around the `GtkLabel` under the GPU dropdown | `GPU in use` | its label's text ("Using Dedicated · Contoso Graphics R870."); present only while Automatic is chosen |
 | Dropdown items | the open list's rows (list item) | the item label without its note (`Automatic`, `Dedicated · Contoso Graphics R870`) | the note ("no readings", "driver couldn't be asked") in the description; action `row.activate` on the row's content |
@@ -674,7 +750,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Modes 18–22 (value + spectrum) | Music tiles, each named by its metric (rule 11) | display-music |
 | Mode 23 (Dancer) | Music tile "Dancer" | display |
 | One choice → one mode | 23 tiles, 23 `SetMode` values | — |
-| Temperature unit | Display page, top | display-scrolling |
+| Temperature unit | Configuration → Display, the row after Rotation (the temperature tiles follow it) | configuration, display-scrolling (°F tiles) |
 | Rotation 0–3 | Configuration → Display | configuration |
 | GPU dropdown only with more than one GPU, Automatic first and the default, then the spec's order, the choice kept | Configuration → Display | configuration, configuration-gpu-list, one-gpu |
 | Automatic names the GPU it reads (`GpuInUse`) | The line under the GPU dropdown | configuration, configuration-gpu-list |
@@ -683,8 +759,10 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | GPU without a reading rule → listed last, GPU modes disabled | Configuration → GPU, and tiles | configuration-gpu-list; configuration (choose it) |
 | Peak dots on or off | Configuration → Music | configuration |
 | Bar fall, peak fall, five stops, defaults | Configuration → Music | configuration |
-| Configuration screen holds everything but mode and unit | Configuration page | configuration |
-| Refresh, only for the user at the PC | Header bar; absent when not available in this session; a refusal shows as a refused change | display, not-available |
+| Configuration screen holds everything but the mode (owner, 2026-11-18: the unit too) | Configuration page | configuration |
+| Both pages reachable with no tab: the gear opens Configuration; the back icon, the gear again, Escape and Alt+Left return to Display | Header bar; the Configuration page's bar; [Keyboard](#keyboard) | display, configuration |
+| The app closes from its own window | The close icon at the right of the header bar (the desktop's window buttons are off), Ctrl+W, Ctrl+Q | every mockup |
+| Refresh, only for the user at the PC | The icon at the top right of the Display page; not drawn when not available in this session or while the service isn't running (the gear is insensitive then); F5 and Ctrl+R from either page while the service runs; a refusal shows as a refused change | display, service-not-running, not-available |
 | Status: cooler connected | Status line; cooler banner | cooler-disconnected |
 | Status: the cooler found but not usable (`no-access`), told apart from not connected, with the fix | Its own error banner; status line; caption | cooler-no-access |
 | Status: sending to the cooler fails (`write-failed`), passing or lasting | Banner after 2 s, nothing before | cooler-write-failed |
@@ -777,3 +855,18 @@ The points the Phase 11a plan left open, each measured with a throwaway gtk4-rs 
 | Smaller switches | CSS on the `switch` node shrinks a `GtkSwitch`: the default is 48 × 24, and `switch { min-width: 34px; min-height: 18px; }` with `switch slider { min-width: 14px; min-height: 14px; }` gave 34 × 18. The design picks the exact size when the stylesheet changes (Task 8); it is "a little smaller", not these numbers | Measured. A switch stretched to its row's width reads wide (166 px in the probe), so its `halign` is start, as it is now |
 | The cost of 23 live tiles, and what stops them | 23 areas of 14 × 14 dots redrawn at 10 Hz used 570 ms of CPU in 4 s (about 0.14 of a core) in a debug build, drawn by a software renderer in headless weston; a release build on a GPU compositor will use less, and Task 14 sets its ceiling at about sixty times what it measures (owner, 2026-11-17). **A frame-clock tick does not stop for a hidden window:** hiding the window left 37 of 40 steps in 4 s, and a timeout kept all 40. **It does stop when the compositor draws nothing:** with the monitor off, the real session gave the frame clock 0 steps in 12 s and the same program with a timeout 119. Whether it stops for a window on another workspace with the screen on is **unverified**: the monitor was off during the test and the owner's screen wasn't woken | Measured. **The design: one tick from the frame clock, counted to 100 ms, stopped explicitly when the window is unmapped, hidden or minimised (`notify::visible` or unmap), and relied on to stop for occlusion.** The check on another workspace is repeated at Task 17's sign-off if the screen is on, and recorded in the report |
 | The remaining sensor drivers without lm-sensors | By their module alias tables (`modinfo`, read 2026-11-18): `coretemp` has a CPU-feature alias, `k10temp` has PCI aliases, and `intel_rapl_msr` has CPU-feature aliases, with `intel_rapl_common` as its dependency, so udev loads them by modalias when the CPU or the PCI device appears. On the development PC, `modprobe -R` on the CPU's modalias (`/sys/devices/system/cpu/modalias`) resolves to the CPU-temperature and powercap drivers that fit its CPU, and the powercap driver was loaded at boot with no configuration naming it (read 2026-11-19; which drivers: `docs/local/`). The CPU-temperature driver's load there proves nothing on its own, because another unit loads it too, and the PCI-matched `k10temp` was not exercised there: **unverified**. (The first text of this row said all three drivers were loaded on the development PC. That was wrong, since a PC loads only the drivers its own CPU and devices match, and it named the PC's drivers against AGENTS.md rule 10; corrected 2026-11-19.) The udev step itself is standard and was **not** re-tested here | Measured (aliases); the failure mode is already specified: a metric with no source disables its modes with the reason (`settings.md`, Availability), and the README names the driver to load |
+
+## Unverified points, answered (Phase 11a Task 7, 2026-11-19)
+
+The points the header and page design depends on. Read in the official documents on 2026-11-19; nothing here was run, since the designer has no shell, so what only a window can show is marked **unverified**, with the fallback, and the implementer's tests check it.
+
+| Point | Answer | Source, or the fallback |
+|---|---|---|
+| The title stays centred with nothing at the start of the bar and two buttons at the end | The documents say so: "The title will be centered with respect to the width of the box, even if the children at either side take up different amounts of space." The measured allocation is **unverified**: the window test asserts the title label's centre is within 1 px of the header bar's | docs.gtk.org, `Gtk.HeaderBar`. Fallback: an empty `GtkBox`, as wide as the end box, packed at the start |
+| An icon-only `GtkButton` | `GtkButton:icon-name` is "the name of the icon used to automatically populate the button". The accessible name and the tooltip are set by the app, since an icon has no text for GTK to name the button from | docs.gtk.org, `Gtk.Button:icon-name` |
+| Accelerator strings | `<Control>comma`, `<Alt>Left`, `Escape`, `F5`: "for character keys, use the lowercase key name rather than the symbol", and `<Control>a` and `<Shift><Alt>F1` are the documented forms | docs.gtk.org, `Gtk.accelerator_parse` |
+| Back with Escape and Alt+Left; Preferences with Ctrl+, | Both are the documented conventions: GNOME's HIG lists Ctrl+, "Opens the preferences window" and Alt+← "Navigates to the previous location", and libadwaita's `AdwNavigationView` pops a page with Escape, Alt+← and the back mouse button | developer.gnome.org/hig, Keyboard; libadwaita 1.x docs, `AdwNavigationView`, read 2026-11-19 |
+| Escape while the GPU list is open | **Unverified:** it should close only the list, whose popover has its own grab and gets the key first. Fallback in [Keyboard](#keyboard) | The window test opens the list and sends Escape in-process |
+| Where the back button sits | GNOME's HIG: "In left-to-right locales, the standard position for the back button is the top-left." KDE's HIG names back and forward buttons "in the toolbar" and no side, so GNOME's rule decides | developer.gnome.org/hig, Browsing; develop.kde.org/hig, Layout and navigation |
+| `pack_end`'s order | The documents say only "packed with reference to the end", so the design packs one box holding the gear then the close icon, whose order is plain | docs.gtk.org, `Gtk.HeaderBar.pack_end` |
+| The gear icon's name | `emblem-system-symbolic`, found by Phase 11a Task 1. A theme without it falls back to Adwaita's; if a desktop's own theme draws it as something else, the tooltip still says "Configuration" | The Task 1 row, "Our own close icon" |

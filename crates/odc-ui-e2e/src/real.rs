@@ -54,12 +54,25 @@ fn chosen(driver: &Driver) -> Result<u32> {
     })
 }
 
+/// Shows the page `name`: the gear opens Configuration, and Back returns to Display.
 fn page(driver: &Driver, name: &str) -> Result<()> {
-    let toggle = driver.shown("toggle button", name)?;
-    if !driver.has(&toggle, State::Pressed)? {
-        driver.act(&toggle, "Click")?;
+    let gear = driver.shown("toggle button", "Configuration")?;
+    let on_config = driver.has(&gear, State::Pressed)?;
+    match (name, on_config) {
+        ("Configuration", false) => driver.act(&gear, "Click")?,
+        ("Display", true) => {
+            let back = driver.shown("button", "Back")?;
+            driver.act(&back, "Click")?;
+        }
+        _ => {}
     }
-    expect(driver, "toggle button", name, State::Pressed, true)
+    expect(
+        driver,
+        "toggle button",
+        "Configuration",
+        State::Pressed,
+        name == "Configuration",
+    )
 }
 
 /// The app shows the real service: running, a mode chosen, the cooler's status.
@@ -106,7 +119,7 @@ fn tiles(driver: &mut Driver) -> Result<String> {
 
 /// The other unit, then the saved one again.
 fn unit(driver: &mut Driver) -> Result<String> {
-    page(driver, "Display")?;
+    page(driver, "Configuration")?;
     let celsius = driver.shown("toggle button", "Celsius")?;
     let (saved, other) = if driver.has(&celsius, State::Pressed)? {
         ("Celsius", "Fahrenheit")
@@ -118,6 +131,7 @@ fn unit(driver: &mut Driver) -> Result<String> {
         driver.act(&toggle, "Click")?;
         expect(driver, "toggle button", name, State::Pressed, true)?;
     }
+    page(driver, "Display")?;
     Ok(format!("{saved} saved"))
 }
 
@@ -147,6 +161,7 @@ fn rotation(driver: &mut Driver) -> Result<String> {
 
 /// Refresh, which the service takes and the app confirms.
 fn refresh(driver: &mut Driver) -> Result<String> {
+    page(driver, "Display")?;
     let button = driver.shown("button", "Refresh display")?;
     driver.act(&button, "Click")?;
     wait("Refreshed", || {

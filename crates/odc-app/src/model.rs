@@ -74,11 +74,11 @@ impl SendingFails {
 /// What the window shows.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum View {
-    /// Not available in this session: the header bar keeps only the app name, and the body is
-    /// [`NOT_AVAILABLE_HEADING`] and [`NOT_AVAILABLE_TEXT`]; nothing else.
+    /// Not available in this session: the header bar keeps only the title and the close icon,
+    /// and the body is [`NOT_AVAILABLE_HEADING`] and [`NOT_AVAILABLE_TEXT`]; nothing else.
     NotAvailable,
-    /// The service isn't running: the off screen in place of the pages, the switcher and Refresh
-    /// insensitive, the preview all unlit (The off screen; D10).
+    /// The service isn't running: the off screen in place of the pages, the gear insensitive,
+    /// the preview all unlit (The off screen; D10).
     ServiceDown(Box<Down>),
     /// The normal screens.
     Normal(Box<Normal>),
@@ -176,6 +176,7 @@ pub enum Dot {
 /// The Display page.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DisplayPage {
+    /// The unit the temperature tiles are drawn in; the Configuration page sets it.
     pub unit: TemperatureUnit,
     /// Load, Temperature, Power, Music.
     pub groups: Vec<Group>,
@@ -227,6 +228,7 @@ impl Flag {
 pub struct ConfigPage {
     /// 0–3, a quarter turn each.
     pub rotation: u8,
+    pub unit: TemperatureUnit,
     /// Only with more than one GPU.
     pub gpu: Option<GpuRow>,
     pub peaks: bool,
@@ -315,12 +317,14 @@ pub fn view(
         reason: lost.map(|r| format!("{r}. The cooler shows dashes until it's back.")),
         status,
     };
+    let unit = state.temperature_unit.unwrap_or(TemperatureUnit::Celsius);
     let display = DisplayPage {
-        unit: state.temperature_unit.unwrap_or(TemperatureUnit::Celsius),
+        unit,
         groups: groups(mode, &reasons),
     };
     let config = ConfigPage {
         rotation: state.rotation.unwrap_or(0),
+        unit,
         gpu: gpu_row(state, products),
         peaks: state.music_peaks.unwrap_or(true),
         bar_fall: state.music_bar_fall.unwrap_or(FallStop::Moderate),

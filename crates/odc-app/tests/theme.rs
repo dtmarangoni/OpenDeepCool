@@ -208,7 +208,7 @@ fn sample(app: &gtk::Application) {
     );
     check_colours(&window, &tokens, "the sample theme");
     assert!(window.prefers_dark());
-    WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page");
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(200));
     let card = window.names().find("Display settings").expect("a card");
     let renderer = Renderer::new();
@@ -224,10 +224,11 @@ fn switch(app: &gtk::Application) {
     let state = state("switch");
     write_theme(&theme_dir(&state), DARK);
     let (window, live, logged) = themed(app, &state);
+    // The page is its bar over the scrolled tiles.
     let scroller = window
         .display_page()
         .widget()
-        .ancestor(gtk::ScrolledWindow::static_type())
+        .last_child()
         .and_then(|w| w.downcast::<gtk::ScrolledWindow>().ok())
         .expect("the page scrolls");
     let adjustment = scroller.vadjustment();

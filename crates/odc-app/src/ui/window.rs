@@ -1,8 +1,9 @@
-//! The window (`docs/design/settings-app.md`, Window): the header bar with the page switcher and
-//! Refresh, the cooler banner, the preview column, and the pages, or the off screen while the
-//! service isn't running; or, in a remote or inactive session, one message. It keeps what the
-//! app knows of the service, of the Start at boot switch and of the window's own state, and
-//! shows the view model's [`View`] of them after every change.
+//! The window (`docs/design/settings-app.md`, Window): the header bar, with the title in the
+//! middle and the gear and the close icon at the end, the cooler banner, the preview column, and
+//! the pages (Display and Configuration), or the off screen while the service isn't running; or,
+//! in a remote or inactive session, one message. It keeps what the app knows of the service, of
+//! the Start at boot switch and of the window's own state, and shows the view model's [`View`]
+//! of them after every change.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -20,6 +21,7 @@ use super::banners::Banners;
 use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::{Names, group};
+use super::page::{icon_button, scrolled};
 use super::preview::Preview;
 use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
@@ -44,11 +46,14 @@ const STATUS_NAMES: [&str; 3] = ["Cooler status", "Service status", "Music sound
 
 /// The keyboard shortcuts (Keyboard).
 const ACCELS: [(&str, &[&str]); 4] = [
-    ("win.page-display", &["<Control>1"]),
-    ("win.page-config", &["<Control>2"]),
+    ("win.configuration", &["<Control>comma"]),
+    ("win.back", &["Escape", "<Alt>Left"]),
     ("win.refresh", &["F5", "<Control>r"]),
     ("win.close", &["<Control>w", "<Control>q"]),
 ];
+
+/// What the page actions are, in the order of [`Inner::actions`].
+const ACTION_NAMES: [&str; 3] = ["configuration", "back", "refresh"];
 
 /// Says a text to screen readers.
 type Announcer = Box<dyn Fn(&str)>;
@@ -66,23 +71,12 @@ struct Inputs {
     pci_ids: PathBuf,
 }
 
+/// The header bar's parts: the title in the middle, and the gear and the close icon at the end.
 struct Header {
-    switcher: gtk::Box,
-    display: gtk::ToggleButton,
-    config: gtk::ToggleButton,
-    refresh: gtk::Button,
-}
-
-impl Header {
-    /// The switcher shown or not, and usable or not: each toggle's own sensitivity, since GTK
-    /// marks only the widget itself disabled for assistive technology, not its children
-    /// (`gtk_widget_set_sensitive`, GTK's source); in an insensitive box the toggles read as
-    /// usable through AT-SPI (decisions log D70).
-    fn switcher(&self, visible: bool, sensitive: bool) {
-        self.switcher.set_visible(visible);
-        self.display.set_sensitive(sensitive);
-        self.config.set_sensitive(sensitive);
-    }
+    bar: gtk::HeaderBar,
+    title: gtk::Label,
+    gear: gtk::ToggleButton,
+    close: gtk::Button,
 }
 
 struct StatusRow {
@@ -106,6 +100,8 @@ struct Inner {
     inputs: RefCell<Inputs>,
     shown: RefCell<Option<View>>,
     header: Header,
+    /// The window is setting the gear itself: its `toggled` is no request.
+    applying: Cell<bool>,
     feedback: gtk::Box,
     feedback_icon: gtk::Image,
     feedback_label: gtk::Label,
@@ -171,22 +167,6 @@ fn vbox(spacing: i32) -> gtk::Box {
         .build()
 }
 
-fn icon_and_label(icon: &str, text: &str) -> gtk::Box {
-    let content = gtk::Box::builder().spacing(6).build();
-    content.append(&gtk::Image::from_icon_name(icon));
-    content.append(&gtk::Label::new(Some(text)));
-    content
-}
-
-fn scrolled(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
-    gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Never)
-        .hexpand(true)
-        .vexpand(true)
-        .child(child)
-        .build()
-}
-
 impl Window {
     /// The window of `app`, sending what the user asks to `send`; the GPUs' names come from the
     /// PCI ID list at `pci_ids`.
@@ -206,27 +186,29 @@ impl Window {
             .build();
         window.set_size_request(MIN_SIZE.0, MIN_SIZE.1);
 
-        // The header bar.
+        // The header bar: the title in the middle, the gear and the close icon at the end, and
+        // no window buttons of the desktop's own, so none is drawn twice (Window).
         let bar = gtk::HeaderBar::new();
-        bar.pack_start(&label("OpenDeepCool", &["app-name"]));
-        let display = gtk::ToggleButton::builder().label("Display").build();
-        let config = gtk::ToggleButton::builder()
-            .label("Configuration")
-            .group(&display)
+        bar.set_show_title_buttons(false);
+        let title = gtk::Label::builder()
+            .label("OpenDeepCool")
+            .css_classes(["app-name"])
             .build();
-        display.set_active(true);
-        names.name(&display, "Display");
-        names.name(&config, "Configuration");
-        let switcher = gtk::Box::builder().css_classes(["linked"]).build();
-        switcher.append(&display);
-        switcher.append(&config);
-        bar.set_title_widget(Some(&switcher));
-        let refresh = gtk::Button::builder()
-            .child(&icon_and_label("view-refresh-symbolic", "Refresh"))
-            .action_name("win.refresh")
-            .build();
-        names.name(&refresh, "Refresh display");
-        bar.pack_end(&refresh);
+        bar.set_title_widget(Some(&title));
+        let gear = gtk::ToggleButton::new();
+        icon_button(
+            &gear,
+            &names,
+            "emblem-system-symbolic",
+            "Configuration",
+            "Configuration",
+        );
+        let close = gtk::Button::builder().action_name("win.close").build();
+        icon_button(&close, &names, "window-close-symbolic", "Close", "Close");
+        let end = gtk::Box::builder().spacing(4).build();
+        end.append(&gear);
+        end.append(&close);
+        bar.pack_end(&end);
         window.set_titlebar(Some(&bar));
 
         // The banner, then the screens.
@@ -293,16 +275,19 @@ impl Window {
             column_box.append(widget);
         }
 
-        // The pages.
+        // The pages: Display and Configuration, each its bar over its scrolled content, and the
+        // off screen; one stack, no motion, and one size so the window doesn't change with it.
         let pages = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::None)
+            .hhomogeneous(true)
+            .vhomogeneous(true)
             .hexpand(true)
             .vexpand(true)
             .build();
         let display_page = DisplayPage::new(&names, Rc::clone(&send), tokens);
-        pages.add_named(&scrolled(display_page.widget()), Some("display"));
+        pages.add_named(display_page.widget(), Some("display"));
         let config_page = ConfigPage::new(&names, Rc::clone(&send));
-        pages.add_named(&scrolled(config_page.widget()), Some("config"));
+        pages.add_named(config_page.widget(), Some("config"));
         let startup = StartupCard::new(&names, Rc::clone(&send));
 
         // The off screen (D10): the message, then the Startup card and the commands, centred.
@@ -372,10 +357,9 @@ impl Window {
         let feedback = group()
             .spacing(6)
             .css_classes(["feedback"])
-            .halign(gtk::Align::End)
-            .valign(gtk::Align::Start)
-            .margin_top(12)
-            .margin_end(12)
+            .halign(gtk::Align::Center)
+            .valign(gtk::Align::End)
+            .margin_bottom(16)
             .visible(false)
             .build();
         names.name(&feedback, "Change feedback");
@@ -393,13 +377,13 @@ impl Window {
             gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
         );
 
-        let actions = ["page-display", "page-config", "refresh"].map(|name| {
+        let actions = ACTION_NAMES.map(|name| {
             let action = gio::SimpleAction::new(name, None);
             window.add_action(&action);
             action
         });
-        let close = gio::SimpleAction::new("close", None);
-        window.add_action(&close);
+        let close_action = gio::SimpleAction::new("close", None);
+        window.add_action(&close_action);
         for (action, accels) in ACCELS {
             app.set_accels_for_action(action, accels);
         }
@@ -419,11 +403,12 @@ impl Window {
             }),
             shown: RefCell::new(None),
             header: Header {
-                switcher,
-                display,
-                config,
-                refresh,
+                bar,
+                title,
+                gear,
+                close,
             },
+            applying: Cell::new(false),
             feedback,
             feedback_icon,
             feedback_label,
@@ -465,7 +450,7 @@ impl Window {
             }
         });
         let window = Window(inner);
-        window.connect(&close);
+        window.connect(&close_action);
         window.set_theme(tokens);
         window.render();
         window
@@ -482,27 +467,27 @@ impl Window {
                 }
             }
         };
-        let [page_display, page_config, refresh] = &self.0.actions;
-        let go = with(|w| w.go(Page::Display));
-        page_display.connect_activate(move |_, _| go());
+        let [configuration, back, refresh] = &self.0.actions;
         let go = with(|w| w.go(Page::Configuration));
-        page_config.connect_activate(move |_, _| go());
+        configuration.connect_activate(move |_, _| go());
+        let go = with(|w| w.go(Page::Display));
+        back.connect_activate(move |_, _| go());
         let ask = with(|w| (w.0.send)(Request::Refresh));
         refresh.connect_activate(move |_, _| ask());
         let shut = with(|w| w.0.window.close());
         close.connect_activate(move |_, _| shut());
+        // The gear is a toggle: pressed is the Configuration page, and pressing it again goes
+        // back. The window setting it itself is no request.
         let go = with(|w| {
-            if w.0.header.display.is_active() {
-                w.go(Page::Display);
+            if !w.0.applying.get() {
+                w.go(if w.0.header.gear.is_active() {
+                    Page::Configuration
+                } else {
+                    Page::Display
+                });
             }
         });
-        self.0.header.display.connect_toggled(move |_| go());
-        let go = with(|w| {
-            if w.0.header.config.is_active() {
-                w.go(Page::Configuration);
-            }
-        });
-        self.0.header.config.connect_toggled(move |_| go());
+        self.0.header.gear.connect_toggled(move |_| go());
         // Frames only while the window is mapped (Preview column).
         let watch = with(|w| (w.0.send)(Request::WatchFrames(true)));
         self.0.window.connect_map(move |_| watch());
@@ -639,14 +624,42 @@ impl Window {
         self.0.display.set_theme(tokens);
     }
 
+    /// The user asked for `page`: the gear, a shortcut or the back icon. The page's title is
+    /// announced, and the focus goes to the back icon when the page opens and to the gear when
+    /// it closes (Window, The pages); the window returning to a page after the service did
+    /// does neither.
     fn go(&self, page: Page) {
-        let mut inputs = self.0.inputs.borrow_mut();
-        if inputs.ui.page == page {
+        {
+            let mut inputs = self.0.inputs.borrow_mut();
+            if inputs.ui.page == page {
+                return;
+            }
+            inputs.ui.page = page;
+        }
+        self.render();
+        if !matches!(*self.0.shown.borrow(), Some(View::Normal(_))) {
             return;
         }
-        inputs.ui.page = page;
-        drop(inputs);
-        self.render();
+        match page {
+            Page::Configuration => {
+                (self.0.announcer.borrow())("Configuration");
+                self.0.config.back().grab_focus();
+            }
+            Page::Display => {
+                (self.0.announcer.borrow())("Display");
+                self.0.header.gear.grab_focus();
+            }
+        }
+    }
+
+    /// The gear: shown or not, usable or not, pressed or not, without asking for a page.
+    fn show_gear(&self, visible: bool, sensitive: bool, pressed: bool) {
+        let gear = &self.0.header.gear;
+        self.0.applying.set(true);
+        gear.set_visible(visible);
+        gear.set_sensitive(sensitive);
+        gear.set_active(pressed);
+        self.0.applying.set(false);
     }
 
     fn start_sending_timer(&self, wait: Duration) {
@@ -692,14 +705,12 @@ impl Window {
             view(&inputs.service, inputs.ui, &inputs.products, &inputs.boot)
         };
         let inner = &self.0;
-        let header = &inner.header;
         match &shown {
             View::NotAvailable => {
                 inner.screens.set_visible_child_name("not-available");
-                header.switcher(false, false);
-                header.refresh.set_visible(false);
+                self.show_gear(false, false, false);
                 inner.banners.show(&inner.names, None);
-                self.enable_actions(false);
+                self.enable_actions([false; 3]);
                 inner.off_focused.set(false);
                 if !inner.announced.replace(true) {
                     (inner.announcer.borrow())(&format!(
@@ -710,11 +721,9 @@ impl Window {
             View::ServiceDown(down) => {
                 inner.announced.set(false);
                 inner.screens.set_visible_child_name("main");
-                header.switcher(true, false);
-                header.refresh.set_visible(true);
-                header.refresh.set_sensitive(false);
+                self.show_gear(true, false, false);
                 inner.banners.show(&inner.names, None);
-                self.enable_actions(false);
+                self.enable_actions([false; 3]);
                 inner.pages.set_visible_child_name("off");
                 inner.preview.set_frame(None);
                 self.show_column(&down.column);
@@ -723,26 +732,21 @@ impl Window {
             View::Normal(normal) => {
                 inner.announced.set(false);
                 inner.screens.set_visible_child_name("main");
-                header.switcher(true, true);
-                header.refresh.set_visible(true);
-                header.refresh.set_sensitive(true);
+                let on_config = normal.page == Page::Configuration;
+                self.show_gear(true, true, on_config);
                 inner.banners.show(&inner.names, normal.banner);
-                self.enable_actions(true);
+                // Configuration and Refresh work on either page; Back only on Configuration.
+                self.enable_actions([true, on_config, true]);
                 inner.off_focused.set(false);
-                let (page, toggle) = match normal.page {
-                    Page::Display => ("display", &header.display),
-                    Page::Configuration => ("config", &header.config),
-                };
-                inner.pages.set_visible_child_name(page);
-                if !toggle.is_active() {
-                    toggle.set_active(true);
-                }
+                inner
+                    .pages
+                    .set_visible_child_name(if on_config { "config" } else { "display" });
                 self.show_column(&normal.column);
                 inner
                     .display
                     .show(&inner.names, &normal.display, normal.config.peaks);
                 inner.config.show(&inner.names, &normal.config);
-                inner.startup.place(Place::Card, inner.config.widget());
+                inner.startup.place(Place::Card, inner.config.cards());
                 inner.startup.show(&inner.names, &normal.startup);
                 self.announce_note(normal.startup.note.as_ref());
             }
@@ -792,8 +796,9 @@ impl Window {
         }
     }
 
-    fn enable_actions(&self, on: bool) {
-        for action in &self.0.actions {
+    /// Which of the page actions work: Configuration, Back and Refresh.
+    fn enable_actions(&self, on: [bool; 3]) {
+        for (action, on) in self.0.actions.iter().zip(on) {
             action.set_enabled(on);
         }
     }
@@ -884,16 +889,31 @@ impl Window {
         (name(&self.0.screens), name(&self.0.pages))
     }
 
-    /// Whether the switcher and Refresh show, and whether they can be used.
+    /// Whether the gear and the close icon show, and whether they can be used.
     pub fn header(&self) -> [(bool, bool); 2] {
         let h = &self.0.header;
         [
-            (
-                h.switcher.is_visible(),
-                h.display.is_sensitive() && h.config.is_sensitive(),
-            ),
-            (h.refresh.is_visible(), h.refresh.is_sensitive()),
+            (h.gear.is_visible(), h.gear.is_sensitive()),
+            (h.close.is_visible(), h.close.is_sensitive()),
         ]
+    }
+
+    /// Whether the gear is pressed: the Configuration page shows.
+    pub fn gear_pressed(&self) -> bool {
+        self.0.header.gear.is_active()
+    }
+
+    /// How far the title's centre is from the header bar's, in pixels, once the bar has its
+    /// size (Window: the title stays in the middle whatever sits at the end).
+    pub fn title_offset(&self) -> Option<f32> {
+        let h = &self.0.header;
+        let bounds = h.title.compute_bounds(&h.bar)?;
+        Some(bounds.x() + bounds.width() / 2.0 - h.bar.width() as f32 / 2.0)
+    }
+
+    /// The gear, the back icon and Refresh, for the tests that press or focus them.
+    pub fn gear(&self) -> &gtk::ToggleButton {
+        &self.0.header.gear
     }
 
     /// The column's words: caption, line, reason and the status items shown.
@@ -914,8 +934,9 @@ impl Window {
         &self.0.not_available
     }
 
-    /// Whether the page and Refresh actions can run.
-    pub fn actions_enabled(&self) -> bool {
-        self.0.actions.iter().all(|a| a.is_enabled())
+    /// Whether the Configuration, Back and Refresh actions can run.
+    pub fn actions_enabled(&self) -> [bool; 3] {
+        let [a, b, c] = &self.0.actions;
+        [a.is_enabled(), b.is_enabled(), c.is_enabled()]
     }
 }

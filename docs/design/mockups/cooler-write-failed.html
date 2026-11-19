@@ -66,11 +66,22 @@ button { font: inherit; color: inherit; }
 :disabled { cursor: default; opacity: .45; }
 .tile.on:disabled { opacity: 1; }
 
-.hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 8px 12px; gap: 8px;
+/* The header (design, Window): nothing at the start, the title in the middle (two equal 1fr columns keep it
+   centred), a gear and a close icon at the end. */
+.hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 7px 8px 7px 12px; gap: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .app-name { font-weight: 600; }
-.hb.bare { padding-top: 14px; padding-bottom: 14px; } /* no buttons: same height as the full header bar */
-.hb-end { justify-self: end; }
+.hb-end { justify-self: end; display: flex; gap: 4px; }
+/* Icon buttons (gear, close, back, Refresh): 32 x 32 with a 16 px icon, no frame in any state. The resting fill is
+   the surface they sit on (--bg); hover, focus, pressed and selected use the control fills, a disabled one --muted
+   (design, Window, Icon buttons). */
+.ibtn { width: 32px; height: 32px; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
+.ibtn:hover:not(:disabled), .ibtn:focus-visible { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), var(--bg)); }
+.ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), var(--bg)); }
+.ibtn[aria-pressed="true"], .ibtn[aria-pressed="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), var(--bg)); color: var(--accent); }
+.ibtn:disabled { opacity: 1; color: var(--muted); cursor: default; }
 .segs { display: inline-flex; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
 .segs .seg:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
@@ -98,8 +109,11 @@ button { font: inherit; color: inherit; }
 .warn-text { color: var(--yellow); display: inline-flex; gap: 4px; align-items: center; }
 :root[data-theme="light"] .warn-text { color: var(--yellow); }
 
-.content { flex: 1; overflow: auto; padding: 16px 20px 24px; }
-.unitrow { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+/* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; }
+.page-title { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
+.page-scroll { flex: 1; overflow: auto; padding: 6px 20px 24px; }
 .group h3, .card h3 { font-size: 13px; text-transform: none; letter-spacing: .02em; margin: 14px 0 6px; font-weight: 600; }
 .group-reason { display: flex; gap: 6px; font-size: 12px; margin: -2px 0 6px; align-items: center; }
 .pair { display: flex; gap: 28px; flex-wrap: wrap; }
@@ -207,6 +221,16 @@ const CONFIG = {"theme": "omarchy", "page": "display", "service": true, "cooler"
 //   dismissed), 127 (not authorized, or no polkit agent), the program's own code (1: a step failed), or "sound"
 //   (the app's own step in this session failed), message: the program's one-line message, for its own codes}.
 // - The first pass's "partly", bootPartly and bootSound are no longer read.
+//
+// Header and pages (Phase 11a Task 7, 2026-11-19; docs/design/settings-app.md, Window). No new CONFIG key: the
+// header and the page bars read page ("display" or "config"), service and notAvailable, and the Configuration
+// page's unit row reads unit.
+// - Header: the title in the middle; at the right a gear (a toggle, pressed on the Configuration page, visible but
+//   disabled while service is false, hidden when notAvailable) and a close icon. No page switcher.
+// - Display page: its page bar holds the title "Display" and the Refresh icon at the right. Configuration page: its
+//   page bar holds the back icon and the title "Configuration"; its Display card has the unit row after Rotation.
+// - Keys: Escape or Alt+Left go back from the Configuration page (Escape closes an open GPU list first), Ctrl+,
+//   opens it. After a page change focus goes to the back icon, or to the gear.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -392,8 +416,13 @@ function liveReadings() {
 }
 
 // ---------- icons ----------
+// The four header and page-bar icons imitate Adwaita's symbolic ones: emblem-system-symbolic (the gear),
+// window-close-symbolic, go-previous-symbolic and view-refresh-symbolic.
 const ICON = {
-  refresh: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.6 1.6v3.2H9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  gear: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><path d="M8 3V1M8 13v2M3 8H1M13 8h2M4.46 4.46 3.05 3.05M11.54 4.46l1.41-1.41M4.46 11.54l-1.41 1.41M11.54 11.54l1.41 1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt"/></svg>',
+  close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.8 3.8l8.4 8.4M12.2 3.8l-8.4 8.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  back: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  refresh:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.6 1.6v3.2H9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   warn: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12" r=".9" fill="currentColor"/></svg>',
   info: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.8" r=".9" fill="currentColor"/></svg>',
   error: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
@@ -547,17 +576,25 @@ function banners() {
   return out;
 }
 
+// The header (design, Window): nothing at the start, the title in the middle, and at the end a gear and a close icon,
+// both frameless. The gear is a toggle: pressed on the Configuration page (a second press goes back), visible but
+// disabled while the service isn't running (the off screen holds Start at boot), hidden when the app isn't
+// available in this session; then only the title and the close icon show.
 function header() {
-  const name = `<div class="hb-start"><span class="app-name">OpenDeepCool</span></div>`;
-  // Not available in this session: the header bar keeps only the app name (no switcher, no Refresh).
-  if (S.notAvailable) return `<header class="hb bare">${name}</header>`;
-  const tab = (id, text) => `<button role="tab" class="seg${S.page === id ? " on" : ""}" aria-selected="${S.page === id}"
-      aria-label="${text}"${S.service ? "" : " disabled"} onclick="go('${id}')">${text}</button>`;
-  return `<header class="hb">
-    ${name}
-    <div class="segs" role="tablist" aria-label="Pages">${tab("display", "Display")}${tab("config", "Configuration")}</div>
-    <div class="hb-end"><button class="btn icon" aria-label="Refresh display" title="Refresh the display: fresh readings, picture from the start"${dis()} onclick="flash('Refreshed: fresh readings, picture restarted from home')">${ICON.refresh}<span>Refresh</span></button></div>
-  </header>`;
+  const title = `<span class="app-name">OpenDeepCool</span>`;
+  const close = `<button class="ibtn" id="close" aria-label="Close" title="Close" onclick="closeWin()">${ICON.close}</button>`;
+  if (S.notAvailable) return `<header class="hb"><div></div>${title}<div class="hb-end">${close}</div></header>`;
+  const pressed = S.service && S.page === "config";
+  const gear = `<button class="ibtn" id="gear" aria-pressed="${pressed}" aria-label="Configuration" title="Configuration"${S.service ? "" : " disabled"} onclick="gear()">${ICON.gear}</button>`;
+  return `<header class="hb"><div></div>${title}<div class="hb-end">${gear}${close}</div></header>`;
+}
+// A page's bar, outside its scrolled area (design, Window, Page bar). Display: the title and, at the right, the
+// Refresh icon. Configuration: the back icon, then the title.
+function pageBar(page) {
+  if (page === "display") return `<div class="page-bar"><h2 class="page-title">Display</h2>
+    <button class="ibtn" id="refresh" aria-label="Refresh display" title="Refresh the display: fresh readings, and the picture starts again" onclick="flash('Refreshed')">${ICON.refresh}</button></div>`;
+  return `<div class="page-bar"><button class="ibtn" id="back" aria-label="Back" title="Back to Display" onclick="go('display')">${ICON.back}</button>
+    <h2 class="page-title">Configuration</h2></div>`;
 }
 
 function side() {
@@ -609,14 +646,11 @@ function group(name, extraClass) {
     <div class="tiles" role="radiogroup" aria-label="${name} options">${ms.map(tile).join("")}</div></section>`;
 }
 function displayPage() {
-  const u = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}" aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
-  return `<div class="page">
-    <div class="unitrow"><span id="unit-l">Temperature unit</span>
-      <div class="segs" role="radiogroup" aria-labelledby="unit-l">${u("C", "°C", "Celsius")}${u("F", "°F", "Fahrenheit")}</div></div>
+  return pageBar("display") + `<div class="page-scroll"><div class="page">
     ${group("Load")}
     <div class="pair">${group("Temperature")}${group("Power")}</div>
     ${group("Music")}
-  </div>`;
+  </div></div>`;
 }
 
 function dropdown(id, name, valueHtml, items, opts) {
@@ -659,10 +693,15 @@ function configPage() {
     <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" aria-labelledby="${id}-l"
       aria-valuetext="${stops[v]}" aria-label="${name}"${dis()} oninput="setStop('${id}', this.value)">
       <div class="marks">${stops.map((s, i) => `<span class="${i === v ? "on" : ""}">${s}</span>`).join("")}</div></div></div></div>`;
-  return `<div class="page config">
+  // The temperature unit, the row after Rotation: the same linked toggles (design, Configuration page, Display).
+  const unitBtn = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}"
+      aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
+  return pageBar("config") + `<div class="page-scroll"><div class="page config">
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
         <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+      <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span><span class="muted small">Used wherever the display shows a temperature</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
       ${gpuRow}
     </section>
     <section class="card" aria-label="Music settings"><h3>Music</h3>
@@ -673,16 +712,16 @@ function configPage() {
       <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>
     </section>
     ${bootCard("config")}
-  </div>`;
+  </div></div>`;
 }
 // While the service isn't running: the off screen, in every case (design, D10). Its heading says whether
-// OpenDeepCool is off or set to start but not running; the card's note says what's missing.
+// OpenDeepCool is off or set to start but not running; the card's note says what's missing. It has no page bar.
 function emptyPage() {
-  return `<div class="page empty"><div class="off-screen">
+  return `<div class="page-scroll"><div class="page empty"><div class="off-screen">
     <div role="group" aria-label="Service message"><h2>${offHeading() ? "OpenDeepCool is off" : "OpenDeepCool isn't running"}</h2>
       <p class="muted">The cooler shows nothing until the display service runs.</p></div>
     ${bootCard("off")}
-    ${terminalBlock("on", "From a terminal instead:")}</div></div>`;
+    ${terminalBlock("on", "From a terminal instead:")}</div></div></div>`;
 }
 // Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
 // and nothing else: no banner, no preview column, no pages, no status, no controls.
@@ -696,9 +735,10 @@ function notAvailablePage() {
 function render() {
   const win = document.getElementById("win");
   win.className = "window";
-  if (S.notAvailable) { win.innerHTML = header() + notAvailablePage(); return; }
+  const toast = `<div id="toast" class="toast" role="status"></div>`;
+  if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
-    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div><div id="toast" class="toast" role="status"></div>`;
+    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div>` + toast;
   paintAll();
 }
 function paintAll() {
@@ -715,7 +755,16 @@ function paintAll() {
 }
 
 // ---------- actions (instant apply: every choice goes to the service at once) ----------
-function go(p) { S.page = p; S.open = null; render(); }
+// A page change (design, Window, The pages): opening the Configuration page puts the focus on its back icon,
+// closing it puts the focus on the gear. No motion.
+function go(p) {
+  if (!S.service) return;
+  S.page = p; S.open = null; render();
+  const el = document.getElementById(p === "config" ? "back" : "gear");
+  if (el) el.focus();
+}
+function gear() { go(S.page === "config" ? "display" : "config"); }
+function closeWin() { flash("Close: the window would close"); }
 function pick(id) { if (!canChange()) return; S.mode = id; render(); }
 function unit(u) { if (!canChange()) return; S.unit = u; render(); }
 function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
@@ -752,6 +801,15 @@ function setTheme(t) {
   document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
   paintAll();
 }
+// The keys (design, Keyboard): Escape or Alt+Left go back from the Configuration page, and only from there (an open
+// GPU list takes Escape first); Ctrl+, opens it. F5 and Ctrl+R are left to the browser.
+document.addEventListener("keydown", e => {
+  if (S.notAvailable || !S.service) return;
+  if (e.key === "Escape") {
+    if (S.open) { S.open = null; render(); } else if (S.page === "config") { e.preventDefault(); go("display"); }
+  } else if (e.altKey && e.key === "ArrowLeft" && S.page === "config") { e.preventDefault(); go("display"); }
+  else if (e.ctrlKey && e.key === "," && S.page !== "config") { e.preventDefault(); go("config"); }
+});
 document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || S.theme || "omarchy"); });
 
 </script>

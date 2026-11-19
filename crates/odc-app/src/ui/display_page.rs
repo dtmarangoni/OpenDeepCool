@@ -1,8 +1,9 @@
-//! The Display page (`docs/design/settings-app.md`, Display page): the temperature unit, then
-//! the tiles in four groups, Load, Temperature and Power, and Music, that act as one radio
-//! group. Activating a tile (Enter, Space or a click) asks for its mode at once; focus alone
-//! never does. The boxes select nothing themselves, since GTK's selection would follow focus:
-//! the saved mode's tile is marked from the service's state (decisions log D55).
+//! The Display page (`docs/design/settings-app.md`, Display page): its bar, with the title and
+//! the Refresh icon, then the tiles in four groups, Load, Temperature and Power, and Music, that
+//! act as one radio group. Activating a tile (Enter, Space or a click) asks for its mode at once;
+//! focus alone never does. The boxes select nothing themselves, since GTK's selection would
+//! follow focus: the saved mode's tile is marked from the service's state (decisions log D55).
+//! The temperature tiles are drawn in the unit the Configuration page sets.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -13,6 +14,7 @@ use odc_render::{Kind, Mode, Unit, mode_info};
 
 use super::Request;
 use super::names::{Names, group};
+use super::page::{icon_button, page, page_bar};
 use super::tiles::{self, TileWidget};
 use crate::model::{self, group_name};
 use crate::theme::Tokens;
@@ -20,11 +22,6 @@ use crate::theme::Tokens;
 /// The request a tile's activation sends.
 pub fn tile_request(mode: u16) -> Request {
     Request::SetMode(u32::from(mode))
-}
-
-/// The request a unit toggle sends.
-pub fn unit_request(unit: TemperatureUnit) -> Request {
-    Request::SetTemperatureUnit(unit)
 }
 
 /// The most tiles in a row, per group: Load a full row, Temperature and Power three each, side
@@ -43,70 +40,27 @@ struct GroupWidgets {
 }
 
 pub struct DisplayPage {
+    /// The page: its bar over the scrolled tiles.
     root: gtk::Box,
-    celsius: gtk::ToggleButton,
-    fahrenheit: gtk::ToggleButton,
+    refresh: gtk::Button,
     groups: Vec<GroupWidgets>,
     /// Every tile, mode 1 first.
     tiles: Vec<TileWidget>,
-    /// The unit the service confirmed.
-    unit: Rc<Cell<TemperatureUnit>>,
     /// The unit and peak setting the pictures are drawn with.
     drawn: Cell<Option<(TemperatureUnit, bool)>>,
-    /// The page is setting its own controls: no request.
-    applying: Rc<Cell<bool>>,
 }
 
 impl DisplayPage {
     pub fn new(names: &Names, send: Rc<dyn Fn(Request)>, tokens: &Tokens) -> DisplayPage {
-        let root = gtk::Box::builder()
+        // Under the page bar the content starts 6 px down (Window, Page bar).
+        let content = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(18)
-            .margin_top(18)
+            .margin_top(6)
             .margin_bottom(18)
             .margin_start(18)
             .margin_end(18)
             .build();
-        let unit = Rc::new(Cell::new(TemperatureUnit::Celsius));
-        let applying = Rc::new(Cell::new(false));
-
-        // The unit.
-        let celsius = gtk::ToggleButton::builder().label("°C").build();
-        let fahrenheit = gtk::ToggleButton::builder()
-            .label("°F")
-            .group(&celsius)
-            .build();
-        celsius.set_active(true);
-        names.name(&celsius, "Celsius");
-        names.name(&fahrenheit, "Fahrenheit");
-        for (button, wanted) in [
-            (&celsius, TemperatureUnit::Celsius),
-            (&fahrenheit, TemperatureUnit::Fahrenheit),
-        ] {
-            let (send, unit, applying) = (Rc::clone(&send), Rc::clone(&unit), Rc::clone(&applying));
-            let (c, f) = (celsius.clone(), fahrenheit.clone());
-            button.connect_toggled(move |button| {
-                if applying.get() || !button.is_active() || unit.get() == wanted {
-                    return;
-                }
-                send(unit_request(wanted));
-                // Back to the saved unit until the service confirms the change.
-                applying.set(true);
-                match unit.get() {
-                    TemperatureUnit::Celsius => c.set_active(true),
-                    TemperatureUnit::Fahrenheit => f.set_active(true),
-                }
-                applying.set(false);
-            });
-        }
-        let unit_row = gtk::Box::builder().spacing(12).build();
-        unit_row.append(&gtk::Label::new(Some("Temperature unit")));
-        let toggles = gtk::Box::builder().css_classes(["linked"]).build();
-        toggles.append(&celsius);
-        toggles.append(&fahrenheit);
-        unit_row.append(&toggles);
-        root.append(&unit_row);
-
         // The tiles, group by group.
         let mut tiles = Vec::new();
         let mut groups = Vec::new();
@@ -165,42 +119,48 @@ impl DisplayPage {
             column.append(&flowbox);
             match kind {
                 Kind::Temperature | Kind::Power => pair.append(&column),
-                _ => root.append(&column),
+                _ => content.append(&column),
             }
             if kind == Kind::Power {
                 // Load first, then Temperature and Power side by side, then Music.
-                root.insert_child_after(&pair, root.last_child().as_ref());
+                content.insert_child_after(&pair, content.last_child().as_ref());
             }
             groups.push(GroupWidgets {
                 reasons,
                 reasons_group,
             });
         }
+        // The page bar: the title, and Refresh at its end (Refresh).
+        let refresh = gtk::Button::builder().action_name("win.refresh").build();
+        icon_button(
+            &refresh,
+            names,
+            "view-refresh-symbolic",
+            "Refresh display",
+            "Refresh the display: fresh readings, and the picture starts again",
+        );
+        let root = page(&page_bar(None, "Display", Some(&refresh)), &content);
         DisplayPage {
             root,
-            celsius,
-            fahrenheit,
+            refresh,
             groups,
             tiles,
-            unit,
             drawn: Cell::new(None),
-            applying,
         }
     }
 
+    /// The page: its bar over the scrolled tiles.
     pub fn widget(&self) -> &gtk::Box {
         &self.root
     }
 
+    /// The Refresh icon, for the tests.
+    pub fn refresh(&self) -> &gtk::Button {
+        &self.refresh
+    }
+
     /// Shows `page` and draws the pictures in its unit with `peaks`.
     pub fn show(&self, names: &Names, page: &model::DisplayPage, peaks: bool) {
-        self.unit.set(page.unit);
-        self.applying.set(true);
-        match page.unit {
-            TemperatureUnit::Celsius => self.celsius.set_active(true),
-            TemperatureUnit::Fahrenheit => self.fahrenheit.set_active(true),
-        }
-        self.applying.set(false);
         if self.drawn.get() != Some((page.unit, peaks)) {
             self.drawn.set(Some((page.unit, peaks)));
             let unit = match page.unit {
@@ -232,34 +192,17 @@ impl DisplayPage {
     pub fn tiles(&self) -> &[TileWidget] {
         &self.tiles
     }
-
-    /// Which unit toggle is on.
-    pub fn unit_shown(&self) -> TemperatureUnit {
-        if self.fahrenheit.is_active() {
-            TemperatureUnit::Fahrenheit
-        } else {
-            TemperatureUnit::Celsius
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // Each of the 23 tiles asks for its own mode, and each unit toggle for its unit.
+    // Each of the 23 tiles asks for its own mode.
     #[test]
-    fn every_tile_and_unit_asks_for_its_own() {
+    fn every_tile_asks_for_its_own_mode() {
         for mode in 1..=23_u16 {
             assert_eq!(tile_request(mode), Request::SetMode(u32::from(mode)));
         }
-        assert_eq!(
-            unit_request(TemperatureUnit::Celsius),
-            Request::SetTemperatureUnit(TemperatureUnit::Celsius)
-        );
-        assert_eq!(
-            unit_request(TemperatureUnit::Fahrenheit),
-            Request::SetTemperatureUnit(TemperatureUnit::Fahrenheit)
-        );
     }
 }

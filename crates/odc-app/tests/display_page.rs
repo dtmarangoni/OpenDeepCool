@@ -35,7 +35,10 @@ const CHECKS: [(&str, Check); 7] = [
     ),
     ("only_the_saved_mode_s_tile_is_marked", selection),
     ("unavailable_tiles_and_the_lost_reading", unavailable),
-    ("the_unit_changes_once_the_service_says_so", unit_toggles),
+    (
+        "the_tiles_follow_the_unit_the_service_confirms",
+        tiles_follow_unit,
+    ),
     ("the_page_saved_as_a_picture", picture_file),
 ];
 
@@ -370,40 +373,38 @@ fn unavailable(app: &gtk::Application) {
     close(window);
 }
 
-// A unit toggle asks for its unit, and shows it once the service's state says so.
-fn unit_toggles(app: &gtk::Application) {
+// The page has no unit control of its own: the temperature tiles are drawn in the unit the
+// service confirms (the Configuration page asks for it), and only then.
+fn tiles_follow_unit(app: &gtk::Application) {
     let (window, asked) = shown(app);
     window.state(base());
-    asked.borrow_mut().clear();
-    let toggle = |name: &str| {
+    for name in ["Celsius", "Fahrenheit"] {
+        let toggle = window.names().find(name).expect(name);
+        assert!(
+            !toggle.is_ancestor(window.display_page().widget()),
+            "{name} is not on the Display page"
+        );
+    }
+    let drawn = |window: &Window| {
         window
-            .names()
-            .find(name)
-            .and_then(|w| w.downcast::<gtk::ToggleButton>().ok())
-            .expect(name)
+            .display_page()
+            .tiles()
+            .iter()
+            .map(|t| t.frame())
+            .collect::<Vec<_>>()
     };
-    toggle("Fahrenheit").emit_clicked();
-    run_for(Duration::from_millis(20));
-    assert_eq!(
-        *asked.borrow(),
-        [Request::SetTemperatureUnit(TemperatureUnit::Fahrenheit)]
-    );
-    assert_eq!(window.display_page().unit_shown(), TemperatureUnit::Celsius);
+    let in_celsius = drawn(&window);
     window.state(with(|s| {
         s.temperature_unit = Some(TemperatureUnit::Fahrenheit)
     }));
-    assert_eq!(
-        window.display_page().unit_shown(),
-        TemperatureUnit::Fahrenheit
-    );
-    assert_eq!(
-        asked.borrow().len(),
-        1,
+    let in_fahrenheit = drawn(&window);
+    assert_ne!(in_celsius, in_fahrenheit, "the tiles redraw in °F");
+    window.state(base());
+    assert_eq!(drawn(&window), in_celsius, "and back in °C");
+    assert!(
+        asked.borrow().iter().all(|r| *r != Request::Refresh),
         "the service's own change asks for nothing"
     );
-    toggle("Fahrenheit").emit_clicked();
-    run_for(Duration::from_millis(20));
-    assert_eq!(asked.borrow().len(), 1, "the unit already shown");
     close(window);
 }
 

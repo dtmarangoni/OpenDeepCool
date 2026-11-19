@@ -1,6 +1,7 @@
-//! The Configuration page (`docs/design/settings-app.md`, Configuration page): every other
-//! setting, in cards. Display: the rotation and, with more than one GPU, the GPU. Music: the peak
-//! dots and the bars' and peaks' fall. (Startup, the last card, is `startup.rs`.)
+//! The Configuration page (`docs/design/settings-app.md`, Configuration page): its bar, with the
+//! back icon and the title, then every other setting, in cards. Display: the rotation, the
+//! temperature unit and, with more than one GPU, the GPU. Music: the peak dots and the bars' and
+//! peaks' fall. (Startup, the last card, is `startup.rs`.)
 //! Each control asks the service at once and shows the new value once the service confirms it.
 
 use std::cell::{Cell, RefCell};
@@ -9,12 +10,18 @@ use std::rc::Rc;
 use gtk::accessible::Property;
 use gtk::glib;
 use gtk::prelude::*;
-use odc_ipc::FallStop;
+use odc_ipc::{FallStop, TemperatureUnit};
 
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
 use super::names::{Names, group};
+use super::page::{icon_button, page, page_bar};
 use crate::model;
+
+/// The request a unit toggle sends.
+pub fn unit_request(unit: TemperatureUnit) -> Request {
+    Request::SetTemperatureUnit(unit)
+}
 
 /// The five fall stops, slowest first, as the scales hold them: 0 to 4.
 pub const STOPS: [FallStop; 5] = [
@@ -51,14 +58,21 @@ pub fn value_of(stop: FallStop) -> f64 {
 #[derive(Default)]
 struct Confirmed {
     rotation: u8,
+    unit: Option<TemperatureUnit>,
     gpus: Vec<String>,
     bar_fall: Option<FallStop>,
     peak_fall: Option<FallStop>,
 }
 
 pub struct ConfigPage {
+    /// The page: its bar over the scrolled cards.
     root: gtk::Box,
+    /// The box the cards are in: the Startup card moves into it.
+    cards: gtk::Box,
+    back: gtk::Button,
     rotations: [gtk::ToggleButton; 4],
+    celsius: gtk::ToggleButton,
+    fahrenheit: gtk::ToggleButton,
     gpu_row: gtk::Box,
     gpu: Dropdown,
     gpu_in_use: gtk::Label,
@@ -146,10 +160,11 @@ fn scale(names: &Names, name: &str) -> gtk::Scale {
 
 impl ConfigPage {
     pub fn new(names: &Names, send: Rc<dyn Fn(Request)>) -> ConfigPage {
+        // Under the page bar the cards start 6 px down (Window, Page bar).
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(18)
-            .margin_top(18)
+            .margin_top(6)
             .margin_bottom(18)
             .margin_start(18)
             .margin_end(18)
@@ -201,6 +216,52 @@ impl ConfigPage {
             "Rotation",
             Some("Turns the picture clockwise"),
             &toggles,
+        );
+
+        // The temperature unit, after Rotation: the same kind of control.
+        let celsius = gtk::ToggleButton::builder().label("°C").build();
+        let fahrenheit = gtk::ToggleButton::builder()
+            .label("°F")
+            .group(&celsius)
+            .build();
+        celsius.set_active(true);
+        names.name(&celsius, "Celsius");
+        names.name(&fahrenheit, "Fahrenheit");
+        let unit_toggles = gtk::Box::builder()
+            .css_classes(["linked"])
+            .valign(gtk::Align::Center)
+            .build();
+        for (button, wanted) in [
+            (&celsius, TemperatureUnit::Celsius),
+            (&fahrenheit, TemperatureUnit::Fahrenheit),
+        ] {
+            unit_toggles.append(button);
+            let (send, confirmed, applying) = (
+                Rc::clone(&send),
+                Rc::clone(&confirmed),
+                Rc::clone(&applying),
+            );
+            let (c, f) = (celsius.clone(), fahrenheit.clone());
+            button.connect_toggled(move |button| {
+                let saved = confirmed.borrow().unit;
+                if applying.get() || !button.is_active() || saved == Some(wanted) {
+                    return;
+                }
+                send(unit_request(wanted));
+                // Back to the saved unit until the service confirms the change.
+                applying.set(true);
+                match saved {
+                    Some(TemperatureUnit::Fahrenheit) => f.set_active(true),
+                    _ => c.set_active(true),
+                }
+                applying.set(false);
+            });
+        }
+        row(
+            &display,
+            "Temperature unit",
+            Some("Used wherever the display shows a temperature"),
+            &unit_toggles,
         );
 
         let gpu = Dropdown::new();
@@ -290,9 +351,23 @@ impl ConfigPage {
             &["muted", "small"],
         ));
 
+        // The page bar: the back icon, then the title (Window, Page bar).
+        let back = gtk::Button::builder().action_name("win.back").build();
+        icon_button(
+            &back,
+            names,
+            "go-previous-symbolic",
+            "Back",
+            "Back to Display",
+        );
+        let page = page(&page_bar(Some(&back), "Configuration", None), &root);
         ConfigPage {
-            root,
+            root: page,
+            cards: root,
+            back,
             rotations,
+            celsius,
+            fahrenheit,
             gpu_row,
             gpu,
             gpu_in_use,
@@ -307,8 +382,19 @@ impl ConfigPage {
         }
     }
 
+    /// The page: its bar over the scrolled cards.
     pub fn widget(&self) -> &gtk::Box {
         &self.root
+    }
+
+    /// The box the cards are in.
+    pub fn cards(&self) -> &gtk::Box {
+        &self.cards
+    }
+
+    /// The back icon, which takes the focus when the page opens.
+    pub fn back(&self) -> &gtk::Button {
+        &self.back
     }
 
     /// Shows the service's confirmed settings.
@@ -318,6 +404,7 @@ impl ConfigPage {
         {
             let mut confirmed = self.confirmed.borrow_mut();
             confirmed.rotation = rotation;
+            confirmed.unit = Some(page.unit);
             confirmed.gpus = page
                 .gpu
                 .iter()
@@ -328,6 +415,10 @@ impl ConfigPage {
         }
         self.applying.set(true);
         self.rotations[usize::from(rotation)].set_active(true);
+        match page.unit {
+            TemperatureUnit::Celsius => self.celsius.set_active(true),
+            TemperatureUnit::Fahrenheit => self.fahrenheit.set_active(true),
+        }
 
         match &page.gpu {
             Some(gpu) => {
@@ -392,6 +483,15 @@ impl ConfigPage {
             .then(|| (in_use, shown(&self.gpu_hint)))
     }
 
+    /// Which unit toggle is on.
+    pub fn unit_shown(&self) -> TemperatureUnit {
+        if self.fahrenheit.is_active() {
+            TemperatureUnit::Fahrenheit
+        } else {
+            TemperatureUnit::Celsius
+        }
+    }
+
     pub fn shown(&self) -> (usize, bool, f64, f64) {
         (
             self.rotations
@@ -408,6 +508,19 @@ impl ConfigPage {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    // Each unit toggle asks for its unit.
+    #[test]
+    fn each_unit_toggle_asks_for_its_unit() {
+        assert_eq!(
+            unit_request(TemperatureUnit::Celsius),
+            Request::SetTemperatureUnit(TemperatureUnit::Celsius)
+        );
+        assert_eq!(
+            unit_request(TemperatureUnit::Fahrenheit),
+            Request::SetTemperatureUnit(TemperatureUnit::Fahrenheit)
+        );
+    }
 
     // The five stops map to the scale's five values and back, named as the marks show them.
     #[test]

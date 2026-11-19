@@ -59,11 +59,22 @@ button { font: inherit; color: inherit; }
 :disabled { cursor: default; opacity: .45; }
 .tile.on:disabled { opacity: 1; }
 
-.hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 8px 12px; gap: 8px;
+/* The header (design, Window): nothing at the start, the title in the middle (two equal 1fr columns keep it
+   centred), a gear and a close icon at the end. */
+.hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 7px 8px 7px 12px; gap: 8px;
   border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .app-name { font-weight: 600; }
-.hb.bare { padding-top: 14px; padding-bottom: 14px; } /* no buttons: same height as the full header bar */
-.hb-end { justify-self: end; }
+.hb-end { justify-self: end; display: flex; gap: 4px; }
+/* Icon buttons (gear, close, back, Refresh): 32 x 32 with a 16 px icon, no frame in any state. The resting fill is
+   the surface they sit on (--bg); hover, focus, pressed and selected use the control fills, a disabled one --muted
+   (design, Window, Icon buttons). */
+.ibtn { width: 32px; height: 32px; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  background: var(--bg); border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
+.ibtn:hover:not(:disabled), .ibtn:focus-visible { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), var(--bg)); }
+.ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), var(--bg)); }
+.ibtn[aria-pressed="true"], .ibtn[aria-pressed="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), var(--bg)); color: var(--accent); }
+.ibtn:disabled { opacity: 1; color: var(--muted); cursor: default; }
 .segs { display: inline-flex; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
 .segs .seg:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
@@ -91,8 +102,11 @@ button { font: inherit; color: inherit; }
 .warn-text { color: var(--yellow); display: inline-flex; gap: 4px; align-items: center; }
 :root[data-theme="light"] .warn-text { color: var(--yellow); }
 
-.content { flex: 1; overflow: auto; padding: 16px 20px 24px; }
-.unitrow { display: flex; gap: 12px; align-items: center; margin-bottom: 6px; }
+/* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
+.page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; }
+.page-title { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
+.page-scroll { flex: 1; overflow: auto; padding: 6px 20px 24px; }
 .group h3, .card h3 { font-size: 13px; text-transform: none; letter-spacing: .02em; margin: 14px 0 6px; font-weight: 600; }
 .group-reason { display: flex; gap: 6px; font-size: 12px; margin: -2px 0 6px; align-items: center; }
 .pair { display: flex; gap: 28px; flex-wrap: wrap; }

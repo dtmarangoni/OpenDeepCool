@@ -31,13 +31,14 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 8] = [
+const CHECKS: [(&str, Check); 9] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
     ("the_start_at_boot_switch_on_both_screens", start_at_boot),
     ("sending_fails_shows_after_2_s", sending_fails),
     ("the_feedback_label", feedback),
+    ("the_header_and_the_two_pages", header_and_pages),
     ("the_window_s_requests", requests),
     ("every_name_of_the_design_s_table", names),
 ];
@@ -163,8 +164,11 @@ fn banners_and_states(app: &gtk::Application) {
     assert_eq!(window.off_heading(), None, "not read yet");
     assert!(!window.startup().card().is_visible());
     assert_eq!(window.startup().commands(), None);
-    assert_eq!(window.header(), [(true, false), (true, false)]);
-    assert!(!window.actions_enabled());
+    // The gear stays, insensitive and not pressed; the close icon always works (Window, The
+    // header, by state). Refresh is on the Display page, which the off screen replaces.
+    assert_eq!(window.header(), [(true, false), (true, true)]);
+    assert!(!window.gear_pressed());
+    assert_eq!(window.actions_enabled(), [false; 3]);
     assert_eq!(
         window.column_words(),
         [
@@ -198,7 +202,11 @@ fn banners_and_states(app: &gtk::Application) {
     assert_banners(&window, None, "connected");
     assert_eq!(window.screen(), ("main".to_owned(), "display".to_owned()));
     assert_eq!(window.header(), [(true, true), (true, true)]);
-    assert!(window.actions_enabled());
+    assert!(!window.gear_pressed());
+    // Configuration and Refresh work; Back only on the Configuration page.
+    assert_eq!(window.actions_enabled(), [true, false, true]);
+    let refresh = window.display_page().refresh();
+    assert!(refresh.is_visible() && refresh.is_sensitive());
     assert_eq!(
         window.column_words(),
         [
@@ -270,9 +278,10 @@ fn banners_and_states(app: &gtk::Application) {
         "not-available",
         "only the not-available message"
     );
-    assert_eq!(window.header(), [(false, false), (false, false)]);
+    // Only the title and the close icon (Window, The header, by state).
+    assert_eq!(window.header(), [(false, false), (true, true)]);
     assert_banners(&window, None, "not available");
-    assert!(!window.actions_enabled());
+    assert_eq!(window.actions_enabled(), [false; 3]);
     assert!(window.not_available().is_visible());
     assert_eq!(window.shown(), Some(View::NotAvailable));
     // Announced once on entering it, not again while it stays.
@@ -379,9 +388,9 @@ fn start_at_boot(app: &gtk::Application) {
     window.state(base());
     assert!(!window.startup_on_off_screen());
     assert!(startup.card().is_visible() && startup.heading_shown());
-    let page = window.config_page().widget().clone();
+    let cards = window.config_page().cards().clone();
     assert_eq!(
-        page.last_child().as_ref(),
+        cards.last_child().as_ref(),
         Some(startup.card().upcast_ref()),
         "the last card"
     );
@@ -426,7 +435,7 @@ fn start_at_boot(app: &gtk::Application) {
             boot::OFF_COMMANDS.join("\n")
         ))
     );
-    WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page");
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(100));
     let page = save_png(
         &renderer.0,
@@ -520,6 +529,64 @@ fn feedback(app: &gtk::Application) {
     close(window);
 }
 
+// The header and the two pages (Window): the title stays in the middle with the gear and the
+// close icon at the end; the gear is pressed on Configuration and goes back when pressed again;
+// Back, Escape's action and the gear leave it; the page's title is announced and the focus moves
+// when the user changes the page, not when the window returns to it after the service did.
+fn header_and_pages(app: &gtk::Application) {
+    let ((window, asked), said) = shown_saying(app);
+    window.state(base());
+    run_for(Duration::from_millis(150));
+    let offset = window.title_offset().expect("the title has a place");
+    assert!(
+        offset.abs() <= 1.0,
+        "the title is {offset} px off the middle"
+    );
+
+    // The gear opens Configuration: pressed, the title announced, the focus on Back.
+    let gear = window.gear().clone();
+    gear.emit_clicked();
+    assert_eq!(window.screen().1, "config");
+    assert!(window.gear_pressed());
+    assert!(window.config_page().back().is_focus(), "focus on Back");
+    assert_eq!(*said.borrow(), ["Configuration"]);
+    // Pressed again, it goes back, and the focus lands on the gear.
+    gear.emit_clicked();
+    assert_eq!(window.screen().1, "display");
+    assert!(!window.gear_pressed());
+    assert!(gear.is_focus(), "focus on the gear");
+    assert_eq!(*said.borrow(), ["Configuration", "Display"]);
+    // The back icon is a button with the Back action: it closes the page too.
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    window.config_page().back().emit_clicked();
+    assert_eq!(window.screen().1, "display");
+    assert!(gear.is_focus());
+    said.borrow_mut().clear();
+
+    // The service goes down while Configuration shows: the off screen, the gear insensitive and
+    // not pressed; back again, the window returns to Configuration with the gear pressed, and
+    // says nothing.
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    said.borrow_mut().clear();
+    window.down();
+    assert_eq!(window.screen().1, "off");
+    assert_eq!(window.header()[0], (true, false));
+    assert!(!window.gear_pressed());
+    window.state(base());
+    assert_eq!(window.screen().1, "config");
+    assert!(window.gear_pressed());
+    assert!(
+        said.borrow().is_empty(),
+        "no announcement: {:?}",
+        said.borrow()
+    );
+    assert!(
+        !asked.borrow().contains(&Request::Refresh),
+        "changing the page asks the service nothing"
+    );
+    close(window);
+}
+
 // Frames are watched once mapped; Refresh and the pages through their actions, and only where
 // they can be used.
 fn requests(app: &gtk::Application) {
@@ -537,15 +604,25 @@ fn requests(app: &gtk::Application) {
     WidgetExt::activate_action(window.widget(), "win.refresh", None).expect("the refresh action");
     run_for(Duration::from_millis(20));
     assert_eq!(*asked.borrow(), [Request::Refresh]);
-    WidgetExt::activate_action(window.widget(), "win.page-display", None).expect("the page action");
-    assert_eq!(window.screen().1, "display");
-    WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page action");
+    // Configuration opens the page, Back closes it, and Back works only there.
+    WidgetExt::activate_action(window.widget(), "win.back", None).ok();
+    assert_eq!(window.screen().1, "display", "Back does nothing on Display");
+    WidgetExt::activate_action(window.widget(), "win.configuration", None)
+        .expect("the page action");
     assert_eq!(window.screen().1, "config");
+    assert_eq!(window.actions_enabled(), [true, true, true]);
+    WidgetExt::activate_action(window.widget(), "win.back", None).expect("the back action");
+    assert_eq!(window.screen().1, "display");
+    // The service gone: neither page action works, and the page asked for stays shown nowhere.
+    window.down();
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).ok();
+    assert_eq!(window.screen().1, "off");
+    window.state(base());
     // The keys of each action (Keyboard, Shortcuts): AT-SPI can't type on Wayland, so the
     // end-to-end run reaches the actions and this check their keys (decisions log D71).
     for (action, keys) in [
-        ("win.page-display", &["<Control>1"][..]),
-        ("win.page-config", &["<Control>2"]),
+        ("win.configuration", &["<Control>comma"][..]),
+        ("win.back", &["Escape", "<Alt>Left"]),
         ("win.refresh", &["F5", "<Control>r"]),
         ("win.close", &["<Control>w", "<Control>q"]),
     ] {
@@ -608,8 +685,9 @@ fn names(app: &gtk::Application) {
     use gtk::AccessibleRole as R;
     let (window, _) = shown(app);
     let mut want: Vec<(&str, R)> = vec![
-        ("Display", R::ToggleButton),
         ("Configuration", R::ToggleButton),
+        ("Close", R::Button),
+        ("Back", R::Button),
         ("Refresh display", R::Button),
         ("Change feedback", R::Group),
         ("Not available in this session", R::Group),
@@ -620,8 +698,6 @@ fn names(app: &gtk::Application) {
         ("Service status", R::Group),
         ("Music sound status", R::Group),
         // The Display page (Task 5).
-        ("Celsius", R::ToggleButton),
-        ("Fahrenheit", R::ToggleButton),
         ("Load options", R::Grid),
         ("Temperature options", R::Grid),
         ("Power options", R::Grid),
@@ -637,6 +713,8 @@ fn names(app: &gtk::Application) {
         ("Rotation 90°", R::ToggleButton),
         ("Rotation 180°", R::ToggleButton),
         ("Rotation 270°", R::ToggleButton),
+        ("Celsius", R::ToggleButton),
+        ("Fahrenheit", R::ToggleButton),
         ("GPU", R::ComboBox),
         ("GPU in use", R::Group),
         ("Peak dots", R::Switch),

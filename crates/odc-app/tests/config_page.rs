@@ -13,7 +13,7 @@ use gtk::prelude::*;
 use odc_app::ui::dropdowns::Dropdown;
 use odc_app::ui::window::Window;
 use odc_app::ui::{Reason, Refused, Request};
-use odc_ipc::{FallStop, Gpu, GpuKind, State};
+use odc_ipc::{FallStop, Gpu, GpuKind, State, TemperatureUnit};
 
 use common::{Check, Renderer, base, close, run_for, save_png, shown};
 
@@ -21,12 +21,63 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 4] = [
+const CHECKS: [(&str, Check); 5] = [
     ("every_control_asks_for_its_call", calls),
+    (
+        "the_unit_sits_after_rotation_and_changes_once_the_service_says_so",
+        unit_toggles,
+    ),
     ("the_gpu_row_with_one_gpu_and_several", gpu_row),
     ("a_refused_change_shows_the_saved_value_again", refused),
     ("the_page_saved_as_a_picture", picture_file),
 ];
+
+// The temperature unit is a row of the Display card after Rotation, with the same kind of
+// control; a toggle asks for its unit and shows it once the service's state says so.
+fn unit_toggles(app: &gtk::Application) {
+    let (window, asked) = shown(app);
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(100));
+    let toggle = |name: &str| find::<gtk::ToggleButton>(&window, name);
+    // Rotation first, then the unit, then the GPU, each below the one before.
+    let card = find::<gtk::Box>(&window, "Display settings");
+    let top = |widget: &gtk::Widget| {
+        widget
+            .compute_bounds(&card)
+            .map(|b| b.y())
+            .expect("the widget has a place")
+    };
+    let rotation = top(toggle("Rotation 0°").upcast_ref());
+    let unit = top(toggle("Celsius").upcast_ref());
+    let gpu = top(find::<gtk::Widget>(&window, "GPU").upcast_ref());
+    assert!(rotation < unit && unit < gpu, "{rotation} {unit} {gpu}");
+
+    asked.borrow_mut().clear();
+    toggle("Fahrenheit").emit_clicked();
+    run_for(Duration::from_millis(20));
+    assert_eq!(
+        *asked.borrow(),
+        [Request::SetTemperatureUnit(TemperatureUnit::Fahrenheit)]
+    );
+    assert_eq!(window.config_page().unit_shown(), TemperatureUnit::Celsius);
+    window.state(with(|s| {
+        s.temperature_unit = Some(TemperatureUnit::Fahrenheit)
+    }));
+    assert_eq!(
+        window.config_page().unit_shown(),
+        TemperatureUnit::Fahrenheit
+    );
+    assert_eq!(
+        asked.borrow().len(),
+        1,
+        "the service's own change asks for nothing"
+    );
+    toggle("Fahrenheit").emit_clicked();
+    run_for(Duration::from_millis(20));
+    assert_eq!(asked.borrow().len(), 1, "the unit already shown");
+    close(window);
+}
 
 // Made-up GPUs (AGENTS.md rule 10), in the service's order.
 fn gpus() -> Vec<Gpu> {
@@ -220,7 +271,7 @@ fn refused(app: &gtk::Application) {
 fn picture_file(app: &gtk::Application) {
     let (window, _) = shown(app);
     window.state(with(|_| {}));
-    WidgetExt::activate_action(window.widget(), "win.page-config", None).expect("the page");
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(300));
     let renderer = Renderer::new();
     let path = save_png(&renderer.0, window.widget(), "configuration-page");

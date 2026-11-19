@@ -336,8 +336,8 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 **Implementation**
 - R3, C2, C3, C5 and C6 together, because they share the header and the stack.
 - The header shows the title in the middle (`set_title_widget`), and a gear and a close icon at the right, both without frames and with fixed accessible names; `show-title-buttons` is off if Task 1's check says so, so no desktop draws a second close button. A back icon heads the Configuration page without a frame; the designer picks its side by the GNOME and KDE human-interface guidelines.
-- Refresh is an icon without a frame at the top right of the display page. It keeps its accessible name, its tooltip, `F5` and `Ctrl+R`, and its rules from `window.rs:739-768`: absent when the app isn't available in this session, insensitive while the service isn't running.
-- The gear stays usable on the service-off screen, where Start at boot lives, as the switcher is today.
+- Refresh is an icon without a frame at the top right of the display page. It keeps its accessible name, its tooltip, `F5` and `Ctrl+R`, and its rules from `window.rs:739-768`: absent when the app isn't available in this session, and not drawn while the service isn't running, since the off screen replaces the Display page it sits on (designer, 2026-11-19; its action is disabled in both).
+- The gear is visible but insensitive on the service-off screen, as the switcher is today (D10: Start at boot lives on the off screen itself, and Configuration can't be reached while the service is down). Corrected 2026-11-19: the plan first said the gear stays usable there, which contradicted "as the switcher is today" and the design.
 - The unit's request and the mode tiles' follow-the-unit redraw (`tiles.rs` `follows_unit`) keep their behaviour, now from the Configuration page.
 
 **Tests**

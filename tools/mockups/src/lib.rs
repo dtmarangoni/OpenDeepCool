@@ -193,7 +193,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "display.html",
             "Display screen",
-            "The mode screen: unit at the top, 23 mode tiles in four groups, the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU).",
+            "The mode screen: the header with the title in the middle and a gear and a close icon at the right; the page bar with the Display title and the Refresh icon; 23 mode tiles in four groups; the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU). Click the gear for Configuration.",
             base(),
         ),
         page(
@@ -205,13 +205,13 @@ pub fn pages() -> Vec<Page> {
         page(
             "display-scrolling.html",
             "Display screen, a value of 100 or more",
-            "Power, CPU + GPU with GPU power at 156 W: the preview shows the strip at its home position (the app animates it at the cooler's 100 ms tick). Unit °F: the temperature tiles show °F.",
+            "Power, CPU + GPU with GPU power at 156 W: the preview shows the strip at its home position (the app animates it at the cooler's 100 ms tick). The unit is °F, set on the Configuration page: the temperature tiles show °F.",
             base().with("mode", Json::Int(12)).with("unit", s("F")),
         ),
         page(
             "configuration.html",
             "Configuration screen",
-            "Rotation, GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
+            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. Rotation, Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Rotation is 90°, and the preview turns with it.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -269,7 +269,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "service-not-running.html",
             "Service not running",
-            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. A flip on starts it again; the terminal commands sit under the card.",
+            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is dimmed, and there is no Refresh (it belongs to the Display page). A flip on starts it again; the terminal commands sit under the card.",
             base()
                 .with("service", Json::Bool(false))
                 .with("serviceRun", s("failed")),
@@ -277,7 +277,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "boot-off.html",
             "OpenDeepCool off, a new install",
-            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch and, under it, the terminal commands to turn it on. Flip the switch: the mockup skips the password dialog, then shows the normal window.",
+            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch and, under it, the terminal commands to turn it on. The gear is dimmed, and there is no Refresh (it belongs to the Display page). Flip the switch: the mockup skips the password dialog, then shows the normal window.",
             base()
                 .with("service", Json::Bool(false))
                 .with("boot", s("off")),
@@ -327,7 +327,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "not-available.html",
             "Not available in this session",
-            "A remote or inactive session. The service refuses it every read, change and preview frame, so the window shows only this message: no values, no preview, no controls, no Refresh. The app tries again, without polling, when its window becomes active and when the service's bus name gets a new owner.",
+            "A remote or inactive session. The service refuses it every read, change and preview frame, so the window shows only this message, and the header keeps only the title and the close icon: no values, no preview, no controls, no gear, no Refresh. The app tries again, without polling, when its window becomes active and when the service's bus name gets a new owner.",
             base().with("notAvailable", Json::Bool(true)),
         ),
         page(
