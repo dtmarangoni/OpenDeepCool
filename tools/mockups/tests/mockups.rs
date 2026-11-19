@@ -29,7 +29,7 @@ fn writing_in_memory_gives_every_committed_mockup_byte_for_byte() {
         })
         .collect();
     assert_eq!(names, committed, "a page without its state, or the reverse");
-    assert_eq!(names.len(), 19);
+    assert_eq!(names.len(), 22);
 }
 
 #[test]
@@ -76,29 +76,29 @@ struct Palette {
 const PALETTES: [Palette; 3] = [
     Palette {
         name: "default dark",
-        background: "#14171b",
-        surface: "#1d2126",
-        foreground: "#e7eaee",
-        muted: "#9aa3ae",
-        accent: "#4fc3b4",
-        red: "#f08a80",
-        yellow: "#e6c15c",
-        green: "#7fd48f",
-        selected: 0.18,
-        border: 0.40,
+        background: "#202326",
+        surface: "#2a2e33",
+        foreground: "#e6e3dc",
+        muted: "#9ca1aa",
+        accent: "#fbf8f0",
+        red: "#ff7a66",
+        yellow: "#e8c14f",
+        green: "#6dd28b",
+        selected: 0.16,
+        border: 0.44,
     },
     Palette {
         name: "default light",
-        background: "#f5f6f8",
+        background: "#e4e6e9",
         surface: "#ffffff",
-        foreground: "#1a1d21",
-        muted: "#5a626c",
-        accent: "#0b7a6e",
-        red: "#b42318",
-        yellow: "#8a5d00",
-        green: "#1d7a35",
+        foreground: "#1b1e22",
+        muted: "#565c66",
+        accent: "#0a0c0f",
+        red: "#b93a22",
+        yellow: "#7a5200",
+        green: "#1d7a3f",
         selected: 0.14,
-        border: 0.50,
+        border: 0.54,
     },
     Palette {
         name: "sample Omarchy",
@@ -154,6 +154,10 @@ fn the_default_theme_has_the_contrast_the_design_states() {
     let checks = |p: &Palette| -> Vec<(&'static str, f64, f64)> {
         let (bg, surface, fg) = (rgb(p.background), rgb(p.surface), rgb(p.foreground));
         let selected = blend(fg, surface, p.selected);
+        // The gear and the back icon sit on the background, so their selected fill is over it.
+        let selected_on_bg = blend(fg, bg, p.selected);
+        // The selection: the accent at 0.25 over the background (Phase 11a Task 11).
+        let selection = blend(rgb(p.accent), bg, 0.25);
         vec![
             ("text on background", 4.5, ratio(fg, bg)),
             ("text on surface", 4.5, ratio(fg, surface)),
@@ -168,19 +172,25 @@ fn the_default_theme_has_the_contrast_the_design_states() {
             ("text on the selected fill", 4.5, ratio(fg, selected)),
             ("control border", 3.0, ratio(blend(fg, bg, p.border), bg)),
             ("lit dot against unlit", 3.0, ratio(fg, blend(fg, bg, 0.12))),
+            (
+                "accent on the selected fill",
+                3.0,
+                ratio(rgb(p.accent), selected_on_bg),
+            ),
+            ("text on the selection", 4.5, ratio(fg, selection)),
         ]
     };
-    let table: [(&str, [f64; 13]); 2] = [
+    let table: [(&str, [f64; 15]); 2] = [
         (
             "default dark",
             [
-                14.9, 13.4, 7.0, 6.3, 8.4, 7.5, 10.4, 9.4, 7.4, 10.0, 8.0, 3.4, 10.9,
+                12.3, 10.7, 6.1, 5.3, 14.9, 12.9, 9.2, 7.9, 6.2, 8.5, 6.9, 3.5, 8.9, 9.6, 5.6,
             ],
         ),
         (
             "default light",
             [
-                15.6, 16.9, 5.7, 6.2, 4.8, 5.2, 5.3, 5.8, 6.1, 5.0, 12.7, 3.2, 12.3,
+                13.4, 16.7, 5.4, 6.7, 15.7, 19.6, 5.5, 6.9, 4.5, 4.3, 12.6, 3.4, 10.6, 11.9, 7.7,
             ],
         ),
     ];
@@ -204,11 +214,16 @@ fn the_default_theme_has_the_contrast_the_design_states() {
             }
         }
     }
-    // The design's note on muted text on the selected fill, and its sample theme's figures.
+    // The design's note on muted text on the selected fill (below 4.5 in the dark theme, so
+    // nothing muted is drawn on a selected tile; above it in the light one), and its sample
+    // theme's figures.
     let dark = &PALETTES[0];
     let selected = blend(rgb(dark.foreground), rgb(dark.surface), dark.selected);
     assert!(ratio(rgb(dark.muted), selected) < 4.5);
-    assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.8).abs() < 1e-9);
+    assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.4).abs() < 1e-9);
+    let light = &PALETTES[1];
+    let selected = blend(rgb(light.foreground), rgb(light.surface), light.selected);
+    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.1).abs() < 1e-9);
     let sample = &PALETTES[2];
     let bg = rgb(sample.background);
     for (colour, want) in [

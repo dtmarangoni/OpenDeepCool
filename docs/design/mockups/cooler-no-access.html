@@ -17,24 +17,34 @@
   --radius: 0px; --unlit-alpha: 0.12;
 }
 :root[data-theme="dark"] {
-  /* OpenDeepCool default theme, dark */
-  --bg: #14171b; --surface: #1d2126; --fg: #e7eaee; --muted: #9aa3ae; --accent: #4fc3b4;
-  --red: #f08a80; --yellow: #e6c15c; --green: #7fd48f;
-  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 40%; --w-normal-border: 1px;
-  --a-hover-fill: 8%; --a-hover-border: 30%; --a-selected-fill: 18%; --a-pressed-fill: 22%;
-  --radius: 6px; --unlit-alpha: 0.12;
+  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme): Graphite, Panel, Bone, Haze and Lit, with colour only for status */
+  --bg: #202326; --surface: #2a2e33; --fg: #e6e3dc; --muted: #9ca1aa; --accent: #fbf8f0;
+  --red: #ff7a66; --yellow: #e8c14f; --green: #6dd28b;
+  --ctl: var(--fg); --a-normal-fill: 5%; --a-normal-border: 44%; --w-normal-border: 1px;
+  --a-hover-fill: 9%; --a-hover-border: 60%; --a-selected-fill: 16%; --a-pressed-fill: 24%;
+  --radius: 4px; --radius-box: 10px; --unlit-alpha: 0.12;
 }
 :root[data-theme="light"] {
-  /* OpenDeepCool default theme, light */
-  --bg: #f5f6f8; --surface: #ffffff; --fg: #1a1d21; --muted: #5a626c; --accent: #0b7a6e;
-  --red: #b42318; --yellow: #8a5d00; --green: #1d7a35;
-  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 50%; --w-normal-border: 1px;
-  --a-hover-fill: 7%; --a-hover-border: 35%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
-  --radius: 6px; --unlit-alpha: 0.12;
+  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme): Aluminium, White, Graphite, Slate and Lit, with colour only for status */
+  --bg: #e4e6e9; --surface: #ffffff; --fg: #1b1e22; --muted: #565c66; --accent: #0a0c0f;
+  --red: #b93a22; --yellow: #7a5200; --green: #1d7a3f;
+  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 54%; --w-normal-border: 1px;
+  --a-hover-fill: 7%; --a-hover-border: 72%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
+  --radius: 4px; --radius-box: 10px; --unlit-alpha: 0.12;
+}
+/* The type scale and the second radius (design, OpenDeepCool's own theme, Type and Radius). One base size stands in for the
+   user's system font size, which the app takes from GTK: every size is a multiple of it (83, 100, 120 and 144 per cent), two
+   weights (400 and 600). The sample Omarchy theme has no box radius, so boxes stay square there. */
+:root {
+  --fs: 14px;
+  --fs-small: calc(var(--fs) * .83);
+  --fs-page-title: calc(var(--fs) * 1.2);
+  --fs-heading: calc(var(--fs) * 1.44);
+  --radius-box: 0px;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, sans-serif; padding: 16px; color: #111; }
+body { background: #8a8f96; font: var(--fs)/1.4 system-ui, "Segoe UI", Cantarell, sans-serif; padding: 16px; color: #111; }
 .mock-bar { max-width: 930px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
 .mock-bar h1 { font-size: 15px; margin: 0 0 4px; }
 .mock-bar p { margin: 0 0 8px; }
@@ -45,19 +55,20 @@ body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, san
 .mock-bar .label { font-weight: 600; }
 
 /* The window's size (design, Window, Size and scrolling): as large as its content, which is the widest page beside the
-   262 px column and the tallest page under the header bar, here 930 x 813 px (the mockups' tiles are 98 px wide, the
-   app's about 113, so the app's estimate is about 1016 x 814); and never larger than the screen less 48 px. A browser
+   262 px column and the tallest page under the header bar, here 930 x 1007 px (the mockups' tiles are 98 px wide, the
+   app's about 113, so the app's estimate is about 1016 x 1008; the Configuration page is the tallest since the Theme
+   card, an estimate to check by measuring in a browser); and never larger than the screen less 48 px. A browser
    window narrower or shorter than that makes the window scroll its page, as the app does on a small monitor (the
    preview column and the header stay). Drawn only for the page: below about 850 px the app scrolls the whole content
    sideways, the column with it, which the mockups don't draw. */
-.window { width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(813px, calc(100vh - 48px));
+.window { width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(1007px, calc(100vh - 48px));
   margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
   overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
 /* Not available in this session: the window is as small as its message (design, Window, Size and scrolling). */
 .window.only { width: 440px; min-height: 0; }
 .window.only .page.empty { min-height: 0; padding: 24px; }
 .muted { color: var(--muted); }
-.small { font-size: 12px; }
+.small { font-size: var(--fs-small); }
 svg { width: 16px; height: 16px; flex: none; }
 button { font: inherit; color: inherit; }
 
@@ -67,14 +78,25 @@ button { font: inherit; color: inherit; }
   border: var(--w-normal-border) solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   border-radius: var(--radius); cursor: pointer;
 }
+/* Hover firms the border up and never weakens it: the hover border alpha is above the normal one in OpenDeepCool's own theme. */
 .btn:hover:not(:disabled), .seg:hover:not(:disabled), .dd-btn:hover:not(:disabled), .tile:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
+  background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent);
+  border-color: color-mix(in srgb, var(--ctl) var(--a-hover-border), transparent); }
 .btn:active:not(:disabled), .seg:active:not(:disabled), .tile:active:not(:disabled) {
   background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
 .seg.on, .tile.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
+/* A selected control keeps its fill and its accent border under the pointer (the app's :checked rule comes after :hover). */
+.seg.on:hover:not(:disabled), .tile.on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :disabled { cursor: default; opacity: .45; }
 .tile.on:disabled { opacity: 1; }
+/* The app draws an insensitive toggle or switch without opacity (decisions log D43): muted text on the normal fill and border.
+   One that is pressed or on and can't be changed still shows its value, as the Theme card does while the system theme is used:
+   the selected fill, a muted border, and the text in --fg so the value stays readable (design, Theme card). */
+.seg:disabled { opacity: 1; color: var(--muted); }
+.seg.on:disabled { color: var(--fg); border-color: var(--muted); }
+.switch:disabled { opacity: 1; }
 
 /* The header (design, Window): nothing at the start, the title in the middle (two equal 1fr columns keep it
    centred), a gear and a close icon at the end. */
@@ -103,15 +125,15 @@ button { font: inherit; color: inherit; }
 .banner.error { background: color-mix(in srgb, var(--red) 16%, var(--bg)); } .banner.error > svg { color: var(--red); }
 .banner.warn { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); } .banner.warn > svg { color: var(--yellow); }
 .banner-text { flex: 1; }
-.banner code { display: block; margin: 6px 0; font: 13px ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
+.banner code { display: block; margin: 6px 0; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
 
 .body { display: flex; flex: 1; min-height: 0; }
 .side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
   overflow: auto; /* the column's own scroller: only where the window is shorter than the column */ }
-.preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius); }
+.preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius-box); }
 .pv-caption { margin-top: 10px; font-weight: 600; }
-.reason { display: flex; gap: 6px; font-size: 12px; margin-top: 8px; }
-.status { list-style: none; padding: 0; margin: 16px 0 0; font-size: 13px; }
+.reason { display: flex; gap: 6px; font-size: var(--fs-small); margin-top: 8px; }
+.status { list-style: none; padding: 0; margin: 16px 0 0; font-size: var(--fs); }
 .status li { display: flex; align-items: center; gap: 8px; padding: 2px 0; }
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .dot.good { background: var(--green); } .dot.warn { background: var(--yellow); } .dot.bad { background: var(--red); }
@@ -122,19 +144,21 @@ button { font: inherit; color: inherit; }
 /* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
 .page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; }
-.page-title { flex: 1; margin: 0; font-size: 16px; font-weight: 600; }
+.page-title { flex: 1; margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
 .page-scroll { flex: 1; overflow: auto; padding: 6px 20px 24px; }
-.group h3, .card h3 { font-size: 13px; text-transform: none; letter-spacing: .02em; margin: 14px 0 6px; font-weight: 600; }
-.group-reason { display: flex; gap: 6px; font-size: 12px; margin: -2px 0 6px; align-items: center; }
+.group h3, .card h3 { font-size: var(--fs); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
+.group-reason { display: flex; gap: 6px; font-size: var(--fs-small); margin: -2px 0 6px; align-items: center; }
 .pair { display: flex; gap: 28px; flex-wrap: wrap; }
 .tiles { display: flex; flex-wrap: wrap; gap: 8px; }
 .tile { width: 98px; padding: 8px 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .tile canvas { display: block; }
+/* Tile captions and flags stay at the fixed 12 and 11 px that fit the mockups' 98 px tiles. In the app a caption is body text
+   (the type scale's 100 per cent) and the tile is about 113 px wide: the one place the mockup departs from the scale. */
 .tile-cap { font-size: 12px; text-align: center; line-height: 1.2; }
 .tile-flag { font-size: 11px; }
 .tile-flag svg { width: 11px; height: 11px; }
 
-.config .card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin-bottom: 14px; }
+.config .card { background: var(--surface); border-radius: var(--radius-box); padding: 4px 16px 12px; margin-bottom: 14px; }
 /* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
    left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
    GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
@@ -146,12 +170,12 @@ button { font: inherit; color: inherit; }
 .row-r.mid { align-self: center; }
 /* The Startup card on the off screen is outside the page's size group: its block takes its own width */
 .off-screen .row-l { width: auto; }
-.hint { display: flex; gap: 6px; font-size: 12px; margin-top: 6px; max-width: 520px; }
+.hint { display: flex; gap: 6px; font-size: var(--fs-small); margin-top: 6px; max-width: 520px; }
 .row-r .hint { margin-top: 0; max-width: 320px; }
 .dd { position: relative; }
 .dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 6px 10px; text-align: left; }
 .dd-pop { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
-  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius-box); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
 .dd-item.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); }
@@ -160,32 +184,34 @@ button { font: inherit; color: inherit; }
    1 px border. The padding box is 38 x 20, so the knob rests at left 1 and, switched on, at left 19. */
 .switch { width: 40px; height: 22px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: var(--muted); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: var(--fg); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
 .switch.on span { left: 19px; background: var(--bg); }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
 .switch.state-on span { background: var(--bg); }
 .switch.handle-on span { left: 19px; }
+/* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do) */
+.switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
 /* The Startup card in the window's body while the service is down, and the terminal commands */
-.empty .boot-card { background: var(--surface); border-radius: var(--radius); padding: 4px 16px 12px; margin: 18px auto 0;
+.empty .boot-card { background: var(--surface); border-radius: var(--radius-box); padding: 4px 16px 12px; margin: 18px auto 0;
   width: 560px; max-width: 100%; text-align: left; }
 .off-screen { width: 560px; max-width: 100%; }
 .terminal { margin-top: 10px; text-align: left; }
 .terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
-.terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: 13px ui-monospace, monospace; padding: 4px 8px;
+.terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px;
   background: color-mix(in srgb, var(--fg) 8%, transparent); }
 .scale { width: 320px; }
 .scale input { width: 100%; accent-color: var(--accent); }
-.marks { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); }
+.marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
 .marks span.on { color: var(--fg); font-weight: 600; }
 .empty { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 400px; }
-.empty h2 { font-size: 17px; margin: 0 0 6px; }
+.empty h2 { font-size: var(--fs-heading); font-weight: 600; margin: 0 0 6px; }
 /* Not available in this session: the message alone, centred in the whole window body */
 .content.only { display: flex; }
 .content.only .empty { flex: 1; }
 .toast { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); background: var(--surface); color: var(--fg);
-  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius); display: none; }
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius-box); display: none; }
 .toast.show { display: block; }
 
 </style>
@@ -200,12 +226,12 @@ button { font: inherit; color: inherit; }
       <button data-t="dark" onclick="setTheme('dark')">Default theme, dark</button>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
-  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 813 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
+  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
 </div>
 <div id="win" class="window"></div>
 <script>
-const CONFIG = {"theme": "omarchy", "page": "display", "service": true, "cooler": false, "audio": true, "notAvailable": false, "mode": 9, "unit": "C", "rotation": 0, "gpus": [{"kind": "Dedicated", "name": "Contoso Graphics R870", "driver": "exgpu", "pci": "0000:0a:00.0"}, {"kind": "Integrated", "name": "Fabrikam Integrated Graphics 7", "driver": "exgpu", "pci": "0000:00:02.0"}, {"kind": "Unknown type", "name": "", "driver": "othergpu", "pci": "0000:07:00.0", "norule": true}], "gpu": null, "gpuInUse": 0, "unavailable": {}, "live": {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}, "peaks": true, "barFall": 2, "peakFall": 1, "open": null, "coolerState": "no-access"};
+const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": true, "darkTheme": true, "page": "display", "service": true, "cooler": false, "audio": true, "notAvailable": false, "mode": 9, "unit": "C", "rotation": 0, "gpus": [{"kind": "Dedicated", "name": "Contoso Graphics R870", "driver": "exgpu", "pci": "0000:0a:00.0"}, {"kind": "Integrated", "name": "Fabrikam Integrated Graphics 7", "driver": "exgpu", "pci": "0000:00:02.0"}, {"kind": "Unknown type", "name": "", "driver": "othergpu", "pci": "0000:07:00.0", "norule": true}], "gpu": null, "gpuInUse": 0, "unavailable": {}, "live": {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}, "peaks": true, "barFall": 2, "peakFall": 1, "open": null, "coolerState": "no-access"};
 "use strict";
 // OpenDeepCool settings app mockup. All readings, chips, GPU names and PCI addresses are made up.
 //
@@ -270,6 +296,20 @@ const CONFIG = {"theme": "omarchy", "page": "display", "service": true, "cooler"
 // the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
+//
+// The Theme card and OpenDeepCool's own theme (Phase 11a Task 11, 2026-11-19; docs/design/settings-app.md, Theme card,
+// Which theme is used). Four new CONFIG keys, all optional; their defaults give the state of every earlier page (an
+// Omarchy theme found and followed), so those pages look as before:
+// - omarchyTheme (boolean, default true): an Omarchy theme is found. The sample Omarchy theme stands for it, and is a
+//   dark one (its mode is "dark").
+// - colorScheme: GTK's gtk-interface-color-scheme, "unsupported", "default" (no preference), "dark" or "light"
+//   (default "dark"). "unsupported" with no Omarchy theme means no system theme can be found.
+// - useSystemTheme (boolean, default true): the service's UseSystemTheme.
+// - darkTheme (boolean, default true): the service's DarkTheme, used for OpenDeepCool's own theme when the system theme
+//   isn't followed or can't be found.
+// The old "theme" key is no longer read: the theme the window starts in is resolved from these four, as the app does
+// (themeState below, a pure function). The mockup's colour buttons stay as chrome that only preview a palette; the
+// Theme card's controls resolve the theme again and set it, as they do in the app.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -597,6 +637,48 @@ function bootCard(where) {
   </section>`;
 }
 
+// ---------- Theme (design, Configuration page, Theme card; Theme, Which theme is used) ----------
+// The theme the app resolves from its four inputs: an Omarchy theme found or not, GTK's colour scheme, and the
+// service's UseSystemTheme and DarkTheme. "found" is an Omarchy theme, or a scheme other than "unsupported"; the system
+// theme is followed when it's used and found; an Omarchy theme found wins over the scheme; "default" (no preference)
+// gives OpenDeepCool's dark theme. Without following, DarkTheme decides.
+function themeState() {
+  const omarchy = S.omarchyTheme !== false;
+  const scheme = S.colorScheme || "dark";
+  const useSystem = S.useSystemTheme !== false;
+  const darkPref = S.darkTheme !== false;
+  const systemFound = omarchy || scheme !== "unsupported";
+  const follow = useSystem && systemFound;
+  let source, dark;
+  if (follow && omarchy) { source = "omarchy"; dark = true; } // the sample Omarchy theme is dark: it is what the control shows
+  else { dark = follow ? scheme !== "light" : darkPref; source = dark ? "dark" : "light"; }
+  return { omarchy, scheme, useSystem, systemFound, follow, source, dark };
+}
+// The card's one line, in every state (so the card never changes height): what is used, or the warning.
+function themeLine(t) {
+  const own = `OpenDeepCool's ${t.dark ? "dark" : "light"} theme`;
+  if (!t.systemFound) return { warn: true, text: "OpenDeepCool can't find the system's theme and is using its own." };
+  if (t.follow && t.omarchy) return { text: "Using the Omarchy theme." };
+  if (t.follow) return { text: t.scheme === "default" ? "Using OpenDeepCool's dark theme. Your desktop has no preference."
+    : `Using ${own}, as your desktop prefers.` };
+  return { text: `Using ${own}.` };
+}
+// The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
+// (and off) when none can be found; Dark and Light are insensitive while it is followed and then show the scheme in use.
+function themeCard() {
+  const t = themeState(), line = themeLine(t);
+  const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
+    line.warn ? ` aria-description="${esc(line.text)}"` : ""}${t.systemFound ? "" : " disabled"} onclick="useSystem()"><span></span></button>`;
+  const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
+      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
+  return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
+      <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r mid">${sys}</div></div>
+      <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
+      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
+    </section>`;
+}
+
 function banners() {
   let out = "";
   // No service banner (design, D10): while the service is down the off screen says what's wrong, and its switch
@@ -739,6 +821,7 @@ function configPage() {
   const unitBtn = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}"
       aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
   return pageBar("config") + `<div class="page-scroll"><div class="page config">
+    ${themeCard()}
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
         <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
@@ -811,6 +894,11 @@ function pick(id) { if (!canChange()) return; S.mode = id; render(); }
 function unit(u) { if (!canChange()) return; S.unit = u; render(); }
 function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
 function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
+// The Theme card (design, Theme card): each control sends its call (SetUseSystemTheme, SetDarkTheme) and the window
+// shows what the service confirms; the mockup confirms at once. The theme is resolved again and set, with no motion.
+function useSystem() { const t = themeState(); if (!canChange() || !t.systemFound) return; S.useSystemTheme = !t.follow; render(); applyTheme(); }
+function darkTo(d) { if (!canChange() || themeState().follow) return; S.darkTheme = d; render(); applyTheme(); }
+function applyTheme() { setTheme(themeState().source); }
 function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
 function chooseGpu(i) {
@@ -852,7 +940,7 @@ document.addEventListener("keydown", e => {
   } else if (e.altKey && e.key === "ArrowLeft" && S.page === "config") { e.preventDefault(); go("display"); }
   else if (e.ctrlKey && e.key === "," && S.page !== "config") { e.preventDefault(); go("config"); }
 });
-document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || S.theme || "omarchy"); });
+document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || themeState().source); });
 
 </script>
 </body>

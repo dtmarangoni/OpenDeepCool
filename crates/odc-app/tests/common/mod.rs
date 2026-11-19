@@ -36,11 +36,42 @@ pub fn run(checks: &[(&str, Check)]) -> ExitCode {
 
 /// The same, on an output of `size` px.
 pub fn run_at(checks: &[(&str, Check)], size: (u32, u32)) -> ExitCode {
+    run_with(checks, size, None)
+}
+
+/// The same, with the XDG desktop portal's fake on a private session bus, preferring `scheme`
+/// (0 no preference, 1 dark, 2 light), as GDK needs it to fill the system's preference
+/// (Phase 11a Task 1): the bus lists the portal's name and the fake owns it before GTK starts.
+/// The checks change the preference live with [`flip_portal`]. Without a scheme there is no
+/// session bus, and GTK's preference reads `Unsupported`.
+pub fn run_with_portal(
+    checks: &[(&str, Check)],
+    size: (u32, u32),
+    scheme: Option<u32>,
+) -> ExitCode {
+    run_with(checks, size, scheme)
+}
+
+/// Changes the fake portal's preference from a check, so GTK's property changes live.
+pub fn flip_portal(scheme: u32) {
+    let address = std::env::var("DBUS_SESSION_BUS_ADDRESS").expect("a portal bus");
+    odc_testkit::portal::set_over(&address, scheme).expect("the portal answers");
+}
+
+fn run_with(checks: &[(&str, Check)], size: (u32, u32), portal: Option<u32>) -> ExitCode {
     if std::env::args().any(|a| a == IN_WESTON) {
         return in_weston(checks);
     }
     let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join(env!("CARGO_CRATE_NAME"));
     let weston = Weston::headless_at(&dir.join("weston"), size).expect("weston starts");
+    // The portal's bus and fake live in this process, until the checks end.
+    let portal = portal.map(|scheme| {
+        let bus = odc_testkit::bus::PrivateBus::start_with_portal(&dir.join("portal-bus"))
+            .expect("a bus that lists the portal");
+        let fake =
+            odc_testkit::portal::FakePortal::start(bus.address(), scheme).expect("the portal");
+        (bus, fake)
+    });
     let own = |name: &str| {
         let path = dir.join(name);
         DirBuilder::new()
@@ -65,6 +96,11 @@ pub fn run_at(checks: &[(&str, Check)], size: (u32, u32)) -> ExitCode {
         .env_remove("DISPLAY")
         .env_remove("WAYLAND_SOCKET")
         .env_remove("DBUS_SESSION_BUS_ADDRESS")
+        .envs(
+            portal
+                .iter()
+                .map(|(bus, _)| ("DBUS_SESSION_BUS_ADDRESS", bus.address().to_owned())),
+        )
         .env_remove("GTK_THEME")
         .env_remove("GTK_MODULES")
         .env_remove("GDK_SCALE")

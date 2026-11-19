@@ -1,6 +1,7 @@
 //! OpenDeepCool's settings app (Phase 10): the pure view model and theme, and the GTK window.
 
 pub mod boot;
+pub mod choice;
 pub mod client;
 pub mod flags;
 pub mod model;

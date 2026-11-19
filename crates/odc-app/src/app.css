@@ -82,6 +82,14 @@ flowboxchild.tile:disabled {
   color: var(--muted);
 }
 
+/* A toggle that is pressed and insensitive shows its value: the selected fill, a muted border and
+   the text in --fg, so it stays readable (Theme card, The look). */
+.linked button:checked:disabled {
+  background-color: var(--ctl-selected-fill);
+  border-color: var(--muted);
+  color: var(--fg);
+}
+
 /* Keyboard focus is always visible, whatever the theme's focus alphas (WCAG 2.4.7). */
 :focus-visible {
   outline: 2px solid var(--accent);
@@ -132,10 +140,20 @@ button.icon-button:disabled {
   color: var(--muted);
 }
 
-/* A page's bar and title (Window, Page bar). */
-.page-title {
-  font-size: 16px;
+/* The type scale (Theme, Type): the system font, every size a multiple of the user's own, in
+   em, so a class goes on the label itself and never on a box that holds another sized label. */
+.heading {
+  font-size: 1.44em;
   font-weight: 600;
+}
+
+.page-title {
+  font-size: 1.2em;
+  font-weight: 600;
+}
+
+.small {
+  font-size: 0.83em;
 }
 
 /* Banners. */
@@ -163,7 +181,9 @@ button.icon-button:disabled {
 /* The terminal commands under the Start at boot switch. */
 .command {
   font-family: monospace;
+  font-size: 0.83em;
   background-color: var(--code-bg);
+  border-radius: var(--radius);
   padding: 4px 8px;
 }
 
@@ -183,7 +203,7 @@ label selection {
 
 .preview {
   background-color: var(--surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-box);
   padding: 8px;
 }
 
@@ -221,7 +241,7 @@ label selection {
 .card,
 popover > contents {
   background-color: var(--surface);
-  border-radius: var(--radius);
+  border-radius: var(--radius-box);
   color: var(--fg);
 }
 
@@ -275,6 +295,13 @@ switch > slider {
   background-color: var(--fg);
 }
 
+/* An --fg knob on an --accent trough would be about 1.2:1 in OpenDeepCool's own theme, where
+   both are light in the dark theme and both dark in the light one: the knob of an on switch is
+   the background's colour (Theme card, The look). */
+switch:checked > slider {
+  background-color: var(--bg);
+}
+
 /* Insensitive: the normal fill and border and a muted slider, without opacity (decisions log
    D43); the trough keeps systemd's state, so a running flip's "off / on" still shows (Start at
    boot, The switch). */
@@ -294,6 +321,6 @@ switch:disabled > slider {
 .feedback {
   background-color: var(--surface);
   border: 1px solid var(--line);
-  border-radius: var(--radius);
+  border-radius: var(--radius-box);
   padding: 6px 12px;
 }

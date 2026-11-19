@@ -119,15 +119,16 @@ fn themed(app: &gtk::Application, state: &Path) -> (Window, LiveTheme, Log<Strin
     let logged: Log<String> = Rc::new(RefCell::new(Vec::new()));
     let sink = Rc::clone(&logged);
     let log = move |line: &str| sink.borrow_mut().push(line.to_owned());
-    let theme = LiveTheme::first(Some(state), &log);
+    let omarchy = LiveTheme::first(Some(state), &log).map(|theme| theme.tokens);
     let window = Window::new(
         app,
         |_: Request| {},
         PathBuf::from("/nonexistent/pci.ids"),
-        &theme.tokens,
+        &omarchy.unwrap_or_else(|| Tokens::default_theme(true)),
     );
+    window.omarchy_theme(omarchy);
     window.announce_with(|_| {});
-    let live = LiveTheme::follow(&window, Some(state.to_path_buf()), theme.tokens, log)
+    let live = LiveTheme::follow(&window, Some(state.to_path_buf()), omarchy, log)
         .expect("a state folder");
     window.widget().present();
     run_until("the window maps", || {
@@ -196,7 +197,7 @@ fn sample(app: &gtk::Application) {
     write_theme(&theme_dir(&state), DARK);
     let (window, live, logged) = themed(app, &state);
     assert_eq!(*logged.borrow(), ["theme: the Omarchy theme"]);
-    let tokens = live.tokens();
+    let tokens = live.tokens().expect("an Omarchy theme");
     assert_eq!(
         (tokens.bg, tokens.surface, tokens.fg, tokens.accent),
         (
@@ -255,7 +256,7 @@ fn switch(app: &gtk::Application) {
         started.elapsed()
     );
     run_for(Duration::from_millis(200));
-    let tokens = live.tokens();
+    let tokens = live.tokens().expect("an Omarchy theme");
     assert_eq!((tokens.bg, tokens.accent), (rgb("#f4efe6"), rgb("#8a4b16")));
     check_colours(&window, &tokens, "after the switch");
     assert!(!window.prefers_dark(), "GTK's light scheme");
@@ -269,8 +270,8 @@ fn switch(app: &gtk::Application) {
 fn no_folder(app: &gtk::Application) {
     let state = state("none");
     let (window, live, logged) = themed(app, &state);
-    assert_eq!(*logged.borrow(), ["theme: the default theme"]);
-    assert_eq!(live.tokens(), Tokens::default_theme(true));
+    assert_eq!(*logged.borrow(), ["theme: no Omarchy theme"]);
+    assert_eq!(live.tokens(), None, "no Omarchy theme");
     check_colours(&window, &Tokens::default_theme(true), "the default theme");
     let without_accent: String = LIGHT
         .lines()
@@ -291,7 +292,7 @@ fn no_folder(app: &gtk::Application) {
             .any(|l| l
                 == "theme: colors.toml: `accent` is missing; the default theme's value is used")
     );
-    let tokens = live.tokens();
+    let tokens = live.tokens().expect("an Omarchy theme");
     assert_eq!(tokens.accent, Tokens::default_theme(false).accent);
     assert_eq!(tokens.bg, rgb("#f4efe6"));
     run_for(Duration::from_millis(200));

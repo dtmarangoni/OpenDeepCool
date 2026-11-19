@@ -721,7 +721,12 @@ fn names(app: &gtk::Application) {
         ("Temperature unavailable reasons", R::Group),
         ("Power unavailable reasons", R::Group),
         ("Music unavailable reasons", R::Group),
-        // The Configuration page (Task 6).
+        // The Configuration page (Task 6) and its Theme card (Phase 11a Task 11).
+        ("Theme settings", R::Group),
+        ("Use system theme", R::Switch),
+        ("Dark theme", R::ToggleButton),
+        ("Light theme", R::ToggleButton),
+        ("Theme status", R::Group),
         ("Display settings", R::Group),
         ("Music settings", R::Group),
         ("Rotation 0°", R::ToggleButton),

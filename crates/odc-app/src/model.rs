@@ -11,6 +11,7 @@ use odc_render::{Kind, Mode, mode_info};
 use odc_sensors::Metric;
 
 use crate::boot::{self, Boot};
+use crate::choice::{self, Preference, Source};
 
 /// What the app knows of the service.
 #[derive(Clone, Debug, PartialEq)]
@@ -35,6 +36,8 @@ pub enum Page {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct Ui {
     pub page: Page,
+    /// What the app knows of the system's theme (the Theme card).
+    pub system: choice::Facts,
     /// Whether `CoolerState` has been `write-failed` for [`SENDING_FAILS_AFTER`] (Banners).
     pub sending_failed_long: bool,
 }
@@ -238,6 +241,8 @@ impl Flag {
 /// The Configuration page.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ConfigPage {
+    /// The Theme card, the first of the page.
+    pub theme: ThemeCard,
     /// 0–3, a quarter turn each.
     pub rotation: u8,
     pub unit: TemperatureUnit,
@@ -246,6 +251,90 @@ pub struct ConfigPage {
     pub peaks: bool,
     pub bar_fall: FallStop,
     pub peak_fall: FallStop,
+}
+
+/// The Theme card (`docs/design/settings-app.md`, Theme card): what its two controls and its
+/// line show, from the service's two settings and what the app knows of the system's theme.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThemeCard {
+    /// The switch: on while the system's theme is followed; off when it isn't, and off when
+    /// there is none to follow.
+    pub use_system: bool,
+    /// The switch can't be used when there is no system theme to follow.
+    pub use_system_sensitive: bool,
+    /// The pressed button: Dark, or else Light. While the system's theme is followed, the scheme
+    /// of the theme in use.
+    pub dark: bool,
+    /// Dark and Light can be used only while the system's theme isn't followed.
+    pub toggles_sensitive: bool,
+    pub line: ThemeLine,
+}
+
+/// The line at the Theme card's foot: one line in every state, so the card keeps its height.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ThemeLine {
+    /// The Omarchy theme is followed.
+    Omarchy,
+    /// OpenDeepCool's own theme, dark or light, as the desktop prefers.
+    OwnAsDesktopPrefers { dark: bool },
+    /// OpenDeepCool's own dark theme: the desktop has no preference.
+    OwnNoPreference,
+    /// OpenDeepCool's own theme, dark or light, as the service keeps it.
+    Own { dark: bool },
+    /// No system theme can be found (a warning).
+    NotFound,
+}
+
+impl ThemeLine {
+    pub fn text(self) -> &'static str {
+        match self {
+            ThemeLine::Omarchy => "Using the Omarchy theme.",
+            ThemeLine::OwnAsDesktopPrefers { dark: true } => {
+                "Using OpenDeepCool's dark theme, as your desktop prefers."
+            }
+            ThemeLine::OwnAsDesktopPrefers { dark: false } => {
+                "Using OpenDeepCool's light theme, as your desktop prefers."
+            }
+            ThemeLine::OwnNoPreference => {
+                "Using OpenDeepCool's dark theme. Your desktop has no preference."
+            }
+            ThemeLine::Own { dark: true } => "Using OpenDeepCool's dark theme.",
+            ThemeLine::Own { dark: false } => "Using OpenDeepCool's light theme.",
+            ThemeLine::NotFound => {
+                "OpenDeepCool can't find the system's theme and is using its own."
+            }
+        }
+    }
+
+    pub fn is_warning(self) -> bool {
+        self == ThemeLine::NotFound
+    }
+}
+
+impl ThemeCard {
+    /// The card for `inputs`.
+    pub fn of(inputs: &choice::Inputs) -> ThemeCard {
+        let follows = inputs.follows_system();
+        let line = match (follows, inputs.source()) {
+            (true, Source::Omarchy) => ThemeLine::Omarchy,
+            (true, Source::Own { dark }) if inputs.preference == Preference::Default => {
+                debug_assert!(dark);
+                ThemeLine::OwnNoPreference
+            }
+            (true, Source::Own { dark }) => ThemeLine::OwnAsDesktopPrefers { dark },
+            (false, _) if !inputs.system_found() => ThemeLine::NotFound,
+            (false, Source::Own { dark }) => ThemeLine::Own { dark },
+            // Not following, so never the Omarchy theme.
+            (false, Source::Omarchy) => ThemeLine::Own { dark: inputs.dark },
+        };
+        ThemeCard {
+            use_system: follows,
+            use_system_sensitive: inputs.system_found(),
+            dark: inputs.shown_dark(),
+            toggles_sensitive: !follows,
+            line,
+        }
+    }
 }
 
 pub const NO_GPU_RULE_HINT: &str =
@@ -334,7 +423,13 @@ pub fn view(
         unit,
         groups: groups(mode, &reasons),
     };
+    let theme = ThemeCard::of(&choice::Inputs::new(
+        ui.system,
+        state.use_system_theme.unwrap_or(true),
+        state.dark_theme.unwrap_or(true),
+    ));
     let config = ConfigPage {
+        theme,
         rotation: state.rotation.unwrap_or(0),
         unit,
         gpu: gpu_row(state, products),

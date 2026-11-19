@@ -567,7 +567,7 @@ fn service_down(run: &mut Run) -> Result<String> {
         return Err(format!("subscribed with no job: {read:?}"));
     }
     // No Omarchy folder: the default theme (Theme).
-    run.logged("opendeepcool: theme: the default theme")?;
+    run.logged("opendeepcool: theme: no Omarchy theme")?;
     NO_NOTE
 }
 
@@ -600,6 +600,18 @@ fn first_start(run: &mut Run) -> Result<String> {
     }
     run.check_state("toggle button", "Celsius", State::Pressed, true)?;
     run.check_state("toggle button", "Fahrenheit", State::Pressed, false)?;
+    // The Theme card: no Omarchy theme and no portal here, so no system theme can be found: the
+    // switch off and dimmed, Dark pressed and both buttons usable, and the warning.
+    run.check_state("switch", "Use system theme", State::Checked, false)?;
+    run.check_state("switch", "Use system theme", State::Sensitive, false)?;
+    run.check_state("toggle button", "Dark theme", State::Pressed, true)?;
+    run.check_state("toggle button", "Light theme", State::Pressed, false)?;
+    run.check_state("toggle button", "Dark theme", State::Sensitive, true)?;
+    run.expect_texts(
+        "group",
+        "Theme status",
+        &["OpenDeepCool can't find the system's theme and is using its own."],
+    )?;
     run.expect_texts("combo box", "GPU", &["Automatic"])?;
     run.expect_description("combo box", "GPU", &format!("Using {DEDICATED_LABEL}"))?;
     run.expect_texts(
@@ -644,6 +656,11 @@ fn names(run: &mut Run) -> Result<String> {
     }
     let configuration = owned(&[
         ("button", "Back"),
+        ("group", "Theme settings"),
+        ("switch", "Use system theme"),
+        ("toggle button", "Dark theme"),
+        ("toggle button", "Light theme"),
+        ("group", "Theme status"),
         ("group", "Display settings"),
         ("group", "Music settings"),
         ("toggle button", "Rotation 0°"),
@@ -1735,6 +1752,58 @@ fn theme(run: &mut Run) -> Result<String> {
     run.logged("opendeepcool: theme: reloaded, the Omarchy theme")?;
     run.check_state("toggle button", "Configuration", State::Pressed, true)?;
     run.node("toggle button", "Rotation 0°")?;
+    // The Theme card follows it live: the Omarchy theme is the system's, followed by default, so
+    // the switch is on and Dark and Light are dimmed on its mode (light).
+    run.expect_state("switch", "Use system theme", State::Checked, true)?;
+    run.check_state("switch", "Use system theme", State::Sensitive, true)?;
+    run.expect_texts("group", "Theme status", &["Using the Omarchy theme."])?;
+    run.check_state("toggle button", "Light theme", State::Pressed, true)?;
+    run.check_state("toggle button", "Dark theme", State::Sensitive, false)?;
+    run.check_state("toggle button", "Light theme", State::Sensitive, false)?;
+    // The switch turned off asks the service, and keeps its state until the service confirms;
+    // then OpenDeepCool's own theme shows, and the buttons come alive on `DarkTheme`.
+    run.change(
+        |run| run.act("switch", "Use system theme", "Toggle"),
+        "SetUseSystemTheme(false)",
+        |run| run.check_state("toggle button", "Light theme", State::Sensitive, false),
+        |service| service.use_system_theme = false,
+        |run| {
+            run.expect_state("switch", "Use system theme", State::Checked, false)?;
+            run.expect_state("toggle button", "Dark theme", State::Sensitive, true)?;
+            run.expect_state("toggle button", "Dark theme", State::Pressed, true)?;
+            run.expect_texts(
+                "group",
+                "Theme status",
+                &["Using OpenDeepCool's dark theme."],
+            )
+        },
+    )?;
+    // Light: asked, the saved Dark stays pressed until the service says so.
+    run.change(
+        |run| run.act("toggle button", "Light theme", "Click"),
+        "SetDarkTheme(false)",
+        |run| run.check_state("toggle button", "Dark theme", State::Pressed, true),
+        |service| service.dark_theme = false,
+        |run| {
+            run.expect_state("toggle button", "Light theme", State::Pressed, true)?;
+            run.expect_texts(
+                "group",
+                "Theme status",
+                &["Using OpenDeepCool's light theme."],
+            )
+        },
+    )?;
+    // And on again: the Omarchy theme is followed once more.
+    run.change(
+        |run| run.act("switch", "Use system theme", "Toggle"),
+        "SetUseSystemTheme(true)",
+        |_| Ok(()),
+        |service| {
+            service.use_system_theme = true;
+            service.dark_theme = true;
+        },
+        |run| run.expect_texts("group", "Theme status", &["Using the Omarchy theme."]),
+    )?;
     run.page("Display")?;
     NO_NOTE
 }

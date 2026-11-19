@@ -161,11 +161,13 @@ fn not_available(app: &gtk::Application) {
     window.refused();
     run_for(Duration::from_millis(300));
     let small = size_of(&window);
-    assert!(small.0 <= 480 && small.1 <= 220, "{small:?}");
+    // Its heading is the 1.44em one of the type scale: about 580 px wide with the 40-character
+    // limit, against 1100 or more for the window with its pages.
+    assert!(small.0 <= 640 && small.1 <= 220, "{small:?}");
     window.state(base());
     run_for(Duration::from_millis(300));
     let big = size_of(&window);
-    assert!(big.0 > 480 && big.1 > 220, "{big:?}");
+    assert!(big.0 > 640 && big.1 > 220, "{big:?}");
     close(window);
 }
 

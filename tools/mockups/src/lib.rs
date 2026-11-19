@@ -139,7 +139,12 @@ fn gpus() -> Vec<Json> {
 /// connected and several GPUs on Automatic.
 fn base() -> Json {
     obj(&[
-        ("theme", s("omarchy")),
+        // The theme card (Task 11): an Omarchy theme found, the system preferring dark, and the
+        // service's two settings at their defaults. The page draws the theme these give.
+        ("omarchyTheme", Json::Bool(true)),
+        ("colorScheme", s("dark")),
+        ("useSystemTheme", Json::Bool(true)),
+        ("darkTheme", Json::Bool(true)),
         ("page", s("display")),
         ("service", Json::Bool(true)),
         ("cooler", Json::Bool(true)),
@@ -235,6 +240,30 @@ pub fn pages() -> Vec<Page> {
                 )
                 .with("gpuInUse", Json::Int(0))
                 .with("open", s("gpu")),
+        ),
+        page(
+            "configuration-theme-system.html",
+            "Configuration, the system's light preference",
+            "No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, Dark or light is dimmed with Light pressed, and the line says \"Using OpenDeepCool's light theme, as your desktop prefers.\" Turn the switch off in the mockup: the toggles come alive and the theme follows the service's dark theme setting.",
+            config()
+                .with("omarchyTheme", Json::Bool(false))
+                .with("colorScheme", s("light")),
+        ),
+        page(
+            "configuration-theme-own.html",
+            "Configuration, OpenDeepCool's own theme",
+            "An Omarchy theme is found but isn't followed: the switch is off and sensitive, Light is pressed and both toggles are sensitive, and the window is in OpenDeepCool's light theme. Click Dark, and the window turns dark.",
+            config()
+                .with("useSystemTheme", Json::Bool(false))
+                .with("darkTheme", Json::Bool(false)),
+        ),
+        page(
+            "configuration-theme-not-found.html",
+            "Configuration, no system theme found",
+            "The switch is off and dimmed, the warning line says \"OpenDeepCool can't find the system's theme and is using its own.\", and Dark is pressed and both toggles are sensitive, in OpenDeepCool's dark theme.",
+            config()
+                .with("omarchyTheme", Json::Bool(false))
+                .with("colorScheme", s("unsupported")),
         ),
         page(
             "first-start.html",
@@ -375,7 +404,7 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
   <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span>@@NAV@@</nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 813 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
 </div>
 <div id="win" class="window"></div>
 <script>

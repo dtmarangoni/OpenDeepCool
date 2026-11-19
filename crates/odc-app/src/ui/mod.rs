@@ -29,6 +29,10 @@ pub enum Request {
     SetRotation(u8),
     /// `ChooseGpu(s)`: a GPU's address, or empty for Automatic.
     ChooseGpu(String),
+    /// `SetUseSystemTheme(b)` and `SetDarkTheme(b)`: the Theme card's two settings, which the
+    /// service keeps for the whole PC (Phase 11a Task 10).
+    SetUseSystemTheme(bool),
+    SetDarkTheme(bool),
     /// `SetMusicPeaks(b)`, `SetMusicBarFall(s)`, `SetMusicPeakFall(s)`.
     SetMusicPeaks(bool),
     SetMusicBarFall(FallStop),

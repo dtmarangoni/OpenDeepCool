@@ -40,6 +40,18 @@ const CONFIG: &str = r#"<!DOCTYPE busconfig PUBLIC "-//freedesktop//DTD D-Bus Bu
 </busconfig>
 "#;
 
+/// The configuration with a service directory, so the bus lists the services in `SERVICES` by
+/// name: the same, with a `<servicedir>` line.
+fn config_with_services(services: &Path) -> String {
+    CONFIG.replace(
+        "<auth>EXTERNAL</auth>",
+        &format!(
+            "<auth>EXTERNAL</auth>\n  <servicedir>{}</servicedir>",
+            services.display()
+        ),
+    )
+}
+
 /// The AT-SPI registry's installed service file, where at-spi2-core's own bus configuration
 /// (`/usr/share/defaults/at-spi2/accessibility.conf`) finds it, and its name on the bus.
 pub const REGISTRY_SERVICE: &str =
@@ -147,7 +159,33 @@ impl PrivateBus {
         Ok(bus)
     }
 
-    fn start_with(dir: &Path, mut daemon: Command) -> io::Result<PrivateBus> {
+    /// A bus on which the XDG desktop portal's name is **activatable**, as GDK needs it to read
+    /// the system's dark or light preference (Phase 11a Task 1): a service directory in `dir`
+    /// holds a file for `org.freedesktop.portal.Desktop` whose `Exec` is `/bin/true`. The
+    /// portal itself is [`crate::portal::FakePortal`], started on this bus before GTK.
+    ///
+    /// # Errors
+    ///
+    /// As [`PrivateBus::start`], or when the service file can't be written.
+    pub fn start_with_portal(dir: &Path) -> io::Result<PrivateBus> {
+        let services = dir.join("services");
+        fs::create_dir_all(&services)?;
+        fs::write(
+            services.join("org.freedesktop.portal.Desktop.service"),
+            "[D-BUS Service]\nName=org.freedesktop.portal.Desktop\nExec=/bin/true\n",
+        )?;
+        PrivateBus::start_configured(dir, Command::new("dbus-daemon"), Some(&services))
+    }
+
+    fn start_with(dir: &Path, daemon: Command) -> io::Result<PrivateBus> {
+        PrivateBus::start_configured(dir, daemon, None)
+    }
+
+    fn start_configured(
+        dir: &Path,
+        mut daemon: Command,
+        services: Option<&Path>,
+    ) -> io::Result<PrivateBus> {
         fs::create_dir_all(dir)?;
         let socket_dir = socket_dir()?;
         let socket = socket_dir.join("bus");
@@ -159,9 +197,13 @@ impl PrivateBus {
             )));
         }
         let config = dir.join("bus.conf");
+        let text = match services {
+            Some(services) => config_with_services(services),
+            None => CONFIG.to_owned(),
+        };
         fs::write(
             &config,
-            CONFIG.replace("SOCKET", &socket.display().to_string()),
+            text.replace("SOCKET", &socket.display().to_string()),
         )?;
         let mut child = daemon
             .arg(format!("--config-file={}", config.display()))

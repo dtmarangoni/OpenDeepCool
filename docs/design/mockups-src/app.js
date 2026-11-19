@@ -62,6 +62,20 @@
 // the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
+//
+// The Theme card and OpenDeepCool's own theme (Phase 11a Task 11, 2026-11-19; docs/design/settings-app.md, Theme card,
+// Which theme is used). Four new CONFIG keys, all optional; their defaults give the state of every earlier page (an
+// Omarchy theme found and followed), so those pages look as before:
+// - omarchyTheme (boolean, default true): an Omarchy theme is found. The sample Omarchy theme stands for it, and is a
+//   dark one (its mode is "dark").
+// - colorScheme: GTK's gtk-interface-color-scheme, "unsupported", "default" (no preference), "dark" or "light"
+//   (default "dark"). "unsupported" with no Omarchy theme means no system theme can be found.
+// - useSystemTheme (boolean, default true): the service's UseSystemTheme.
+// - darkTheme (boolean, default true): the service's DarkTheme, used for OpenDeepCool's own theme when the system theme
+//   isn't followed or can't be found.
+// The old "theme" key is no longer read: the theme the window starts in is resolved from these four, as the app does
+// (themeState below, a pure function). The mockup's colour buttons stay as chrome that only preview a palette; the
+// Theme card's controls resolve the theme again and set it, as they do in the app.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -389,6 +403,48 @@ function bootCard(where) {
   </section>`;
 }
 
+// ---------- Theme (design, Configuration page, Theme card; Theme, Which theme is used) ----------
+// The theme the app resolves from its four inputs: an Omarchy theme found or not, GTK's colour scheme, and the
+// service's UseSystemTheme and DarkTheme. "found" is an Omarchy theme, or a scheme other than "unsupported"; the system
+// theme is followed when it's used and found; an Omarchy theme found wins over the scheme; "default" (no preference)
+// gives OpenDeepCool's dark theme. Without following, DarkTheme decides.
+function themeState() {
+  const omarchy = S.omarchyTheme !== false;
+  const scheme = S.colorScheme || "dark";
+  const useSystem = S.useSystemTheme !== false;
+  const darkPref = S.darkTheme !== false;
+  const systemFound = omarchy || scheme !== "unsupported";
+  const follow = useSystem && systemFound;
+  let source, dark;
+  if (follow && omarchy) { source = "omarchy"; dark = true; } // the sample Omarchy theme is dark: it is what the control shows
+  else { dark = follow ? scheme !== "light" : darkPref; source = dark ? "dark" : "light"; }
+  return { omarchy, scheme, useSystem, systemFound, follow, source, dark };
+}
+// The card's one line, in every state (so the card never changes height): what is used, or the warning.
+function themeLine(t) {
+  const own = `OpenDeepCool's ${t.dark ? "dark" : "light"} theme`;
+  if (!t.systemFound) return { warn: true, text: "OpenDeepCool can't find the system's theme and is using its own." };
+  if (t.follow && t.omarchy) return { text: "Using the Omarchy theme." };
+  if (t.follow) return { text: t.scheme === "default" ? "Using OpenDeepCool's dark theme. Your desktop has no preference."
+    : `Using ${own}, as your desktop prefers.` };
+  return { text: `Using ${own}.` };
+}
+// The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
+// (and off) when none can be found; Dark and Light are insensitive while it is followed and then show the scheme in use.
+function themeCard() {
+  const t = themeState(), line = themeLine(t);
+  const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
+    line.warn ? ` aria-description="${esc(line.text)}"` : ""}${t.systemFound ? "" : " disabled"} onclick="useSystem()"><span></span></button>`;
+  const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
+      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
+  return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
+      <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r mid">${sys}</div></div>
+      <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
+        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
+      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
+    </section>`;
+}
+
 function banners() {
   let out = "";
   // No service banner (design, D10): while the service is down the off screen says what's wrong, and its switch
@@ -531,6 +587,7 @@ function configPage() {
   const unitBtn = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}"
       aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
   return pageBar("config") + `<div class="page-scroll"><div class="page config">
+    ${themeCard()}
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
         <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
@@ -603,6 +660,11 @@ function pick(id) { if (!canChange()) return; S.mode = id; render(); }
 function unit(u) { if (!canChange()) return; S.unit = u; render(); }
 function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
 function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
+// The Theme card (design, Theme card): each control sends its call (SetUseSystemTheme, SetDarkTheme) and the window
+// shows what the service confirms; the mockup confirms at once. The theme is resolved again and set, with no motion.
+function useSystem() { const t = themeState(); if (!canChange() || !t.systemFound) return; S.useSystemTheme = !t.follow; render(); applyTheme(); }
+function darkTo(d) { if (!canChange() || themeState().follow) return; S.darkTheme = d; render(); applyTheme(); }
+function applyTheme() { setTheme(themeState().source); }
 function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
 function chooseGpu(i) {
@@ -644,4 +706,4 @@ document.addEventListener("keydown", e => {
   } else if (e.altKey && e.key === "ArrowLeft" && S.page === "config") { e.preventDefault(); go("display"); }
   else if (e.ctrlKey && e.key === "," && S.page !== "config") { e.preventDefault(); go("config"); }
 });
-document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || S.theme || "omarchy"); });
+document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || themeState().source); });

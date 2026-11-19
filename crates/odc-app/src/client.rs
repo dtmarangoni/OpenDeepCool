@@ -235,6 +235,12 @@ impl Client {
             Request::ChooseGpu(pci) => {
                 self.change(move |service| async move { service.choose_gpu(&pci).await })
             }
+            Request::SetUseSystemTheme(on) => {
+                self.change(move |service| async move { service.set_use_system_theme(on).await })
+            }
+            Request::SetDarkTheme(on) => {
+                self.change(move |service| async move { service.set_dark_theme(on).await })
+            }
             Request::SetMusicPeaks(on) => {
                 self.change(move |service| async move { service.set_music_peaks(on).await })
             }

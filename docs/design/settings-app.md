@@ -1,6 +1,6 @@
 # Settings app design
 
-The design of OpenDeepCool's GTK4 settings app (PRD, Phase 10): its structure, each screen's purpose, its GTK4 widgets, its states, its theme, keyboard use and accessible names, and the coverage check. The mockups are in [mockups/](mockups/); each one has a theme switch (a sample Omarchy theme and the default theme, dark and light). `odc-mockups` (`tools/mockups/`) writes them from the states they show and the style sheet and script in [mockups-src/](mockups-src/), and its tests check the palettes against the contrast tables below.
+The design of OpenDeepCool's GTK4 settings app (PRD, Phase 10): its structure, each screen's purpose, its GTK4 widgets, its states, its theme, keyboard use and accessible names, and the coverage check. The mockups are in [mockups/](mockups/); each one has colour buttons (a sample Omarchy theme and OpenDeepCool's own theme, dark and light) that preview the palettes, and the Theme card on the Configuration page sets the mockup's theme as it does the app's. `odc-mockups` (`tools/mockups/`) writes them from the states they show and the style sheet and script in [mockups-src/](mockups-src/), and its tests check the palettes against the contrast tables below.
 
 Sources: [settings.md](../spec/settings.md) "What the settings app must offer", [display.md](../spec/display.md), [music.md](../spec/music.md), [sensors.md](../spec/sensors.md), the PRD (Phase 10, Technical Approach → Theme, Decisions Log), the Phase 11 plan (Recommendation, "The Start at boot switch", and Task 3) and the designer brief (`.claude/agents/ui-ux-designer.md`). Every reading, chip name, GPU name and PCI address in this document and in the mockups is made up.
 
@@ -13,7 +13,7 @@ Widget names are GTK 4 classes. Anything not checked against docs.gtk.org is mar
 - **Fast.** It opens straight onto the current settings, with no animation in the app's own chrome. Idle CPU use is nil: the preview redraws only when the cooler's picture changes, and nothing polls.
 - **Fits its content.** The window opens at the size of its content and floats where the compositor allows. On a screen too small for it, it has scrollbars instead of cutting anything off ([Size and scrolling](#size-and-scrolling)).
 - **Only the cooler.** CPU, GPU and RAM values appear only inside display pictures.
-- **Themed.** The app follows the current Omarchy theme live and uses its own default theme elsewhere. It never sets window opacity or blur.
+- **Themed.** The app follows the current Omarchy theme live, or else the system's dark or light preference, and otherwise uses OpenDeepCool's own theme, dark or light, as the user chooses ([Theme](#theme)). It never sets window opacity or blur.
 
 ## Decisions
 
@@ -37,6 +37,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D14 | The Configuration page's rows (Task 8) | A row is its **label block** (the title, with its hint under it) and its **control**, side by side and left-aligned: one horizontal `GtkBox` per row, one `GtkSizeGroup` over every label block of the page so the controls start in one column, a 24 px gap, and nothing that expands ([Rows](#rows)) | Labels beside their controls, with the space between them cut to the gap (owner, 2026-11-18). Sizing the label column from one group keeps the controls' left edges straight, which a row-by-row layout wouldn't |
 | D15 | The switches' size (Task 8) | 40 × 22 px for the two `GtkSwitch`es, from GTK's 48 × 24 ([The switches](#the-switches)) | "A little smaller" is a sixth narrower and a twelfth lower: seen at once, still a switch. 34 × 18, which Task 1 measured, is 29 % narrower and 25 % lower |
 | D16 | The window's size, its scrolling and its floating (Phase 11a Task 9, 2026-11-19, from the owner's review of 2026-11-18) | No default and no minimum size, and not resizable (`resizable` false): the window opens at the natural size of its content, the largest page's in each direction, and is never larger than the smallest monitor less 48 px. One outer `GtkScrolledWindow` carries that cap and scrolls the whole content sideways on a narrow screen; the preview column and each page scroll down on their own, under the header bar and the page bar ([Size and scrolling](#size-and-scrolling)) | The window is as small as its content on any monitor (owner, 2026-11-18), and on a small one nothing is cut off. The picture stays in view while a page scrolls (D1, D3), and the cap, a banner included, is set in one place. The user can't resize or maximise it: the extra room would be empty, and the window already scrolls where room is short |
+| D17 | The Theme card and OpenDeepCool's own theme (Phase 11a Task 11, 2026-11-19, from the owner's decisions of 2026-11-18, D6) | The Configuration page's first card, **Theme**: a `GtkSwitch` "Use system theme" and the linked toggles "Dark" and "Light", which are insensitive while the system theme is followed and then show the scheme in use. One line at the card's foot says what is used, or warns that the system's theme can't be found. The theme is one of three: the Omarchy theme, OpenDeepCool's own from the system's preference, OpenDeepCool's own as chosen. OpenDeepCool's own theme is new: a monochrome faceplate, where light is the only accent and colour means status ([OpenDeepCool's own theme](#opendeepcools-own-theme)) | The choice is the whole PC's and the service keeps it, so the app writes no file. The control that follows the owner's wording ("toggle") and the unit's pattern is two linked toggles, which keep both choices in view and, dimmed, still say which one is in use. The palette is derived from the subject, a display of lit and unlit dots, and avoids the clusters Anthropic's frontend guidance names as generic ([Answers decided on 2026-11-19, Task 11](#answers-decided-on-2026-11-19-task-11)) |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -46,7 +47,7 @@ Answers to the pass-1 questions, decided under the owner's delegation (2026-10-2
 - **Temperature unit:** once, in the Display card of the Configuration page, after Rotation (owner, 2026-11-18; it was at the top of the Display page until then).
 - **Service not running:** the app explains, shows the start command, and has no start button. Since 2026-11-10, the [Start at boot](#start-at-boot) switch on the [off screen](#the-off-screen) turns OpenDeepCool on, and since 2026-11-11 it also starts a service that's set to start but stopped; it's the only control that changes the system (owner, 2026-11-11: no separate start button).
 - **Window background:** opaque. The `shell.toml` alphas apply to controls only.
-- **Default theme:** dark and light variants. Outside Omarchy in v1, the dark one is used.
+- **OpenDeepCool's own theme:** dark and light, designed in Phase 11a Task 11 ([OpenDeepCool's own theme](#opendeepcools-own-theme)). Used when no Omarchy theme is found and the system's preference gives dark or light, and whenever the user turns "Use system theme" off or the system's theme can't be found ([Theme card](#theme-card)). It replaces the Phase 10 default, a cool grey with a teal accent, which was dark only in v1.
 - **Preview dots:** lit dots in the foreground colour, unlit dots in a low-alpha foreground.
 - **Language and app settings:** English only, with no app-only settings.
 - **GPU label:** `<kind> · <product name>`.
@@ -141,7 +142,7 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
 - **The cap's margin:**
   - (a) none: the window may fill the monitor and sit under a panel on a compositor that sends no work area;
   - (b) **chosen:** 48 px in each direction, room for one panel or dock. It's a judgment, not a measurement: panels are typically 30 to 50 px (**unverified**), and where the compositor sends its own bounds, which GTK also respects ([Unverified points, answered (Phase 11a Task 9)](#unverified-points-answered-phase-11a-task-9-2026-11-19)), they set the exact limit;
-  - (c) 96 px, a panel on each edge: 48 px lost on every screen, and on a 1080 px screen it decides whether the Configuration page scrolls once Task 11's Theme card is in.
+  - (c) 96 px, a panel on each edge: 48 px lost on every screen, and on a 1080 px screen it decides whether the Configuration page scrolls now that the Theme card is in (about 1008 px with it, a 1032 px cap on 1080 p).
 - **Several monitors** (settled by Task 1's brief):
   - (a) the monitor the window opens on: GDK can't say before the window has a surface (`gdk_display_get_monitor_at_surface` needs one), and on Wayland the compositor picks the output;
   - (b) **chosen:** the narrowest width and the shortest height among all monitors, which may be two different ones. The window fits wherever it opens, and a large monitor beside a small laptop panel gets the laptop's cap.
@@ -155,6 +156,34 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   - (a) reserve it: 44 to 64 px of empty window under the header while no banner shows;
   - (b) **chosen:** the banner is part of the content. Shown, it adds its height to the window, or takes it from the pages' viewports where the cap bites.
 - **Floating:** `resizable` false and nothing else. GTK has no request for "floating"; Task 1 measured a non-resizable window floated and a plain one, or one with no parent, tiled. No compositor protocol, rule or name enters the app (rule 14).
+
+### Answers decided on 2026-11-19, Task 11
+
+Decided under the same delegation, for the owner's Theme card and OpenDeepCool's own theme (2026-11-18, D6: the service keeps the choice for the whole PC, "no manual interaction", and the designer creates the theme "using UI/UX and Anthropic Frontend Guidelines"). Each choice, with the options weighed. The guidance was read on 2026-11-19 in Anthropic's `frontend-design` skill (github.com/anthropics/skills, `skills/frontend-design/SKILL.md`, through a fetch tool that summarised it, quoting short phrases).
+
+- **The dark or light control:**
+  - (a) a `GtkSwitch` "Dark theme": the owner said "toggle", but on and off would make Light the "off" of a theme, the objection that decided the unit's control in Task 7, and a dimmed switch shows a trough, not a word;
+  - (b) a `GtkDropDown`: two choices behind a click, and a dimmed one shows its value as small text;
+  - (c) **chosen:** two linked `GtkToggleButton`s, `Dark` and `Light`, the pattern Rotation and the unit have. Both choices show, it's one click, and when the control is dimmed the pressed one still says which scheme is in use.
+- **While the system theme is followed:**
+  - (a) hide the dark or light control: the card changes height, and the user can't see what the system gave;
+  - (b) leave it enabled and ignore it: a control that does nothing;
+  - (c) **chosen:** insensitive, with the scheme in use pressed: for an Omarchy theme its `mode` (`dark` when the file has none, as `theme.rs` does), for the system's preference that preference ([Which theme is used](#which-theme-is-used)). A pressed, insensitive toggle keeps a selected fill and shows its text in `--fg`, so the value stays readable ([Theme card](#theme-card), The look).
+- **Where the card says what is in use, and why a control is dimmed:**
+  - (a) tooltips: unreliable on insensitive widgets (**unverified**) and out of the keyboard's reach;
+  - (b) a hint under each row's title that changes with the state: a hint that wraps changes the row's height, and the card's with it, and so the window's;
+  - (c) **chosen:** one line at the card's foot (the Music and Startup cards end in such a line), always one line, in every state, so the card never changes height: a plain sentence of what is used, or the warning. The dimmed controls also carry it as their accessible description.
+- **When no system theme can be found:**
+  - (a) hide "Use system theme": the owner asked for it disabled, with a warning;
+  - (b) **chosen:** disabled and shown off, with the warning; the service's `UseSystemTheme` stays as it was, so a theme that appears later (an Omarchy theme installed, a portal started) is followed at once, which the default `true` asks for. The dark or light control is enabled, and its value is the service's `DarkTheme`.
+- **What counts as found:** an Omarchy theme is found when `colors.toml` was read and parses as TOML (a file that doesn't counts as not found: `theme.rs` already used the default theme for it; a TOML file with keys missing is found, and each missing key falls back, as today). GTK's `UNSUPPORTED` is "nothing found"; `DEFAULT`, `DARK` and `LIGHT` are found, `DEFAULT` (no preference) showing OpenDeepCool's dark theme ("dark first", the PC's desktop). An Omarchy theme found wins over the preference while the system theme is followed (Task 1's rule).
+- **The palette's direction.** Anthropic's guidance lists five clusters as defaults rather than choices: a warm cream background near `#F4F1EA` with a serif and a terracotta accent; "a near-black background with a single bright acid-green or vermilion accent"; a broadsheet layout; "the SaaS-card kit: content chopped into identical rounded cards, one border-radius on everything regardless of hierarchy"; and template chrome, among it "tinted near-black (#0B0B0B, #111) standing in for black", a tracked-out all-caps eyebrow, middle-dot meta strings, a monospace face for small labels and an arrow on links. It asks for choices drawn from the subject, a core palette of 4 to 6 named hex values, restraint, and a quality floor with visible keyboard focus. The first pass here, rose on a blue-black ink, was cluster 2 and "tinted near-black" with a different hue, and was dropped. The options weighed next, against what this app is:
+  - (a) a bright accent on a dark ground, in teal (Phase 10's, replaced), cyan or blue (the colour of Breeze and GNOME, where this theme shows when no Omarchy theme is found), amber or orange (it sits between the status red and yellow, so a selected tile would read as a warning), violet (the cliché), or rose (chosen by elimination, not by the subject);
+  - (b) **chosen:** the subject is a display whose every dot is lit or unlit. The window is a monochrome faceplate: a mid graphite, not near-black, with a light tone as its only accent ("lit"), and colour only where it means a state, green, yellow or red. The accent is never a hue, so it can't be confused with a status, a desktop's own accent or an Omarchy theme's; the dots of the preview and the tiles are the brightest things on the screen; and what is selected, on or focused is told by brightness, which doesn't depend on seeing colour. The cost is a plainer look than a coloured accent, which is the point: the cooler's pictures carry the colour of light.
+  - **Where the palette stays short of the guidance:** the dark theme is still "a dark ground with one light accent", and nothing in a settings window can make it more than quiet. The owner decides at Task 17's review whether a hue is wanted; the tokens allow it with one value changed (`--accent`), and [the contrast table](#the-contrast-table) would be recomputed.
+- **Radius:** one for everything is cluster 4. Two, by what the box is: **4 px** for controls (buttons, toggles, tiles, the dropdown, the command box) and **10 px** for what holds them (cards, the preview's frame, popovers, the feedback label); the switch and the dots are round. An Omarchy theme has neither (0). This adds one token, `--radius-box`.
+- **Hover never weakens a border.** Phase 10's hover border alpha (0.30) was below the normal one (0.40), so a hovered control's border fell below the 3:1 its normal border had (an estimate, not computed). In OpenDeepCool's own theme the hover alpha is above the normal one.
+- **Type on the system font:** sizes as multiples of the user's font size, in `em`, because the docs say `em` in `font-size` resolves against the inherited size and don't say whether `%` is accepted there ([Unverified points, answered (Phase 11a Task 11)](#unverified-points-answered-phase-11a-task-11-2026-11-19)). The guidance asks for a deliberate typeface and the app may not add a package (rule 7), so the character comes from a scale (×1.2, four sizes) and two weights; a typeface is a suggestion for after v1.
 
 ## Window
 
@@ -193,7 +222,7 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   | `:checked` (the gear on the Configuration page) | fill `--ctl-selected-fill`, icon `--accent` |
   | `:disabled` | fill `--bg`, icon `--muted`, no `opacity` |
 
-  The rules read `button.icon-button`, `button.icon-button:hover` and so on, which outrank the plain `button` and `button:checked` rules the controls share, and the border stays off in every state. The icon on the selected fill needs 3.0:1 (WCAG 1.4.11); Phase 11a Task 11's contrast table, which replaces the palette, includes that row.
+  The rules read `button.icon-button`, `button.icon-button:hover` and so on, which outrank the plain `button` and `button:checked` rules the controls share, and the border stays off in every state. The icon on the selected fill needs 3.0:1 (WCAG 1.4.11): row 14 of [the contrast table](#the-contrast-table).
 - **The header, by state:**
 
   | State | Title | Gear | Close |
@@ -216,7 +245,7 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   - **Display:** the title "Display" (a `GtkLabel`, class `page-title`, `hexpand`, `xalign` 0) and the Refresh icon at the end ([Refresh](#refresh));
   - **Configuration:** the back icon at the start, then the title "Configuration" (`GtkLabel`, class `page-title`):
     - the back icon is a `GtkButton` with `icon-name` `go-previous-symbolic`, the class `icon-button`, action `win.back`, accessible name "Back", tooltip "Back to Display";
-    - `page-title` is one step above the card headings: weight 600, and a size from Phase 11a Task 11's type scale;
+    - `page-title` is one step above the card headings: weight 600 at 1.2 em, the user's font size times 1.2 ([Type](#type));
     - the content's top margin under a page bar is 6 px, so the first row sits close under the bar. (With no bar the page keeps its 18 px margin all round: the off screen.)
 - **No motion in the chrome.** `GtkStack` uses `GTK_STACK_TRANSITION_TYPE_NONE`, and the app's stylesheet sets `transition: none` on everything. The preview is the only thing that moves.
 - **Remote or inactive session:** the header bar keeps only the title and the close icon, and the body holds only one message ([Not available in this session](#not-available-in-this-session)).
@@ -265,11 +294,11 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   | Header bar | the window's | 48 (about 47) |
   | Preview column | 262 | about 380, up to 440 while a reason line shows |
   | Display page | about 754: 36 of margin, six Music tiles of about 113 (the caption "GPU temperature", the tile's border and its padding) and five 8 px gaps | about 575: the 44 px page bar, then 6, 122, 18, 122, 18, 226 and 18 |
-  | Configuration page | about 588: 36 of margin, 32 of card padding, a 520 px row | about 766 with the GPU row (709 without): the 44 px page bar, then 6, the Display card 240 (169), 18, the Music card 275, 18, the Startup card 147 and 18 |
+  | Configuration page | about 588: 36 of margin, 32 of card padding, a 520 px row | about 960 with the GPU row (903 without): the 44 px page bar, then 6, the Theme card 175, 18, the Display card 240 (169), 18, the Music card 275, 18, the Startup card 147 and 18 |
   | Off screen | about 560 | about 430 |
-  | **Window** | **about 1016** (262 + 754; 930 with the mockups' 98 px tiles) | **about 814** (48 + 766; 757 with one GPU) |
+  | **Window** | **about 1016** (262 + 754; 930 with the mockups' 98 px tiles) | **about 1008** (48 + 960; 951 with one GPU) |
 
-  The Configuration page is the tallest by about 190 px, so a Display page full of reason lines can't overtake it; Task 11's Theme card adds about 170 px to it, and the window to about 984. The Display page is the widest by about 166 px, so nothing on the Configuration page, a note and the terminal commands included, can widen the window.
+  The Configuration page is the tallest by about 385 px, so a Display page full of reason lines can't overtake it. The Theme card ([Theme card](#theme-card): its heading, two rows of one line each and its one line at the foot, about 175 px, an estimate from the other cards' numbers) is in these figures, and raised the window from about 814 to about 1008. The Display page is the widest by about 166 px, so nothing on the Configuration page, a note and the terminal commands included, can widen the window.
 
 - **The cap.** The window is never larger than the smallest monitor less 48 px in each direction. It is computed once, in the window's constructor, before the window is mapped:
   1. `WidgetExt::display(&window).monitors()` (`gdk_display_get_monitors`: the monitors attached to the display, a `GListModel` of `GdkMonitor`; gtk4-rs `DisplayExt::monitors`; verified).
@@ -281,11 +310,11 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
 
   | Screen | Cap | Window (estimate) | What scrolls |
   |---|---|---|---|
-  | 2560 × 1440 or 1920 × 1080 | 2512 × 1392, 1872 × 1032 | about 1016 × 814 | nothing (with the Theme card, about 984 still fits 1032) |
-  | 1440 × 900 | 1392 × 852 | about 1016 × 814 | nothing |
-  | 1280 × 800 | 1232 × 752 | about 1016 × 752 | the Configuration page, about 60 px |
-  | 1366 × 768 | 1318 × 720 | about 1016 × 720 | the Configuration page, about 95 px |
-  | 1024 × 768 | 976 × 720 | 976 × 720 | the Configuration page down; the Music tiles wrap to five a line |
+  | 2560 × 1440 or 1920 × 1080 | 2512 × 1392, 1872 × 1032 | about 1016 × 1008 | nothing on 1440 p; on 1080 p it fits by about 24 px, so a wrapped line or a larger font scrolls the Configuration page a little |
+  | 1440 × 900 | 1392 × 852 | about 1016 × 852 | the Configuration page, about 155 px |
+  | 1280 × 800 | 1232 × 752 | about 1016 × 752 | the Configuration page, about 255 px |
+  | 1366 × 768 | 1318 × 720 | about 1016 × 720 | the Configuration page, about 290 px |
+  | 1024 × 768 | 976 × 720 | 976 × 720 | the Configuration page down, about 290 px; the Music tiles wrap to five a line |
   | 640 × 480 | 592 × 432 | 592 × 432 | every page down, and the whole content sideways (850 px needed) |
 
 - **Scrolling.**
@@ -414,7 +443,7 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
 
 ## Configuration page
 
-**Purpose:** every setting but the mode, on one screen (settings.md, A configuration screen; the temperature unit joined it on 2026-11-18). The gear opens it, and the back icon, Escape or Alt+Left leave it ([Window](#window)). It is a [page bar](#window) with the back icon and the title "Configuration", and under it, in the scrolled area, three sections, Display, Music and Startup, each a surface-coloured `GtkBox` card with a heading and rows. A row is a label block (the title, with its hint under it) and its control, side by side at the left of the card ([Rows](#rows)). The third, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot). Phase 11a Task 11 adds the Theme card in front of Display, with rows of the same kind.
+**Purpose:** every setting but the mode, on one screen (settings.md, A configuration screen; the temperature unit joined it on 2026-11-18). The gear opens it, and the back icon, Escape or Alt+Left leave it ([Window](#window)). It is a [page bar](#window) with the back icon and the title "Configuration", and under it, in the scrolled area, four sections, Theme, Display, Music and Startup, in that order (the Theme card is first: owner, 2026-11-18), each a surface-coloured `GtkBox` card with a heading and rows. A row is a label block (the title, with its hint under it when it has one) and its control, side by side at the left of the card ([Rows](#rows)). The Theme card's two settings are the service's, kept for the whole PC ([Theme card](#theme-card)). The last, Startup, holds no setting of the service: its switch shows and changes systemd's state for OpenDeepCool's units (settings.md, Start at boot).
 
 ### Rows
 
@@ -440,16 +469,17 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   - the **title**, a `GtkLabel` (`xalign` 0);
   - the **hint**, when the setting has one, a `GtkLabel` with the classes `muted` and `small`, `xalign` 0, `wrap` true, `wrap-mode` word, `width-chars` and `max-width-chars` both **28** (as built, so the block's minimum is the same 28 characters).
   - **How a hint wraps.** docs.gtk.org's GtkLabel page: "For wrapping labels, width-chars is used as the minimum width, if specified, and max-width-chars is used as the natural width", and "wrapping labels will be rewrapped to use all of the available width" (read 2026-11-19). So a hint asks for about 28 characters, as its minimum and as its natural width, and breaks at word boundaries there: "Used wherever the display shows a temperature" takes two lines, "Turns the picture clockwise" one. A hint never makes its block wider than 28 characters, which is what keeps the controls close, and it takes the full width of the block once the size group (below) widens it.
-  - The hint's size is the class `small`, which `app.css` has no rule for (nothing in `crates/odc-app/src` styles it, 2026-11-19; whether GTK's own theme gives it a size is **unverified**). Phase 11a Task 11's type scale defines it; the 28 characters don't depend on it. The mockups draw it at 12 px.
-- **One column of controls.** Every label block of the Configuration page is in one `GtkSizeGroup` (`mode` horizontal). GTK's docs: "the size requested for each widget in a GtkSizeGroup is the maximum of the sizes that would have been requested" (class page, read 2026-11-19). So the group's width is the widest block's, which is the 28-character hint (about 176 px in the mockups' type), and all the page's controls start at the same x, across the Display, Music and Startup cards. Task 11's Theme card joins the same group.
+  - The hint's size is the class `small`: 0.83 em, 83 per cent of the user's font size ([Type](#type)), which `app.css` had no rule for before Task 11 (whether GTK's own theme gives the class a size is **unverified**, and the app's rule decides now). The 28 characters don't depend on the size. The mockups draw it at 0.83 of their 14 px.
+  - A row with no hint, such as the Theme card's two and Bar fall and Peak fall, has a block of its title alone; the group still gives it the same width.
+- **One column of controls.** Every label block of the Configuration page is in one `GtkSizeGroup` (`mode` horizontal). GTK's docs: "the size requested for each widget in a GtkSizeGroup is the maximum of the sizes that would have been requested" (class page, read 2026-11-19). So the group's width is the widest block's, which is the 28-character hint (about 176 px in the mockups' type), and all the page's controls start at the same x, across the Theme, Display, Music and Startup cards. The Theme card's two label blocks are in the same group.
   - The Startup card leaves the group while it stands on the [off screen](#the-off-screen), where it is alone and needs only its own width; it joins again when it moves back into the Configuration page (`StartupCard::place`).
   - Whether a hidden member still counts toward the group's width is **unverified** (the class page doesn't say). It changes nothing here: the one row that hides, GPU, has a block no wider than the others' (the same 28 characters). Fallback: remove the block from the group while its row is hidden.
 - **The control** has `hexpand` false and `halign` start. Its `valign` says which row it is:
 
   | Row | Control | `valign` of the control | Width |
   |---|---|---|---|
-  | Rotation, Temperature unit | the linked toggles (`GtkBox`, class `linked`) | center | natural |
-  | Peak dots, Start at boot | a `GtkSwitch` ([The switches](#the-switches)) | center | 40 px |
+  | Dark or light, Rotation, Temperature unit | the linked toggles (`GtkBox`, class `linked`) | center | natural |
+  | Use system theme, Peak dots, Start at boot | a `GtkSwitch` ([The switches](#the-switches)) | center | 40 px |
   | GPU | a vertical `GtkBox`: the dropdown, the "Using …" line, the "No reading …" hint | start | 320 px (`width-request`) |
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
 
@@ -466,6 +496,61 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
   - every control of the page starts at the same x (±1), and that x doesn't change when the GPU row hides;
   - the Temperature unit hint has wrapped to two lines: the group's width is less than that hint's one-line width;
   - the Startup card on the off screen has its block at its own width, and on the Configuration page it has the group's.
+
+### Theme card
+
+**Purpose:** the first card. Two settings of the whole PC, kept by the service (owner, 2026-11-18, D6; `docs/spec/dbus.md`): `UseSystemTheme`, whether the app follows the system's theme (default on), and `DarkTheme`, whether OpenDeepCool's own theme is the dark one (default dark). Each control sends its call, `SetUseSystemTheme(b)` or `SetDarkTheme(b)` (`change-settings`), and shows the state the service confirms (`StateChanged`), like every setting. The app writes no file. What "the system's theme" is belongs to the app, in each session ([Which theme is used](#which-theme-is-used)); the service only stores the two booleans.
+
+```
+┌ card ───────────────────────────────────────────────────────────────────────┐
+│ Theme                                                                       │
+│ Use system theme            ( ●  )                                          │
+│ Dark or light               [ Dark ][ Light ]    (dimmed while followed)    │
+│ Using the Omarchy theme.                                                    │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+- **Heading:** "Theme" (`GtkLabel`, class `card-heading`), as the other cards.
+- **Rows,** laid out as every row ([Rows](#rows)): a label block of the title alone (no hint: the titles say it, and the line below carries what a hint would), then the control, both blocks in the page's size group.
+
+  | Row | Title | Control | Accessible name |
+  |---|---|---|---|
+  | Use system theme | "Use system theme" | a `GtkSwitch`, 40 × 22 ([The switches](#the-switches)), `halign` start, `valign` center, with the delayed state the Peak dots switch has (decisions log D63): its handle moves at the press, its trough shows the state the service confirmed | `Use system theme` |
+  | Dark or light | "Dark or light" | two grouped, linked `GtkToggleButton`s, `Dark` and `Light` (`gtk_toggle_button_set_group`, class `linked` on their box), `valign` center, as Rotation's | `Dark theme`, `Light theme` |
+
+  The accessible names contain the visible words (WCAG 2.2 SC 2.5.3). The group of toggles is named by its row's title, as the unit's is.
+- **The line,** at the card's foot: a `GtkBox` (group `Theme status`) around a `GtkLabel` with the classes `hint`, `small` and `muted`, wrapping at 72 characters (`max-width-chars`), as the Music and Startup cards' lines. It is **one line in every state**, so the card never changes height and the window with it. In the warning state it has the warning icon in front and the `--yellow` colour (`warn-text`), a `GtkImage` of the same height as the text.
+- **The look.** Everything is the stylesheet's, in tokens. Two rules are new, both needed by this card and written for every theme:
+  - an insensitive toggle that is pressed shows its value: the selected fill, a `--muted` border, and the text in `--fg`, so it stays readable (the unpressed one keeps the muted text on the normal fill, as every insensitive control, without `opacity`):
+
+    ```css
+    .linked button:checked:disabled {
+      background-color: var(--ctl-selected-fill);
+      border-color: var(--muted);
+      color: var(--fg);
+    }
+    ```
+
+    It reads more specifically than the plain `button:checked` and `button:disabled` rules and the icon buttons', so its place in the file doesn't matter;
+  - the knob of an on switch is `--bg`, not `--fg`: `switch:checked > slider { background-color: var(--bg); }`, placed after `switch > slider` and before the `switch:disabled` rules, which keep the knob `--muted` while insensitive. An `--fg` knob on an `--accent` trough would be about 1.2:1 in OpenDeepCool's own theme (both are light in the dark theme, both dark in the light one); `--bg` on `--accent` is the pair of row 5 in [the contrast table](#the-contrast-table). Whether the selector reads that way in GTK's CSS is **unverified** ([Unverified points, answered (Phase 11a Task 11)](#unverified-points-answered-phase-11a-task-11-2026-11-19)).
+- **States,** from the four inputs of [Which theme is used](#which-theme-is-used):
+
+  | State | Use system theme | Dark or light | The line |
+  |---|---|---|---|
+  | (a) An Omarchy theme is found and followed | on, sensitive | both insensitive; the pressed one is the theme's `mode` (`Dark` when it has none) | "Using the Omarchy theme." |
+  | (a) No Omarchy theme; the system prefers dark or light, and is followed | on, sensitive | both insensitive; the pressed one is the preference | "Using OpenDeepCool's dark theme, as your desktop prefers." or "…light theme, as your desktop prefers." |
+  | (a) No Omarchy theme; the system has no preference, and is followed | on, sensitive | both insensitive; `Dark` pressed | "Using OpenDeepCool's dark theme. Your desktop has no preference." |
+  | (b) The system theme is found but turned off | off, sensitive | both sensitive; the pressed one is `DarkTheme` | "Using OpenDeepCool's dark theme." or "Using OpenDeepCool's light theme." |
+  | (c) No system theme can be found | off, **insensitive**, whatever `UseSystemTheme` holds | both sensitive; the pressed one is `DarkTheme` | the warning: "OpenDeepCool can't find the system's theme and is using its own." |
+  | (d) The service refuses a change (`NotAuthorized`, `Failed`) | back at the saved state | back at the saved state | unchanged; the overlay label says "Not changed." with the reason, as any [refused change](#refused-changes) |
+  | While a change is confirmed (a few milliseconds) | the handle at the new place, the trough at the saved state, until `StateChanged` | the pressed button stays the saved one until `StateChanged` | unchanged. The theme changes only when the confirmed state arrives, never before |
+
+  - **What the dark or light control shows while it is insensitive** is what the system gives: the scheme of the theme in use, so the window never says "Light" in a dark theme. It follows live: a new Omarchy theme of the other `mode`, or the system's preference flipping, moves the pressed button.
+  - **(c) is a state of the system, not of the service:** the switch is off and dimmed, but nothing is sent. If a system theme shows up later (an Omarchy theme is set, the portal answers), the switch turns on by itself, because the service still holds `UseSystemTheme` true, and the theme changes to it.
+  - **Turning "Use system theme" off** with an Omarchy theme in use changes the window from that theme's colours to OpenDeepCool's own in `DarkTheme`'s scheme at once, with no motion; turning it on does the reverse.
+- **Keyboard.** Tab order: the back icon, then the switch, then `Dark` and `Light`, which are Tab stops only while they are sensitive (an insensitive widget takes no focus), then Rotation ([Keyboard](#keyboard)). Space toggles the switch; the two toggles act as Rotation's do. No new shortcut.
+- **Tooltips:** none on these controls. The reason a control is dimmed is the visible line and its accessible description ([Accessible names](#accessible-names)), not a tooltip (tooltips on insensitive widgets are **unverified**).
+- **While the service isn't running** the Configuration page can't be reached, so the card isn't shown; the app keeps the last values of `UseSystemTheme` and `DarkTheme` it had, so the off screen has the colours the window had. Before the first state arrives, the app resolves with the defaults (on, dark), and resolves again when the service answers: a user who chose OpenDeepCool's light theme may see the system's theme for a moment at the start. Presenting the window after the first answer is the fallback if that shows (the same fallback as the not-available screen's flash).
 
 ### Display
 
@@ -510,9 +595,9 @@ Decided under the same delegation, for the owner's request of 2026-11-18: the wi
 
 ### The switches
 
-The two `GtkSwitch`es, Peak dots and Start at boot, are **40 × 22 px** (owner, 2026-11-18: "a little bit smaller"; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs stay GTK's own.
+The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **40 × 22 px** (owner, 2026-11-18: "a little bit smaller"; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs stay GTK's own.
 
-- **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size changes. The knob is the trough's height less 4 px, 18 px, the same relation as in Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 18 px.
+- **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size changes, and the knob of an on switch becomes `--bg` (Phase 11a Task 11: `switch:checked > slider`, [Theme card](#theme-card), The look), so the knob shows against an `--accent` trough in every theme. The knob is the trough's height less 4 px, 18 px, the same relation as in Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 18 px.
 - **The stylesheet** gets two sizes in `app.css`, in the rules the switch already has. Colours stay tokens; the test that no colour literal or `opacity` appears outside `:root` still passes, because a length isn't either:
 
   ```css
@@ -540,7 +625,7 @@ The two `GtkSwitch`es, Peak dots and Start at boot, are **40 × 22 px** (owner, 
   - Nothing that takes a pointer lies within 1 px of it: the rows are 14 px apart (the card's spacing), a label beside it is no target, and the scale below the Peak dots switch hangs 14 px lower. So the spacing exception applies, and the AA level holds with no change to the hit area.
   - The icon buttons are 32 × 32, the toggle buttons and the dropdown are taller than 24, and a scale is GTK's own, so no other control relies on an exception.
 - **Placement:** `halign` start in its row (Start at boot's was end), `valign` center ([Rows](#rows)).
-- **The mockups** draw both switches at 40 × 22 with an 18 px knob, in every state: off, on, the handle ahead of the trough while a flip runs, and insensitive.
+- **The mockups** draw the three switches at 40 × 22 with an 18 px knob, in every state: off, on (the knob `--bg` on the `--accent` trough), the handle ahead of the trough while a flip runs, and insensitive (a `--muted` knob, no opacity).
 
 ## Banners
 
@@ -795,6 +880,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 - **Connecting again,** one call at a time and never polling: whenever the bus name gets a new owner (`NameOwnerChanged`), and whenever the window becomes active (`notify::is-active`). This also renews any watch the service dropped meanwhile, for example while this session was inactive.
 - **Updates** come as `StateChanged` signals addressed to this app alone, and preview frames the same way after `WatchFrames()`, only while the window is mapped ([Preview column](#preview-column)).
 - **State names:** `CoolerState`, `AudioConnected`, `UnavailableReasons`, `Gpus` and `ChosenGpu` in this document are the names in the Phase 7–9 contract, and `GpuInUse` is the Phase 10 plan's (Task 2). They come in `GetState()` and `StateChanged`, not as properties, and the Phase 10 plan sets their final shape.
+  - `UseSystemTheme` and `DarkTheme` (both `b`, defaults `true`) are Phase 11a Task 10's, with the calls `SetUseSystemTheme(b)` and `SetDarkTheme(b)` (`change-settings`; `docs/spec/dbus.md`). The Theme card reads and sets them, and the theme is resolved from them with the two inputs only the app has ([Which theme is used](#which-theme-is-used)). The service stores them and never interprets a theme.
   - The cooler's part of the window follows `CoolerState` (`connected`, `not-found`, `no-access`, `write-failed`; [Banners](#banners)). `CoolerConnected` stays in the state, but the app doesn't read it.
   - The GPU row reads `Gpus` (its kinds include `query-failed`), `ChosenGpu` (empty for Automatic) and `GpuInUse` ([Display](#display)).
 - **Start at boot** reads systemd, not the service, so it works while the service is down ([Where its state comes from](#where-its-state-comes-from)).
@@ -804,7 +890,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | State | What the app shows | Mockup |
 |---|---|---|
-| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery. The preview column: the picture, the caption ("Temperature · CPU + GPU") and the status items "Cooler connected" and "Service running", with no line between the caption and the status. Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it, each label beside its control and the controls in one column, and the Peak dots and Start at boot switches at 40 × 22 | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery. The preview column: the picture, the caption ("Temperature · CPU + GPU") and the status items "Cooler connected" and "Service running", with no line between the caption and the status. Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then the Theme card (Use system theme, Dark or light), Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it, each label beside its control and the controls in one column, and the three switches (Use system theme, Peak dots, Start at boot) at 40 × 22 | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
 | The Configuration page is open | The gear is pressed; the back icon, Escape or Alt+Left, or the gear again, return to the Display page, and focus goes to the gear | [configuration.html](mockups/configuration.html): click the back icon, the gear, or press Escape |
 | The temperature unit | A row of the Display card after Rotation; the temperature tiles on the Display page follow it | [configuration.html](mockups/configuration.html), [display-scrolling.html](mockups/display-scrolling.html) (the tiles show °F) |
 | GPU list open | Automatic first; a GPU whose kind query failed as "Unknown type · …" with "driver couldn't be asked"; a GPU without a reading rule last, with "no readings"; the line under the dropdown names the integrated GPU, which Automatic reads here | [configuration-gpu-list.html](mockups/configuration-gpu-list.html) |
@@ -840,19 +926,62 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
 | A change refused | The control stays on the saved value; the overlay label, at the bottom centre, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
 | Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
-| A large screen | The window opens at the natural size of its content (estimated about 1016 × 814 px: the widest page beside the 262 px column, under the tallest page), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 813 high) |
+| A large screen | The window opens at the natural size of its content (estimated about 1016 × 1008 px: the widest page beside the 262 px column, under the tallest page, which has the Theme card since Task 11), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 1007 high) |
 | A small screen | The window is never larger than the smallest monitor less 48 px in each direction. The pages scroll down under their page bars, with the preview column and the banner in place; the whole content scrolls sideways below about 850 px; the column scrolls by itself on a screen under about 540 px high | every mockup: a browser window shorter than the mockup scrolls the page inside it (only the page scrolls sideways there, not the whole content) |
 | Not resizable | `resizable` false: no resizing or maximising by the user, and a compositor that floats fixed-size windows floats it; on one that tiles it anyway, the window is a tile that scrolls inside, and nothing breaks | — |
 | The monitors change while the app runs | The window keeps its size; the cap is read once. On a smaller screen the compositor decides whether to re-fit it; reopening the app fits it | — |
 | A banner, a note or the terminal commands appear | The window grows by their height, or the page scrolls a little more where the window is at its cap; the width never changes | cooler-disconnected, cooler-no-access, boot-partly |
 | Not available, drawn small | The window is as small as its message (about 440 × 170 px), and grows when the service answers | [not-available.html](mockups/not-available.html) |
-| Live theme switch | Colours change in place, with no restart and the same page and scroll position | every mockup: the theme buttons above the window |
-| Default theme (no Omarchy theme) | The default dark palette | every mockup: "Default theme, dark" or "Default theme, light" |
+| Live theme switch | Colours change in place, with no restart and the same page and scroll position: an Omarchy theme replaced, the system's preference flipped, or one of the two Theme settings changed | every mockup: the colour buttons above the window preview the palettes; the Theme card's controls on the Configuration pages resolve the theme as the app does |
+| Theme card: an Omarchy theme found and followed (a) | The Theme card first on the Configuration page: "Use system theme" on, "Dark or light" dimmed on the theme's scheme (Dark in the sample), the line "Using the Omarchy theme." | [configuration.html](mockups/configuration.html) and every other mockup of the page |
+| Theme card: followed from the system's preference (a) | No Omarchy theme; the switch on, the toggles dimmed on Dark or Light as the system prefers; "Using OpenDeepCool's light theme, as your desktop prefers." (and, with no preference, "Using OpenDeepCool's dark theme. Your desktop has no preference.") | [configuration-theme-system.html](mockups/configuration-theme-system.html) |
+| Theme card: the system theme isn't followed (b) | The switch off and sensitive; Dark and Light sensitive, the pressed one is `DarkTheme`; "Using OpenDeepCool's light theme." | [configuration-theme-own.html](mockups/configuration-theme-own.html) |
+| Theme card: no system theme found (c) | The switch off and dimmed; the warning line "OpenDeepCool can't find the system's theme and is using its own."; Dark and Light sensitive; the theme is OpenDeepCool's own | [configuration-theme-not-found.html](mockups/configuration-theme-not-found.html) |
+| Theme card: a change refused (d) | The control stays on the saved value; the overlay label says "Not changed." and the reason | (no mockup: Refresh's label, with a warning icon) |
+| OpenDeepCool's own theme (no Omarchy theme, or the system theme not followed) | The own dark or light theme: a mid graphite or aluminium surface, light as the only accent, colour only for status, two radii | [configuration-theme-system.html](mockups/configuration-theme-system.html), [configuration-theme-own.html](mockups/configuration-theme-own.html), [configuration-theme-not-found.html](mockups/configuration-theme-not-found.html), and every mockup under "Default theme, dark" or "Default theme, light" |
 
 ## Theme
 
+### Which theme is used
+
+The theme is one of three sources, resolved from four inputs, by one pure function that the Theme card, the stylesheet and the tests all use:
+
+1. **The Omarchy theme**, as in Phase 10, when one is found and the system theme is followed;
+2. **OpenDeepCool's own theme, dark or light, from the system's preference**, when no Omarchy theme is found, the system theme is followed, and GTK reports a preference;
+3. **OpenDeepCool's own theme, dark or light, as chosen**, when the system theme isn't followed, or no system theme can be found: `DarkTheme` decides.
+
+**The inputs.**
+- **An Omarchy theme found:** `colors.toml` of the current theme was read and parses as TOML. A TOML file with keys missing counts as found, and each missing key takes the own theme's value of the same scheme, as before; a file that isn't TOML counts as not found, and the journal says why (`theme.rs` already used the default theme for it).
+- **GTK's preference:** `GtkSettings:gtk-interface-color-scheme`, which GDK fills from the XDG portal and which sends `notify` when the system changes it (Phase 11a Task 1): `UNSUPPORTED` (the system gives none), `DEFAULT` (no preference), `DARK`, `LIGHT`.
+- **`UseSystemTheme`** and **`DarkTheme`**, the service's two settings (`GetState` and `StateChanged`).
+
+**The derived facts.** `found` = an Omarchy theme is found, or the preference isn't `UNSUPPORTED`. `follow` = `UseSystemTheme` and `found`. The dark or light control is sensitive exactly when `follow` is false; the switch is sensitive exactly when `found` is true and shows `follow`.
+
+| Omarchy theme found | GTK preference | `UseSystemTheme` | `DarkTheme` | The theme | Use system theme | Dark or light shows | The card's line |
+|---|---|---|---|---|---|---|---|
+| yes | any | on | any | the Omarchy theme | on, sensitive | insensitive; its `mode` | "Using the Omarchy theme." |
+| yes | any | off | on | own, dark | off, sensitive | sensitive; Dark | "Using OpenDeepCool's dark theme." |
+| yes | any | off | off | own, light | off, sensitive | sensitive; Light | "Using OpenDeepCool's light theme." |
+| no | `DARK` | on | any | own, dark | on, sensitive | insensitive; Dark | "Using OpenDeepCool's dark theme, as your desktop prefers." |
+| no | `LIGHT` | on | any | own, light | on, sensitive | insensitive; Light | "Using OpenDeepCool's light theme, as your desktop prefers." |
+| no | `DEFAULT` | on | any | own, dark | on, sensitive | insensitive; Dark | "Using OpenDeepCool's dark theme. Your desktop has no preference." |
+| no | `DARK`, `LIGHT` or `DEFAULT` | off | on | own, dark | off, sensitive | sensitive; Dark | "Using OpenDeepCool's dark theme." |
+| no | `DARK`, `LIGHT` or `DEFAULT` | off | off | own, light | off, sensitive | sensitive; Light | "Using OpenDeepCool's light theme." |
+| no | `UNSUPPORTED` | on | on | own, dark | **off, insensitive** | sensitive; Dark | the warning: "OpenDeepCool can't find the system's theme and is using its own." |
+| no | `UNSUPPORTED` | on | off | own, light | **off, insensitive** | sensitive; Light | the warning |
+| no | `UNSUPPORTED` | off | on | own, dark | **off, insensitive** | sensitive; Dark | the warning |
+| no | `UNSUPPORTED` | off | off | own, light | **off, insensitive** | sensitive; Light | the warning |
+
+The 12 rows cover all 32 combinations of the inputs (2 × 4 × 2 × 2): 8 + 4 + 4 + 2 + 2 + 2 + 3 + 3 + 4. The tests assert all 32.
+
+- **"Its `mode`"** is the Omarchy theme's `colors.toml` `mode`, `dark` or `light`; `dark` when missing or invalid, as `theme.rs` does. It is also the scheme the stylesheet's base takes ([How it's applied](#hows-it-applied)).
+- **An Omarchy theme found wins over the preference** while the system theme is followed (Phase 11a Task 1's rule), so the first row has no preference column.
+- **`DEFAULT` shows OpenDeepCool's dark theme:** no preference is "dark first", this PC's desktop.
+- **The service's value is never rewritten by the app.** In the warning rows the switch is dimmed and off though the service may hold `UseSystemTheme` true; nothing is sent, and the switch turns on by itself when a system theme appears.
+
 ### How it's applied
 
+- **Three sources** (above): the app resolves them whenever one of the four inputs changes, then builds the one provider's CSS from the result.
 - **One provider.**
   - A single `GtkCssProvider` is added with `gtk_style_context_add_provider_for_display` at `GTK_STYLE_PROVIDER_PRIORITY_APPLICATION` (600). Whether that function is deprecated in current GTK is **unverified**; the plan checks.
   - A user's own `~/.config/gtk-4.0/gtk.css` keeps the last word at USER priority, 800 (verified).
@@ -862,15 +991,16 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 - **Colours with alpha** (`rgba(…)`) are computed in Rust and written into the `:root` block as literals, so the stylesheet needs no CSS colour functions.
 - **Live reload (Omarchy).**
   - A `GFileMonitor` on `~/.local/state/omarchy/current/` reacts when `theme` is replaced (the PRD, Theme: themes are moved over `current/theme`; Omarchy stages the new one in `current/next-theme`, removes `current/theme` and moves it in, its `omarchy-theme-set`, read 2026-11-06). A second one on `current/theme/` catches an edit in place, and while a folder of that path is missing, the nearest existing folder above it is watched, so a theme that appears later is found (decisions log D65).
-  - After 150 ms of quiet, the app re-reads `colors.toml` and `shell.toml` and, when the tokens changed, regenerates the string, reloads the same provider, and repaints the preview and tiles. There's no restart, and the page and scroll position are kept. The source at start and each reload are logged (`theme: the Omarchy theme`, `theme: the default theme`, `theme: reloaded, …`), with each missing or rejected key.
+  - After 150 ms of quiet, the app re-reads `colors.toml` and `shell.toml` and, when the tokens changed, regenerates the string, reloads the same provider, and repaints the preview and tiles. There's no restart, and the page and scroll position are kept. The source at start and each reload are logged (`theme: the Omarchy theme`, `theme: OpenDeepCool's dark theme`, `theme: reloaded, …`), with each missing or rejected key.
+- **The other inputs are live too.** `notify::gtk-interface-color-scheme` on `GtkSettings` (measured live by Phase 11a Task 1) and the service's `StateChanged` for `UseSystemTheme` and `DarkTheme` resolve the theme again and reload the same provider, in place, like an Omarchy reload: no restart, the same page and scroll position, the preview and tiles repainted. The change is a cut, with no cross-fade.
 - **Fallback rules.**
-  - When `colors.toml` is missing or unreadable, the whole default theme is used.
-  - When one key is missing or invalid, that token comes from the default theme (dark, or light when `mode` says light), and the journal names the key.
+  - When `colors.toml` is missing or isn't TOML, no Omarchy theme is found: the theme is OpenDeepCool's own by [the table](#which-theme-is-used), and the journal names the problem.
+  - When one key is missing or invalid, that token comes from OpenDeepCool's own theme of the same scheme (dark, or light when `mode` says light), and the journal names the key.
 - **No window opacity** and no blur, ever: Hyprland applies them (PRD, Theme). The window background is opaque `--bg`.
 - **No motion:** the stylesheet sets `transition: none` and no CSS animations, overriding GTK's built-in theme. The global `gtk-enable-animations` setting is left alone, because it belongs to the user.
-- **Light or dark base.** `colors.toml` `mode` also chooses GTK's dark or light base (`gtk-application-prefer-dark-theme`), so parts the stylesheet doesn't colour (scrollbars, popover arrows) match. Whether that property is still the right switch in GTK 4.20+ (for example a newer colour-scheme setting) is **unverified**.
-- **Font:** the GTK system font (`gtk-font-name`). `shell.toml` `[font]` isn't read in v1.
-- **Room for later:** a "theme source" setting after v1 only swaps where the tokens come from. The stylesheet and the token names stay. Nothing about it shows in v1.
+- **Light or dark base.** The resolved theme's scheme (an Omarchy theme's `mode`, or OpenDeepCool's own dark or light) sets the provider's `prefers-color-scheme`, so parts the stylesheet doesn't colour (scrollbars, popover arrows) match; `gtk-application-prefer-dark-theme` is deprecated since GTK 4.20 ([Unverified points, answered (Phase 10 Task 1, 2026-11-06)](#unverified-points-answered-phase-10-task-1-2026-11-06)).
+- **Font:** the GTK system font (`gtk-font-name`), at the sizes of [Type](#type). `shell.toml` `[font]` isn't read in v1.
+- **Room for later:** a "theme source" setting after v1 (following another desktop's theme) only swaps where the tokens come from. The stylesheet and the token names stay. Nothing about it shows in v1; the Theme card chooses only between following the system and OpenDeepCool's own theme.
 
 ### Tokens and where they come from
 
@@ -888,51 +1018,133 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | `--ctl-focus-*` | `focus-*` | `:focus-visible` fill and border |
 | `--ctl-selected-fill`, `--ctl-selected-border` | `selected-*` | `:checked` toggles, the selected tile, the selected list item |
 | `--ctl-pressed-fill` | `pressed-fill-alpha` | `:active` |
-| `--radius` | (none in `shell.toml`) | 0 px with an Omarchy theme, 6 px in the default theme |
+| `--radius` | (none in `shell.toml`) | controls: buttons, toggles, tiles, the dropdown button, the command box. 0 px with an Omarchy theme, 4 px in OpenDeepCool's own |
+| `--radius-box` | (none in `shell.toml`) | what holds controls: cards, the preview frame, popovers, the feedback label. 0 px with an Omarchy theme, 10 px in OpenDeepCool's own. **New in Task 11** |
 
 - **Computed tokens**, from the fixed alphas of the mockups: `--line` (`--fg` at 0.12: header, column and banner rules), `--code-bg` (`--fg` at 0.08: the start command), `--unlit` (`--fg` at 0.12: unlit preview dots), `--banner-error` and `--banner-warn` (`--red` at 0.16 and `--yellow` at 0.14 over `--bg`, opaque).
 - **Values the tables leave open** (decisions log D30–D32, D39, D43):
   - a border width is CSS's four sides, as `shell.toml`'s comment allows (`N`, `"Y X"`, `"T X B"`, `"T R B L"`, with `-top`, `-right`, `-bottom` and `-left` keys over it), each from 0 to 16 px;
   - a missing or rejected `shell.toml` colour key takes the theme's own `--fg`, as Omarchy's template writes them, and a missing alpha the default theme's; `--ctl-pressed-fill` uses `normal-color`;
-  - the default theme's focus fill and border are its hover ones, its selected border is `--fg` opaque, its border widths 1 px, and its `--selection` is `--accent` at 0.35 over `--bg`;
+  - OpenDeepCool's own theme's focus fill and border are its hover ones, its selected border is `--fg` opaque (the stylesheet draws a selected tile and toggle with `--accent`), its border widths 1 px, and its `--selection` is `--accent` at **0.25** over `--bg`: an accent that is a light tone needs less than Phase 10's 0.35 for `--fg` text on the selection to reach 4.5:1 (row 15 of [the contrast table](#the-contrast-table)). A missing `selection` key of an Omarchy theme takes that theme's own `accent` at 0.35 over its own `background`, never the own theme's colours;
   - a `colors.toml` colour's own alpha is dropped, so the window stays opaque; a `shell.toml` colour's own alpha is multiplied by its `*-alpha` key;
   - a disabled control has muted text on the normal fill and border, since the CSS has no `opacity`.
 - **Focus ring:** keyboard focus also gets a 2 px `--accent` outline, whatever the theme's focus alphas, so focus is always visible (WCAG 2.4.7).
 - **Gradients:** `shell.toml` border keys may hold a Hyprland-style gradient (`"rgba(…) rgba(…) 45deg"`, per its comments). The app uses the gradient's first colour, since a gradient border colour in GTK CSS is **unverified**.
 
-### Default theme
+### OpenDeepCool's own theme
 
-OpenDeepCool's own palette, a cool neutral grey with a teal accent. It is used wherever no Omarchy theme is found: dark in v1, and light when the Omarchy theme reports `mode = "light"` but a key is missing. Contrast ratios are WCAG 2 relative-luminance ratios, computed for these exact values.
+Designed in Phase 11a Task 11 (owner, 2026-11-18: "It's us that defines the default OpenDeepCool theme"), dark and light, as one whole. It replaces the Phase 10 default, a cool grey with a teal accent. It is used by the second and third source of [Which theme is used](#which-theme-is-used). The colours, sizes and radii below are the values; the names (Graphite, Panel and so on) are for talking about them, and the code uses the tokens.
 
-| Token | Dark | Light |
+**The idea.** The subject is a display of 196 dots, each lit or unlit. So the window is a **monochrome faceplate**: a graphite surface and one light tone, with the colour left to the things that are colour in this app, a status. Three rules follow, and everything below is these rules applied:
+- **Light is the accent.** `--accent` is the lit tone, never a hue: the brightest tone of the dark theme, the darkest of the light one. It marks only what is chosen, on or focused: the selected tile's and toggle's border, an on switch's trough, a scale's filled part, a pressed gear or back icon, the focus ring and a link. It is never used for a heading, a background or decoration.
+- **Colour means a state.** Green, yellow and red appear only as status: a dot, a banner's icon and tint, the warning text. They are the only chroma in the window, so each is seen at once, and no accent can be mistaken for one. They are always with an icon or words, never colour alone.
+- **The picture is the loudest thing.** The preview's and the tiles' lit dots are `--fg`, the brightest content, and nothing chromatic competes with them.
+
+**Why this isn't a generic palette.** Anthropic's guidance names five clusters of defaults ([Answers decided on 2026-11-19, Task 11](#answers-decided-on-2026-11-19-task-11)). This theme is not a warm cream with a terracotta or clay accent; not a near-black with one bright hue (the dark ground is a mid graphite, `#202326`, of about 1.7 per cent luminance, where `#0B0B0B` and `#111` are 0.3 and 0.6, and the accent is a tone, not a hue); not a broadsheet; not one radius on every box (two, below); and has none of the template chrome (no eyebrow in capitals, no arrows, no monospace face for labels, no gradient, no shadow, no decoration). It has no purple, no teal and no blue. Where it falls short of the guidance is said in the Task 11 answers: the type has no typeface of its own, because the app adds no package.
+
+#### Palette
+
+Five base tones and three status colours. Each is a hex the implementer copies; `--ctl` is `--fg` for every control.
+
+| Token | Dark: name, value | Light: name, value | Used for |
+|---|---|---|---|
+| `--bg` | Graphite `#202326` | Aluminium `#e4e6e9` | window, header bar, banner base, the resting fill of the icon buttons |
+| `--surface` | Panel `#2a2e33` | White `#ffffff` | preview frame, cards, popovers |
+| `--fg` | Bone `#e6e3dc` | Graphite `#1b1e22` | text, lit preview dots |
+| `--muted` | Haze `#9ca1aa` | Slate `#565c66` | hints, notes, captions of unavailable tiles, an insensitive control's text and border |
+| `--accent` | Lit `#fbf8f0` | Lit `#0a0c0f` | the lit tone, as above |
+| `--red` | Vermilion `#ff7a66` | Vermilion `#b93a22` | an error: the status dot, the banner's icon and tint |
+| `--yellow` | Brass `#e8c14f` | Bronze `#7a5200` | a warning: the dot, the banner, the warning text |
+| `--green` | Mint `#6dd28b` | Pine `#1d7a3f` | "good": the status dot |
+
+**Control alphas** (of `--fg`), in the order the code takes them, `[normal fill, normal border, hover fill, hover border, selected fill, pressed fill]`:
+
+| | Dark | Light |
 |---|---|---|
-| `--bg` | `#14171b` | `#f5f6f8` |
-| `--surface` | `#1d2126` | `#ffffff` |
-| `--fg` | `#e7eaee` | `#1a1d21` |
-| `--muted` | `#9aa3ae` | `#5a626c` |
-| `--accent` | `#4fc3b4` | `#0b7a6e` |
-| `--red` | `#f08a80` | `#b42318` |
-| `--yellow` | `#e6c15c` | `#8a5d00` |
-| `--green` | `#7fd48f` | `#1d7a35` |
-| control alphas (normal fill / normal border / hover fill / hover border / selected fill / pressed fill) | 0.04 / 0.40 / 0.08 / 0.30 / 0.18 / 0.22 | 0.04 / 0.50 / 0.07 / 0.35 / 0.14 / 0.20 |
+| normal fill, normal border | 0.05, 0.44 | 0.04, 0.54 |
+| hover fill, hover border | 0.09, 0.60 | 0.07, 0.72 |
+| selected fill | 0.16 | 0.14 |
+| pressed fill | 0.24 | 0.20 |
+| the code's array | `[0.05, 0.44, 0.09, 0.60, 0.16, 0.24]` | `[0.04, 0.54, 0.07, 0.72, 0.14, 0.20]` |
 
-| Check (need) | Dark | Light |
-|---|---|---|
-| text on background (4.5) | 14.9 | 15.6 |
-| text on surface (4.5) | 13.4 | 16.9 |
-| muted text on background / surface (4.5) | 7.0 / 6.3 | 5.7 / 6.2 |
-| accent on background / surface (4.5, used as link text) | 8.4 / 7.5 | 4.8 / 5.2 |
-| warning text (yellow) on background / surface (4.5) | 10.4 / 9.4 | 5.3 / 5.8 |
-| red, green on background (3.0, status dots) | 7.4, 10.0 | 6.1, 5.0 |
-| text on the selected fill (4.5) | 8.0 | 12.7 |
-| control border on background (3.0, WCAG 1.4.11) | 3.4 | 3.2 |
-| lit dot against unlit dot (3.0) | 10.9 | 12.3 |
+- **Hover firms a border up** (0.60 over 0.44): hover never weakens the border that makes the control visible. The focus fill and border are the hover ones. The selected border is `--accent` as drawn by the stylesheet, and a selected control keeps it under the pointer.
+- **Focus is always visible:** every focused control also has the 2 px `--accent` outline at 2 px offset, whatever the alphas (WCAG 2.4.7). It is the brightest tone against both `--bg` and `--surface`.
+- **Computed tokens** keep their rules (`--line`, `--code-bg`, `--unlit` at `--fg` 0.12 and 0.08; `--banner-error` and `--banner-warn` at 0.16 and 0.14 of the status colour over `--bg`). `--selection` is `--accent` at 0.25 over `--bg`.
+- **Not tinted near-black, and a little cool:** the dark ground is slightly blue (`#202326`), the text slightly warm (`#e6e3dc`), so lit dots read as light on metal. The light ground is a neutral aluminium, not a cream.
 
-Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is drawn on a selected tile. The mockups' sample Omarchy theme is made up too; it passes the same checks (text 11.9, muted 5.4, accent 7.2 on its background).
+#### Type
+
+The system font (`gtk-font-name`; no new package, rule 7). Every size is a multiple of the user's font size, so a user who sets a larger font gets a larger app, and every one is written in `em`: GTK's CSS resolves `em` in `font-size` against the inherited size ([Unverified points, answered (Phase 11a Task 11)](#unverified-points-answered-phase-11a-task-11-2026-11-19)). Four sizes in a ratio of 1.2, and two weights, 400 and 600; nothing is italic, nothing is in capitals, no letter-spacing.
+
+| Role (class) | Size | Weight | Colour | Used for |
+|---|---|---|---|---|
+| `heading` | 1.44em | 600 | `--fg` | the off screen's heading ("OpenDeepCool is off"), and the not-available message's |
+| `page-title` | 1.2em | 600 | `--fg` | "Display" and "Configuration" in the page bars |
+| `card-heading`, `group-heading` | 1em | 600 | `--fg` | the cards' headings (Theme, Display, Music, Startup), the tile groups' (Load, Temperature, Power, Music) |
+| `app-name` | 1em | 600 | `--fg` | the title in the header bar |
+| `caption` | 1em | 600 | `--fg` | the preview's caption |
+| body (no class) | 1em | 400 | `--fg` | row titles, status items, tile captions, banners, buttons |
+| `small` | 0.83em | 400 | `--muted` (with `muted`) | hints, notes, reason lines, scale marks, the terminal commands' box, a tile's flag |
+| `num` | as its text | as its text | | `font-variant-numeric: tabular-nums` (as built) |
+
+- **In the stylesheet:** `.small { font-size: 0.83em; }`, `.page-title { font-size: 1.2em; font-weight: 600; }`, `.heading { font-size: 1.44em; font-weight: 600; }`; the other roles are weight 600 alone, which `app.css` already has. `.command` takes `small`.
+- **No compounding:** `em` in `font-size` is against the parent's size, so a class goes on the label itself, never on a box that holds another sized label. If a case of compounding is found, `rem` (GTK resolves it against the initial font size, the `gtk-font-name` size) is the fallback.
+- **Hierarchy:** weight carries the headings (600 over 400) and size only the two titles above them, so a card's heading, a row's title and a hint are three levels by weight and size together, not by colour. The one place the mockups depart from the scale is the tile captions and flags, fixed at 12 and 11 px for their 98 px tiles; in the app they are body text.
+- **A typeface of its own is a suggestion for after v1**, not a part of Task 11: a typeface with tabular figures and a squarer shape, which would give the type more character than the system font does. Any such font is a package dependency, so it goes to the owner first (rule 7).
+
+#### Spacing, radius and borders
+
+- **Spacing** is the existing rhythm, kept: it already follows one rule, that what belongs together is closer than what doesn't. 2 px between a title and its hint; 4 px between icon buttons; 6 px between a control's parts and under a page bar; 8 px between tiles; 14 px between rows and between a card's children; 18 px for a page's and the column's margins and between the cards; 24 px between a row's label and its control. A 4 px grid for all of it would move every estimate in [Size and scrolling](#size-and-scrolling) and is left for after v1.
+- **Radius,** two, by what the box is: `--radius` **4 px** for controls (buttons, toggles, tiles, the dropdown button, the command box), `--radius-box` **10 px** for what holds them (cards, the preview frame, popovers, the feedback label). Switches and dots are round. An Omarchy theme has neither. The mockups' window has the compositor's corners, not ours.
+- **Borders** are 1 px, one width everywhere; a selected tile and toggle change colour, not width, so nothing moves.
+- **No shadows, gradients or transparency** other than the control alphas and the computed tokens: the stylesheet already sets `box-shadow: none`.
+- **No motion in the chrome:** unchanged (`transition: none`). A theme change is a cut.
+
+#### The contrast table
+
+WCAG 2 relative-luminance ratios, **computed on 2026-11-19 by a script from the hex values above and the alphas, and pinned by `cargo test -p odc-mockups`** (the figures in the Phase 10 table are gone: they belonged to the old palette). The design chose the values to pass with margin; a pair that misses its need is sent back here, or the implementer moves the value by the smallest step and reports it. WCAG 2.2: 1.4.3 for text (4.5:1), 1.4.11 for the lit dot, a control's border and an accent glyph on its fill (3:1), 2.4.7 for visible focus (the outline of [the palette](#palette)). The pairs are the same as the Phase 10 table's, in its order, plus rows 14 and 15. The fill of rows 11, 14 is the selected fill over `--surface`, the stricter case, since tiles and the pressed gear also stand on `--bg`.
+
+| # | Check (need) | Dark | Light |
+|---|---|---|---|
+| 1 | text on background (4.5) | 12.3 | 13.4 |
+| 2 | text on surface (4.5) | 10.7 | 16.7 |
+| 3 | muted text on background (4.5) | 6.1 | 5.4 |
+| 4 | muted text on surface (4.5) | 5.3 | 6.7 |
+| 5 | accent on background (4.5, link text, and an on switch's knob `--bg` on its `--accent` trough) | 14.9 | 15.7 |
+| 6 | accent on surface (4.5) | 12.9 | 19.6 |
+| 7 | warning text (yellow) on background (4.5) | 9.2 | 5.5 |
+| 8 | warning text (yellow) on surface (4.5) | 7.9 | 6.9 |
+| 9 | red on background (3.0, status dots and icons) | 6.2 | 4.5 |
+| 10 | green on background (3.0, status dots) | 8.5 | 4.3 |
+| 11 | text on the selected fill (4.5) | 6.9 | 12.6 |
+| 12 | control border on background (3.0, WCAG 1.4.11) | 3.5 | 3.4 |
+| 13 | lit dot against unlit dot (3.0) | 8.9 | 10.6 |
+| 14 | **new:** accent on the selected fill (3.0): the pressed gear and back icon | 9.6 | 11.9 |
+| 15 | **new, added by this design:** text on the selection (4.5): `--fg` on `--accent` at 0.25 over `--bg`, the selected command text | 5.6 | 7.7 |
+
+- **The tight pairs,** by a rough hand estimate that is not a computation (so the implementer looks at them first): **row 12** in both themes (about 3.5 against 3.0: the border alphas 0.44 and 0.54 were picked for it; if a pair misses, raise the alpha by 0.02 steps); **row 3 and 4**, muted on the backgrounds, in the light theme (about 5.3 against 4.5; darken `--muted` by a few steps) and the dark one on `--surface` (about 5.3; lighten it); **row 15** in the dark theme (about 5.5; the alpha 0.25 is the knob); **rows 9 and 10** in the light theme (about 4.5 and 4.3 against 3.0, comfortable). Rows 1, 2, 5, 6, 11, 13 and 14 are expected far above their needs, since `--accent` is the extreme tone of its theme.
+- **Row 15 is the one this design adds** beyond the plan's 13 + 1: with a light-tone accent, Phase 10's 0.35 selection leaves `--fg` text at about 4.1:1 in the dark theme, so the design lowers the alpha to 0.25 and asks for the row.
+- **Muted text on the selected fill** is expected below 4.5:1 in the dark theme (about 3.3), so nothing muted is drawn on a selected tile; the old note and its test (`muted on the selected fill < 4.5`, 3.8) change to the new value. The light theme is expected above 4.5 there.
+- **The mockups' sample Omarchy theme** is made up and unchanged. It is expected to pass the new row 14 (about 3.9); row 15 is about the own theme's computed selection and doesn't apply to it. Its old figures stay (text 11.9, muted 5.4, accent 7.2 on its background); the implementer checks.
+- **A pair that can't be nudged** goes back to the designer as a pair, with its ratio, and the designer changes the value, not the need.
+
+**Where the tests change** (for the implementer): `PALETTES` in `tools/mockups/tests/mockups.rs` takes the values above for "default dark" and "default light" (the sample's stay); its table of 13 expected figures becomes 15, filled in from the computation, in the order above; the mockups' count becomes 22 ([The Theme card's mockups](#the-theme-cards-mockups)); `crates/odc-app/src/theme.rs` takes `DARK`, `LIGHT`, the alphas, the radii (`radius` 4, a new `radius_box` 10) and the selection alpha 0.25 for the own theme.
+
+#### The Theme card's mockups
+
+The card is on the Configuration page, so every mockup that shows that page (configuration, configuration-gpu-list, one-gpu, boot-partly, boot-unknown) shows it in state (a), with an Omarchy theme found and followed (the sample Omarchy theme, dark: the dark or light control dimmed on Dark). Three pages are new, each a Configuration page with different theme inputs. Their data keys (all optional; the defaults give the earlier pages' state) are `omarchyTheme`, `colorScheme`, `useSystemTheme` and `darkTheme` ([mockups-src/app.js](mockups-src/app.js), its header):
+
+| File | Title | Data | Shows |
+|---|---|---|---|
+| `configuration-theme-system.html` | Configuration, the system's light preference | `omarchyTheme` false, `colorScheme` "light" | No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, Dark or light is dimmed with Light pressed, and the line says "Using OpenDeepCool's light theme, as your desktop prefers." Turn the switch off in the mockup: the toggles come alive and the theme follows `DarkTheme` |
+| `configuration-theme-own.html` | Configuration, OpenDeepCool's own theme | `useSystemTheme` false, `darkTheme` false | An Omarchy theme is found but isn't followed: the switch is off and sensitive, Light is pressed and both toggles are sensitive, and the window is in OpenDeepCool's light theme. Click Dark, and the window turns dark |
+| `configuration-theme-not-found.html` | Configuration, no system theme found | `omarchyTheme` false, `colorScheme` "unsupported" | The switch is off and dimmed, the warning line says "OpenDeepCool can't find the system's theme and is using its own.", and Dark is pressed and both toggles are sensitive, in OpenDeepCool's dark theme |
+
+The refused change (d) has no page of its own: it is the overlay label every refusal uses.
 
 ## Keyboard
 
-- **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
+- **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: Use system theme, then Dark and Light (Tab stops only while they are sensitive, so none while the system theme is followed), rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
 - **Where focus lands on a page change:** see [Window](#window), The pages. Opening the Configuration page puts it on the back icon; closing the page puts it on the gear. Nothing else moves it.
 - **The scrolled windows take no focus** (`focusable` false on the window scroller, the column and every page, [Size and scrolling](#size-and-scrolling)), so they add no Tab stop and the order above stands. Whether `GtkScrolledWindow` is focusable by default isn't in the docs (**unverified**), so the app sets it. Scrolling by keyboard goes through focus: a viewport scrolls to the focused control by itself (`GtkViewport:scroll-to-focus`, "whether to scroll when the focus changes", docs.gtk.org; its default and its behaviour in nested viewports are **unverified**, and the window test focuses the last control of the Configuration page on a small output and checks it came into view). The preview column has nothing to focus, so on a screen too short for it the column scrolls only by wheel or touch; every control stays reachable, and the column's words are also in the preview's description and the status items' names. Fallback if a nested viewport doesn't scroll to focus: the app moves the page's vertical adjustment itself when focus enters a control that lies outside the viewport.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
@@ -981,7 +1193,10 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Tile groups | `GtkFlowBox` (grid) | `Load options`, `Temperature options`, `Power options`, `Music options` | — |
 | Group reason lines | `GtkBox` (group) around the `GtkLabel` | `Load unavailable reasons` (and so on per group) | its label's text |
 | Tiles | `GtkFlowBoxChild` (grid cell), its picture an image of the same name | `Load: CPU`, `Load: GPU`, `Load: RAM`, `Load: CPU + GPU`, `Load: CPU + RAM`, `Load: GPU + RAM`, `Temperature: CPU`, `Temperature: GPU`, `Temperature: CPU + GPU`, `Power: CPU`, `Power: GPU`, `Power: CPU + GPU`, `Music: Spectrum`, `Music: Emoji 1` … `Music: Emoji 4`, `Music: CPU temperature`, `Music: GPU temperature`, `Music: CPU usage`, `Music: GPU usage`, `Music: RAM usage`, `Music: Dancer` | selected; disabled; description `<metric>: <reason>` when unavailable, or "Reading lost: …" on the saved mode; action `tile.activate` while sensitive |
-| Configuration cards | `GtkBox` (group) | `Display settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
+| Configuration cards | `GtkBox` (group) | `Theme settings`, `Display settings`, `Music settings`, `Startup settings`, as the mockups label their sections (decisions log D62). The Startup card keeps its name in the window's body while the service is down | — |
+| Use system theme | `GtkSwitch` (switch) | `Use system theme` | checked: the switch's handle (the delayed state, as Peak dots); insensitive, and unchecked, while no system theme can be found, with the warning's text as its description ("OpenDeepCool can't find the system's theme and is using its own.") |
+| Dark and Light | `GtkToggleButton` (toggle button), grouped, in a `GtkBox` named by its row's title | `Dark theme`, `Light theme` | pressed: the scheme in use; both insensitive while the system theme is followed, with the description "Set by the system theme." (the pressed one stays readable: [Theme card](#theme-card), The look) |
+| Theme status | `GtkBox` (group) around the card's line | `Theme status` | its label's text: "Using the Omarchy theme.", "Using OpenDeepCool's dark theme, as your desktop prefers." and the others of [Which theme is used](#which-theme-is-used), or the warning |
 | Rotation | `GtkToggleButton` (toggle button) | `Rotation 0°`, `Rotation 90°`, `Rotation 180°`, `Rotation 270°` | pressed |
 | Unit toggles | `GtkToggleButton` (toggle button), in the Display card after Rotation | `Celsius`, `Fahrenheit` | pressed |
 | GPU | `GtkDropDown` (combo box) | `GPU` | the selected item's label (`Automatic`, or the GPU's); description "Using <GPU label>" while Automatic is chosen, "no readings" when the GPU in use has no reading rule, "driver couldn't be asked" when a GPU whose kind query failed is chosen by hand, joined by "; " when several apply |
@@ -1048,8 +1263,13 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Peak dots on or off | Configuration → Music | configuration |
 | Bar fall, peak fall, five stops, defaults | Configuration → Music | configuration |
 | Configuration screen holds everything but the mode (owner, 2026-11-18: the unit too) | Configuration page | configuration |
+| A Theme card, first on the Configuration page: "Use system theme", and a dark or light control that is usable only while the system theme isn't followed (owner, 2026-11-18) | Configuration → Theme: a `GtkSwitch` and two linked toggles; the toggles are dimmed, showing the scheme in use, while the system theme is followed ([Theme card](#theme-card)) | configuration, configuration-theme-system, configuration-theme-own |
+| Use system theme follows the system's dark or light preference, or an Omarchy theme if there is one, live | [Which theme is used](#which-theme-is-used): an Omarchy theme wins; else GTK's preference (no preference shows dark); the notifications re-resolve the theme in place | configuration (Omarchy), configuration-theme-system |
+| No system theme found: the switch is disabled with a warning, and the dark or light control works | The warning line "OpenDeepCool can't find the system's theme and is using its own." ([Theme card](#theme-card), state (c)) | configuration-theme-not-found |
+| The theme choice is the whole PC's, kept by the service; the app writes no file | `SetUseSystemTheme`, `SetDarkTheme`; the state keys `UseSystemTheme` and `DarkTheme` ([Talking to the service](#talking-to-the-service)) | — |
+| A change of either setting is refused: the controls stay on the saved state | The overlay label ([Refused changes](#refused-changes)) | — |
 | Labels beside their controls, left-aligned, with the space between cut to a 24 px gap (owner, 2026-11-18) | Every row of the Configuration page and of the Startup card on the off screen: [Rows](#rows) | configuration, one-gpu, boot-partly, boot-off |
-| The two switches (Peak dots, Start at boot) a little smaller (owner, 2026-11-18); the rotation and unit toggles unchanged | 40 × 22 px: [The switches](#the-switches) | configuration, boot-off |
+| The switches (Use system theme, Peak dots, Start at boot) a little smaller (owner, 2026-11-18); the rotation and unit toggles unchanged | 40 × 22 px: [The switches](#the-switches) | configuration, boot-off |
 | The preview column holds the picture, its caption, the lost reading's reason and the status; no "Shown on the cooler now", and no other line under the caption (owner, 2026-11-18) | [Preview column](#preview-column) | every mockup with the column |
 | Both pages reachable with no tab: the gear opens Configuration; the back icon, the gear again, Escape and Alt+Left return to Display | Header bar; the Configuration page's bar; [Keyboard](#keyboard) | display, configuration |
 | The app closes from its own window | The close icon at the right of the header bar (the desktop's window buttons are off), Ctrl+W, Ctrl+Q | every mockup |
@@ -1070,8 +1290,9 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | Live preview with rotation, scrolling, dashes, full values to 9999, the spectrum settings | Preview column (mirrors the service's frame) | configuration (90°), display-scrolling, reading-lost |
 | Numbers rounded as display.md Values: the nearest whole number, halves up; °F once from the exact °C | Preview (the service's frame); tiles (`odc_render`) | display-scrolling (°F tiles) |
 | Instant apply, no Apply button | Every control | — |
-| Omarchy theme followed live; opacity and blur untouched; `shell.toml` alphas on controls | Theme | every mockup's theme switch |
-| Default theme, dark and light | Theme | every mockup's theme switch |
+| Omarchy theme followed live; opacity and blur untouched; `shell.toml` alphas on controls | Theme ([Which theme is used](#which-theme-is-used), [How it's applied](#hows-it-applied)) | every mockup's colour buttons |
+| OpenDeepCool's own theme, dark and light, designed, with contrast at least the design's table (owner, 2026-11-18) | [OpenDeepCool's own theme](#opendeepcools-own-theme); the table's values are computed by the implementer ([The contrast table](#the-contrast-table)) | every mockup's colour buttons |
+| A type scale on the system font, relative to the user's font size | [Type](#type) | every mockup |
 | First-start defaults | Opens with the service's settings | first-start |
 | Start at boot: one switch turns OpenDeepCool on or off for the whole PC, both units | Configuration → Startup; the off screen | configuration, boot-off, service-not-running |
 | On only when ready to use: the display service enabled and running, the sound enabled for every user and running in this session; the one-shot helpers don't count | [Where its state comes from](#where-its-state-comes-from): four facts | configuration (on), boot-partly, service-not-running |
@@ -1094,7 +1315,7 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 - other devices;
 - CPU, GPU or RAM readouts outside display pictures (tiles use fixed sample values, and the preview shows only the cooler's picture);
 - clocks or voltages;
-- theme-source setting;
+- theme-source setting (following another desktop's theme: after v1; the Theme card only chooses between following the system and OpenDeepCool's own theme);
 - Creative mode;
 - static or scrolling option;
 - language or start-at-login setting for the app itself (Start at boot is systemd's state for OpenDeepCool's units, not an app setting);
@@ -1179,7 +1400,7 @@ The points the Configuration rows, the switches and the preview column depend on
 | The slider's height inside the trough | **Unverified:** `GtkSwitch`'s page lists the nodes `switch`, `image` and `slider` and no sizes. The mockups draw an 18 px knob with 1 px beside the border; the app takes what GTK draws | docs.gtk.org, `Gtk.Switch`, CSS nodes |
 | The pointer target of a 40 × 22 switch | Verified from the criterion's text: SC 2.5.8's spacing exception holds when no other target, nor another undersized target's 24 px circle, lies within the circle centred on the switch's box (1 px beyond it, above and below). The rows are 14 px apart | w3.org, Understanding SC 2.5.8 (Target Size (Minimum)) |
 | Where a form puts a label in a narrow window | KDE's Kirigami `FormLayout` stacks a label above its control when there is no room. The app doesn't: its window isn't resizable (Task 9), and a `GtkBox` can't wrap a control under its label, so the content scrolls sideways | develop.kde.org, Kirigami form layouts (read 2026-11-19; as the search summary gave it, the page itself was not opened) |
-| The `small` style class | **Unverified** whether GTK's own theme defines it; the app's stylesheet doesn't (no match in `crates/odc-app/src`, 2026-11-19). The design never relies on its size: Task 11's type scale gives it one | grep of the tree |
+| The `small` style class | **Unverified** whether GTK's own theme defines it; the app's stylesheet doesn't (no match in `crates/odc-app/src`, 2026-11-19). The design never relies on GTK's size: Task 11's type scale gives it 0.83em ([Type](#type)) | grep of the tree |
 | A description on an image-role `GtkDrawingArea` | `Names::describe` sets `GTK_ACCESSIBLE_PROPERTY_DESCRIPTION` on it today (the preview's description is the caption); the rows above change only its text. AT-SPI reads it as the Phase 10 layer 4 run found for every description | the Accessible names notes; the Phase 10 Task 8 run |
 
 ## Unverified points, answered (Phase 11a Task 9, 2026-11-19)
@@ -1200,3 +1421,21 @@ The points the window's size and scrolling depend on. Read in the official docum
 | Classic (non-overlay) scrollbars and the natural size | **Unverified** whether a scrollbar that takes room counts in the natural width or height. With GTK's default overlay scrolling nothing is added | docs.gtk.org, `Gtk.ScrolledWindow:overlay-scrolling` ("whether overlay scrolling is enabled") |
 | A compositor that tiles the window anyway; what a compositor does with a window larger than a new, smaller output | **Unverified** for any compositor but the one in Task 1's session: GTK lays the content out in whatever size it is given, and a smaller size scrolls; whether a compositor re-fits a window after a monitor change is the compositor's own matter | [Size and scrolling](#size-and-scrolling), Not resizable, and floating; The monitors change |
 | The first map in a remote or inactive session | The window is presented before the service answers, so it is drawn at the full size for a few milliseconds before the not-available message shrinks it. **Unverified** whether the flash is visible. Fallback: present the window after the first answer | `crates/odc-app/src/main.rs`, `connect_activate`, read 2026-11-19 |
+
+## Unverified points, answered (Phase 11a Task 11, 2026-11-19)
+
+The points the Theme card and OpenDeepCool's own theme depend on. The pages were fetched on 2026-11-19 through a tool that summarises them and quotes short phrases; nothing was run, since the designer has no shell, so what only a window can show is marked **unverified**, with the fallback, and the implementer's tests check it. Every contrast figure in this design is a rough hand estimate for choosing values; none is computed ([The contrast table](#the-contrast-table)).
+
+| Point | Answer | Source, or the fallback |
+|---|---|---|
+| Units in GTK's CSS, and `font-size` | Verified: the page lists "Length: px, pt, em, ex, rem, pc, in, cm, mm" and "Percentage: %". "Length values with the em or ex units are resolved using the font size value", and in `font-size` itself "using the inherited font size value"; "The rem unit is resolved using the initial font size value", and `font-size` "defaults to gtk-font-name setting". So the type scale is in `em`. **Unverified:** whether `font-size` takes a percentage (the page doesn't say), which is why none is used | docs.gtk.org, GTK CSS Properties (Basic types; the `font-size` row). Fallback for compounding: `rem`; for an unreadable `em`: `pt` computed from `gtk-font-name` |
+| `line-height`, `letter-spacing` | Both exist (`line-height` since GTK 4.6, `letter-spacing` listed with no version). Neither is used: the type scale is sizes and two weights | docs.gtk.org, GTK CSS Properties |
+| The sizes of libadwaita's text classes | Not stated on its style-classes page, which says only that `.caption` and `.caption-heading` "make text smaller" and `.heading` "uses the default text size". No GNOME percentages are cited; the 1.2 ratio and the four sizes are this design's | gnome.pages.gitlab.gnome.org/libadwaita, Style classes |
+| WCAG 1.4.11 and inactive components | Verified: "Visual information required to identify user interface components and states, except for inactive components"; an inactive component is one that is "visible but not currently operable". The dimmed toggles are exempt, and the design still makes the pressed one readable (row 14's pair is for the pressed icon buttons, which are operable). Focus: "the visual focus indicator for a component must have sufficient contrast against the adjacent background" | w3.org, Understanding SC 1.4.11 (the Success Criterion, the inactive-component note, the focus note) |
+| WCAG 1.4.3, 2.4.7, 2.5.3 | Quoted from knowledge, **not re-read today**: 4.5:1 for text, visible focus, and an accessible name that contains the visible label | WCAG 2.2 |
+| What Anthropic's frontend guidance asks | Read: choices from the subject, "the core base palette as 4–6 named hex values", a quality floor with visible keyboard focus and "visually accessible" colour, non-user-triggered motion "sparingly", and five clusters of generic defaults ([Answers decided on 2026-11-19, Task 11](#answers-decided-on-2026-11-19-task-11)). The tool summarised the file, so its wording is partial | github.com/anthropics/skills, `skills/frontend-design/SKILL.md` |
+| `.linked button:checked:disabled` | **Unverified:** that a `GtkToggleButton` that is active and insensitive carries `:checked` and `:disabled` together (GTK's state flags are independent, so it should), and that the selector wins over the plain rules (it has the higher specificity). The layer 3 test reads the accessible states (checked, not enabled) and the stylesheet's text; no pixel is read | Fallback: no rule, and the toggles show the pressed one by the plain `:checked` look, as insensitive |
+| `switch:checked > slider` | **Unverified** as a selector: GTK's switch has the nodes `switch` and `slider`, and `gtk_switch_set_state` sets `:checked` on the switch (`gtk/gtkswitch.c`, read 2026-11-11, [Start at boot](#the-switch)). If the child combinator doesn't match, `switch:checked slider` does | The window test for the three switches reads the slider's colour in a rendered tree, or this design's table is the fallback |
+| An insensitive widget takes no focus | Relied on, **unverified here**: the Tab order drops Dark and Light while they're dimmed | The layer 4 run reads each control's focusable state |
+| The Theme card's height, about 175 px | **Unverified:** an estimate from the other cards' numbers. The window's size and the table in [Size and scrolling](#size-and-scrolling) change with it; the tests compare the window with its own content | The Task 9 window tests |
+| Resolving at start, before the service has answered | The app resolves with the defaults (on, dark) until the first state arrives, so a user of OpenDeepCool's light theme may see the system's for a moment. **Unverified** whether it is visible | Present the window after the first answer, as the not-available screen's fallback says |

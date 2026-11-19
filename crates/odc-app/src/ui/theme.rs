@@ -1,7 +1,8 @@
-//! The theme in the window (Phase 10 plan, Task 7; `docs/design/settings-app.md`, Theme): the
-//! current Omarchy theme, read from `<state>/current/theme`, where `<state>` is
-//! `~/.local/state/omarchy` or `--omarchy-state`, and followed live; OpenDeepCool's default theme
-//! where there's none.
+//! The Omarchy theme for the window (Phase 10 plan, Task 7; `docs/design/settings-app.md`,
+//! Theme): the current Omarchy theme, read from `<state>/current/theme`, where `<state>` is
+//! `~/.local/state/omarchy` or `--omarchy-state`, and followed live. Whether to show it is the
+//! window's to decide (Phase 11a Task 11: with the service's two theme settings and the system's
+//! preference); this module only tells it what Omarchy has, or that it has nothing.
 //!
 //! Omarchy switches theme by staging it in `current/next-theme`, removing `current/theme` and
 //! moving the staged folder in its place (its `omarchy-theme-set`, read 2026-11-06), so a
@@ -32,33 +33,36 @@ pub fn theme_dir(state: &Path) -> PathBuf {
     state.join("current").join("theme")
 }
 
-/// Reads the theme in `state`, or the default without one; the source and each problem go to
-/// `log`, one line each.
-pub fn load(state: Option<&Path>, log: &dyn Fn(&str)) -> Theme {
+/// Reads the Omarchy theme in `state`: `None` when there is none, a `colors.toml` that is missing
+/// or isn't TOML counting as none (the design's rule for "found"); each problem goes to `log`,
+/// one line each.
+pub fn load(state: Option<&Path>, log: &dyn Fn(&str)) -> Option<Theme> {
     let dir = state.map(theme_dir);
     let read = |name: &str| {
         dir.as_ref()
             .and_then(|d| fs::read_to_string(d.join(name)).ok())
     };
-    let colors = read("colors.toml");
-    let theme = theme::theme(colors.as_deref(), read("shell.toml").as_deref());
+    let colors = read("colors.toml")?;
+    if let Err(error) = colors.parse::<toml::Table>() {
+        log(&format!(
+            "theme: colors.toml: not TOML ({}); there is no Omarchy theme",
+            error.to_string().lines().next().unwrap_or_default()
+        ));
+        return None;
+    }
+    let theme = theme::theme(Some(&colors), read("shell.toml").as_deref());
     for problem in &theme.problems {
         log(&format!("theme: {problem}"));
     }
-    theme
+    Some(theme)
 }
 
 fn source(theme_found: bool) -> &'static str {
     if theme_found {
         "the Omarchy theme"
     } else {
-        "the default theme"
+        "no Omarchy theme"
     }
-}
-
-/// Whether `state` holds a theme to read.
-fn has_theme(state: Option<&Path>) -> bool {
-    state.is_some_and(|s| theme_dir(s).join("colors.toml").is_file())
 }
 
 /// The folders watched for `state`: each of `state`, `current/` and `current/theme/` that exists,
@@ -85,7 +89,8 @@ struct Inner {
     window: WeakWindow,
     state: PathBuf,
     log: Box<dyn Fn(&str)>,
-    tokens: RefCell<Tokens>,
+    /// The Omarchy theme the window was given last.
+    tokens: RefCell<Option<Tokens>>,
     monitors: RefCell<Vec<gio::FileMonitor>>,
     timer: RefCell<Option<glib::SourceId>>,
 }
@@ -95,19 +100,21 @@ struct Inner {
 pub struct LiveTheme(Rc<Inner>);
 
 impl LiveTheme {
-    /// The theme in `state` for a window about to be built, with the source logged.
-    pub fn first(state: Option<&Path>, log: &dyn Fn(&str)) -> Theme {
+    /// The Omarchy theme in `state` for a window about to be built, if there is one, with the
+    /// source logged.
+    pub fn first(state: Option<&Path>, log: &dyn Fn(&str)) -> Option<Theme> {
         let theme = load(state, log);
-        log(&format!("theme: {}", source(has_theme(state))));
+        log(&format!("theme: {}", source(theme.is_some())));
         theme
     }
 
-    /// Follows `state` for `window`, which shows `tokens` now. Without a state folder, as away
-    /// from Omarchy with no home folder, there's nothing to follow.
+    /// Follows `state` for `window`, which was given `tokens` (`None`: no Omarchy theme) now.
+    /// Without a state folder, as away from Omarchy with no home folder, there's nothing to
+    /// follow.
     pub fn follow(
         window: &Window,
         state: Option<PathBuf>,
-        tokens: Tokens,
+        tokens: Option<Tokens>,
         log: impl Fn(&str) + 'static,
     ) -> Option<LiveTheme> {
         let live = LiveTheme(Rc::new(Inner {
@@ -172,17 +179,17 @@ impl LiveTheme {
             return;
         };
         let state = Some(self.0.state.as_path());
-        let theme = load(state, &*self.0.log);
-        if theme.tokens == *self.0.tokens.borrow() {
+        let tokens = load(state, &*self.0.log).map(|theme| theme.tokens);
+        if tokens == *self.0.tokens.borrow() {
             return;
         }
-        window.set_theme(&theme.tokens);
-        *self.0.tokens.borrow_mut() = theme.tokens;
-        (self.0.log)(&format!("theme: reloaded, {}", source(has_theme(state))));
+        window.omarchy_theme(tokens);
+        *self.0.tokens.borrow_mut() = tokens;
+        (self.0.log)(&format!("theme: reloaded, {}", source(tokens.is_some())));
     }
 
-    /// The tokens the window shows, for the tests.
-    pub fn tokens(&self) -> Tokens {
+    /// The Omarchy theme the window was given last, for the tests.
+    pub fn tokens(&self) -> Option<Tokens> {
         *self.0.tokens.borrow()
     }
 }

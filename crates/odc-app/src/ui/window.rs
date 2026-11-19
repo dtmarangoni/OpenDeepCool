@@ -27,6 +27,7 @@ use super::size;
 use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::boot::{self, Boot, Place};
+use crate::choice::{self, Preference, Source};
 use crate::model::{
     Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Ui, View,
     view,
@@ -104,6 +105,13 @@ struct Inner {
     /// The scrolled window around everything under the header bar, and the preview column's.
     window_scroller: gtk::ScrolledWindow,
     column_scroller: gtk::ScrolledWindow,
+    /// The Omarchy theme, when there is one, and what the window shows now.
+    omarchy: Cell<Option<Tokens>>,
+    shown_tokens: Cell<Option<Tokens>>,
+    /// The service's two theme settings, as it last said (on, dark before it first says), and
+    /// the inputs the theme was last resolved from.
+    theme_settings: Cell<(bool, bool)>,
+    resolved_from: Cell<Option<choice::Inputs>>,
     /// The window is setting the gear itself: its `toggled` is no request.
     applying: Cell<bool>,
     feedback: gtk::Box,
@@ -152,6 +160,27 @@ pub struct WeakWindow(Weak<Inner>);
 impl WeakWindow {
     pub fn upgrade(&self) -> Option<Window> {
         self.0.upgrade().map(Window)
+    }
+}
+
+/// GTK's `gtk-interface-color-scheme` as the app's [`Preference`].
+fn preference_of(settings: &gtk::Settings) -> Preference {
+    match settings.gtk_interface_color_scheme() {
+        gtk::InterfaceColorScheme::Unsupported => Preference::Unsupported,
+        gtk::InterfaceColorScheme::Dark => Preference::Dark,
+        gtk::InterfaceColorScheme::Light => Preference::Light,
+        _ => Preference::Default,
+    }
+}
+
+/// A handler on GTK's settings, which outlive the window: disconnected when this is dropped.
+struct Unfollow(gtk::Settings, Option<glib::SignalHandlerId>);
+
+impl Drop for Unfollow {
+    fn drop(&mut self) {
+        if let Some(id) = self.1.take() {
+            self.0.disconnect(id);
+        }
     }
 }
 
@@ -449,6 +478,10 @@ impl Window {
             },
             window_scroller,
             column_scroller,
+            omarchy: Cell::new(None),
+            shown_tokens: Cell::new(None),
+            theme_settings: Cell::new((true, true)),
+            resolved_from: Cell::new(None),
             applying: Cell::new(false),
             feedback,
             feedback_icon,
@@ -492,8 +525,76 @@ impl Window {
         let window = Window(inner);
         window.connect(&close_action);
         window.set_theme(tokens);
+        window.follow_preference();
         window.render();
         window
+    }
+
+    /// Follows GTK's reading of the system's dark or light preference, which GDK fills from the
+    /// XDG desktop portal and keeps live (Phase 11a Task 1): read now, and again at each change.
+    fn follow_preference(&self) {
+        let Some(settings) = gtk::Settings::default() else {
+            return;
+        };
+        self.preference(preference_of(&settings));
+        let weak = Rc::downgrade(&self.0);
+        let id = settings.connect_gtk_interface_color_scheme_notify(move |settings| {
+            if let Some(inner) = weak.upgrade() {
+                Window(inner).preference(preference_of(settings));
+            }
+        });
+        // Dropped with the window: the settings outlive it.
+        self.keep(Unfollow(settings, Some(id)));
+    }
+
+    /// The system's preference, as GTK reports it.
+    fn preference(&self, preference: Preference) {
+        let changed = {
+            let mut inputs = self.0.inputs.borrow_mut();
+            let changed = inputs.ui.system.preference != preference;
+            inputs.ui.system.preference = preference;
+            changed
+        };
+        if changed {
+            self.apply_theme();
+            self.render();
+        }
+    }
+
+    /// The Omarchy theme as found now: `None` when there is none. The window shows it when the
+    /// system's theme is followed (Phase 11a Task 11: [`choice`]).
+    pub fn omarchy_theme(&self, tokens: Option<Tokens>) {
+        self.0.omarchy.set(tokens);
+        self.0.inputs.borrow_mut().ui.system.omarchy = tokens.map(|t| t.dark);
+        // Its colours may have changed with its mode as it was: resolved again whatever the
+        // inputs say.
+        self.0.resolved_from.set(None);
+        self.apply_theme();
+        self.render();
+    }
+
+    /// What the theme is made from now: the system's facts and the service's two settings.
+    fn theme_inputs(&self) -> choice::Inputs {
+        let (use_system, dark) = self.0.theme_settings.get();
+        choice::Inputs::new(self.0.inputs.borrow().ui.system, use_system, dark)
+    }
+
+    /// Resolves the theme again when what it is made from changed, and shows it.
+    fn apply_theme(&self) {
+        let inputs = self.theme_inputs();
+        if self.0.resolved_from.get() == Some(inputs) {
+            return;
+        }
+        self.0.resolved_from.set(Some(inputs));
+        let tokens = match inputs.source() {
+            Source::Omarchy => self
+                .0
+                .omarchy
+                .get()
+                .unwrap_or_else(|| Tokens::default_theme(true)),
+            Source::Own { dark } => Tokens::default_theme(dark),
+        };
+        self.set_theme(&tokens);
     }
 
     /// The signal handlers, each holding the window weakly.
@@ -615,9 +716,14 @@ impl Window {
             inputs.products = pci_ids::names(&text, &ids);
             inputs.gpu_ids = ids;
         }
+        self.0.theme_settings.set((
+            state.use_system_theme.unwrap_or(true),
+            state.dark_theme.unwrap_or(true),
+        ));
         inputs.service = Service::Up(Box::new(state));
         let wait = inputs.sending.follow(cooler, Instant::now());
         drop(inputs);
+        self.apply_theme();
         if cooler != Some(CoolerState::WriteFailed) {
             self.stop_sending_timer();
         }
@@ -654,6 +760,10 @@ impl Window {
 
     /// The theme: the CSS reloaded in the same provider, the preview redrawn once.
     pub fn set_theme(&self, tokens: &Tokens) {
+        if self.0.shown_tokens.get() == Some(*tokens) {
+            return;
+        }
+        self.0.shown_tokens.set(Some(*tokens));
         self.0.provider.load_from_string(&tokens.css());
         self.0.provider.set_prefers_color_scheme(if tokens.dark {
             gtk::InterfaceColorScheme::Dark

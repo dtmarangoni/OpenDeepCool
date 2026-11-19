@@ -1,7 +1,8 @@
 //! The Configuration page (`docs/design/settings-app.md`, Configuration page): its bar, with the
-//! back icon and the title, then every other setting, in cards. Display: the rotation, the
-//! temperature unit and, with more than one GPU, the GPU. Music: the peak dots and the bars' and
-//! peaks' fall. (Startup, the last card, is `startup.rs`.)
+//! back icon and the title, then every other setting, in cards. Theme: whether to follow the
+//! system's theme, and dark or light. Display: the rotation, the temperature unit and, with more
+//! than one GPU, the GPU. Music: the peak dots and the bars' and peaks' fall. (Startup, the last
+//! card, is `startup.rs`.)
 //! Each control asks the service at once and shows the new value once the service confirms it.
 
 use std::cell::{Cell, RefCell};
@@ -57,6 +58,8 @@ pub fn value_of(stop: FallStop) -> f64 {
 /// What the service confirmed, which each control goes back to until a change is confirmed.
 #[derive(Default)]
 struct Confirmed {
+    /// The pressed Dark or Light button the card shows.
+    dark: Option<bool>,
     rotation: u8,
     unit: Option<TemperatureUnit>,
     gpus: Vec<String>,
@@ -71,6 +74,11 @@ pub struct ConfigPage {
     cards: gtk::Box,
     /// Every row's label block, in one horizontal size group.
     labels: gtk::SizeGroup,
+    use_system: gtk::Switch,
+    dark: gtk::ToggleButton,
+    light: gtk::ToggleButton,
+    theme_icon: gtk::Image,
+    theme_line: gtk::Label,
     /// An empty box at the page's end, as tall as the Startup card, while the card is on the off
     /// screen: the page, and so the window, keeps its height (Size and scrolling).
     spacer: gtk::Box,
@@ -101,6 +109,9 @@ fn small(text: &str, classes: &[&str]) -> gtk::Label {
         .css_classes(classes)
         .build()
 }
+
+/// The most characters the Theme card's line asks room for.
+const THEME_LINE_CHARS: i32 = 72;
 
 /// The most characters a hint under a row's title asks room for: the label block, and so the
 /// column of controls, stays about this wide (Rows).
@@ -203,6 +214,72 @@ impl ConfigPage {
         let confirmed = Rc::new(RefCell::new(Confirmed::default()));
         let applying = Rc::new(Cell::new(false));
         let asked: Rc<[Cell<Option<FallStop>>; 2]> = Rc::new([Cell::new(None), Cell::new(None)]);
+
+        // Theme: whether to follow the system's, dark or light, and the line saying which is used.
+        let theme = card(&root, "Theme", "Theme settings", names);
+        let use_system = gtk::Switch::builder().build();
+        names.name(&use_system, "Use system theme");
+        let (s, a) = (Rc::clone(&send), Rc::clone(&applying));
+        // The handle moves at the press and the trough shows the saved state until the service
+        // confirms, as the Peak dots switch does.
+        use_system.connect_state_set(move |_, on| {
+            if !a.get() {
+                s(Request::SetUseSystemTheme(on));
+            }
+            glib::Propagation::Stop
+        });
+        row(&theme, &labels, "Use system theme", None, &use_system, true);
+        let dark = gtk::ToggleButton::builder().label("Dark").build();
+        let light = gtk::ToggleButton::builder()
+            .label("Light")
+            .group(&dark)
+            .build();
+        dark.set_active(true);
+        names.name(&dark, "Dark theme");
+        names.name(&light, "Light theme");
+        let dark_or_light = gtk::Box::builder()
+            .css_classes(["linked"])
+            .valign(gtk::Align::Center)
+            .build();
+        for (button, wanted) in [(&dark, true), (&light, false)] {
+            dark_or_light.append(button);
+            let (send, confirmed, applying) = (
+                Rc::clone(&send),
+                Rc::clone(&confirmed),
+                Rc::clone(&applying),
+            );
+            let (d, l) = (dark.clone(), light.clone());
+            button.connect_toggled(move |button| {
+                let saved = confirmed.borrow().dark;
+                if applying.get() || !button.is_active() || saved == Some(wanted) {
+                    return;
+                }
+                send(Request::SetDarkTheme(wanted));
+                // Back to the saved button until the service confirms the change.
+                applying.set(true);
+                if saved == Some(false) {
+                    l.set_active(true);
+                } else {
+                    d.set_active(true);
+                }
+                applying.set(false);
+            });
+        }
+        row(&theme, &labels, "Dark or light", None, &dark_or_light, true);
+        // The line at the card's foot: one line in every state, so the card keeps its height.
+        let theme_icon = gtk::Image::builder()
+            .icon_name("dialog-warning-symbolic")
+            .css_classes(["warn-text"])
+            .valign(gtk::Align::Start)
+            .visible(false)
+            .build();
+        let theme_line = small("", &["hint", "small", "muted"]);
+        theme_line.set_max_width_chars(THEME_LINE_CHARS);
+        let theme_status = group().spacing(6).build();
+        names.name(&theme_status, "Theme status");
+        theme_status.append(&theme_icon);
+        theme_status.append(&theme_line);
+        theme.append(&theme_status);
 
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
@@ -405,6 +482,11 @@ impl ConfigPage {
             root: page,
             cards: root,
             labels,
+            use_system,
+            dark,
+            light,
+            theme_icon,
+            theme_line,
             spacer,
             back,
             rotations,
@@ -477,6 +559,7 @@ impl ConfigPage {
         }
         self.applying.set(true);
         self.rotations[usize::from(rotation)].set_active(true);
+        self.show_theme(names, &page.theme);
         match page.unit {
             TemperatureUnit::Celsius => self.celsius.set_active(true),
             TemperatureUnit::Fahrenheit => self.fahrenheit.set_active(true),
@@ -543,6 +626,52 @@ impl ConfigPage {
         self.gpu_row
             .is_visible()
             .then(|| (in_use, shown(&self.gpu_hint)))
+    }
+
+    /// The Theme card: the switch, the pressed button and which controls can be used, and the
+    /// line. Called with the page's controls held (`applying`).
+    fn show_theme(&self, names: &Names, card: &model::ThemeCard) {
+        self.confirmed.borrow_mut().dark = Some(card.dark);
+        self.use_system.set_active(card.use_system);
+        self.use_system.set_state(card.use_system);
+        self.use_system.set_sensitive(card.use_system_sensitive);
+        if card.dark {
+            self.dark.set_active(true);
+        } else {
+            self.light.set_active(true);
+        }
+        for button in [&self.dark, &self.light] {
+            button.set_sensitive(card.toggles_sensitive);
+            names.describe(
+                button,
+                (!card.toggles_sensitive).then_some("Set by the system theme."),
+            );
+        }
+        self.theme_line.set_text(card.line.text());
+        let warning = card.line.is_warning();
+        self.theme_icon.set_visible(warning);
+        self.theme_line.set_css_classes(if warning {
+            &["hint", "small", "warn-text"]
+        } else {
+            &["hint", "small", "muted"]
+        });
+    }
+
+    /// What the Theme card shows, for the tests: the switch and its sensitivity, the pressed
+    /// button (true for Dark), whether the buttons can be used, and the line.
+    pub fn theme_shown(&self) -> (bool, bool, bool, bool, String) {
+        (
+            self.use_system.is_active(),
+            self.use_system.is_sensitive(),
+            self.dark.is_active(),
+            self.dark.is_sensitive() && self.light.is_sensitive(),
+            self.theme_line.text().to_string(),
+        )
+    }
+
+    /// Whether the line's warning icon shows, for the tests.
+    pub fn theme_warning(&self) -> bool {
+        self.theme_icon.is_visible()
     }
 
     /// Which unit toggle is on.

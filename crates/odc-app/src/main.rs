@@ -10,6 +10,7 @@ use odc_app::client::{Client, Places};
 use odc_app::flags::{self, Flags};
 use odc_app::pci_ids;
 use odc_app::startup::PKEXEC;
+use odc_app::theme::Tokens;
 use odc_app::ui::theme::LiveTheme;
 use odc_app::ui::window::Window;
 
@@ -56,7 +57,7 @@ fn main() -> ExitCode {
             return;
         }
         let state = state_dir(&flags);
-        let theme = LiveTheme::first(state.as_deref(), &log);
+        let omarchy = LiveTheme::first(state.as_deref(), &log).map(|theme| theme.tokens);
         let client = Client::new();
         if let Some(path) = &flags.frame_log
             && let Err(e) = client.log_frames(path)
@@ -67,9 +68,10 @@ fn main() -> ExitCode {
             app,
             client.sink(),
             PathBuf::from(pci_ids::PATH),
-            &theme.tokens,
+            &omarchy.unwrap_or_else(|| Tokens::default_theme(true)),
         );
-        if let Some(live) = LiveTheme::follow(&window, state, theme.tokens, log) {
+        window.omarchy_theme(omarchy);
+        if let Some(live) = LiveTheme::follow(&window, state, omarchy, log) {
             window.keep(live);
         }
         client.start(

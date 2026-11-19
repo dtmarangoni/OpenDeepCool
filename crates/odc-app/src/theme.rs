@@ -63,8 +63,10 @@ pub struct Tokens {
     /// Selected text's background.
     pub selection: Rgb,
     pub controls: Controls,
-    /// Corner radius in px: 0 with an Omarchy theme, 6 in the default theme.
+    /// Corner radius in px of a control: 0 with an Omarchy theme, 4 in OpenDeepCool's own.
     pub radius: u8,
+    /// The same of what holds controls (cards, the preview's frame, popovers): 0, and 10.
+    pub radius_box: u8,
 }
 
 /// A theme and what was wrong with its files, one line each, for the journal.
@@ -88,33 +90,37 @@ struct Palette {
     alphas: [f64; 6],
 }
 
+/// OpenDeepCool's own theme, dark: a graphite ground with the lit tone as its one accent
+/// (`docs/design/settings-app.md`, OpenDeepCool's own theme; Phase 11a Task 11).
 const DARK: Palette = Palette {
-    bg: Rgb([0x14, 0x17, 0x1b]),
-    surface: Rgb([0x1d, 0x21, 0x26]),
-    fg: Rgb([0xe7, 0xea, 0xee]),
-    muted: Rgb([0x9a, 0xa3, 0xae]),
-    accent: Rgb([0x4f, 0xc3, 0xb4]),
-    red: Rgb([0xf0, 0x8a, 0x80]),
-    yellow: Rgb([0xe6, 0xc1, 0x5c]),
-    green: Rgb([0x7f, 0xd4, 0x8f]),
-    alphas: [0.04, 0.40, 0.08, 0.30, 0.18, 0.22],
+    bg: Rgb([0x20, 0x23, 0x26]),
+    surface: Rgb([0x2a, 0x2e, 0x33]),
+    fg: Rgb([0xe6, 0xe3, 0xdc]),
+    muted: Rgb([0x9c, 0xa1, 0xaa]),
+    accent: Rgb([0xfb, 0xf8, 0xf0]),
+    red: Rgb([0xff, 0x7a, 0x66]),
+    yellow: Rgb([0xe8, 0xc1, 0x4f]),
+    green: Rgb([0x6d, 0xd2, 0x8b]),
+    alphas: [0.05, 0.44, 0.09, 0.60, 0.16, 0.24],
 };
 
+/// The same, light: a neutral aluminium ground, the dark tone as its accent.
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xf5, 0xf6, 0xf8]),
+    bg: Rgb([0xe4, 0xe6, 0xe9]),
     surface: Rgb([0xff, 0xff, 0xff]),
-    fg: Rgb([0x1a, 0x1d, 0x21]),
-    muted: Rgb([0x5a, 0x62, 0x6c]),
-    accent: Rgb([0x0b, 0x7a, 0x6e]),
-    red: Rgb([0xb4, 0x23, 0x18]),
-    yellow: Rgb([0x8a, 0x5d, 0x00]),
-    green: Rgb([0x1d, 0x7a, 0x35]),
-    alphas: [0.04, 0.50, 0.07, 0.35, 0.14, 0.20],
+    fg: Rgb([0x1b, 0x1e, 0x22]),
+    muted: Rgb([0x56, 0x5c, 0x66]),
+    accent: Rgb([0x0a, 0x0c, 0x0f]),
+    red: Rgb([0xb9, 0x3a, 0x22]),
+    yellow: Rgb([0x7a, 0x52, 0x00]),
+    green: Rgb([0x1d, 0x7a, 0x3f]),
+    alphas: [0.04, 0.54, 0.07, 0.72, 0.14, 0.20],
 };
 
-/// The default selection's accent over the background, as Omarchy's own `selection-fill-alpha`
-/// default (decisions log D31).
-const SELECTION_ALPHA: f64 = 0.35;
+/// The selection's accent over the background, as Omarchy's own `selection-fill-alpha` default
+/// (decisions log D31), lowered from 0.35 to 0.25 with OpenDeepCool's own light-toned accent
+/// (Phase 11a Task 11), so text on it keeps its contrast.
+const SELECTION_ALPHA: f64 = 0.25;
 
 impl Palette {
     fn of(dark: bool) -> &'static Palette {
@@ -138,7 +144,8 @@ impl Tokens {
             green: p.green,
             selection: blend(p.accent, p.bg, SELECTION_ALPHA),
             controls: default_controls(p.fg, p),
-            radius: 6,
+            radius: 4,
+            radius_box: 10,
         }
     }
 }
@@ -223,7 +230,8 @@ pub fn theme(colors: Option<&str>, shell: Option<&str>) -> Theme {
     let red = colour("red", p.red);
     let yellow = colour("yellow", p.yellow);
     let green = colour("green", p.green);
-    let selection = colour("selection", blend(p.accent, p.bg, SELECTION_ALPHA));
+    // A missing key takes this theme's own accent over its own background, not the default's.
+    let selection = colour("selection", blend(accent, bg, SELECTION_ALPHA));
     let controls = controls(shell, fg, p, &mut problems);
     Theme {
         tokens: Tokens {
@@ -239,6 +247,7 @@ pub fn theme(colors: Option<&str>, shell: Option<&str>) -> Theme {
             selection,
             controls,
             radius: 0,
+            radius_box: 0,
         },
         problems,
     }
@@ -552,7 +561,7 @@ impl Tokens {
         } else {
             widths.join(" ")
         };
-        let tokens: [(&str, String); 25] = [
+        let tokens: [(&str, String); 26] = [
             ("bg", self.bg.css()),
             ("surface", self.surface.css()),
             ("fg", self.fg.css()),
@@ -573,6 +582,7 @@ impl Tokens {
             ("ctl-selected-border", c.selected_border.css()),
             ("ctl-pressed-fill", c.pressed_fill.css()),
             ("radius", format!("{}px", self.radius)),
+            ("radius-box", format!("{}px", self.radius_box)),
             // Fixed alphas of the design's mockups (`app.css`), computed here so the
             // stylesheet needs no colour functions.
             ("line", fg_at(0.12)),
@@ -671,6 +681,7 @@ scale = 1.0
   --ctl-selected-border: rgba(228, 220, 203, 1);
   --ctl-pressed-fill: rgba(228, 220, 203, 0.22);
   --radius: 0px;
+  --radius-box: 0px;
   --line: rgba(228, 220, 203, 0.12);
   --code-bg: rgba(228, 220, 203, 0.08);
   --unlit: rgba(228, 220, 203, 0.12);
@@ -738,6 +749,13 @@ scale = 1.0
     fn each_missing_colour_takes_the_default_s_and_names_its_key() {
         let whole = theme(Some(COLORS), Some(SHELL)).tokens;
         for (key, get, default) in colour_keys() {
+            // A missing selection is the theme's own accent over its own background (Phase 11a
+            // Task 11), not the default theme's.
+            let default = if key == "selection" {
+                blend(whole.accent, whole.bg, SELECTION_ALPHA)
+            } else {
+                default
+            };
             let theme = theme(Some(&without(COLORS, key)), Some(SHELL));
             assert_eq!(get(&theme.tokens), default, "{key}");
             assert_eq!(
@@ -1053,7 +1071,7 @@ scale = 1.0
         let got = theme(None, Some(SHELL));
         assert_eq!(got.tokens, Tokens::default_theme(true));
         assert!(got.problems.is_empty());
-        assert_eq!(got.tokens.radius, 6);
+        assert_eq!((got.tokens.radius, got.tokens.radius_box), (4, 10));
         let got = theme(Some("mode = \"light\"\nnot toml ["), Some(SHELL));
         assert_eq!(got.tokens, Tokens::default_theme(true));
         assert_eq!(got.problems.len(), 1);
@@ -1197,17 +1215,18 @@ scale = 1.0
     // one decimal, and keep text at 4.5:1 and borders at 3:1.
     #[test]
     fn the_default_theme_has_the_contrast_the_design_states() {
-        let table: [(bool, [f64; 13]); 2] = [
+        let table: [(bool, [f64; 15]); 2] = [
             (
                 true,
                 [
-                    14.9, 13.4, 7.0, 6.3, 8.4, 7.5, 10.4, 9.4, 7.4, 10.0, 8.0, 3.4, 10.9,
+                    12.3, 10.7, 6.1, 5.3, 14.9, 12.9, 9.2, 7.9, 6.2, 8.5, 6.9, 3.5, 8.9, 9.6, 5.6,
                 ],
             ),
             (
                 false,
                 [
-                    15.6, 16.9, 5.7, 6.2, 4.8, 5.2, 5.3, 5.8, 6.1, 5.0, 12.7, 3.2, 12.3,
+                    13.4, 16.7, 5.4, 6.7, 15.7, 19.6, 5.5, 6.9, 4.5, 4.3, 12.6, 3.4, 10.6, 11.9,
+                    7.7,
                 ],
             ),
         ];
@@ -1229,6 +1248,13 @@ scale = 1.0
                 (4.5, ratio(t.fg, selected)),
                 (3.0, ratio(over(t.fg, t.bg, c.normal_border.alpha), t.bg)),
                 (3.0, ratio(t.fg, over(t.fg, t.bg, UNLIT_ALPHA))),
+                // The pressed gear and back icon: the accent on the selected fill over the
+                // background; and the text on the selection.
+                (
+                    3.0,
+                    ratio(t.accent, over(t.fg, t.bg, c.selected_fill.alpha)),
+                ),
+                (4.5, ratio(t.fg, t.selection)),
             ];
             for (i, ((need, value), want)) in got.iter().zip(want).enumerate() {
                 assert!(value >= need, "dark {dark}, check {i}: {value:.2} < {need}");
