@@ -199,15 +199,13 @@ pub fn strip_of(mode: u16, readings: &[Option<Ratio>], fahrenheit: bool) -> Stri
             rows[top + r][wide - w..].copy_from_slice(band);
         }
     }
-    // One value centred, its odd spare column on the left; two values ending at column 14; a
-    // strip wider than the screen has its first column at column 2.
+    // One value or two, centred as one block by the widest, its odd spare column on the left
+    // (owner, 2026-11-18); a strip wider than the screen has its first column at column 2.
     let home = if wide > SIZE {
         2
-    } else if names.len() == 1 {
+    } else {
         let spare = SIZE - wide;
         spare - spare / 2 + 1
-    } else {
-        SIZE - wide + 1
     };
     Strip {
         rows,

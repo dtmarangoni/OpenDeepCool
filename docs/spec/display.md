@@ -139,10 +139,9 @@ So a one-digit number sits in the units place and the tens place stays blank, fo
 
 DeepCreative uses these fixed columns for one value and for two: it never centres. Everything ends at column 14, except `°C`, which ends at column 13.
 
-**OpenDeepCool: alignment** (owner, 2026-10-24). The picture is the number (digits 3 wide, a blank column after each) followed by its symbol, and is placed by its width:
-- **One value:** centred in the 14 columns. The spare columns are shared evenly; when their number is odd, the extra one goes on the left. So a single spare column is on the left and the picture ends at column 14 (`42%`, `65W`, `98°F`, as DeepCreative), and `7%` (9 wide, 5 spare) has 3 blank columns on the left and 2 on the right, columns 4–12.
-- **Two values:** both end at column 14, so their last digits and symbols line up. `°C` moves one column right of DeepCreative's place here.
-  - **Decided 2026-11-18, not yet built** (owner; [Phase 11a plan, Task 12](../prp/plans/phase-11a-settings-app-ui-review.plan.md)): two values are centred as one block instead. The wider value is placed by the one-value rule, with the extra spare column on the left, and the shorter value keeps its last digit and symbol under the longer one's. `42%` over `7%` doesn't change (the wider value is 13 wide); `5%` over `7%` (9 wide) moves from columns 6–14 to columns 4–12. This supersedes "both end at column 14" when it is built, together with the oracle, `frames/`, `odc-render` and the differential tests, which record the difference from DeepCreative as made on purpose. One-value modes and the rows of both bands don't change.
+**OpenDeepCool: alignment** (owner, 2026-10-24; pairs, 2026-11-18). The picture is the number (digits 3 wide, a blank column after each) followed by its symbol, and is placed by its width, for one value and for two alike: centred in the 14 columns. The spare columns are shared evenly; when their number is odd, the extra one goes on the left.
+- **One value:** a single spare column is on the left and the picture ends at column 14 (`42%`, `65W`, `98°F`, as DeepCreative), and `7%` (9 wide, 5 spare) has 3 blank columns on the left and 2 on the right, columns 4–12.
+- **Two values** (owner, 2026-11-18: DeepCreative's right-sided pairs are not kept): both values end at the same column, so their last digits and symbols line up, and the pair is centred as one block, as the wider value would be alone. So `42%` over `7%` doesn't move (the wider value is 13 wide, one spare column on the left), `5%` over `7%` (9 wide) takes columns 4–12, and a `°C` pair of two-digit values (12 wide) takes columns 2–13. The rows of both bands don't change. This differs from DeepCreative on purpose, which draws a pair ending at column 14 (`°C` at 13): the oracle, the expected frames and the differential tests record it.
 
 ## Scrolling layout (temperature in °F, and power)
 
@@ -228,7 +227,7 @@ The rules above as one procedure, which the Rust implementation and the test ora
   4. If it's moving: *x* = *x* − 1, then while *x* ≤ *h* − *L*: *x* = *x* + *L*.
 - **A reset** (start-up, a mode switch, a rotation change, a unit change in a mode that shows a temperature, another GPU, Refresh): the new picture, *x* = *h*, moving if it needs to scroll.
 - **A new picture without a reset** (a reading changed):
-  - **while the strip is stopped and the new picture doesn't need to scroll:** it's drawn at its new home, *x* = *h*. A stopped picture is always at home, so one value is re-centred and two values keep ending at column 14 (S9; owner, 2026-10-29);
+  - **while the strip is stopped and the new picture doesn't need to scroll:** it's drawn at its new home, *x* = *h*. A stopped picture is always at home, so it is re-centred, a pair by its wider value (S9; owner, 2026-10-29 and 2026-11-18);
   - **otherwise:** the copy whose first column is on the screen, the rightmost one if two are, keeps its first column where it was; if none is, the copy at *x* does. With the new *h* and *L*, while *x* ≤ *h* − *L*: *x* = *x* + *L*. *x* may end up right of *h*, for example a centred `7%` (*x* = 4) turning into `100%` (*h* = 2): the strip then moves left from where it is. The strip starts moving if the new picture needs to scroll, and a moving strip keeps moving.
 - **Choosing what is already set**, and a unit change in a mode without a temperature: nothing changes.
 
@@ -248,7 +247,7 @@ The display's behaviour over time, as the automated tests of OpenDeepCool's Rust
 | S6 | 100 or more → 99 or less, one column after home (*k* = 1) | *L* − 1 more frames, then stops at home. Tested for every *k* from 0 to *L* − 1; at *k* = 0, still at home and not yet moved on, it stops at once |
 | S7 | Rounding at the limit (the nearest whole number, halves up; owner, 2026-10-26) | Usage 99.49 → `99` static, 99.5 → `100` scrolls; Memory Load 99.49 → `99`, 99.5 → `100`; °C 99.49 and 99.5; °F: 37.49 °C → 99.48 → `99°F` static, 37.5 °C → 99.5 → `100°F` scrolls; power 99.49 and 99.5 |
 | S8 | Length changes while scrolling: 3 ↔ 4 digits (999 ↔ 1000), and past the cap (9999 → 10000 → 9999) | The first digit place stays put; the cycle grows or shrinks (21 ↔ 25); 10000 draws `9999`, so the frames are the same as at 9999; home is still reached and stopped at |
-| S9 | Length changes while static: 9 ↔ 10 | One value is re-centred: `9%` in columns 4–12, `10%` in 2–14. Two values stay ending at column 14 |
+| S9 | Length changes while static: 9 ↔ 10 | One value is re-centred: `9%` in columns 4–12, `10%` in 2–14. Two values are re-centred as one block by the wider one's width, and still end at the same column |
 | S10 | Two values, one 100 or more and the other 99 or less | Both scroll together, last digits aligned; then each of the two crosses the limit in turn, both at once, and one up while the other comes down on the same tick (it keeps scrolling) |
 | S10b | Two values scrolling, lengths changing: the longer one grows or shrinks, the shorter one grows past it (`1000` over `65` → `99` over `1500`) | The strip's first column stays put; the shorter value stays aligned to the longer one's right end |
 | S11 | A value becomes unavailable, or comes back: while static, while scrolling, in one or both bands, and → a value of 100 or more | Dashes take two digit places, with the symbol; the movement rules don't change |

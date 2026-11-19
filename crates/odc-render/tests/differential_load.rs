@@ -40,6 +40,13 @@ fn differs(readings: &[Option<Exact>]) -> Option<&'static str> {
             "one value below 10: OpenDeepCool centres it, DeepCreative uses the units place",
         );
     }
+    // A pair is centred as one block by its wider value (owner, 2026-11-18). Where one value has
+    // two digits that is the columns DeepCreative uses; where both have one, it is not.
+    if whole.len() == 2 && whole.iter().all(|&n| n < 10) {
+        return Some(
+            "two values below 10: OpenDeepCool centres the pair, DeepCreative ends it at column 14",
+        );
+    }
     None
 }
 

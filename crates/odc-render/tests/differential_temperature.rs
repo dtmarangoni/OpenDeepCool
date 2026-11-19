@@ -69,13 +69,18 @@ fn compare(readings: &[Option<Exact>], in_fahrenheit: bool) -> Result<Compare, &
         }
         return Ok(Compare::Scrolling);
     }
-    if two {
-        return Err("OpenDeepCool ends `°C` at column 14 in two-value modes (owner, 2026-10-24)");
+    // A pair of `°C` is centred as one block by its wider value (owner, 2026-11-18): where one
+    // value has two digits that is DeepCreative's columns, ending at 13; where both have one, it
+    // is not.
+    if two && numbers.iter().all(|&n| n < 10) {
+        return Err(
+            "two values below 10: OpenDeepCool centres the pair, DeepCreative ends it at column 13",
+        );
     }
     if numbers.iter().any(|&n| n >= 100) {
         return Err("a value of 100 or more: DeepCreative caps it at 99, OpenDeepCool scrolls");
     }
-    if numbers.iter().any(|&n| n < 10) {
+    if !two && numbers.iter().any(|&n| n < 10) {
         return Err(
             "one value below 10: OpenDeepCool centres it, DeepCreative uses the units place",
         );
@@ -166,10 +171,9 @@ fn every_captured_step_where_both_rules_agree_matches_pixel_for_pixel() {
         for (why, labels) in &skipped {
             println!("  skipped {} ({why}): {}", labels.len(), labels.join("; "));
         }
-        // Two values end at column 14 in °C, so only °F compares in mode 9 (Phase 8 plan, Task 6).
-        if metrics.len() == 1 {
-            assert!(celsius > 0, "mode {}: no °C step compared", mode.number());
-        }
+        // A pair of °C is centred as one block, which is DeepCreative's columns where one value
+        // has two digits (Phase 11a Task 12), so °C compares in mode 9 too.
+        assert!(celsius > 0, "mode {}: no °C step compared", mode.number());
         assert!(
             fahrenheit_steps > 0,
             "mode {}: no °F step compared",

@@ -54,17 +54,42 @@ fn one_value_of_every_length() {
     }
 }
 
+/// A picture `w` wide at `home` fits 14 columns centred as one block: the spare columns shared
+/// evenly, an odd one on the left (`docs/spec/display.md`, OpenDeepCool: alignment); a picture
+/// wider than the screen starts at column 2.
+fn centred_home(w: i32) -> i32 {
+    if w > 14 {
+        return 2;
+    }
+    let (left, right) = (7 - w / 2, 14 - w - (7 - w / 2));
+    // The odd spare column is on the left, so the two margins differ by 0 or 1.
+    assert!((0..=1).contains(&(left - right)), "{w}: {left} and {right}");
+    left + 1
+}
+
+// Two values end at the same column, and the pair is centred as one block by its wider value,
+// as that value would be alone (owner, 2026-11-18): every pair of lengths.
 #[test]
-fn two_values_of_every_length_end_at_the_same_column() {
+fn two_values_of_every_length_are_centred_and_end_at_the_same_column() {
     for (top, top_places) in LENGTHS {
         for (bottom, bottom_places) in LENGTHS {
             let p = layout(&[band(top), band(bottom)]);
             let w = i32::try_from(4 * top_places.max(bottom_places) + 5).unwrap();
-            let home = if w > 14 { 2 } else { 15 - w };
             let cycle = w + 4.max(21 - w);
             assert_eq!(
                 (p.width(), p.cycle(), p.home(), p.must_scroll()),
-                (w, cycle, home, scrolls(top) || scrolls(bottom)),
+                (w, cycle, centred_home(w), scrolls(top) || scrolls(bottom)),
+                "{top:?} over {bottom:?}"
+            );
+            // The same home as the wider value alone.
+            let wider = if top_places >= bottom_places {
+                top
+            } else {
+                bottom
+            };
+            assert_eq!(
+                p.home(),
+                layout(&[band(wider)]).home(),
                 "{top:?} over {bottom:?}"
             );
         }
@@ -105,17 +130,16 @@ fn one_value_of_every_length_with_each_symbol() {
 }
 
 #[test]
-fn two_values_of_every_length_end_at_the_same_column_with_each_symbol() {
+fn two_values_of_every_length_are_centred_with_each_symbol() {
     for (symbol, symbol_width) in [(&CELSIUS, 4), (&FAHRENHEIT, 5), (&WATT, 5)] {
         for (top, top_places) in LENGTHS {
             for (bottom, bottom_places) in LENGTHS {
                 let p = layout(&[band_of(top, symbol), band_of(bottom, symbol)]);
                 let w = i32::try_from(4 * top_places.max(bottom_places) + symbol_width).unwrap();
-                let home = if w > 14 { 2 } else { 15 - w };
                 let cycle = w + 4.max(21 - w);
                 assert_eq!(
                     (p.width(), p.cycle(), p.home(), p.must_scroll()),
-                    (w, cycle, home, scrolls(top) || scrolls(bottom)),
+                    (w, cycle, centred_home(w), scrolls(top) || scrolls(bottom)),
                     "{top:?} over {bottom:?} with {symbol:?}"
                 );
             }
@@ -123,9 +147,10 @@ fn two_values_of_every_length_end_at_the_same_column_with_each_symbol() {
     }
 }
 
-// Phase 8 plan, Task 2: one-value `57°C` is 12 wide at home 2, `5°C` 8 wide at home 4; two-value
-// `57°C` over `38°C` starts at column 3 and ends at 14, `°C` one column right of DeepCreative's
-// place (display.md, OpenDeepCool: alignment).
+// Phase 8 plan, Task 2, and Phase 11a Task 12: one-value `57°C` is 12 wide at home 2, `5°C` 8 wide
+// at home 4; two-value `57°C` over `38°C` is the same 12 wide, so it is centred the same, columns
+// 2 to 13, where DeepCreative ends it at 13 from column 2 and, before Task 12, OpenDeepCool at 14
+// (display.md, OpenDeepCool: alignment).
 #[test]
 fn temperatures_in_celsius_sit_where_the_alignment_rule_puts_them() {
     let one = layout(&[band_of(Shown::Number(57), &CELSIUS)]);
@@ -138,9 +163,15 @@ fn temperatures_in_celsius_sit_where_the_alignment_rule_puts_them() {
         band_of(Shown::Number(57), &CELSIUS),
         band_of(Shown::Number(38), &CELSIUS),
     ]);
-    assert_eq!(two.home(), 3);
+    assert_eq!(two.home(), 2);
     let columns = lit_columns(&two);
-    assert_eq!((columns[0], *columns.last().unwrap()), (3, 14));
+    assert_eq!((columns[0], *columns.last().unwrap()), (2, 13));
+    // A pair of one-digit values is 8 wide, as the single `5°C` is: columns 4 to 11.
+    let small = layout(&[
+        band_of(Shown::Number(5), &CELSIUS),
+        band_of(Shown::Number(7), &CELSIUS),
+    ]);
+    assert_eq!(small.home(), 4);
 }
 
 /// The columns of `picture` at home that hold a lit pixel, from 1.
@@ -152,7 +183,7 @@ fn lit_columns(picture: &Picture) -> Vec<usize> {
 }
 
 // display.md, OpenDeepCool: alignment: `7%` takes columns 4–12; `42%` ends at column 14 with one
-// spare column on the left.
+// spare column on the left. A pair is centred by its wider value: `42%` over `7%` is as `42%`.
 #[test]
 fn a_static_value_sits_where_the_alignment_rule_puts_it() {
     let seven = layout(&[band(Shown::Number(7))]);

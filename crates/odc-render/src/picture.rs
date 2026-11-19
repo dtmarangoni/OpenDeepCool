@@ -99,17 +99,14 @@ pub(crate) fn layout_at(bands: &[Band], tops: &[usize]) -> Picture {
             column[top - 1..top + 4].copy_from_slice(pixels);
         }
     }
+    // One value or two, the picture is centred as one block by its widest value, an odd spare
+    // column on the left (`docs/spec/display.md`, OpenDeepCool: alignment; owner, 2026-11-18:
+    // a pair no longer ends at column 14). The values end at the same column inside it.
     let home = if width > SIZE {
         2
     } else {
         let spare = SIZE - width;
-        // One value centred, an odd spare column on the left; two values ending at column 14.
-        let left = if bands.len() == 1 {
-            spare - spare / 2
-        } else {
-            spare
-        };
-        left + 1
+        spare - spare / 2 + 1
     };
     Picture {
         columns,
