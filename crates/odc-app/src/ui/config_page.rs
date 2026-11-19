@@ -459,10 +459,6 @@ impl ConfigPage {
         }
         row(&music, &labels, "Bar fall", None, &bar_fall, false);
         row(&music, &labels, "Peak fall", None, &peak_fall, false);
-        music.append(&small(
-            "For every Music option except Dancer. Changes show on the next frame.",
-            &["muted", "small"],
-        ));
 
         // The page bar: the back icon, then the title (Window, Page bar).
         let back = gtk::Button::builder().action_name("win.back").build();

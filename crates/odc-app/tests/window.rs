@@ -23,7 +23,8 @@ use odc_protocol::Frame;
 use odc_testkit::expected::load_mode;
 
 use common::{
-    Check, Renderer, base, close, dots_of, near, run_for, run_until, save_png, shown, shown_saying,
+    Check, Renderer, base, close, dots_of, label_texts, near, run_for, run_until, save_png, shown,
+    shown_saying,
 };
 
 fn main() -> ExitCode {
@@ -311,18 +312,6 @@ fn banners_and_states(app: &gtk::Application) {
     assert_banners(&window, None, "down after a refusal");
     assert_eq!(window.screen(), ("main".to_owned(), "off".to_owned()));
     close(window);
-}
-
-/// The text of every label under `widget`.
-fn label_texts(widget: &gtk::Widget, out: &mut Vec<String>) {
-    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
-        out.push(label.text().to_string());
-    }
-    let mut child = widget.first_child();
-    while let Some(next) = child {
-        label_texts(&next, out);
-        child = next.next_sibling();
-    }
 }
 
 /// The app has no terminal commands, lead-in or Copy button anywhere (owner, 2026-11-19): they

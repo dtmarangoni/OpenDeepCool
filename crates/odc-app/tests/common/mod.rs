@@ -203,6 +203,18 @@ pub fn close(window: Window) {
     run_for(Duration::from_millis(20));
 }
 
+/// The text of every label under `widget`.
+pub fn label_texts(widget: &gtk::Widget, out: &mut Vec<String>) {
+    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+        out.push(label.text().to_string());
+    }
+    let mut child = widget.first_child();
+    while let Some(next) = child {
+        label_texts(&next, out);
+        child = next.next_sibling();
+    }
+}
+
 /// The design's sample values as the service's `Readings` would give them.
 pub fn sample_readings() -> HashMap<String, (i64, u64)> {
     let values = odc_app::live::sample_values();

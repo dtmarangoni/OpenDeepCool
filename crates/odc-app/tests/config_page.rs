@@ -15,13 +15,13 @@ use odc_app::ui::window::Window;
 use odc_app::ui::{Reason, Refused, Request};
 use odc_ipc::{FallStop, Gpu, GpuKind, State, TemperatureUnit};
 
-use common::{Check, Renderer, base, close, run_for, save_png, shown};
+use common::{Check, Renderer, base, close, label_texts, run_for, save_png, shown};
 
 fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 6] = [
+const CHECKS: [(&str, Check); 7] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -30,6 +30,10 @@ const CHECKS: [(&str, Check); 6] = [
     ),
     ("the_gpu_row_with_one_gpu_and_several", gpu_row),
     ("a_refused_change_shows_the_saved_value_again", refused),
+    (
+        "the_sentences_the_owner_removed_stay_removed",
+        removed_lines,
+    ),
     ("the_page_saved_as_a_picture", picture_file),
 ];
 
@@ -176,6 +180,27 @@ fn unit_toggles(app: &gtk::Application) {
 }
 
 // Made-up GPUs (AGENTS.md rule 10), in the service's order.
+/// The sentences the owner took off the Configuration page (2026-11-19: Tasks 19 to 24 of Phase
+/// 11a) and the words each began with: none of them is on the page, in any card.
+const REMOVED: [(&str, &str); 1] = [("except Dancer", "the Music card's closing sentence")];
+
+// The page holds none of the sentences the owner removed.
+fn removed_lines(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    let mut texts = Vec::new();
+    label_texts(window.config_page().widget().upcast_ref(), &mut texts);
+    for (words, what) in REMOVED {
+        assert!(
+            texts.iter().all(|t| !t.contains(words)),
+            "{what} is back: {texts:?}"
+        );
+    }
+    close(window);
+}
+
 fn gpus() -> Vec<Gpu> {
     let gpu = |pci: &str, kind, has_rule| Gpu {
         pci: pci.to_owned(),

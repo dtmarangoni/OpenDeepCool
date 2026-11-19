@@ -389,7 +389,7 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
   | Text | `max-width-chars` | About |
   |---|---|---|
   | Banner text | 100 | 740 px, under the window's width |
-  | A hint or note under a card's rows (the Music hint, the Start at boot note) | 72 | the rows' 520 px |
+  | A hint or note under a card's rows (the Start at boot note) | 72 | the rows' 520 px |
   | The off screen's heading and text | 48 | centred |
   | The not-available message | 40 | the window's width less its 48 px of margin |
   | The preview column's lines, the label blocks' hints, the GPU box's lines | 28, 28, 40 | as built |
@@ -660,7 +660,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
 
   The toggles and the switches are shorter than a block of a title and a hint, so they centre against it. The dropdown's box and the scales hang from the top, level with the title, since a scale's marks and the dropdown's lines hang below them.
-- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
+- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Startup note) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
 - **Hidden rows.** The GPU row hides with one `set_visible(false)`, as it does today. The card's 14 px spacing skips hidden children (GtkBox), so a PC with one GPU has no gap there.
 - **Narrow windows.**
   - The window opens at the size of its content and isn't resizable by the user, so a page is narrower than its natural width only where the monitor is: the content is capped to the screen ([Size and scrolling](#size-and-scrolling)).
@@ -762,7 +762,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   - Bar fall defaults to Moderate, Peak fall to Slow.
   - A change calls `SetMusicBarFall` or `SetMusicPeakFall` with the stop's name when the value lands on a new stop.
   - Snapping to whole stops during a drag (with `round-digits` 0 and a `change-value` handler) is **unverified**.
-- **Hint:** "For every Music option except Dancer. Changes show on the next frame." In a mode without a spectrum, the change is only saved (music.md, point 7).
+- **No hint at the card's foot** (the sentence "For every Music option except Dancer. Changes show on the next frame." went on 2026-11-19). In a mode without a spectrum, the change is only saved (music.md, point 7).
 
 ### Startup
 

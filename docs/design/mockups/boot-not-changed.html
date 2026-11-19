@@ -856,7 +856,6 @@ function configPage() {
         <div class="row-r mid"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
       ${slider("bar", "Bar fall", S.barFall)}
       ${slider("peak", "Peak fall", S.peakFall)}
-      <div class="hint muted"><span>For every Music option except Dancer. Changes show on the next frame.</span></div>
     </section>
     ${bootCard("config")}
   </div></div>`;
