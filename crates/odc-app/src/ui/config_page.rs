@@ -229,6 +229,21 @@ impl ConfigPage {
             glib::Propagation::Stop
         });
         row(&theme, &labels, "Use system theme", None, &use_system, true);
+        // The line under Use system theme (owner, 2026-11-19; it was at the card's foot): one line
+        // in every state, so the card keeps its height.
+        let theme_icon = gtk::Image::builder()
+            .icon_name("dialog-warning-symbolic")
+            .css_classes(["warn-text"])
+            .valign(gtk::Align::Start)
+            .visible(false)
+            .build();
+        let theme_line = small("", &["hint", "small", "muted"]);
+        theme_line.set_max_width_chars(THEME_LINE_CHARS);
+        let theme_status = group().spacing(6).build();
+        names.name(&theme_status, "Theme status");
+        theme_status.append(&theme_icon);
+        theme_status.append(&theme_line);
+        theme.append(&theme_status);
         let dark = gtk::ToggleButton::builder().label("Dark").build();
         let light = gtk::ToggleButton::builder()
             .label("Light")
@@ -266,21 +281,6 @@ impl ConfigPage {
             });
         }
         row(&theme, &labels, "Dark or light", None, &dark_or_light, true);
-        // The line at the card's foot: one line in every state, so the card keeps its height.
-        let theme_icon = gtk::Image::builder()
-            .icon_name("dialog-warning-symbolic")
-            .css_classes(["warn-text"])
-            .valign(gtk::Align::Start)
-            .visible(false)
-            .build();
-        let theme_line = small("", &["hint", "small", "muted"]);
-        theme_line.set_max_width_chars(THEME_LINE_CHARS);
-        let theme_status = group().spacing(6).build();
-        names.name(&theme_status, "Theme status");
-        theme_status.append(&theme_icon);
-        theme_status.append(&theme_line);
-        theme.append(&theme_status);
-
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
         let rotations: [gtk::ToggleButton; 4] = std::array::from_fn(|r| {

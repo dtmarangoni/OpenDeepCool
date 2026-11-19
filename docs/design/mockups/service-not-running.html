@@ -676,7 +676,7 @@ function themeState() {
   else { dark = follow ? scheme !== "light" : darkPref; source = dark ? "dark" : "light"; }
   return { omarchy, scheme, useSystem, systemFound, follow, source, dark };
 }
-// The card's one line, in every state (so the card never changes height): what is used, or the warning.
+// The card's one line, under Use system theme, in every state (so the card never changes height): what is used, or the warning.
 function themeLine(t) {
   const own = `OpenDeepCool's ${t.dark ? "dark" : "light"} theme`;
   if (!t.systemFound) return { warn: true, text: "OpenDeepCool can't find the system's theme and is using its own." };
@@ -695,9 +695,9 @@ function themeCard() {
       aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
       <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r mid">${sys}</div></div>
+      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
       <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
         <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
-      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
     </section>`;
 }
 

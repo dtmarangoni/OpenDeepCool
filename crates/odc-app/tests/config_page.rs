@@ -21,7 +21,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 7] = [
+const CHECKS: [(&str, Check); 8] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -33,6 +33,10 @@ const CHECKS: [(&str, Check); 7] = [
     (
         "the_sentences_the_owner_removed_stay_removed",
         removed_lines,
+    ),
+    (
+        "the_theme_line_sits_under_use_system_theme_in_every_state",
+        theme_line_place,
     ),
     ("the_page_saved_as_a_picture", picture_file),
 ];
@@ -207,6 +211,49 @@ fn removed_lines(app: &gtk::Application) {
         assert!(
             texts.iter().all(|t| !t.contains(words)),
             "{what} is back: {texts:?}"
+        );
+    }
+    close(window);
+}
+
+// The line that says which theme is used sits directly under the Use system theme row and above
+// Dark or light, in every state of the card (owner, 2026-11-19; it was at the card's foot).
+fn theme_line_place(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    // The page opens once the service has answered.
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    for (what, state) in [
+        ("the system's theme, followed", with(|_| {})),
+        (
+            "OpenDeepCool's own dark theme",
+            with(|s| s.use_system_theme = Some(false)),
+        ),
+        (
+            "OpenDeepCool's own light theme",
+            with(|s| {
+                s.use_system_theme = Some(false);
+                s.dark_theme = Some(false);
+            }),
+        ),
+    ] {
+        window.state(state);
+        run_for(Duration::from_millis(250));
+        let page = window.config_page().cards().clone();
+        let place = |name: &str| {
+            find::<gtk::Widget>(&window, name)
+                .compute_bounds(&page)
+                .map(|b| (b.y(), b.y() + b.height()))
+                .unwrap_or_else(|| panic!("{name} has a place"))
+        };
+        let (switch, line, dark) = (
+            place("Use system theme"),
+            place("Theme status"),
+            place("Dark theme"),
+        );
+        assert!(
+            switch.1 <= line.0 + 1.0 && line.1 <= dark.0 + 1.0,
+            "{what}: the switch {switch:?}, the line {line:?}, the toggles {dark:?}"
         );
     }
     close(window);

@@ -175,7 +175,7 @@ Decided under the same delegation, for the owner's Theme card and OpenDeepCool's
 - **Where the card says what is in use, and why a control is dimmed:**
   - (a) tooltips: unreliable on insensitive widgets (**unverified**) and out of the keyboard's reach;
   - (b) a hint under each row's title that changes with the state: a hint that wraps changes the row's height, and the card's with it, and so the window's;
-  - (c) **chosen:** one line at the card's foot (the Music and Startup cards end in such a line), always one line, in every state, so the card never changes height: a plain sentence of what is used, or the warning. The dimmed controls also carry it as their accessible description.
+  - (c) **chosen:** one line (first at the card's foot, as the Music and Startup cards ended in such a line; since 2026-11-19 directly under Use system theme), always one line, in every state, so the card never changes height: a plain sentence of what is used, or the warning. The dimmed controls also carry it as their accessible description.
 - **When no system theme can be found:**
   - (a) hide "Use system theme": the owner asked for it disabled, with a warning;
   - (b) **chosen:** disabled and shown off, with the warning; the service's `UseSystemTheme` stays as it was, so a theme that appears later (an Omarchy theme installed, a portal started) is followed at once, which the default `true` asks for. The dark or light control is enabled, and its value is the service's `DarkTheme`.
@@ -678,13 +678,13 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 ┌ card ───────────────────────────────────────────────────────────────────────┐
 │ Theme                                                                       │
 │ Use system theme            ( ●  )                                          │
-│ Dark or light               [ Dark ][ Light ]    (dimmed while followed)    │
 │ Using the Omarchy theme.                                                    │
+│ Dark or light               [ Dark ][ Light ]    (dimmed while followed)    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
 - **Heading:** "Theme" (`GtkLabel`, class `card-heading`), as the other cards.
-- **Rows,** laid out as every row ([Rows](#rows)): a label block of the title alone (no hint: the titles say it, and the line below carries what a hint would), then the control, both blocks in the page's size group.
+- **Rows,** laid out as every row ([Rows](#rows)): a label block of the title alone (no hint: the titles say it, and the line under the first row carries what a hint would), then the control, both blocks in the page's size group.
 
   | Row | Title | Control | Accessible name |
   |---|---|---|---|
@@ -692,7 +692,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   | Dark or light | "Dark or light" | two grouped, linked `GtkToggleButton`s, `Dark` and `Light` (`gtk_toggle_button_set_group`, class `linked` on their box), `valign` center, as Rotation's | `Dark theme`, `Light theme` |
 
   The accessible names contain the visible words (WCAG 2.2 SC 2.5.3). The group of toggles is named by its row's title, as the unit's is.
-- **The line,** at the card's foot: a `GtkBox` (group `Theme status`) around a `GtkLabel` with the classes `hint`, `small` and `muted`, wrapping at 72 characters (`max-width-chars`), as the Music and Startup cards' lines. It is **one line in every state**, so the card never changes height and the window with it. In the warning state it has the warning icon in front and the `--yellow` colour (`warn-text`), a `GtkImage` of the same height as the text.
+- **The line,** directly under the Use system theme row, before Dark or light (owner, 2026-11-19; the design first put it at the card's foot): a `GtkBox` (group `Theme status`) around a `GtkLabel` with the classes `hint`, `small` and `muted`, wrapping at 72 characters (`max-width-chars`), as the Music and Startup cards' lines. It is **one line in every state**, so the card never changes height and the window with it. In the warning state it has the warning icon in front and the `--yellow` colour (`warn-text`), a `GtkImage` of the same height as the text.
 - **The look.** Everything is the stylesheet's, in tokens. Two rules are new, both needed by this card and written for every theme:
   - an insensitive toggle that is pressed shows its value: the selected fill, a `--muted` border, and the text in `--fg`, so it stays readable (the unpressed one keeps the muted text on the normal fill, as every insensitive control, without `opacity`):
 
