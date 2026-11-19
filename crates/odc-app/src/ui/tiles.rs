@@ -193,7 +193,7 @@ impl TileWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::live::{Live, follows_unit, sample_values};
+    use crate::live::{Live, sample_values};
     use odc_render::{MusicSettings, Unit, spectrum_height};
 
     // Only the temperature tiles follow the unit, and only the spectrum tiles the peak dots.
@@ -210,7 +210,12 @@ mod tests {
         for mode in Mode::all() {
             let unit_matters =
                 picture(mode, Unit::Celsius, true) != picture(mode, Unit::Fahrenheit, true);
-            assert_eq!(unit_matters, follows_unit(mode), "mode {}", mode.number());
+            assert_eq!(
+                unit_matters,
+                [7, 8, 9, 18, 19].contains(&mode.number()),
+                "mode {}",
+                mode.number()
+            );
             let peaks_matter =
                 picture(mode, Unit::Celsius, true) != picture(mode, Unit::Celsius, false);
             assert_eq!(
@@ -220,12 +225,5 @@ mod tests {
                 mode.number()
             );
         }
-        assert_eq!(
-            Mode::all()
-                .filter(|m| follows_unit(*m))
-                .map(Mode::number)
-                .collect::<Vec<_>>(),
-            [7, 8, 9, 18, 19]
-        );
     }
 }

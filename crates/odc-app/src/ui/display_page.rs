@@ -86,6 +86,9 @@ struct Motion {
     away: Cell<bool>,
     /// The system asks for reduced motion.
     reduced: Cell<bool>,
+    /// The input changed while no tile was visible, so no picture was redrawn: they are drawn
+    /// again from it when a tile is visible (design: Live tiles, When the tick runs).
+    stale: Cell<bool>,
     /// Steps taken since the app started, for the tests.
     steps: Cell<u64>,
 }
@@ -115,6 +118,7 @@ impl Motion {
             mapped: Cell::new(false),
             away: Cell::new(false),
             reduced: Cell::new(false),
+            stale: Cell::new(false),
             steps: Cell::new(0),
         });
         motion.push_all();
@@ -137,9 +141,14 @@ impl Motion {
         }
     }
 
-    /// Whether the tiles may move: on screen, the window shown, no reduced motion.
+    /// Whether a tile can be seen: on screen, the window shown.
+    fn visible(&self) -> bool {
+        self.mapped.get() && !self.away.get()
+    }
+
+    /// Whether the tiles may move: seen, and no reduced motion.
     fn allowed(&self) -> bool {
-        self.mapped.get() && !self.away.get() && !self.reduced.get()
+        self.visible() && !self.reduced.get()
     }
 
     fn moving(&self) -> bool {
@@ -147,9 +156,14 @@ impl Motion {
     }
 
     /// Starts the tick when the tiles may move and it isn't there, and stops it when they may
-    /// not and it is. A start draws every tile at home; a stop leaves every tile at rest.
+    /// not and it is. A start draws every tile at home; a stop leaves every tile at rest; tiles
+    /// seen again at rest are drawn from what the input became meanwhile.
     fn follow(self: &Rc<Self>) {
-        match (self.allowed(), self.moving()) {
+        let (allowed, moving) = (self.allowed(), self.moving());
+        if self.visible() && !allowed && !moving && self.stale.replace(false) {
+            self.rebuild();
+        }
+        match (allowed, moving) {
             (true, false) => {
                 self.rebuild();
                 self.beat.borrow_mut().restart();
@@ -183,6 +197,7 @@ impl Motion {
 
     /// Every tile at home, as the input says, and the sound not live until its first `Levels`.
     fn rebuild(&self) {
+        self.stale.set(false);
         let input = self.input.borrow();
         *self.live.borrow_mut() =
             Live::new(input.unit, input.live.music, input.live.values.clone());
@@ -216,6 +231,12 @@ impl Motion {
         };
         let previous = self.input.replace(next.clone());
         if previous == next {
+            return;
+        }
+        // Nothing is drawn while no tile can be seen: the input is taken in, and the pictures are
+        // drawn from it when one can.
+        if !self.visible() {
+            self.stale.set(true);
             return;
         }
         let restart = previous.live.restart != next.live.restart;

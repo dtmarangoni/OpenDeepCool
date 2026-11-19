@@ -12,13 +12,13 @@ use std::time::Duration;
 
 use gtk::glib;
 use gtk::prelude::*;
-use odc_app::live::{Live, sample_values};
+use odc_app::live::{Live, sample_values, values_from};
 use odc_app::ui::tiles::TileWidget;
 use odc_app::ui::window::{Window, away, reduced_motion};
 use odc_ipc::State;
 use odc_protocol::Frame;
 use odc_render::{COLUMNS, Mode, MusicSettings, Unit, Values};
-use odc_sensors::{Exact, Metric};
+use odc_sensors::Metric;
 
 use common::{Check, animations, base, close, run_for, run_until, sample_readings, shown};
 
@@ -26,7 +26,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 9] = [
+const CHECKS: [(&str, Check); 10] = [
     (
         "the_tick_exists_exactly_while_a_tile_is_on_screen",
         tick_follows_the_screen,
@@ -57,6 +57,10 @@ const CHECKS: [(&str, Check); 9] = [
         "the_tick_follows_a_tile_that_is_mapped_again_at_home",
         mapped_again,
     ),
+    (
+        "nothing_is_drawn_while_no_tile_is_on_screen_and_the_page_catches_up",
+        nothing_off_screen,
+    ),
 ];
 
 fn tiles(window: &Window) -> &[TileWidget] {
@@ -79,7 +83,12 @@ fn with(change: impl FnOnce(&mut State)) -> State {
 
 /// The tiles as a fresh `Live` shows them at home, in °C with the default Music settings.
 fn at_home(values: Values) -> Vec<Frame> {
-    let live = Live::new(Unit::Celsius, MusicSettings::default(), values);
+    at_home_in(Unit::Celsius, values)
+}
+
+/// [`at_home`] in `unit`.
+fn at_home_in(unit: Unit, values: Values) -> Vec<Frame> {
+    let live = Live::new(unit, MusicSettings::default(), values);
     Mode::all().map(|mode| *live.frame(mode)).collect()
 }
 
@@ -348,15 +357,8 @@ fn restart_events(app: &gtk::Application) {
     // Let the loops and strips move on.
     run_for(Duration::from_millis(600));
     let readings = readings_with(Metric::CpuUsage, 250);
-    let home = {
-        let mut values = Values::new();
-        for metric in Metric::ALL {
-            if let Some(&(n, d)) = readings.get(metric.spec_name()) {
-                values.set(metric, Exact::new(n, d));
-            }
-        }
-        at_home(values)
-    };
+    let values = values_from(Some(&readings));
+    let home = at_home(values.clone());
     assert_ne!(frames(&window), home, "the tiles have moved on");
     window.state(with(|s| {
         s.readings = Some(readings_with(Metric::CpuUsage, 250));
@@ -367,6 +369,54 @@ fn restart_events(app: &gtk::Application) {
     assert_ne!(frames(&window), home);
     window.refreshed();
     assert_eq!(frames(&window), home, "Refresh: every tile at home");
+    // A confirmed unit change: every tile at home in the new unit, the temperature tiles
+    // different from before.
+    run_for(Duration::from_millis(600));
+    let fahrenheit = at_home_in(Unit::Fahrenheit, values.clone());
+    assert_ne!(fahrenheit, home, "the unit shows in the temperature tiles");
+    window.state(with(|s| {
+        s.readings = Some(readings_with(Metric::CpuUsage, 250));
+        s.mode = Some(4);
+        s.temperature_unit = Some(odc_ipc::TemperatureUnit::Fahrenheit);
+    }));
+    assert_eq!(
+        frames(&window),
+        fahrenheit,
+        "a unit change: every tile at home"
+    );
+    // A confirmed GPU change: the same.
+    run_for(Duration::from_millis(600));
+    assert_ne!(frames(&window), fahrenheit);
+    window.state(with(|s| {
+        s.readings = Some(readings_with(Metric::CpuUsage, 250));
+        s.mode = Some(4);
+        s.temperature_unit = Some(odc_ipc::TemperatureUnit::Fahrenheit);
+        s.gpu_in_use = Some("0000:0a:00.0".to_owned());
+    }));
+    assert_eq!(
+        frames(&window),
+        fahrenheit,
+        "a GPU change: every tile at home"
+    );
+    // A Music setting restarts nothing: the pictures go on from where they are.
+    run_for(Duration::from_millis(600));
+    let moved = frames(&window);
+    window.state(with(|s| {
+        s.readings = Some(readings_with(Metric::CpuUsage, 250));
+        s.mode = Some(4);
+        s.temperature_unit = Some(odc_ipc::TemperatureUnit::Fahrenheit);
+        s.gpu_in_use = Some("0000:0a:00.0".to_owned());
+        s.music_peaks = Some(false);
+    }));
+    let after = frames(&window);
+    for n in 0..12 {
+        assert_eq!(
+            after[n],
+            moved[n],
+            "mode {} doesn't restart for a Music setting",
+            n + 1
+        );
+    }
     close(window);
 }
 
@@ -410,13 +460,54 @@ fn mapped_again(app: &gtk::Application) {
     WidgetExt::activate_action(window.widget(), "win.back", None).expect("back");
     // At once, as the page maps: every tile at home, before the first step.
     let readings = readings_with(Metric::CpuUsage, 250);
-    let mut values = Values::new();
-    for metric in Metric::ALL {
-        if let Some(&(n, d)) = readings.get(metric.spec_name()) {
-            values.set(metric, Exact::new(n, d));
-        }
-    }
+    let values = values_from(Some(&readings));
     run_until("the tick starts", || window.display_page().moving());
     assert_eq!(frames(&window), at_home(values), "at home on return");
     close(window);
+}
+
+// While no tile can be seen, a new input is taken in and nothing is drawn: no picture changes and
+// no tile queues a redraw. On return the tiles are drawn from what the input became, at home, with
+// the tick moving them or, under reduced motion, at rest (design: Live tiles, When the tick runs).
+fn nothing_off_screen(app: &gtk::Application) {
+    for animations_on in [false, true] {
+        animations(animations_on);
+        let (window, _) = shown(app);
+        window.state(base());
+        run_for(Duration::from_millis(100));
+        WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+        run_for(Duration::from_millis(100));
+        assert!(!window.display_page().moving(), "no tick on Configuration");
+        let (drawn, shown_before) = (draws(&window), frames(&window));
+        // New readings, then another unit: the input changed twice off screen.
+        window.state(with(|s| {
+            s.readings = Some(readings_with(Metric::CpuUsage, 250))
+        }));
+        window.state(with(|s| {
+            s.readings = Some(readings_with(Metric::CpuUsage, 250));
+            s.temperature_unit = Some(odc_ipc::TemperatureUnit::Fahrenheit);
+        }));
+        run_for(Duration::from_millis(300));
+        assert_eq!(
+            draws(&window),
+            drawn,
+            "nothing drawn off screen (animations {animations_on})"
+        );
+        assert_eq!(
+            frames(&window),
+            shown_before,
+            "no picture changed off screen"
+        );
+        // Back: drawn from the new input, at home.
+        WidgetExt::activate_action(window.widget(), "win.back", None).expect("back");
+        let values = values_from(Some(&readings_with(Metric::CpuUsage, 250)));
+        assert_eq!(
+            frames(&window),
+            at_home_in(Unit::Fahrenheit, values),
+            "on return, from the new input (animations {animations_on})"
+        );
+        assert_eq!(window.display_page().moving(), animations_on);
+        close(window);
+    }
+    animations(true);
 }

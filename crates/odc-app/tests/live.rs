@@ -5,8 +5,7 @@
 use std::collections::HashMap;
 
 use odc_app::live::{
-    Beat, Live, SAMPLE_BARS, SAMPLE_PEAKS, TICK_US, follows_unit, music_settings, sample_values,
-    values_from,
+    Beat, Live, SAMPLE_BARS, SAMPLE_PEAKS, TICK_US, music_settings, sample_values, values_from,
 };
 use odc_ipc::FallStop;
 use odc_protocol::Frame;
@@ -248,24 +247,37 @@ fn a_static_tile_never_changes_and_only_the_emoji_loops_play() {
     }
 }
 
+// The four loops start together, on their first picture, and run 9, 9, 9 and 11 ticks (design:
+// Live tiles, The tick): after a whole number of cycles a tile shows its first picture again.
 #[test]
-fn the_emoji_loops_start_together_and_start_again_at_home() {
+fn the_emoji_loops_start_together_and_run_9_9_9_and_11_ticks() {
     let mut live = Live::new(Unit::Celsius, music(true), sample_values());
     let start = frames(&live);
-    // Until a loop's picture changes: they hold each picture for several ticks.
-    let mut ticks = 0;
-    while frames(&live) == start {
+    let modes: Vec<Mode> = (14..=17).map(|n| Mode::new(n).expect("a mode")).collect();
+    let lengths: Vec<usize> = modes
+        .iter()
+        .map(|&mode| EmojiLoop::of(mode).expect("a loop").ticks())
+        .collect();
+    assert_eq!(lengths, [9, 9, 9, 11]);
+    // Every loop has moved on from its first picture within its cycle, and is back after it.
+    let mut moved = [false; 4];
+    for n in 1..=99 {
         tick(&mut live);
-        ticks += 1;
-        assert!(ticks < 300, "no loop moved in {ticks} ticks");
+        for (i, mode) in modes.iter().enumerate() {
+            let first = start[usize::from(mode.number()) - 1].1;
+            if n % lengths[i] == 0 {
+                assert_eq!(
+                    *live.frame(*mode),
+                    first,
+                    "mode {} at tick {n}",
+                    mode.number()
+                );
+            } else if *live.frame(*mode) != first {
+                moved[i] = true;
+            }
+        }
     }
-    let (_, changed) = changing(&mut live, |live| live.home());
-    // Home draws the first picture of every loop again, and every loop that had moved on.
-    for mode in (14..=17).map(|n| Mode::new(n).expect("a mode")) {
-        assert_eq!(*live.frame(mode), start[usize::from(mode.number()) - 1].1);
-    }
-    assert_eq!(frames(&live), start, "everything at home");
-    assert!(!changed.is_empty());
+    assert_eq!(moved, [true; 4], "each loop moves");
 }
 
 #[test]
@@ -313,44 +325,6 @@ fn a_still_tile_is_centred_again_when_its_length_changes() {
         };
         assert_eq!(*live.frame(mode), want, "{n}");
     }
-}
-
-#[test]
-fn a_unit_change_restarts_the_temperature_tiles_at_home_at_once_and_no_other() {
-    // °F makes the temperatures 100 or more, so they scroll; the usage tiles scroll at 150.
-    let values = distinct(10)
-        .with(Metric::CpuTemperature, Exact::whole(57))
-        .with(Metric::GpuTemperature, Exact::whole(60))
-        .with(Metric::CpuUsage, Exact::whole(150));
-    let mut live = Live::new(Unit::Fahrenheit, music(true), values.clone());
-    for _ in 0..9 {
-        tick(&mut live);
-    }
-    let mut usage = Marquee::new(strip(Mode::new(1).expect("a mode"), &values, Unit::Celsius));
-    for _ in 0..10 {
-        usage.tick();
-    }
-    let (said, differ) = changing(&mut live, |live| live.set_unit(Unit::Celsius));
-    assert_eq!(said, differ, "the modes set_unit says changed");
-    for mode in Mode::all() {
-        if follows_unit(mode) {
-            let picture = strip(mode, &values, Unit::Celsius);
-            let home = over_still(mode, picture.frame_at(picture.home()), true);
-            assert_eq!(*live.frame(mode), home, "mode {} at home", mode.number());
-        }
-    }
-    // A tile that shows no temperature goes on as if nothing happened.
-    assert!(
-        !said.contains(&Mode::new(1).expect("a mode")),
-        "mode 1 doesn't follow the unit"
-    );
-    tick(&mut live);
-    assert_eq!(
-        *live.frame(Mode::new(1).expect("a mode")),
-        over_still(Mode::new(1).expect("a mode"), usage.tick(), true)
-    );
-    // The same unit again: nothing.
-    assert_eq!(live.set_unit(Unit::Celsius), Vec::new());
 }
 
 #[test]
@@ -505,7 +479,7 @@ fn with_sound_the_spectrum_and_the_dancer_follow_the_levels_as_on_the_cooler() {
 }
 
 #[test]
-fn a_tick_of_levels_moves_the_dancer_through_its_poses_and_home_rests_everything() {
+fn a_tick_of_levels_moves_the_dancer_through_its_poses() {
     let levels = levels_of("beat train");
     let mut live = Live::new(Unit::Celsius, music(true), sample_values());
     live.set_sound(true);
@@ -520,12 +494,6 @@ fn a_tick_of_levels_moves_the_dancer_through_its_poses_and_home_rests_everything
         moved |= pose != Pose::STILL;
     }
     assert!(moved, "a beat train moves the Dancer");
-    // Home: everything at rest again, the sound still live.
-    live.home();
-    assert!(live.sound());
-    let mut fresh = Live::new(Unit::Celsius, music(true), sample_values());
-    fresh.set_sound(true);
-    assert_eq!(frames(&live), frames(&fresh));
 }
 
 // The frame clock's calls are counted into the cooler's ticks: one step for each 100 ms, the
@@ -606,7 +574,7 @@ fn readings_become_values_by_their_spec_names() {
         ("CPU Usage", (4, 3)),
         ("Gpu power", (-7, 1)),
         ("Memory Load", (i64::MAX, u64::MAX)),
-        ("Fan 1", (2000, 1)),
+        ("Unknown metric", (2000, 1)),
     ]
     .into_iter()
     .map(|(name, fraction)| (name.to_owned(), fraction))

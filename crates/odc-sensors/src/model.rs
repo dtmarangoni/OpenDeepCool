@@ -54,7 +54,7 @@ impl Metric {
     }
 }
 
-/// A reading's exact value: a fraction of whole numbers in the metric's unit, °C, %, W or RPM.
+/// A reading's exact value: a fraction of whole numbers in the metric's unit, °C, % or W.
 /// It never goes through floating point, so the display's rounding works on whole numbers
 /// (owner, 2026-10-26; `docs/spec/display.md`, Values). It keeps the fraction as its source gave
 /// it, and compares by value: 57 000 / 1000 equals 57 / 1.

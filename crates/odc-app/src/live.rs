@@ -130,14 +130,6 @@ pub const SAMPLE_PEAKS: [f64; COLUMNS] = [
 const SPECTRUM_ALONE: u16 = 13;
 const DANCER: u16 = 23;
 
-/// Whether `mode`'s picture follows the unit: it shows a temperature.
-pub fn follows_unit(mode: Mode) -> bool {
-    mode_info(mode)
-        .metrics
-        .iter()
-        .any(|m| matches!(m, Metric::CpuTemperature | Metric::GpuTemperature))
-}
-
 /// What moves in a tile.
 enum Motion {
     /// A value's strip: the whole grid in modes 1–12, rows 2–6 in modes 18–22.
@@ -164,6 +156,8 @@ pub struct Live {
     music: MusicSettings,
     values: Values,
     tiles: Vec<Tile>,
+    /// The still sample spectrum, which never changes: what the Music tiles show without sound.
+    still: Spectrum,
     /// The Music tiles' shared spectrum and the Dancer, while the sound is live.
     sound: Option<(Spectrum, Dancer)>,
 }
@@ -202,6 +196,7 @@ impl Live {
             music,
             values,
             tiles,
+            still: Spectrum::at(SAMPLE_BARS, SAMPLE_PEAKS),
             sound: None,
         };
         live.tick();
@@ -240,24 +235,6 @@ impl Live {
         self.recompose()
     }
 
-    /// Every tile at home again, as when the window is shown: strips back to their home, the
-    /// loops to their first picture, the spectrum and the Dancer to rest while the sound is live.
-    /// Returns the modes whose picture changed.
-    pub fn home(&mut self) -> Vec<Mode> {
-        let (values, unit) = (&self.values, self.unit);
-        for tile in &mut self.tiles {
-            match &mut tile.motion {
-                Motion::Strip(marquee) => marquee.reset(strip(tile.mode, values, unit)),
-                Motion::Emoji(emoji) => emoji.reset(),
-                Motion::Nothing | Motion::Dancer => {}
-            }
-        }
-        if self.sound.is_some() {
-            self.sound = Some((Spectrum::enter(), Dancer::new()));
-        }
-        self.tick()
-    }
-
     /// The service's readings changed. A strip keeps its place as the cooler's does
     /// (`display.md`, Movement), and shows the new values at its next tick.
     pub fn set_values(&mut self, values: Values) {
@@ -268,26 +245,6 @@ impl Live {
             }
         }
         self.values = values;
-    }
-
-    /// The temperature unit changed: the tiles that show a temperature restart at home in it, at
-    /// once, as the cooler's picture does (`display.md`, Mode switches). Returns the modes whose
-    /// picture changed.
-    pub fn set_unit(&mut self, unit: Unit) -> Vec<Mode> {
-        if unit == self.unit {
-            return Vec::new();
-        }
-        self.unit = unit;
-        let values = &self.values;
-        for tile in &mut self.tiles {
-            if follows_unit(tile.mode)
-                && let Motion::Strip(marquee) = &mut tile.motion
-            {
-                marquee.reset(strip(tile.mode, values, unit));
-                tile.top = marquee.tick();
-            }
-        }
-        self.recompose()
     }
 
     /// The Music settings changed: the peak dots show or hide at once, and the falls apply from
@@ -323,7 +280,6 @@ impl Live {
     /// Draws each tile from its top and the spectrum or the Dancer now; returns the modes whose
     /// frame differs from the last.
     fn recompose(&mut self) -> Vec<Mode> {
-        let still = Spectrum::at(SAMPLE_BARS, SAMPLE_PEAKS);
         let mut changed = Vec::new();
         for tile in &mut self.tiles {
             let top = match (&tile.motion, &self.sound) {
@@ -333,7 +289,7 @@ impl Live {
             };
             let frame = match spectrum_height(tile.mode) {
                 Some(h) => {
-                    let spectrum = self.sound.as_ref().map_or(&still, |(live, _)| live);
+                    let spectrum = self.sound.as_ref().map_or(&self.still, |(live, _)| live);
                     with_spectrum(&top, &spectrum.draw(h, self.music.peaks), h)
                 }
                 None => top,

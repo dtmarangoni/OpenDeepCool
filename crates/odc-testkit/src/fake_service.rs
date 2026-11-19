@@ -657,29 +657,6 @@ fn variant(key: &str, signature: &str, value: &toml::Value) -> Result<OwnedVaria
                 .collect::<Option<HashMap<String, (i64, u64)>>>()
                 .map(Variant::from)
         }),
-        "a(ssusd)" => list(value, |input| {
-            let [chip, device, number_, label, rpm] = items(input, 5)? else {
-                return None;
-            };
-            Some((
-                text(chip)?,
-                text(device)?,
-                int::<u32>(number_)?,
-                text(label)?,
-                number(rpm)?,
-            ))
-        })
-        .map(Variant::from),
-        "(ssu)" => items(value, 3).and_then(|fields| {
-            let [chip, device, input] = fields else {
-                return None;
-            };
-            Some(Variant::from((
-                text(chip)?,
-                text(device)?,
-                int::<u32>(input)?,
-            )))
-        }),
         _ => None,
     };
     let variant = variant.ok_or(format!("{key} isn't {signature}"))?;

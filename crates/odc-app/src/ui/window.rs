@@ -3,7 +3,9 @@
 //! the pages (Display and Configuration), or the off screen while the service isn't running; or,
 //! in a remote or inactive session, one message. It keeps what the app knows of the service, of
 //! the Start at boot switch and of the window's own state, and shows the view model's [`View`]
-//! of them after every change.
+//! of them after every change. What the window follows (the system's preference, reduced motion,
+//! its own state on the compositor, and the theme) is in `window/follow.rs`, and what the tests
+//! read of it in `window/probes.rs`.
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
@@ -13,7 +15,7 @@ use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
-use gtk::{gdk, gio, glib};
+use gtk::{gio, glib};
 use odc_ipc::{CoolerState, State};
 use odc_protocol::Frame;
 use odc_render::COLUMNS;
@@ -28,13 +30,18 @@ use super::size;
 use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::boot::{self, Boot, Place};
-use crate::choice::{self, Preference, Source};
+use crate::choice;
 use crate::model::{
     Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Ui, View,
     view,
 };
 use crate::pci_ids;
 use crate::theme::Tokens;
+
+mod follow;
+mod probes;
+
+pub use follow::{away, reduced_motion};
 
 /// The preview column's width, and the most characters its wrapping lines ask room for.
 const COLUMN_WIDTH: i32 = 262;
@@ -161,48 +168,6 @@ pub struct WeakWindow(Weak<Inner>);
 impl WeakWindow {
     pub fn upgrade(&self) -> Option<Window> {
         self.0.upgrade().map(Window)
-    }
-}
-
-/// GTK's `gtk-interface-color-scheme` as the app's [`Preference`].
-fn preference_of(settings: &gtk::Settings) -> Preference {
-    match settings.gtk_interface_color_scheme() {
-        gtk::InterfaceColorScheme::Unsupported => Preference::Unsupported,
-        gtk::InterfaceColorScheme::Dark => Preference::Dark,
-        gtk::InterfaceColorScheme::Light => Preference::Light,
-        _ => Preference::Default,
-    }
-}
-
-/// GTK's settings that say animations are off or reduced.
-const ANIMATION_SETTINGS: [&str; 2] = ["gtk-enable-animations", "gtk-interface-reduced-motion"];
-
-/// Whether the system asks for reduced motion: animations switched off, or, from GTK 4.22, the
-/// preference the XDG desktop portal gives (`reduce`).
-pub fn reduced_motion(settings: &gtk::Settings) -> bool {
-    let animations: bool = settings.property("gtk-enable-animations");
-    let reduce = settings
-        .find_property("gtk-interface-reduced-motion")
-        .is_some_and(|_| {
-            let value = settings.property_value("gtk-interface-reduced-motion");
-            glib::EnumValue::from_value(&value).is_some_and(|(_, value)| value.nick() == "reduce")
-        });
-    !animations || reduce
-}
-
-/// Whether a toplevel's state says no one sees it: minimised, or suspended (GTK 4.12).
-pub fn away(state: gdk::ToplevelState) -> bool {
-    state.intersects(gdk::ToplevelState::MINIMIZED | gdk::ToplevelState::SUSPENDED)
-}
-
-/// A handler on GTK's settings, which outlive the window: disconnected when this is dropped.
-struct Unfollow(gtk::Settings, Option<glib::SignalHandlerId>);
-
-impl Drop for Unfollow {
-    fn drop(&mut self) {
-        if let Some(id) = self.1.take() {
-            self.0.disconnect(id);
-        }
     }
 }
 
@@ -554,121 +519,6 @@ impl Window {
         window
     }
 
-    /// Follows GTK's reading of the system's dark or light preference, which GDK fills from the
-    /// XDG desktop portal and keeps live (Phase 11a Task 1): read now, and again at each change.
-    fn follow_preference(&self) {
-        let Some(settings) = gtk::Settings::default() else {
-            return;
-        };
-        self.preference(preference_of(&settings));
-        let weak = Rc::downgrade(&self.0);
-        let id = settings.connect_gtk_interface_color_scheme_notify(move |settings| {
-            if let Some(inner) = weak.upgrade() {
-                Window(inner).preference(preference_of(settings));
-            }
-        });
-        // Dropped with the window: the settings outlive it.
-        self.keep(Unfollow(settings, Some(id)));
-    }
-
-    /// Follows GTK's two settings for reduced motion, read now and at each change: the tiles
-    /// stand at rest while either asks for it (design: Live tiles, Reduced motion). The app
-    /// never writes either.
-    fn follow_motion(&self) {
-        let Some(settings) = gtk::Settings::default() else {
-            return;
-        };
-        self.0.display.set_reduced(reduced_motion(&settings));
-        for name in ANIMATION_SETTINGS {
-            // The second exists from GTK 4.22; without it, only the first matters.
-            if settings.find_property(name).is_none() {
-                continue;
-            }
-            let weak = Rc::downgrade(&self.0);
-            let id = settings.connect_notify_local(Some(name), move |settings, _| {
-                if let Some(inner) = weak.upgrade() {
-                    inner.display.set_reduced(reduced_motion(settings));
-                }
-            });
-            self.keep(Unfollow(settings.clone(), Some(id)));
-        }
-    }
-
-    /// Follows the window's own state on the compositor: minimised or suspended, the tiles don't
-    /// move (design: Live tiles, When the tick runs). The surface exists once the window is
-    /// realised, and again after each realisation.
-    fn follow_toplevel(&self) {
-        let weak = Rc::downgrade(&self.0);
-        self.0.window.connect_realize(move |window| {
-            let Some(toplevel) = window
-                .surface()
-                .and_then(|surface| surface.downcast::<gdk::Toplevel>().ok())
-            else {
-                return;
-            };
-            let show = {
-                let weak = weak.clone();
-                move |toplevel: &gdk::Toplevel| {
-                    if let Some(inner) = weak.upgrade() {
-                        inner.display.set_away(away(toplevel.state()));
-                    }
-                }
-            };
-            show(&toplevel);
-            toplevel.connect_state_notify(show);
-        });
-    }
-
-    /// The system's preference, as GTK reports it.
-    fn preference(&self, preference: Preference) {
-        let changed = {
-            let mut inputs = self.0.inputs.borrow_mut();
-            let changed = inputs.ui.system.preference != preference;
-            inputs.ui.system.preference = preference;
-            changed
-        };
-        if changed {
-            self.apply_theme();
-            self.render();
-        }
-    }
-
-    /// The Omarchy theme as found now: `None` when there is none. The window shows it when the
-    /// system's theme is followed (Phase 11a Task 11: [`choice`]).
-    pub fn omarchy_theme(&self, tokens: Option<Tokens>) {
-        self.0.omarchy.set(tokens);
-        self.0.inputs.borrow_mut().ui.system.omarchy = tokens.map(|t| t.dark);
-        // Its colours may have changed with its mode as it was: resolved again whatever the
-        // inputs say.
-        self.0.resolved_from.set(None);
-        self.apply_theme();
-        self.render();
-    }
-
-    /// What the theme is made from now: the system's facts and the service's two settings.
-    fn theme_inputs(&self) -> choice::Inputs {
-        let (use_system, dark) = self.0.theme_settings.get();
-        choice::Inputs::new(self.0.inputs.borrow().ui.system, use_system, dark)
-    }
-
-    /// Resolves the theme again when what it is made from changed, and shows it.
-    fn apply_theme(&self) {
-        let inputs = self.theme_inputs();
-        if self.0.resolved_from.get() == Some(inputs) {
-            return;
-        }
-        self.0.resolved_from.set(Some(inputs));
-        let tokens = match inputs.source() {
-            Source::Omarchy => self
-                .0
-                .omarchy
-                .get()
-                .unwrap_or_else(|| Tokens::default_theme(true)),
-            Source::Own { dark } => Tokens::default_theme(dark),
-        };
-        self.set_theme(&tokens);
-    }
-
     /// The signal handlers, each holding the window weakly.
     fn connect(&self, close: &gio::SimpleAction) {
         let weak = Rc::downgrade(&self.0);
@@ -835,22 +685,6 @@ impl Window {
     /// Announcements go to `announce` from now on, for the tests.
     pub fn announce_with(&self, announce: impl Fn(&str) + 'static) {
         *self.0.announcer.borrow_mut() = Box::new(announce);
-    }
-
-    /// The theme: the CSS reloaded in the same provider, the preview redrawn once.
-    pub fn set_theme(&self, tokens: &Tokens) {
-        if self.0.shown_tokens.get() == Some(*tokens) {
-            return;
-        }
-        self.0.shown_tokens.set(Some(*tokens));
-        self.0.provider.load_from_string(&tokens.css());
-        self.0.provider.set_prefers_color_scheme(if tokens.dark {
-            gtk::InterfaceColorScheme::Dark
-        } else {
-            gtk::InterfaceColorScheme::Light
-        });
-        self.0.preview.set_theme(tokens);
-        self.0.display.set_theme(tokens);
     }
 
     /// The user asked for `page`: the gear, a shortcut or the back icon. The page's title is
@@ -1068,126 +902,5 @@ impl Window {
             };
             row.dot.set_css_classes(&["dot", class]);
         }
-    }
-
-    /// The view shown last, for the tests.
-    pub fn shown(&self) -> Option<View> {
-        self.0.shown.borrow().clone()
-    }
-
-    pub fn names(&self) -> &Names {
-        &self.0.names
-    }
-
-    pub fn preview(&self) -> &Preview {
-        &self.0.preview
-    }
-
-    pub fn banners(&self) -> &Banners {
-        &self.0.banners
-    }
-
-    pub fn display_page(&self) -> &DisplayPage {
-        &self.0.display
-    }
-
-    pub fn config_page(&self) -> &ConfigPage {
-        &self.0.config
-    }
-
-    pub fn startup(&self) -> &StartupCard {
-        &self.0.startup
-    }
-
-    /// The off screen's heading, while it shows.
-    pub fn off_heading(&self) -> Option<String> {
-        (self.screen().1 == "off" && self.0.off_message.is_visible())
-            .then(|| self.0.off_heading.text().to_string())
-    }
-
-    /// Whether the Startup card sits on the off screen.
-    pub fn startup_on_off_screen(&self) -> bool {
-        self.0.startup.card().parent().as_ref() == Some(self.0.off.upcast_ref())
-    }
-
-    /// The feedback label's words, while it shows.
-    pub fn feedback(&self) -> Option<String> {
-        self.0
-            .feedback
-            .is_visible()
-            .then(|| self.0.feedback_label.text().to_string())
-    }
-
-    /// The screen shown: `main` or `not-available`; and the page: `display`, `config` or `off`.
-    pub fn screen(&self) -> (String, String) {
-        let name = |stack: &gtk::Stack| {
-            stack
-                .visible_child_name()
-                .map(|n| n.to_string())
-                .unwrap_or_default()
-        };
-        (name(&self.0.screens), name(&self.0.pages))
-    }
-
-    /// Whether the gear and the close icon show, and whether they can be used.
-    pub fn header(&self) -> [(bool, bool); 2] {
-        let h = &self.0.header;
-        [
-            (h.gear.is_visible(), h.gear.is_sensitive()),
-            (h.close.is_visible(), h.close.is_sensitive()),
-        ]
-    }
-
-    /// Whether the gear is pressed: the Configuration page shows.
-    pub fn gear_pressed(&self) -> bool {
-        self.0.header.gear.is_active()
-    }
-
-    /// How far the title's centre is from the header bar's, in pixels, once the bar has its
-    /// size (Window: the title stays in the middle whatever sits at the end).
-    pub fn title_offset(&self) -> Option<f32> {
-        let h = &self.0.header;
-        let bounds = h.title.compute_bounds(&h.bar)?;
-        Some(bounds.x() + bounds.width() / 2.0 - h.bar.width() as f32 / 2.0)
-    }
-
-    /// The window's scrolled window (the cap and the sideways scroll) and the preview column's,
-    /// for the tests (Size and scrolling).
-    pub fn scrollers(&self) -> (&gtk::ScrolledWindow, &gtk::ScrolledWindow) {
-        (&self.0.window_scroller, &self.0.column_scroller)
-    }
-
-    /// The header bar's height, for the tests.
-    pub fn header_height(&self) -> i32 {
-        self.0.header.bar.height()
-    }
-
-    /// The gear, the back icon and Refresh, for the tests that press or focus them.
-    pub fn gear(&self) -> &gtk::ToggleButton {
-        &self.0.header.gear
-    }
-
-    /// The column's words: caption, reason and the status items shown.
-    pub fn column_words(&self) -> Vec<String> {
-        let c = &self.0.column;
-        let mut words = vec![c.caption.text().to_string()];
-        if c.reason_box.is_visible() {
-            words.push(c.reason.text().to_string());
-        }
-        for row in c.status.iter().filter(|r| r.row.is_visible()) {
-            words.push(row.label.text().to_string());
-        }
-        words
-    }
-
-    /// The not-available message box, for the tests.
-    pub fn not_available(&self) -> &gtk::Box {
-        &self.0.not_available
-    }
-
-    /// Whether the Configuration, Back and Refresh actions can run.
-    pub fn actions_enabled(&self) -> [bool; 3] {
-        let [a, b, c] = &self.0.actions;
-        [a.is_enabled(), b.is_enabled(), c.is_enabled()]
     }
 }

@@ -19,10 +19,10 @@ use std::time::{Duration, Instant};
 
 use odc_device::{Link, Reason, RecordingHandle};
 use odc_ipc::{
-    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, LEVELS, OBJECT_PATH, State, frame_pixels,
+    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, OBJECT_PATH, State, frame_pixels, levels_from,
 };
 use odc_protocol::Frame;
-use odc_render::{COLUMNS, Mode};
+use odc_render::Mode;
 use odc_sensors::{
     Binding, Exact, Metric, PciAddr, Reading, Snapshot, Unavailable, choose, has_gpu_rule,
 };
@@ -1368,9 +1368,10 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
             };
             // The readings change every second: only a watcher of frames, such as the settings
             // app, is sent them (`docs/spec/dbus.md`, State, `Readings`), the whole of them the
-            // first time, whatever changed.
+            // first time, whatever changed. The watcher counts as having them only once a signal
+            // that carries them has gone out.
             if frame_watchers.contains(&name) {
-                if with_readings.insert(name.clone()) {
+                if !with_readings.contains(&name) {
                     send.readings.clone_from(&state.readings);
                 }
             } else {
@@ -1379,7 +1380,10 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
             if send.is_empty() {
                 continue;
             }
-            signal(conn, &name, send.to_dict()).await;
+            let has_readings = send.readings.is_some();
+            if signal(conn, &name, send.to_dict()).await && has_readings {
+                with_readings.insert(name);
+            }
         }
         sent = state;
     }
@@ -1426,7 +1430,9 @@ async fn tell_level_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBo
         let Some(levels) = shared.levels.levels.take() else {
             continue;
         };
-        if shared.audio.holder().is_none() || !levels_ok(&levels) {
+        // The analysis keeps every level finite and within 0 to 1; the contract's own check is
+        // the last before the bus.
+        if shared.audio.holder().is_none() || levels_from(&levels).is_none() {
             continue;
         }
         let watchers = lock(&shared.watchers).allowed(Watch::Frames);
@@ -1434,15 +1440,6 @@ async fn tell_level_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBo
             signal_levels(conn, &name, levels.to_vec()).await;
         }
     }
-}
-
-/// Whether every level is finite and within 0 to 1, as the contract promises; the analysis
-/// guarantees it, and this is the last check before the bus.
-fn levels_ok(levels: &[f64; COLUMNS]) -> bool {
-    levels.len() == LEVELS
-        && levels
-            .iter()
-            .all(|level| level.is_finite() && (0.0..=1.0).contains(level))
 }
 
 /// `Levels`, addressed to one frame watcher.
@@ -1468,15 +1465,17 @@ async fn signal_frame(conn: &Connection, to: &str, pixels: Vec<u8>) {
 }
 
 /// `StateChanged`, addressed to one watcher: the bus delivers it to that connection alone (D-Bus
-/// specification, Message Bus Message Routing).
-async fn signal(conn: &Connection, to: &str, changes: HashMap<String, OwnedVariant>) {
+/// specification, Message Bus Message Routing). Whether it went out.
+async fn signal(conn: &Connection, to: &str, changes: HashMap<String, OwnedVariant>) -> bool {
     let (Ok(destination), Ok(emitter)) =
         (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
     else {
-        return;
+        return false;
     };
     // A watcher that just left misses nothing it could read.
-    let _ = Main::state_changed(&emitter.set_destination(destination), changes).await;
+    Main::state_changed(&emitter.set_destination(destination), changes)
+        .await
+        .is_ok()
 }
 
 /// The bus's `NameOwnerChanged`: a watcher, or a test session's holder, whose connection closed.
