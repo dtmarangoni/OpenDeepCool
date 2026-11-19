@@ -295,9 +295,11 @@ const CONFIG = {"omarchyTheme": false, "colorScheme": "light", "useSystemTheme":
 //   "masked"; without it, "unknown" means a read failed.
 // - bootFlip: "on" or "off" while a flip toward that state runs: the polkit dialog is open or the program runs,
 //   or, when only the sound in this session is missing, while the app starts it.
-// - bootFailed: the last flip that didn't happen or didn't finish: {to: "on" or "off", exit: 126 (the dialog was
-//   dismissed), 127 (not authorized, or no polkit agent), the program's own code (1: a step failed), or "sound"
+// - bootFailed: the last flip that didn't happen or didn't finish: {to: "on" or "off", exit: 127 (not authorized,
+//   or no polkit agent), the program's own code (1: a step failed), or "sound"
 //   (the app's own step in this session failed), message: the program's one-line message, for its own codes}.
+//   A dismissed password dialog (pkexec 126) is no state at all: nothing changed, the switch shows the state, and
+//   the app says nothing (Phase 11a Task 18).
 // - The first pass's "partly", bootPartly and bootSound are no longer read.
 //
 // Header and pages (Phase 11a Task 7, 2026-11-19; docs/design/settings-app.md, Window). No new CONFIG key: the
@@ -631,7 +633,6 @@ function missingNote() {
   return { kind: "warn", text: `Not fully on: ${[d, a].filter(Boolean).join(", and ")}. ${end}${journal}` };
 }
 function bootFailText(f) {
-  if (f.exit === 126) return "Not changed: the password dialog was closed.";
   if (f.exit === 127) return "Not changed: the password wasn't accepted, or no password dialog could open in this session.";
   if (f.exit === "sound") return f.to === "off"
     ? "Off, but the sound for Music didn't stop in this session. It stops when you log out."
