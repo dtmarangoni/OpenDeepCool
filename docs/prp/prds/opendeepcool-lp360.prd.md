@@ -500,6 +500,7 @@ This project spans many sessions and possibly several coding agents, so the way 
   - **Fans and pump leave the product**, with the board-sensor detection that exists only for their chip, and their facts move to `docs/spec/fans-and-pump.md`; the completed phases' own records stay as written (D1).
   - **The app:** the header (title centred, a gear and a close icon, a back icon on the Configuration page), no Display tab, Refresh an icon on the display page, the temperature unit in Configuration, labels beside their controls, smaller switches, a window of its content's size that asks to float, and a Theme card first in Configuration, with OpenDeepCool's own theme designed for it and the choice kept by the service.
   - **Live tiles:** every tile shows its mode with the live readings, all together; the service sends frame watchers the readings and the sound's levels (D4).
+  - **The owner's second list** (2026-11-19, after the package was installed on the development PC): sixteen small changes to the app's texts, spacing and sizes and to the Start at boot password prompt (a polkit action each for turning on and off, with their own wording), no terminal commands in the app (they stay in the README), each its own task and commit before the build for review (plan D9, C11–C26).
   - **On the cooler:** pairs of values centred as one block (D2). The Dancer stays as it is, already centred sideways (D3).
   - **Then:** the designer's review of the whole design, a review of all the app's code, a new build, and the owner's review.
 - **Tests**:
