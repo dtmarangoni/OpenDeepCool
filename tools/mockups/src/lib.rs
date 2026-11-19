@@ -224,7 +224,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Dark or light is dimmed on the theme's scheme, and the line says \"Using the Omarchy theme.\"), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 40 × 22.",
+            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Dark or light is dimmed on the theme's scheme, and the line says \"Using the Omarchy theme.\"), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18.",
             config().with("rotation", Json::Int(1)),
         ),
         page(

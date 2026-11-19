@@ -43,7 +43,7 @@ const CHECKS: [(&str, Check); 8] = [
 
 // The rows (Rows): each label block and its control side by side, 24 px apart, left-aligned;
 // the controls of every card start at one x, with or without the GPU row; a long hint wraps at
-// its 28 characters; the switches are 40 x 22; the Startup card's label block shares the
+// its 28 characters; the switches are 32 x 18; the Startup card's label block shares the
 // group's width on the page and has its own on the off screen.
 fn rows(app: &gtk::Application) {
     let (window, _) = shown(app);
@@ -109,7 +109,7 @@ fn rows(app: &gtk::Application) {
         let switch = find::<gtk::Switch>(&window, name);
         // The outside size, border included: `width()` is the content box, 2 px less.
         let bounds = place(switch.upcast_ref());
-        assert_eq!((bounds.width(), bounds.height()), (40.0, 22.0), "{name}");
+        assert_eq!((bounds.width(), bounds.height()), (32.0, 18.0), "{name}");
     }
     // The Startup card's block: the group's width here, its own on the off screen.
     let startup_block = |window: &Window| {

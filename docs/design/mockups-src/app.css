@@ -193,17 +193,17 @@ button { font: inherit; color: inherit; }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
 .dd-item.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); }
 .dd-check { color: var(--accent); }
-/* The switches (design, Configuration page, The switches): 40 x 22 (GTK's own is 48 x 24), an 18 px knob, 1 px from the
-   1 px border. The padding box is 38 x 20, so the knob rests at left 1 and, switched on, at left 19. */
-.switch { width: 40px; height: 22px; border-radius: 11px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+/* The switches (design, Configuration page, The switches): 32 x 18 (GTK's own is 48 x 24), a 14 px knob, 1 px from the
+   1 px border. The padding box is 30 x 16, so the knob rests at left 1 and, switched on, at left 15. */
+.switch { width: 32px; height: 18px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 1px; left: 1px; width: 18px; height: 18px; border-radius: 50%; background: var(--fg); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
-.switch.on span { left: 19px; background: var(--bg); }
+.switch.on span { left: 15px; background: var(--bg); }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
 .switch.state-on span { background: var(--bg); }
-.switch.handle-on span { left: 19px; }
+.switch.handle-on span { left: 15px; }
 /* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do) */
 .switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
 /* The Startup card in the window's body while the service is down */

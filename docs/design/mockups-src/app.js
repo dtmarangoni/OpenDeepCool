@@ -51,7 +51,7 @@
 // - A Configuration row is a label block (the title, its hint under it) and its control, side by side and left-aligned,
 //   24 px apart; the label blocks share one width (a GtkSizeGroup in the app, 28 characters here) so the controls start
 //   in one column. The Startup card on the off screen keeps its block at its own width.
-// - The two switches (Peak dots, Start at boot) are 40 x 22 with an 18 px knob.
+// - The three switches (Use system theme, Peak dots, Start at boot) are 32 x 18 with a 14 px knob.
 // - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
 //
 // The window's size (Phase 11a Task 9, 2026-11-19; docs/design/settings-app.md, Window, Size and scrolling). No new

@@ -263,13 +263,22 @@ scale > trough > highlight {
   background-color: var(--accent);
 }
 
-/* The switches are 40 x 22 outside, a little under GTK's 48 x 24 (Window, The switches): the
-   1 px border is outside min-width and min-height, so these are 2 px less. */
+/* The switches are 32 x 18 outside, well under GTK's 48 x 24 (Window, The switches; owner,
+   2026-11-19: smaller than 40 x 22): the 1 px border is outside min-width and min-height, so
+   these are 2 px less. */
 switch {
-  min-width: 38px;
-  min-height: 20px;
+  min-width: 30px;
+  min-height: 16px;
   background-color: var(--ctl-normal-fill);
   border: 1px solid var(--ctl-normal-border);
+}
+
+/* Measured, Phase 11a Task 26: with min-width 30 the switch came out 34 wide, not 32. A 1 px
+   icon size for its `image` nodes (the on and off marks, which this theme never shows) brings
+   it to 32. Why the width held at 34 is unverified: the nodes are the likely reason. Not 0 px:
+   GTK then logs "gtk_icon_theme_lookup_by_gicon: assertion 'size > 0' failed". */
+switch image {
+  -gtk-icon-size: 1px;
 }
 
 switch:checked {
@@ -277,8 +286,8 @@ switch:checked {
 }
 
 switch > slider {
-  min-width: 18px;
-  min-height: 18px;
+  min-width: 14px;
+  min-height: 14px;
   background-color: var(--fg);
 }
 
