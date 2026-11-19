@@ -8,8 +8,6 @@ use std::os::unix::fs::{MetadataExt, PermissionsExt, symlink};
 use std::path::{Path, PathBuf};
 use std::time::Instant;
 
-use odc_sensors_detect::record::{Board, RECORD, Record};
-
 use crate::candidate::{self, Commit, REPO_INSIDE};
 use crate::root::{self, BUILDER, BUILDER_HOME, Ran, Root};
 use crate::snapshot::{self, Allowed, Difference, Snapshot};
@@ -27,10 +25,6 @@ const STAGE: &str = "/srv/stage";
 const CANDIDATE: &str = "/srv/candidate";
 const ID: &str = "io.github.dtmarangoni.OpenDeepCool";
 const BOOT: &str = "/usr/lib/opendeepcool/opendeepcool-boot";
-const DETECT_DIR: &str = "/var/lib/opendeepcool-detect";
-const CONF_D: &str = "/etc/conf.d/lm_sensors";
-const MODPROBE_D: &str = "/etc/modprobe.d/lm_sensors.conf";
-const LM_SENSORS_LINK: &str = "/etc/systemd/system/multi-user.target.wants/lm_sensors.service";
 /// The switch's two links (`opendeepcool-boot on`, FILES.md).
 const SWITCH_LINKS: [(&str, &str); 2] = [
     (
@@ -188,13 +182,12 @@ fn allowed() -> Allowed {
     }
 }
 
-/// What a case made that must go however the case ends: folders it created, files it put, and
-/// whether it enabled `lm_sensors.service`; and what the comparison accepts after its uninstall.
+/// What a case made that must go however the case ends: folders it created and files it put; and
+/// what the comparison accepts after its uninstall.
 #[derive(Default)]
 struct Made {
     dirs: Vec<String>,
     files: Vec<String>,
-    lm_sensors: bool,
     allowed: Option<Allowed>,
 }
 
@@ -257,9 +250,6 @@ impl Test {
         report.check("upgrade", || self.upgrade());
         if let Some(dir) = &self.export {
             report.check("export", || self.export_packages(dir));
-        }
-        for case in Case::ALL {
-            report.check(case.name(), || self.lm_sensors(case));
         }
         report.check("signed_tags", || self.signed_tags());
         report.check("teardown", || self.teardown());
@@ -579,15 +569,6 @@ impl Test {
                 problems.push(format!("{file}: {e}"));
             }
         }
-        if made.lm_sensors
-            && fs::symlink_metadata(self.root.path(LM_SENSORS_LINK)).is_ok()
-            && let Err(e) = self
-                .root
-                .root(&["systemctl", "disable", "lm_sensors.service"], &[])
-                .check("disabling lm_sensors")
-        {
-            problems.push(e);
-        }
         if let Err(e) = self.unfold(&made.dirs) {
             problems.push(e);
         }
@@ -802,25 +783,22 @@ impl Test {
         ))
     }
 
-    /// The rank helper's unit has its state directory, and both helpers a start time limit
-    /// (solution review P6-03, P6-14).
+    /// The rank helper's unit has its state directory and a start time limit (solution review
+    /// P6-03, P6-14).
     fn units(&self) -> Result<String, String> {
         let read = |name: &str| {
             let file = format!("/usr/lib/systemd/system/{name}");
             fs::read_to_string(self.root.path(&file)).map_err(|e| format!("{file}: {e}"))
         };
         let rank = read("opendeepcool-gpu-rank.service")?;
-        let detect = read("opendeepcool-sensors-detect.service")?;
         let has = |text: &str, line: &str| text.lines().any(|l| l.starts_with(line));
         if !has(&rank, "StateDirectory=opendeepcool") {
             return Err("the rank helper's unit has no StateDirectory=opendeepcool".into());
         }
-        for (name, text) in [("rank", &rank), ("detection", &detect)] {
-            if !has(text, "TimeoutStartSec=") {
-                return Err(format!("the {name} helper's unit has no TimeoutStartSec="));
-            }
+        if !has(&rank, "TimeoutStartSec=") {
+            return Err("the rank helper's unit has no TimeoutStartSec=".into());
         }
-        Ok("the rank helper's StateDirectory=, both helpers' TimeoutStartSec=".into())
+        Ok("the rank helper's StateDirectory= and TimeoutStartSec=".into())
     }
 
     /// Two builds of the AUR way in the same folder, from a cleaned source folder, at the same
@@ -985,10 +963,7 @@ impl Test {
             )
             .check("systemctl add-wants")?;
         self.root
-            .root(
-                &["systemctl", "mask", "opendeepcool-sensors-detect.service"],
-                &[],
-            )
+            .root(&["systemctl", "mask", "opendeepcool.service"], &[])
             .check("systemctl mask")?;
         self.put(
             "/etc/systemd/user/opendeepcool-audio.service.d/override.conf",
@@ -1040,7 +1015,7 @@ impl Test {
             "/etc/systemd/system.control/opendeepcool.service.d".into(),
             "/etc/systemd/system/opendeepcool-gpu-rank.service".into(),
             "/etc/systemd/system/multi-user.target.wants/opendeepcool-gpu-rank.service".into(),
-            "/etc/systemd/system/opendeepcool-sensors-detect.service".into(),
+            "/etc/systemd/system/opendeepcool.service".into(),
             "/etc/systemd/user/opendeepcool-audio.service.d".into(),
             "/etc/sysusers.d/opendeepcool.conf".into(),
             "/etc/udev/rules.d/70-opendeepcool.rules".into(),
@@ -1078,7 +1053,7 @@ impl Test {
     }
 
     /// The candidate, then the same build at a raised pkgrel: the switch's links, the account,
-    /// the detection record, the settings and an administrator's drop-in survive, the files are
+    /// the settings and an administrator's drop-in survive, the files are
     /// the same, and the restart hook skips its work in the chroot.
     fn upgrade(&self) -> Result<String, String> {
         let mut made = Made::default();
@@ -1093,7 +1068,6 @@ impl Test {
         self.root
             .root(&[BOOT, "on"], &[("PKEXEC_UID", "1000")])
             .check("opendeepcool-boot on")?;
-        self.record(&record(false, false, false))?;
         let settings = format!("{STAGE}/settings.toml");
         made.files.push(settings.clone());
         self.put(&settings, b"mode = 4\n", &mut made.dirs)?;
@@ -1165,123 +1139,6 @@ impl Test {
         Ok(format!(
             "release 1, then 2: everything else alike; restart hook: {hook}"
         ))
-    }
-
-    /// Writes the detection's record where the detection keeps it: a root-only folder, root's
-    /// file.
-    fn record(&self, text: &str) -> Result<(), String> {
-        let dir = self.root.path(DETECT_DIR);
-        fs::create_dir_all(&dir).map_err(|e| format!("{DETECT_DIR}: {e}"))?;
-        fs::set_permissions(&dir, fs::Permissions::from_mode(0o700))
-            .map_err(|e| format!("{DETECT_DIR}: {e}"))?;
-        let file = dir.join(RECORD);
-        fs::write(&file, text).map_err(|e| format!("{}: {e}", file.display()))?;
-        fs::set_permissions(&file, fs::Permissions::from_mode(0o600))
-            .map_err(|e| format!("{}: {e}", file.display()))
-    }
-
-    /// One lm-sensors case: install, the detection's files and record as the case says,
-    /// uninstall, and what must be left.
-    fn lm_sensors(&self, case: Case) -> Result<String, String> {
-        let mut made = Made {
-            files: vec![
-                CONF_D.into(),
-                MODPROBE_D.into(),
-                format!("{STAGE}/record.json"),
-            ],
-            lm_sensors: true,
-            ..Made::default()
-        };
-        let result = self.lm_sensors_steps(case, &mut made);
-        self.settle(result, made)
-    }
-
-    fn lm_sensors_steps(&self, case: Case, made: &mut Made) -> Result<String, String> {
-        let conf = b"HWMON_MODULES=\"coretemp\"\n";
-        if case == Case::Before {
-            self.put(CONF_D, conf, &mut made.dirs)?;
-            self.root
-                .root(&["systemctl", "enable", "lm_sensors.service"], &[])
-                .check("enabling lm_sensors")?;
-        }
-        let mut argv = vec!["pacman".to_owned(), "-U".into(), "--noconfirm".into()];
-        argv.extend(self.packages.iter().cloned());
-        self.root.root(&argv, &[]).check("pacman -U")?;
-        if case != Case::Before {
-            self.put(CONF_D, conf, &mut made.dirs)?;
-            self.put(
-                MODPROBE_D,
-                b"options coretemp tjmax=100000\n",
-                &mut made.dirs,
-            )?;
-            self.root
-                .root(&["systemctl", "enable", "lm_sensors.service"], &[])
-                .check("enabling lm_sensors")?;
-        }
-        let real = record(
-            case != Case::Before,
-            case != Case::Before,
-            case == Case::Before,
-        );
-        match case {
-            Case::Created | Case::Before => self.record(&real)?,
-            Case::Link => {
-                let mut none = Vec::new();
-                self.put(&format!("{STAGE}/record.json"), real.as_bytes(), &mut none)?;
-                self.record("")?;
-                let file = self.root.path(&format!("{DETECT_DIR}/{RECORD}"));
-                fs::remove_file(&file).map_err(|e| format!("{}: {e}", file.display()))?;
-                symlink(format!("{STAGE}/record.json"), &file)
-                    .map_err(|e| format!("{}: {e}", file.display()))?;
-            }
-            Case::Owner => {
-                self.record(&real)?;
-                self.root
-                    .root(&["chown", BUILDER, &format!("{DETECT_DIR}/{RECORD}")], &[])
-                    .check("chown")?;
-            }
-            Case::Path => self.record(&real.replace(
-                "\"created_conf_d\": true,",
-                "\"created_conf_d\": \"/etc/passwd\",",
-            ))?,
-            Case::Key => {
-                self.record(&real.replace("\"created_modprobe_d\"", "\"created_other\""))?
-            }
-        }
-        let (ran, allowed) = self.uninstall()?;
-        made.allowed = Some(allowed);
-        let there = |p: &str| fs::symlink_metadata(self.root.path(p)).is_ok();
-        let state = format!(
-            "conf.d {}, modprobe.d {}, lm_sensors.service {}",
-            there(CONF_D),
-            there(MODPROBE_D),
-            there(LM_SENSORS_LINK)
-        );
-        let note = match case {
-            Case::Created => {
-                if there(CONF_D) || there(MODPROBE_D) || there(LM_SENSORS_LINK) {
-                    return Err(format!("the detection's files stayed: {state}"));
-                }
-                "the detection's files and lm_sensors.service went".to_owned()
-            }
-            Case::Before => {
-                let kept = fs::read(self.root.path(CONF_D)).ok();
-                if kept.as_deref() != Some(&conf[..]) || !there(LM_SENSORS_LINK) {
-                    return Err(format!("the PC's own lm-sensors setup changed: {state}"));
-                }
-                "the PC's own lm-sensors setup stayed as it was".to_owned()
-            }
-            _ => {
-                if !(there(CONF_D) && there(MODPROBE_D) && there(LM_SENSORS_LINK)) {
-                    return Err(format!("a forged record removed something: {state}"));
-                }
-                if !ran.said().contains("isn't as it wrote it") {
-                    return Err("no word about the forged record".into());
-                }
-                "nothing it names was removed, and the uninstall said why".to_owned()
-            }
-        };
-        Ok(note)
     }
 
     /// A copy of the PKGBUILD with `?signed` and a throwaway key's fingerprint verifies a tag
@@ -1485,22 +1342,6 @@ fn accepted(before: &Snapshot, after: &Snapshot, allowed: &Allowed) -> String {
         .join(", ")
 }
 
-/// A record as the detection writes it, for a made-up board.
-fn record(conf_d: bool, modprobe_d: bool, before: bool) -> String {
-    Record {
-        board: Board {
-            vendor: "Test Vendor".into(),
-            name: "TEST-BOARD".into(),
-            version: "1.0".into(),
-        },
-        date: "2026-11-11".into(),
-        created_conf_d: conf_d,
-        created_modprobe_d: modprobe_d,
-        lm_sensors_enabled_before: before,
-    }
-    .render()
-}
-
 /// No link under `/etc/systemd`, or in a `.wants` folder under `/usr/lib/systemd`, names an
 /// OpenDeepCool unit.
 fn nothing_on(installed: &Snapshot) -> Result<String, String> {
@@ -1532,40 +1373,6 @@ fn message(output: &str) -> Result<String, String> {
         }
     }
     Ok("printed, with both commands".into())
-}
-
-/// The lm-sensors cases (Task 5): the detection created the files; the PC had its own setup
-/// before; and four forged records (solution review OV-01).
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum Case {
-    Created,
-    Before,
-    Link,
-    Owner,
-    Path,
-    Key,
-}
-
-impl Case {
-    const ALL: [Case; 6] = [
-        Case::Created,
-        Case::Before,
-        Case::Link,
-        Case::Owner,
-        Case::Path,
-        Case::Key,
-    ];
-
-    fn name(self) -> &'static str {
-        match self {
-            Case::Created => "lm_sensors_created",
-            Case::Before => "lm_sensors_before",
-            Case::Link => "forged_link",
-            Case::Owner => "forged_owner",
-            Case::Path => "forged_path",
-            Case::Key => "forged_key",
-        }
-    }
 }
 
 /// What makepkg built: exactly one package, `opendeepcool-<version>-<release>-x86_64.pkg.tar.zst`.

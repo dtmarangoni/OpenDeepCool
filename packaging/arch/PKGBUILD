@@ -15,7 +15,7 @@ arch=('x86_64')
 url='https://github.com/dtmarangoni/OpenDeepCool'
 license=('MIT')
 # The libraries the programs link, the icon theme whose folders hold the app's icon, and the
-# programs and data they use: pci.ids, sensors-detect, pw-record, pkexec, the bus and systemctl.
+# programs and data they use: pci.ids, pw-record, pkexec, the bus and systemctl.
 depends=(
   'cairo'
   'dbus'
@@ -25,7 +25,6 @@ depends=(
   'hicolor-icon-theme'
   'hwdata'
   'libgcc'
-  'lm_sensors'
   'pango'
   'pipewire-audio'
   'polkit'
@@ -56,7 +55,7 @@ build() {
   export CARGO_TARGET_DIR=target
   # Only the crates whose programs ship: no test crate is built.
   cargo build --frozen --release \
-    -p odc-app -p odc-service -p odc-audio -p odc-gpu-rank -p odc-sensors-detect -p odc-boot
+    -p odc-app -p odc-service -p odc-audio -p odc-gpu-rank -p odc-boot
 }
 
 check() {
@@ -76,18 +75,12 @@ package() {
   install -Dm0755 target/release/opendeepcool-audio \
     "$pkgdir/usr/lib/opendeepcool/opendeepcool-audio"
   install -Dm0755 target/release/odc-gpu-rank "$pkgdir/usr/lib/opendeepcool/odc-gpu-rank"
-  install -Dm0755 target/release/odc-sensors-detect \
-    "$pkgdir/usr/lib/opendeepcool/odc-sensors-detect"
   install -Dm0755 target/release/opendeepcool-boot \
     "$pkgdir/usr/lib/opendeepcool/opendeepcool-boot"
   install -Dm0644 packaging/systemd/opendeepcool.service \
     "$pkgdir/usr/lib/systemd/system/opendeepcool.service"
   install -Dm0644 packaging/systemd/opendeepcool-gpu-rank.service \
     "$pkgdir/usr/lib/systemd/system/opendeepcool-gpu-rank.service"
-  install -Dm0644 packaging/systemd/opendeepcool-sensors-detect.service \
-    "$pkgdir/usr/lib/systemd/system/opendeepcool-sensors-detect.service"
-  install -Dm0644 packaging/systemd/opendeepcool-sensors-detect-modules.service \
-    "$pkgdir/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service"
   install -Dm0644 packaging/systemd-user/opendeepcool-audio.service \
     "$pkgdir/usr/lib/systemd/user/opendeepcool-audio.service"
   install -Dm0644 packaging/sysusers/opendeepcool.conf \

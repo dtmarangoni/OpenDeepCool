@@ -13,8 +13,6 @@ post_install() {
       sudo systemctl enable --now opendeepcool.service
       sudo systemctl --global enable opendeepcool-audio.service
       systemctl --user start opendeepcool-audio.service
-    Its first start runs lm-sensors' detection once, on a PC that has no lm-sensors
-    configuration and no fan reading yet.
 EOF
 }
 
@@ -42,8 +40,7 @@ _odc_overrides() {
 		_odc_dirs='/etc /run'
 	fi
 	for _odc_dir in $_odc_dirs; do
-		for _odc_unit in opendeepcool.service opendeepcool-gpu-rank.service \
-			opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service; do
+		for _odc_unit in opendeepcool.service opendeepcool-gpu-rank.service; do
 			rm -rfv "$_odc_dir/systemd/system/$_odc_unit" "$_odc_dir/systemd/system/$_odc_unit.d" \
 				"$_odc_dir/systemd/system.control/$_odc_unit.d"
 		done
@@ -66,74 +63,14 @@ pre_remove() {
 	# Before the links, since systemctl disable skips a masked unit.
 	_odc_overrides
 	# Every link to the units, from turning OpenDeepCool on or made by hand. They work on the
-	# files alone, without a running systemd. -q drops systemctl's hint that the modules unit has
+	# files alone, without a running systemd. -q drops systemctl's hint that the GPU-rank unit has
 	# no [Install] section.
 	systemctl -q --global disable opendeepcool-audio.service
-	systemctl -q disable opendeepcool.service opendeepcool-gpu-rank.service \
-		opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service
+	systemctl -q disable opendeepcool.service opendeepcool-gpu-rank.service
 	# And the links made for this boot only, in /run.
 	if ! _odc_chroot; then
 		systemctl -q --global --runtime disable opendeepcool-audio.service
-		systemctl -q --runtime disable opendeepcool.service opendeepcool-gpu-rank.service \
-			opendeepcool-sensors-detect.service opendeepcool-sensors-detect-modules.service
-	fi
-}
-
-# A yes/no line of the detection's record: line $1, key $2, and $3 a comma or nothing. Prints
-# true or false; anything else fails.
-_odc_flag() {
-	case $(sed -n "${1}p" "$_odc_record") in
-	"  \"$2\": true$3") echo true ;;
-	"  \"$2\": false$3") echo false ;;
-	*) return 1 ;;
-	esac
-}
-
-# What the sensor detection created, undone from its record's yes/no facts alone: never a path
-# from it. The record is read only from a root-only folder, as root's own regular file, never
-# through a link, and only in the exact layout the detection writes (solution review OV-01).
-_odc_undo_detection() {
-	_odc_dir=/var/lib/opendeepcool-detect
-	_odc_record=$_odc_dir/sensors-detect.json
-	if [ ! -d "$_odc_dir" ] || [ -L "$_odc_dir" ] || [ ! -e "$_odc_record" ]; then
-		return 0
-	fi
-	if [ "$(stat -c '%u %a' "$_odc_dir")" != "0 700" ] || [ -L "$_odc_record" ] ||
-		[ ! -f "$_odc_record" ] || [ "$(stat -c '%u %h' "$_odc_record")" != "0 1" ] ||
-		[ "$(wc -l <"$_odc_record")" -ne 10 ] ||
-		[ "$(sed -n 1p "$_odc_record")" != "{" ] ||
-		[ "$(sed -n 2p "$_odc_record")" != '  "version": 1,' ] ||
-		[ "$(sed -n 10p "$_odc_record")" != "}" ]; then
-		echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
-			"lm-sensors' files are left as they are" >&2
-		return 0
-	fi
-	for _odc_line in 3:board_vendor 4:board_name 5:board_version 6:date; do
-		case $(sed -n "${_odc_line%%:*}p" "$_odc_record") in
-		"  \"${_odc_line#*:}\": \""*"\",") ;;
-		*)
-			echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
-				"lm-sensors' files are left as they are" >&2
-			return 0
-			;;
-		esac
-	done
-	if ! _odc_conf_d=$(_odc_flag 7 created_conf_d ,) ||
-		! _odc_modprobe_d=$(_odc_flag 8 created_modprobe_d ,) ||
-		! _odc_before=$(_odc_flag 9 lm_sensors_enabled_before ''); then
-		echo "==> OpenDeepCool: the sensor detection's record isn't as it wrote it;" \
-			"lm-sensors' files are left as they are" >&2
-		return 0
-	fi
-	if [ "$_odc_conf_d" = true ]; then
-		rm -f /etc/conf.d/lm_sensors
-	fi
-	if [ "$_odc_modprobe_d" = true ]; then
-		rm -f /etc/modprobe.d/lm_sensors.conf
-	fi
-	# lm-sensors' detection enables its service when it writes the configuration.
-	if [ "$_odc_conf_d" = true ] && [ "$_odc_before" = false ]; then
-		systemctl disable lm_sensors.service
+		systemctl -q --runtime disable opendeepcool.service opendeepcool-gpu-rank.service
 	fi
 }
 
@@ -157,9 +94,8 @@ _odc_power_counters() {
 post_remove() {
 	# Files first, then the account, so nothing is left owned by a number a later account could
 	# be given.
-	_odc_undo_detection
 	_odc_power_counters
-	rm -rf /var/lib/opendeepcool-detect /var/lib/opendeepcool
+	rm -rf /var/lib/opendeepcool
 	if getent passwd opendeepcool >/dev/null; then
 		userdel opendeepcool
 	fi

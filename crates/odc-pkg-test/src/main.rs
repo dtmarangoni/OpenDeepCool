@@ -5,7 +5,7 @@
 //! checks what each install leaves, and requires each uninstall to leave the root as the
 //! snapshot was, apart from a short, fixed list. Along the way: two builds byte for byte, the
 //! Start at boot program, an administrator's changes under OpenDeepCool's names, an upgrade,
-//! lm-sensors' files after a real or a forged detection record, and signed tags.
+//! and signed tags.
 //!
 //! Each check prints one line, `ok <name> <seconds> <note>` or `FAILED <name> <seconds> <why>`,
 //! as the settings app's driver does, and the program ends with a failure if any check failed.

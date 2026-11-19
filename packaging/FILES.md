@@ -15,12 +15,9 @@ pacman installs these and `pacman -R` removes them. `target/release/` is the PKG
 | `/usr/lib/opendeepcool/opendeepcoold` | program | root:root | 0755 | `target/release/opendeepcoold` |
 | `/usr/lib/opendeepcool/opendeepcool-audio` | program | root:root | 0755 | `target/release/opendeepcool-audio` |
 | `/usr/lib/opendeepcool/odc-gpu-rank` | program | root:root | 0755 | `target/release/odc-gpu-rank` |
-| `/usr/lib/opendeepcool/odc-sensors-detect` | program | root:root | 0755 | `target/release/odc-sensors-detect` |
 | `/usr/lib/opendeepcool/opendeepcool-boot` | program | root:root | 0755 | `target/release/opendeepcool-boot` |
 | `/usr/lib/systemd/system/opendeepcool.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool.service` |
 | `/usr/lib/systemd/system/opendeepcool-gpu-rank.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-gpu-rank.service` |
-| `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-sensors-detect.service` |
-| `/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service` | file | root:root | 0644 | `packaging/systemd/opendeepcool-sensors-detect-modules.service` |
 | `/usr/lib/systemd/user/opendeepcool-audio.service` | file | root:root | 0644 | `packaging/systemd-user/opendeepcool-audio.service` |
 | `/usr/lib/sysusers.d/opendeepcool.conf` | file | root:root | 0644 | `packaging/sysusers/opendeepcool.conf` |
 | `/usr/lib/udev/rules.d/70-opendeepcool.rules` | file | root:root | 0644 | `packaging/udev/70-opendeepcool.rules` |
@@ -65,9 +62,6 @@ With the settings app's Start at boot switch, or `systemctl enable --now opendee
 | Item | Created by | Removed by |
 |---|---|---|
 | `/var/lib/opendeepcool/` (opendeepcool:opendeepcool, 0700), with `settings.toml` and `gpu-rank.json` | systemd, for the units' `StateDirectory=opendeepcool`; the service and the GPU-rank helper write the files | `post_remove`: `rm -rf` |
-| `/var/lib/opendeepcool-detect/` (root:root, 0700), with `sensors-detect.json` | systemd, for the detection unit's `StateDirectory=opendeepcool-detect`; the detection writes the record | `post_remove`: `rm -rf`, after the next row |
-| The drivers `i2c-dev` and `cpuid` loaded | `opendeepcool-sensors-detect-modules.service`, under the detection's conditions, just before it runs, so the detection may open their devices; `sensors-detect` would load both itself | Nothing: they stay loaded until the next boot (below) |
-| `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`, and `lm_sensors.service` enabled | The detection's `sensors-detect --auto`, only on a PC that has no lm-sensors configuration and no fan reading | `post_remove`, only what the root-only record's yes/no fields say the detection created |
 | The LP360's hidraw node: group `opendeepcool`, mode 0660 | The udev rule | systemd's `35-systemd-udev-reload.hook` reloads udev and triggers a change once the rule is gone |
 | The CPU's package energy counters (`energy_uj` of each powercap zone named `package-*`): group `opendeepcool`, the group's read added | The udev rule, through `chgrp` and `chmod` | `post_remove` gives the group back to root and takes the group's read away, which a udev reload can't undo |
 
@@ -77,9 +71,9 @@ pacman never deletes a file it didn't install. These are read in front of, or be
 
 | Item | Made by | Removed by |
 |---|---|---|
-| `/etc/systemd/system/<unit>`, `<unit>.d/` and `/etc/systemd/system.control/<unit>.d/`, for each of the four system units; the same under `/run/systemd/` | `systemctl edit` (`--full` makes a copy), `systemctl set-property`, `systemctl mask`; `--runtime` for `/run` | `pre_remove`, before the links, since `systemctl disable` skips a masked unit |
+| `/etc/systemd/system/<unit>`, `<unit>.d/` and `/etc/systemd/system.control/<unit>.d/`, for each of the two system units; the same under `/run/systemd/` | `systemctl edit` (`--full` makes a copy), `systemctl set-property`, `systemctl mask`; `--runtime` for `/run` | `pre_remove`, before the links, since `systemctl disable` skips a masked unit |
 | `/etc/systemd/user/opendeepcool-audio.service` and `opendeepcool-audio.service.d/`; the same under `/run/systemd/user/` | `systemctl --global edit`, `systemctl --global mask` | `pre_remove` |
-| Links to any of the five units made by hand | `systemctl add-wants`, `systemctl enable --runtime` | `pre_remove`: `systemctl disable` and `systemctl --runtime disable` |
+| Links to any of the three units made by hand | `systemctl add-wants`, `systemctl enable --runtime` | `pre_remove`: `systemctl disable` and `systemctl --runtime disable` |
 | `/etc/sysusers.d/opendeepcool.conf`, `/etc/udev/rules.d/70-opendeepcool.rules`, `/etc/polkit-1/actions/io.github.dtmarangoni.OpenDeepCool1.policy`; the same three under `/run` | A file that overrides the package's, or masks it as a link to `/dev/null` | `pre_remove` |
 | `/etc/dbus-1/system.d/io.github.dtmarangoni.OpenDeepCool1.conf`, `/etc/pacman.d/hooks/opendeepcool-restart.hook` (D-Bus and pacman read no folder in `/run`) | Likewise | `pre_remove` |
 
@@ -87,7 +81,6 @@ The development copy keeps its files in `/etc` under these names, so `odc-dev te
 
 ## What outlasts the uninstall
 
-- A sensor driver loaded by lm-sensors stays loaded until the next boot, and so do `i2c-dev` and `cpuid` where the detection ran.
 - The journal's lines stay until journald rotates them.
 - A core dump of an OpenDeepCool program that crashed stays until systemd's cleanup, after two weeks by default.
 - pacman's own log and cache.

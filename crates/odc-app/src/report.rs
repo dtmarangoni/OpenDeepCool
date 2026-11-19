@@ -12,12 +12,7 @@ use std::process::{Command, Stdio};
 const ISSUES: &str = "https://github.com/dtmarangoni/OpenDeepCool/issues";
 
 /// The system units the report asks about and takes the journal of.
-const SYSTEM_UNITS: [&str; 4] = [
-    "opendeepcool.service",
-    "opendeepcool-gpu-rank.service",
-    "opendeepcool-sensors-detect.service",
-    "opendeepcool-sensors-detect-modules.service",
-];
+const SYSTEM_UNITS: [&str; 2] = ["opendeepcool.service", "opendeepcool-gpu-rank.service"];
 
 /// The sound helper's user unit.
 const USER_UNIT: &str = "opendeepcool-audio.service";
@@ -34,12 +29,11 @@ const PROPERTIES: [&str; 7] = [
 ];
 
 /// OpenDeepCool's programs, by file name: the only ones whose crashes the report lists.
-const PROGRAMS: [&str; 6] = [
+const PROGRAMS: [&str; 5] = [
     "opendeepcoold",
     "opendeepcool",
     "opendeepcool-audio",
     "odc-gpu-rank",
-    "odc-sensors-detect",
     "opendeepcool-boot",
 ];
 
@@ -636,8 +630,7 @@ mod tests {
         assert!(fake.ran.contains(&"pacman -Q opendeepcool".to_owned()));
         assert!(fake.ran.iter().any(|r| r
             == "journalctl -b -n 100 -o short-iso --no-hostname --no-pager -u opendeepcool.service \
-                -u opendeepcool-gpu-rank.service -u opendeepcool-sensors-detect.service \
-                -u opendeepcool-sensors-detect-modules.service"));
+                -u opendeepcool-gpu-rank.service"));
         assert!(fake.ran.iter().any(|r| r
             == "journalctl --user -b -n 40 -o short-iso --no-hostname --no-pager -u opendeepcool-audio.service"));
         assert!(
@@ -650,7 +643,7 @@ mod tests {
                 .iter()
                 .filter(|r| r.starts_with("systemctl show "))
                 .count(),
-            4
+            2
         );
         assert!(fake.ran.contains(&"coredumpctl list --no-pager".to_owned()));
     }
@@ -751,9 +744,9 @@ mod tests {
         assert_eq!(titles(&report).len(), 7);
         assert_eq!(
             report.matches("not available").count(),
-            // pacman, os-release, the kernel, five units, two journals, two lists of warnings
+            // pacman, os-release, the kernel, three units, two journals, two lists of warnings
             // and coredumpctl.
-            1 + 1 + 1 + 5 + 2 + 2 + 1
+            1 + 1 + 1 + 3 + 2 + 2 + 1
         );
         assert!(report.contains("systemd: not running"));
     }

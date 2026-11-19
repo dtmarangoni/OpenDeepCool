@@ -64,7 +64,7 @@ makepkg -si
 
 From the AUR, from `v1.0.0` (Phase 12): `yay -S opendeepcool`, or any AUR helper, or clone `https://aur.archlinux.org/opendeepcool.git` and run `makepkg -si` in it. Releases are signed, and the steps to import the signing key come with the first release.
 
-`makepkg` builds one package with Arch's Rust toolchain and runs the tests first, which takes a few minutes. pacman installs what it needs: GTK 4, PipeWire's tools, polkit, lm-sensors and the rest of its dependencies. `nvidia-utils` is optional, for NVIDIA GPUs.
+`makepkg` builds one package with Arch's Rust toolchain and runs the tests first, which takes a few minutes. pacman installs what it needs: GTK 4, PipeWire's tools, polkit and the rest of its dependencies. `nvidia-utils` is optional, for NVIDIA GPUs.
 
 ## What it needs
 
@@ -90,8 +90,6 @@ sudo systemctl disable --now opendeepcool.service
 sudo systemctl --global disable opendeepcool-audio.service
 ```
 
-On a PC that has no lm-sensors configuration and no fan reading yet, the service's first start runs lm-sensors' `sensors-detect --auto` once, as root, to find the chip that measures the cooler's fans and pump. That detection probes the PC's sensor buses, loads the `i2c-dev` and `cpuid` drivers, and may write `/etc/conf.d/lm_sensors` and enable `lm_sensors.service`. The uninstall undoes only what the detection created.
-
 NVIDIA support is untested on real hardware, NVML inside the service's sandbox included.
 
 ## Uninstall
@@ -100,11 +98,10 @@ NVIDIA support is untested on real hardware, NVML inside the service's sandbox i
 sudo pacman -R opendeepcool
 ```
 
-This removes everything OpenDeepCool installed or made, in the next section's four tables: its files, its system account and group, the links that turn it on, its saved settings, what the detection created, and any file an administrator made under its names in `/etc` and `/run`. A package test proves it: it installs and uninstalls the package in a throwaway Arch root and compares the root with how it started.
+This removes everything OpenDeepCool installed or made, in the next section's four tables: its files, its system account and group, the links that turn it on, its saved settings, and any file an administrator made under its names in `/etc` and `/run`. A package test proves it: it installs and uninstalls the package in a throwaway Arch root and compares the root with how it started.
 
 What stays, because it isn't OpenDeepCool's to delete:
 
-- a sensor driver that lm-sensors loaded, and `i2c-dev` and `cpuid`, until the next boot;
 - the journal's lines, until journald rotates them;
 - a core dump of an OpenDeepCool program that crashed, until systemd's cleanup removes it, after two weeks by default;
 - pacman's own log and cache;
@@ -125,12 +122,9 @@ The exact list is [packaging/FILES.md](packaging/FILES.md), and a test fails whe
 | `/usr/lib/opendeepcool/opendeepcoold` | the display service |
 | `/usr/lib/opendeepcool/opendeepcool-audio` | the sound helper, run in each user's session |
 | `/usr/lib/opendeepcool/odc-gpu-rank` | a one-shot helper that asks each GPU's driver for its kind |
-| `/usr/lib/opendeepcool/odc-sensors-detect` | a one-shot helper that runs lm-sensors' detection once |
 | `/usr/lib/opendeepcool/opendeepcool-boot` | the Start at boot switch's root program |
 | `/usr/lib/systemd/system/opendeepcool.service` | the display service's unit |
 | `/usr/lib/systemd/system/opendeepcool-gpu-rank.service` | the GPU helper's unit |
-| `/usr/lib/systemd/system/opendeepcool-sensors-detect.service` | the detection's unit |
-| `/usr/lib/systemd/system/opendeepcool-sensors-detect-modules.service` | loads the two drivers the detection may need |
 | `/usr/lib/systemd/user/opendeepcool-audio.service` | the sound helper's user unit |
 | `/usr/lib/sysusers.d/opendeepcool.conf` | the locked system account and group `opendeepcool` that the service runs as |
 | `/usr/lib/udev/rules.d/70-opendeepcool.rules` | gives that group the cooler's device and read access to the CPU's power counters |
@@ -156,8 +150,6 @@ The system account and group `opendeepcool` are created by systemd's sysusers ho
 | Path | What it is |
 |---|---|
 | `/var/lib/opendeepcool/` (opendeepcool:opendeepcool, 0700), with `settings.toml` and `gpu-rank.json` | your settings and each GPU's kind |
-| `/var/lib/opendeepcool-detect/` (root:root, 0700), with `sensors-detect.json` | a record of what the detection created |
-| `/etc/conf.d/lm_sensors`, `/etc/modprobe.d/lm_sensors.conf`, and `lm_sensors.service` enabled | written by the detection, only on a PC with no lm-sensors configuration and no fan reading; removed only if the record says the detection made them |
 
 It also changes two things the udev rule controls, and the uninstall puts both back: the cooler's device node gets the group `opendeepcool` and mode 0660, and each CPU package's `energy_uj` power counter gets that group's read access.
 

@@ -1180,7 +1180,6 @@ version = "0.0.0"
 name = "odc-pkg-test"
 version = "0.0.0"
 dependencies = [
- "odc-sensors-detect",
  "sha2",
 ]
 
@@ -1210,13 +1209,6 @@ dependencies = [
  "nvml-wrapper",
  "odc-testkit",
  "proptest",
-]
-
-[[package]]
-name = "odc-sensors-detect"
-version = "0.0.0"
-dependencies = [
- "odc-testkit",
 ]
 
 [[package]]

@@ -18,10 +18,6 @@ use crate::fake_tree::FakeTree;
 /// The made-up name of an unrelated hwmon chip in [`other_chip`] (AGENTS.md rule 10).
 pub const OTHER_CHIP: &str = "fakeotherchip";
 
-/// The made-up name of the board's sensor chip in [`board_fans`], which the sensor detection's
-/// tests use and which goes with the detection (Phase 11a Task 5) (AGENTS.md rule 10).
-pub const BOARD_CHIP: &str = "fakeboardchip";
-
 /// PCI class codes as sysfs writes them (`Documentation/ABI/testing/sysfs-bus-pci`, `class`;
 /// the kernel's `pci_ids.h`): a VGA controller, a 3D controller and a host bridge.
 pub const PCI_CLASS_VGA: &str = "0x030000";
@@ -458,28 +454,5 @@ pub fn other_chip(tree: &FakeTree, chip: &str) -> io::Result<PathBuf> {
         &format!("sys/devices/platform/{chip}.656"),
         chip,
         &[kv("temp1_input", 35_000)],
-    )
-}
-
-/// The board's sensor chip, a platform device named `chip` (usually [`BOARD_CHIP`]), with fan
-/// inputs `(N, rpm, label)` (`Documentation/hwmon/sysfs-interface.rst`, `fanN_input` and
-/// `fanN_label`). Returns the hwmon folder.
-pub fn board_fans(
-    tree: &FakeTree,
-    chip: &str,
-    inputs: &[(u32, u64, Option<&str>)],
-) -> io::Result<PathBuf> {
-    let mut files = Vec::new();
-    for &(n, rpm, label) in inputs {
-        files.push(kv(format!("fan{n}_input"), rpm));
-        if let Some(label) = label {
-            files.push(kv(format!("fan{n}_label"), label));
-        }
-    }
-    hwmon(
-        tree,
-        &format!("sys/devices/platform/{chip}.656"),
-        chip,
-        &files,
     )
 }

@@ -1,11 +1,11 @@
 # OpenDeepCool's display service (docs/spec/settings.md): drives the DeepCool LP360's display
 # from boot, the same for every user, and serves the settings app on the system bus. Phase 7
-# plan, Task 8: a crash or a hang ends in a restart; it waits for the GPU ranking and the board's
-# sensor driver, but never for the sensor detection; and it runs sandboxed as its own account.
+# plan, Task 8: a crash or a hang ends in a restart; it waits for the GPU ranking; and it runs
+# sandboxed as its own account.
 [Unit]
 Description=OpenDeepCool display service
-Wants=opendeepcool-gpu-rank.service opendeepcool-sensors-detect.service
-After=opendeepcool-gpu-rank.service lm_sensors.service
+Wants=opendeepcool-gpu-rank.service
+After=opendeepcool-gpu-rank.service
 # systemd's default limit, 5 starts in 10 s, would stop restarting for good.
 StartLimitIntervalSec=0
 

@@ -7,8 +7,6 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
-# The detection's own record writer, so the removal script is tested on exactly what it writes.
-odc-sensors-detect = { path = "../odc-sensors-detect" }
 # The snapshot's SHA-256 of every file (Phase 11 plan, Task 5).
 sha2 = { version = "0.11", default-features = false }
 

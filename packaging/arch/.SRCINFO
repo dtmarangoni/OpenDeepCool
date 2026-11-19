@@ -16,7 +16,6 @@ pkgbase = opendeepcool
 	depends = hicolor-icon-theme
 	depends = hwdata
 	depends = libgcc
-	depends = lm_sensors
 	depends = pango
 	depends = pipewire-audio
 	depends = polkit

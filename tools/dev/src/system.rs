@@ -230,7 +230,7 @@ pub const APP_FILES: [Install; 2] = [
 
 /// The dev copy's units and their drop-ins, the D-Bus policy and the polkit actions (Phase 7
 /// plan, Task 8; owner, 2026-10-29), and the sound helper's user unit with its drop-in (Phase 9
-/// plan, Task 4). The detection one-shot isn't part of the dev copy.
+/// plan, Task 4).
 pub const SERVICE_FILES: [Install; 8] = [
     Install {
         source: "packaging/systemd/opendeepcool.service",

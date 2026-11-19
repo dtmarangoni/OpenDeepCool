@@ -74,23 +74,14 @@ fn the_unit_restarts_a_crash_or_a_hang() {
     assert_eq!(values("Unit", "StartLimitIntervalSec"), ["0"]);
 }
 
-// P6-02, P6-04: it waits for the GPU ranking and the board's sensor driver, never for the
-// detection, which it only pulls in; it starts at boot with no login or session.
+// P6-02: it waits for the GPU ranking and for nothing else; it starts at boot with no login or
+// session.
 #[test]
-fn the_unit_waits_for_the_ranking_and_the_sensor_driver_never_the_detection() {
-    assert_eq!(
-        values("Unit", "After"),
-        ["opendeepcool-gpu-rank.service lm_sensors.service"]
-    );
-    assert_eq!(
-        values("Unit", "Wants"),
-        ["opendeepcool-gpu-rank.service opendeepcool-sensors-detect.service"]
-    );
+fn the_unit_waits_for_the_ranking_and_starts_at_boot_with_no_session() {
+    assert_eq!(values("Unit", "After"), ["opendeepcool-gpu-rank.service"]);
+    assert_eq!(values("Unit", "Wants"), ["opendeepcool-gpu-rank.service"]);
     assert!(values("Unit", "Requires").is_empty());
     for (_, key, value) in unit() {
-        if key == "After" || key == "Requires" {
-            assert!(!value.contains("sensors-detect"), "{key}={value}");
-        }
         for session in ["graphical.target", "login", "session", "user@"] {
             assert!(
                 !(["After", "Requires", "Wants"].contains(&key.as_str())
@@ -483,7 +474,6 @@ fn files_md_lists_what_the_package_installs() {
     for unit in [
         "systemd/opendeepcool.service",
         "systemd/opendeepcool-gpu-rank.service",
-        "systemd/opendeepcool-sensors-detect.service",
         "systemd-user/opendeepcool-audio.service",
     ] {
         let text = fs::read_to_string(packaging(unit)).expect("a unit");
@@ -678,7 +668,7 @@ fn build_names_exactly_the_crates_whose_programs_ship() {
         .collect();
     assert_eq!(built.len(), words.iter().filter(|w| **w == "-p").count());
     assert_eq!(built, crates_of(&programs));
-    assert_eq!(built.len(), 6, "{built:?}");
+    assert_eq!(built.len(), 5, "{built:?}");
 
     let prepare = commands(&function(&text, "prepare"));
     assert!(prepare.contains(&"cargo fetch --locked --target host-tuple".to_owned()));
@@ -766,8 +756,7 @@ fn the_pkgbuild_builds_the_signed_tag() {
 }
 
 /// The scriptlets enable, start, restart and reload nothing. OpenDeepCool's units are stopped
-/// and disabled only in `pre_remove`; `post_remove` may disable only `lm_sensors.service`, when
-/// the detection's record says the detection set it up.
+/// and disabled only in `pre_remove`; `post_remove` runs no `systemctl` at all.
 #[test]
 fn the_scriptlets_enable_and_start_nothing() {
     let text = arch("opendeepcool.install");
@@ -805,10 +794,6 @@ fn the_scriptlets_enable_and_start_nothing() {
             .filter(|line| line.starts_with("systemctl"))
             .collect()
     };
-    assert_eq!(
-        systemctl("_odc_undo_detection"),
-        ["systemctl disable lm_sensors.service"]
-    );
     for name in [
         "post_install",
         "post_remove",
