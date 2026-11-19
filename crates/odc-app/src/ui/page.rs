@@ -53,16 +53,40 @@ pub fn page_bar(
     bar
 }
 
-/// A scrolled window holding `child`: vertically as the content needs, and sideways only where
-/// the window is narrower than the content's own minimum (Rows, Narrow windows), so the
-/// content's minimum never sets the window's.
+/// A page's scrolled window (Size and scrolling): it scrolls down where the window is capped, asks
+/// for its child's natural size so the window is as big as the page, and never scrolls sideways
+/// itself: the window's own scroller does. It takes no focus; its content does.
 pub fn scrolled(child: &impl IsA<gtk::Widget>) -> gtk::ScrolledWindow {
-    gtk::ScrolledWindow::builder()
-        .hscrollbar_policy(gtk::PolicyType::Automatic)
+    let scroller = gtk::ScrolledWindow::builder()
+        .hscrollbar_policy(gtk::PolicyType::Never)
+        .vscrollbar_policy(gtk::PolicyType::Automatic)
+        .propagate_natural_width(true)
+        .propagate_natural_height(true)
         .hexpand(true)
         .vexpand(true)
+        .focusable(false)
         .child(child)
-        .build()
+        .build();
+    keep_natural_height(&scroller);
+    scroller
+}
+
+/// Makes `scroller`'s content keep its natural height where the scroller is shorter, and scroll,
+/// instead of being squeezed to its minimum: a viewport gives its child its minimum size by
+/// default, which unwraps a row's hint into one line (`GtkScrollable:vscroll-policy`).
+pub fn keep_natural_height(scroller: &gtk::ScrolledWindow) {
+    if let Some(viewport) = scroller.child().and_downcast::<gtk::Viewport>() {
+        viewport.set_vscroll_policy(gtk::ScrollablePolicy::Natural);
+        // A control that takes the focus scrolls into view (Keyboard), whatever GTK's default.
+        viewport.set_scroll_to_focus(true);
+    }
+}
+
+/// The scrolled window of a [`page`], for the tests.
+pub fn scroller_of(page: &gtk::Box) -> gtk::ScrolledWindow {
+    page.last_child()
+        .and_downcast::<gtk::ScrolledWindow>()
+        .expect("a page ends with its scrolled content")
 }
 
 /// A page: its bar, then its content in a scrolled window.

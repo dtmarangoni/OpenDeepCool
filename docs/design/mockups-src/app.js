@@ -53,6 +53,15 @@
 //   in one column. The Startup card on the off screen keeps its block at its own width.
 // - The two switches (Peak dots, Start at boot) are 40 x 22 with an 18 px knob.
 // - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
+//
+// The window's size (Phase 11a Task 9, 2026-11-19; docs/design/settings-app.md, Window, Size and scrolling). No new
+// CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
+// widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
+// scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
+// least 813 px high (the height of the Configuration page, the tallest, so Display leaves room under its tiles, as in
+// the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
+// whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
+// (class "only"), as small as its message.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -559,7 +568,7 @@ function notAvailablePage() {
 
 function render() {
   const win = document.getElementById("win");
-  win.className = "window";
+  win.className = S.notAvailable ? "window only" : "window";
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${

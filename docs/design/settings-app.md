@@ -11,6 +11,7 @@ Widget names are GTK 4 classes. Anything not checked against docs.gtk.org is mar
 - **Feature parity, not interface parity.** Every LP360 feature is reachable. There are no DeepCreative tabs and no Combined/Separate split.
 - **Few screens, few clicks.** There is one window with two pages, and every mode is one click away.
 - **Fast.** It opens straight onto the current settings, with no animation in the app's own chrome. Idle CPU use is nil: the preview redraws only when the cooler's picture changes, and nothing polls.
+- **Fits its content.** The window opens at the size of its content and floats where the compositor allows. On a screen too small for it, it has scrollbars instead of cutting anything off ([Size and scrolling](#size-and-scrolling)).
 - **Only the cooler.** CPU, GPU and RAM values appear only inside display pictures.
 - **Themed.** The app follows the current Omarchy theme live and uses its own default theme elsewhere. It never sets window opacity or blur.
 
@@ -20,7 +21,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 
 | # | Question | Choice | Why |
 |---|---|---|---|
-| D1 | Window structure | One window: a persistent preview column on the left, and a `GtkStack` on the right with two pages, **Display** and **Configuration** | The preview stays in view while rotation, GPU or Music settings change. There is no second window to tile in Hyprland |
+| D1 | Window structure | One window: a persistent preview column on the left, and a `GtkStack` on the right with two pages, **Display** and **Configuration** | The preview stays in view while rotation, GPU or Music settings change. There is no second window to place |
 | D2 | How the 23 modes are picked | A gallery of picture tiles in four groups, **Load**, **Temperature**, **Power** and **Music**. One tile is one mode | One click per mode, all of them visible, and each tile shows what the mode looks like. No Combined/Separate wording |
 | D3 | Where the preview sits | The top of the left column, on both pages | Every setting's effect shows in place |
 | D4 | Refresh and status | Refresh as an icon button at the right of the Display page's bar (D12; the header bar held it until Phase 11a); a status line of up to three items under the preview; a banner only for states that need attention | Status can be read at a glance, and the app only raises an alert when one is needed. Refresh sits with the page whose picture it syncs |
@@ -35,6 +36,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D13 | The preview column's line under the caption (Phase 11a Task 8, 2026-11-19, from the owner's review of 2026-11-18) | Gone in every state. What it said lives in the cooler banner, the cooler's status item and the preview's accessible description ([Preview column](#preview-column)). The column is the picture, its caption, the lost reading's reason when there is one, and the status items | In the one state where nothing is wrong it said "Shown on the cooler now", and in the three failures it repeated the banner above the window and the status item right below it. Without the line the column has the same layout in every cooler state, so nothing under the caption jumps when the cooler comes and goes |
 | D14 | The Configuration page's rows (Task 8) | A row is its **label block** (the title, with its hint under it) and its **control**, side by side and left-aligned: one horizontal `GtkBox` per row, one `GtkSizeGroup` over every label block of the page so the controls start in one column, a 24 px gap, and nothing that expands ([Rows](#rows)) | Labels beside their controls, with the space between them cut to the gap (owner, 2026-11-18). Sizing the label column from one group keeps the controls' left edges straight, which a row-by-row layout wouldn't |
 | D15 | The switches' size (Task 8) | 40 × 22 px for the two `GtkSwitch`es, from GTK's 48 × 24 ([The switches](#the-switches)) | "A little smaller" is a sixth narrower and a twelfth lower: seen at once, still a switch. 34 × 18, which Task 1 measured, is 29 % narrower and 25 % lower |
+| D16 | The window's size, its scrolling and its floating (Phase 11a Task 9, 2026-11-19, from the owner's review of 2026-11-18) | No default and no minimum size, and not resizable (`resizable` false): the window opens at the natural size of its content, the largest page's in each direction, and is never larger than the smallest monitor less 48 px. One outer `GtkScrolledWindow` carries that cap and scrolls the whole content sideways on a narrow screen; the preview column and each page scroll down on their own, under the header bar and the page bar ([Size and scrolling](#size-and-scrolling)) | The window is as small as its content on any monitor (owner, 2026-11-18), and on a small one nothing is cut off. The picture stays in view while a page scrolls (D1, D3), and the cap, a banner included, is set in one place. The user can't resize or maximise it: the extra room would be empty, and the window already scrolls where room is short |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -118,11 +120,41 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
   - **Where the hint goes**, with the title in the block:
     - (c1) **chosen:** under the title, in the label block, wrapping at 28 characters. The title and its explanation stay together, as the rows had them, and the block is about 28 characters wide, not the 45 of the longest hint;
     - (c2) under the control, in the control's column, as a form layout does: the label column would be only as wide as the longest title, the tightest layout, but the explanations move away from their titles, a switch gets a caption under it, and the GPU's static hint would join its two dynamic lines under the dropdown. If the owner still finds the gap wide after this review, (c2) is the next step, and a change to the same two helpers.
-  - **Stacking in a narrow window** (KDE's Kirigami `FormLayout` puts a label above its control when there's no room): no. The window isn't resizable by the user (Task 9), so a page is narrow only on a small monitor, where the page scrolls ([Rows](#rows), Narrow windows), and a `GtkBox` can't wrap a control under its label anyway.
+  - **Stacking in a narrow window** (KDE's Kirigami `FormLayout` puts a label above its control when there's no room): no. The window isn't resizable by the user (Task 9), so a page is narrow only on a small monitor, where the content scrolls sideways ([Rows](#rows), Narrow windows), and a `GtkBox` can't wrap a control under its label anyway.
 - **The switches' size:**
   - (a) 34 × 18, the size Task 1 measured: 29 % narrower and 25 % lower than GTK's 48 × 24, which is more than "a little bit smaller" (owner, 2026-11-18), with a 14 px knob and a pointer target 6 px under WCAG 2.2's 24 px minimum;
   - (b) 36 × 20: 25 % narrower and 17 % lower, still a clear step down, with a 4 px shortfall on the target;
   - (c) **chosen:** 40 × 22. The width falls by a sixth and the height by a twelfth, so the change is plain at a glance and the pill keeps a ratio (1.8 : 1) near GTK's (2 : 1). The height is 2 px under WCAG 2.2's 24 px target minimum, so the spacing exception is the rule that holds ([The switches](#the-switches)).
+
+### Answers decided on 2026-11-19, Task 9
+
+Decided under the same delegation, for the owner's request of 2026-11-18: the window opens outside tiling mode, at the smallest size that fits its content in width and height, so its size depends on the monitor, and has scrollbars where the content would overflow the screen. Each choice, with the options weighed:
+
+- **What sets the size:**
+  - (a) a fixed default and minimum, as Phases 10 and 11 had (1040 × 720 and 720 × 560): the same window on every monitor, with a gap under the tiles on a large one and a cut-off page on a small one: the owner's complaint;
+  - (b) the natural size of the page that shows, so the window resizes at each page change: about 575 px high on Display and about 765 on Configuration. A floating window that changes height at every click on the gear, with its bottom edge and the preview column moving under the pointer;
+  - (c) **chosen** (the plan, with Task 1's measurements): the natural size of the largest page in each direction, the stack homogeneous. The window never changes size when the page changes or the service stops, and the off screen fits it. The price is empty space under the Display page's tiles, about 240 px on a large monitor: the price of a window that stays where it is.
+- **Which `GtkScrolledWindow` wraps what:**
+  - (a) one scrolled window around the whole body: the simplest tree, and the cap is exact, but on a 768 px screen the preview column and the page bars scroll away with the page, so the picture leaves the view while the user changes rotation or the Music settings (D1, D3);
+  - (b) a scrolled window per page only (the plan's first wording), the column outside, the cap as `max-content-*` on each page's scroller: the cap would have to subtract the header bar, the page bar and the banner, whose height changes; the column, about 440 px high, would be cut off on a screen under about 540 px; and a narrow screen would scroll only the page, so a 640 px screen would show 330 px of a page that needs 588;
+  - (c) **chosen:** one outer scrolled window around the content, which carries the cap and scrolls sideways, and inside it a scrolled window for the column and one for each page, which scroll down. The cap is set on one widget and counts the banner for free; the picture and the page bar stay put while a page scrolls down; and below 850 px the whole content scrolls sideways, so the page can come fully into view.
+- **The cap's margin:**
+  - (a) none: the window may fill the monitor and sit under a panel on a compositor that sends no work area;
+  - (b) **chosen:** 48 px in each direction, room for one panel or dock. It's a judgment, not a measurement: panels are typically 30 to 50 px (**unverified**), and where the compositor sends its own bounds, which GTK also respects ([Unverified points, answered (Phase 11a Task 9)](#unverified-points-answered-phase-11a-task-9-2026-11-19)), they set the exact limit;
+  - (c) 96 px, a panel on each edge: 48 px lost on every screen, and on a 1080 px screen it decides whether the Configuration page scrolls once Task 11's Theme card is in.
+- **Several monitors** (settled by Task 1's brief):
+  - (a) the monitor the window opens on: GDK can't say before the window has a surface (`gdk_display_get_monitor_at_surface` needs one), and on Wayland the compositor picks the output;
+  - (b) **chosen:** the narrowest width and the shortest height among all monitors, which may be two different ones. The window fits wherever it opens, and a large monitor beside a small laptop panel gets the laptop's cap.
+- **The monitors change while the app runs:**
+  - (a) listen to the monitor list's `items-changed` and recompute the cap: the window would resize itself while the user works, on every hot-plug or resolution change;
+  - (b) **chosen:** the cap is read once, before the window is mapped, and the window doesn't resize itself afterwards. What the user sees is in [Size and scrolling](#size-and-scrolling).
+- **The not-available screen's size:**
+  - (a) the same as the main screen: a window about 1000 × 810 px around two lines of text;
+  - (b) **chosen:** its own. `screens` isn't homogeneous, so the window is as small as the message, about 440 × 170 px, and grows to its full size when the service answers.
+- **A banner's room:**
+  - (a) reserve it: 44 to 64 px of empty window under the header while no banner shows;
+  - (b) **chosen:** the banner is part of the content. Shown, it adds its height to the window, or takes it from the pages' viewports where the cap bites.
+- **Floating:** `resizable` false and nothing else. GTK has no request for "floating"; Task 1 measured a non-resizable window floated and a plain one, or one with no parent, tiled. No compositor protocol, rule or name enters the app (rule 14).
 
 ## Window
 
@@ -142,7 +174,7 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
-- **Size:** default 1040 × 720 px, minimum 720 × 560 px. The tile rows reflow (`GtkFlowBox`), and each page scrolls vertically. Whether Hyprland honours a GTK window's minimum size when it tiles is **unverified**.
+- **Size:** the size of its content, which depends on the monitor; not resizable by the user (`resizable` false, which also asks a compositor that floats fixed-size windows to float it); never larger than the smallest monitor less 48 px, and where the content is larger than that, it has scrollbars. The default size of 1040 × 720 px and the minimum of 720 × 560 px of Phases 10 and 11 are gone. The scrolled windows aren't drawn above: [Size and scrolling](#size-and-scrolling) has the one widget tree.
 - **Header bar** (`GtkHeaderBar`, `show-title-buttons` false: the desktop's window buttons are off, so no desktop draws a second close button; Phase 11a Task 1 measured it). Its layout:
   - **Title,** centred: a `GtkLabel` "OpenDeepCool" (class `app-name`, not focusable) as the bar's title widget (`set_title_widget`). GTK's docs say the title "will be centered with respect to the width of the box, even if the children at either side take up different amounts of space" (docs.gtk.org, HeaderBar, read 2026-11-19), so the empty start side doesn't push it. The window's own title, for the window manager, stays "OpenDeepCool" on every page.
   - **Nothing at the start.**
@@ -175,8 +207,8 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
   - In a session that can't use OpenDeepCool the gear is hidden, not just insensitive: nothing may suggest a control that could work (owner, 2026-10-26). Only the title and the close icon show.
   - If the service goes down while the Configuration page shows, the off screen replaces it and the gear lets go; when the service is back, the window returns to the page last shown and the gear is pressed again.
 - **The pages.**
-  - **One `GtkStack`**, `pages`, with three children: `display`, `config` and `off` (the off screen). It is `GTK_STACK_TRANSITION_TYPE_NONE` and homogeneous, so the window doesn't change size when the page changes. The not-available message is in the `screens` stack around it, as before.
-  - **A page** is a vertical `GtkBox` of its page bar (below) and a `GtkScrolledWindow` holding its content, so the bar never scrolls away. Each page keeps its own scroll position while the other shows. The off screen has no page bar.
+  - **One `GtkStack`**, `pages`, with three children: `display`, `config` and `off` (the off screen). It is `GTK_STACK_TRANSITION_TYPE_NONE` and homogeneous in both directions, so it is as wide as its widest page and as tall as its tallest, and the window doesn't change size when the page changes or when the service stops. The not-available message is in the `screens` stack around it, which is not homogeneous, so the window takes that message's own size there ([Size and scrolling](#size-and-scrolling)).
+  - **A page** is a vertical `GtkBox` of its page bar (below) and a `GtkScrolledWindow` holding its content, so the bar never scrolls away. Each page keeps its own scroll position while the other shows. The off screen has no page bar; its `GtkScrolledWindow` is the page. The page's scrolled window scrolls down only: sideways, the window's outer scrolled window does it ([Size and scrolling](#size-and-scrolling)).
   - **The page changes only by the user's action:** the gear, Ctrl+,, the back icon, Escape and Alt+Left (or by the service going down and coming back, as above). No motion.
   - **Focus.** Opening the Configuration page moves the focus to its back icon, the page's first control, so Tab goes on into Rotation. Closing it moves the focus to the gear, the control that opened it, whichever way the page was left (back icon, Escape, Alt+Left); when the gear itself closed it, the focus is there already. If the gear can't take it (the service went down), the off screen's own rule applies ([The off screen](#the-off-screen)). A page change by the mouse moves the focus too: GTK draws no focus ring after a pointer click, so nothing shows.
   - **Screen readers** hear the page's title (`gtk_accessible_announce`, since GTK 4.14, verified) when the user changes the page, not when the window returns to a page after the service did.
@@ -188,6 +220,126 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
     - the content's top margin under a page bar is 6 px, so the first row sits close under the bar. (With no bar the page keeps its 18 px margin all round: the off screen.)
 - **No motion in the chrome.** `GtkStack` uses `GTK_STACK_TRANSITION_TYPE_NONE`, and the app's stylesheet sets `transition: none` on everything. The preview is the only thing that moves.
 - **Remote or inactive session:** the header bar keeps only the title and the close icon, and the body holds only one message ([Not available in this session](#not-available-in-this-session)).
+
+### Size and scrolling
+
+**What the owner asked** (2026-11-18): the window opens outside tiling mode, at the smallest size that fits its content in width and height, so its size depends on the monitor; where the content would overflow the screen, it has scrollbars. Phase 11a Task 1 measured what GTK does with these properties ([Unverified points, answered (Phase 11a Task 1)](#unverified-points-answered-phase-11a-task-1-2026-11-18)); this is what the app builds. The pixel sizes are **estimates** from this design's own numbers, not measurements: the real ones depend on the user's font, so the tests compare the window with its own content's natural size and pin no pixel count.
+
+- **The size is the content's.** The window has no default size (`default-width` and `default-height` unset), no minimum size, and no `set_size_request` on it or on anything that sets its size (the scrolled windows, the stacks and the boxes in the tree below). The requests that remain belong to the content: the preview column's 262 px, the GPU box's and the scales' 320 px. GTK then takes the window's natural size from its child: in GTK's source, `gtk_window_compute_default_size` uses the natural size when no default size is set, and clamps it to the compositor's bounds ([Unverified points, answered (Phase 11a Task 9)](#unverified-points-answered-phase-11a-task-9-2026-11-19)).
+- **The content** is the header bar, the banner while one shows, and the body: the preview column beside the pages. The pages stack is homogeneous in both directions, so the body is as wide as its widest page and as tall as its tallest, whichever page shows. The Display page is the widest (the Music group's six tiles) and the Configuration page the tallest; the off screen is smaller than both. So the window doesn't change size when the user opens Configuration, nor when the service stops and the off screen replaces a page. One thing would break that: the Startup card leaves the Configuration page for the off screen, which would make that page, the tallest, about 150 px shorter. An empty box stands in its place on the page, as tall as the card was there (remembered when the card leaves, its natural height before that), so the window keeps its height to within a wrapped line of hint text (found by Task 9's tests). The cost is empty space under the Display page's tiles, about 240 px on a large monitor ([Answers decided on 2026-11-19, Task 9](#answers-decided-on-2026-11-19-task-9)).
+- **The tree,** the one the app builds. Only the scrolled windows' properties and the stacks' homogeneity are new; everything inside a page is as its own section designs it.
+
+  ```
+  GtkApplicationWindow       resizable false; no default size; no size request; titlebar: the GtkHeaderBar
+  └─ GtkOverlay              its overlay child is the "Refreshed" / "Not changed" label, outside every scroller
+     └─ GtkScrolledWindow "window scroller"     the cap, and the sideways scroll (table below)
+        └─ GtkBox (vertical) "content"
+           ├─ GtkRevealer                        the cooler banner, transition none
+           └─ GtkStack "screens"                 hhomogeneous false, vhomogeneous false, transition none
+              ├─ "main"  GtkBox (horizontal)
+              │  ├─ GtkScrolledWindow "column"   class `side`
+              │  │  └─ GtkBox                    the preview column, 262 px wide
+              │  └─ GtkStack "pages"             hhomogeneous true, vhomogeneous true, transition none, hexpand, vexpand
+              │     ├─ "display"  GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the tiles
+              │     ├─ "config"   GtkBox (vertical): the page bar, then GtkScrolledWindow "page" holding the cards
+              │     └─ "off"      GtkScrolledWindow "page" holding the off screen
+              └─ "not-available"  GtkBox (vertical), centred, 24 px of margin all round
+  ```
+
+  | Scrolled window | `hscrollbar-policy` | `vscrollbar-policy` | `propagate-natural-width` / `-height` | `max-content-width` / `-height` | Also |
+  |---|---|---|---|---|---|
+  | window scroller | automatic | automatic | true / true | the cap's width / its height less 48 (below); unset when no monitor is known | `hexpand`, `vexpand`, `focusable` false |
+  | column | never | automatic | true / true | unset | class `side`, `vexpand`, `focusable` false |
+  | page (`display`, `config`, `off`) | never | automatic | true / true | unset | `hexpand`, `vexpand`, `focusable` false |
+
+  - `min-content-width` and `-height` stay unset (−1) on all of them, so every scroller can shrink below its content.
+  - The window scroller carries the cap and nothing else. Its child's minimum height is small, because the column and the pages can shrink, so in practice it never scrolls down: the column and the pages take the squeeze. It scrolls sideways, below the content's minimum width.
+  - The column and the pages never scroll sideways themselves (`never`): their minimum width, the Configuration page's 588 px and the column's 262, then counts in the content's minimum, which is what makes the window scroller scroll. With `propagate-natural-width` set, the `never` policy changes nothing (a scrolled window that can't scroll sideways already asks for its child's width); it is set so the intent reads in the code.
+  - The `side` class moves to the column's scrolled window: it draws the 1 px divider on its right, so the divider runs the window's full height, as the column's box did. The box inside keeps the 18 px padding.
+  - The feedback label stays in the `GtkOverlay` around the window scroller, so it keeps its place at the window's bottom edge while the content scrolls.
+
+- **Expected size, on a normal monitor** (estimates; the font is the system's, about 14.7 px):
+
+  | Part | Width (px) | Height (px) |
+  |---|---|---|
+  | Header bar | the window's | 48 (about 47) |
+  | Preview column | 262 | about 380, up to 440 while a reason line shows |
+  | Display page | about 754: 36 of margin, six Music tiles of about 113 (the caption "GPU temperature", the tile's border and its padding) and five 8 px gaps | about 575: the 44 px page bar, then 6, 122, 18, 122, 18, 226 and 18 |
+  | Configuration page | about 588: 36 of margin, 32 of card padding, a 520 px row | about 766 with the GPU row (709 without): the 44 px page bar, then 6, the Display card 240 (169), 18, the Music card 275, 18, the Startup card 147 and 18 |
+  | Off screen | about 560 | about 430 |
+  | **Window** | **about 1016** (262 + 754; 930 with the mockups' 98 px tiles) | **about 814** (48 + 766; 757 with one GPU) |
+
+  The Configuration page is the tallest by about 190 px, so a Display page full of reason lines can't overtake it; Task 11's Theme card adds about 170 px to it, and the window to about 984. The Display page is the widest by about 166 px, so nothing on the Configuration page, a note and the terminal commands included, can widen the window.
+
+- **The cap.** The window is never larger than the smallest monitor less 48 px in each direction. It is computed once, in the window's constructor, before the window is mapped:
+  1. `WidgetExt::display(&window).monitors()` (`gdk_display_get_monitors`: the monitors attached to the display, a `GListModel` of `GdkMonitor`; gtk4-rs `DisplayExt::monitors`; verified).
+  2. For each monitor, `geometry()` (`gdk_monitor_get_geometry`; `MonitorExt::geometry`; verified). It is in application pixels, "not in device pixels" (docs.gtk.org, read 2026-11-19), the units widgets are measured in, so a fractional scale needs no conversion. Take the smallest width and the smallest height over all monitors: they may be two different monitors.
+  3. `cap_w = max(smallest_width − 48, 320)` and `cap_h = max(smallest_height − 48, 240)`. 48 px is the margin (below), and the floor keeps a bogus monitor report from making an unusable window.
+  4. `window_scroller.set_max_content_width(cap_w)` and `set_max_content_height(cap_h − 48)`. The cap is for the whole window and `max-content-*` for what's inside the header bar, so the second 48 is the header bar's height (about 47, taken as a constant, not measured: the window can differ from the cap by a pixel or two, which the margin absorbs and the test allows). Task 1: `max-content-height` caps the window at its value plus the window's own chrome.
+  5. With no monitor listed, both stay unset. The window then takes its natural size, limited only by the compositor's bounds, where it sends them. A made-up cap would be a guess that puts scrollbars on a large screen, and the list is empty only when there is no screen to size for.
+  6. The rule is a pure function of the monitors' sizes, `cap(&[(width, height)]) -> Option<(cap_w, cap_h)>`, so its unit test needs no display.
+
+  | Screen | Cap | Window (estimate) | What scrolls |
+  |---|---|---|---|
+  | 2560 × 1440 or 1920 × 1080 | 2512 × 1392, 1872 × 1032 | about 1016 × 814 | nothing (with the Theme card, about 984 still fits 1032) |
+  | 1440 × 900 | 1392 × 852 | about 1016 × 814 | nothing |
+  | 1280 × 800 | 1232 × 752 | about 1016 × 752 | the Configuration page, about 60 px |
+  | 1366 × 768 | 1318 × 720 | about 1016 × 720 | the Configuration page, about 95 px |
+  | 1024 × 768 | 976 × 720 | 976 × 720 | the Configuration page down; the Music tiles wrap to five a line |
+  | 640 × 480 | 592 × 432 | 592 × 432 | every page down, and the whole content sideways (850 px needed) |
+
+- **Scrolling.**
+  - **Down:** a page scrolls inside its scrolled window, under its page bar. The header bar, the banner, the page bar and the preview column stay where they are, so the picture stays in view while the user changes rotation, the GPU or the Music settings. The column scrolls on its own only when the window's body is shorter than it (about 440 px with a reason line), on a screen under about 540 px high: the column, the header bar and the margin. Each page keeps its scroll position while the other shows, and a theme change keeps it.
+  - **Sideways:** below the content's minimum width (the column's 262 plus the Configuration page's 588, about 850 px) the whole content scrolls sideways under the header bar, the preview column with it. On a 640 px screen a page that fits fully once the column has scrolled away is better than a page cut to 330 px beside a column that stays (Task 8's Rows text, which had the page alone scroll sideways, is replaced by this). A GTK viewport scrolls in a direction only when it is allocated less than its child's minimum size in that direction (docs.gtk.org, `GtkViewport`, read 2026-11-19), which is why the threshold is the content's minimum, not its natural width.
+  - **Between** the natural width and 850 px the Display page's flow boxes wrap their tiles into more lines (`min-children-per-line` 1), so a window a little narrower than its content grows taller, not wider, before it scrolls sideways.
+  - **Scrollbars** are GTK's own. With overlay scrolling (GTK's default, the user's `gtk-overlay-scrolling`), they take no room. Whether a classic scrollbar, which takes room, counts toward the natural size is **unverified**.
+  - **The keyboard and the pointer:** a focused control scrolls into view by itself ([Keyboard](#keyboard)); the wheel scrolls the page under the pointer.
+
+- **What changes the window's size while the app runs.** The window follows its content's natural size, since it has no default size to hold it ([Unverified points, answered (Phase 11a Task 9)](#unverified-points-answered-phase-11a-task-9-2026-11-19)), so each of these resizes it unless the cap holds it. There is no animation.
+
+  | Part | Effect on the window |
+  |---|---|
+  | Cooler banner | Height only: it adds its own height while it shows, about 44 px (about 64 with two lines), and gives it back when it goes. Where the window is at its cap, the pages' viewports give up that height instead. Never width: its text is capped ([below](#size-and-scrolling)) |
+  | Reason line under a group heading (Display page), reason line under the preview | About 17 px a line on the page, 17 to 60 under the picture: never enough to make the Display page or the column the tallest part |
+  | Start at boot note and terminal commands (Configuration page) | Height only, about 90 to 130 px on the tallest page; the width stays under the Display page's |
+  | The off screen | Nothing: a child of the homogeneous `pages` stack, smaller than the other pages. The window keeps its size when the service stops and when it comes back, and the preview column stays |
+  | The not-available screen | It's in `screens`, a different stack and not homogeneous: the window takes the message's own size, about 440 × 170 px, and grows to its full size when the service answers (a few milliseconds after the first map in a session that is remote or inactive: no animation) |
+  | The "Refreshed" and refusal label | Nothing: an overlay child takes no part in the window's size |
+  | Opening Configuration, or the service stopping | Nothing: the stack is homogeneous |
+
+- **Not resizable, and floating.**
+  - The window is built with `resizable` false ("If true, users can resize the window", docs.gtk.org, `GtkWindow:resizable`). GTK has no request for "floating"; a window with a fixed size is the hint a compositor can read, and Task 1 measured one such compositor floating it ([Unverified points, answered (Phase 11a Task 1)](#unverified-points-answered-phase-11a-task-1-2026-11-18); system evidence, not a test).
+  - **What the user can no longer do:** drag an edge to resize the window, or maximise it. The header bar has no maximise button either way (the desktop's window buttons are off). For a settings window of fixed content that costs nothing: the extra room would be empty, since the pages' rows and the tiles stay at their sizes, and where room is short the window already scrolls.
+  - **A compositor that tiles it anyway:** the window is a tile, and GTK lays the content out in the size the compositor gives it. A bigger tile leaves the extra room empty (the pages expand, the rows and tiles don't, and everything stays at the top left); a smaller one scrolls exactly as on a small monitor. Nothing breaks. This is **unverified** on any compositor but the one Task 1 ran.
+  - The app doesn't detect the compositor, doesn't ask any compositor for floating, and ships no window rule (AGENTS.md rule 14). Whether the owner adds a rule of their own is theirs to decide (rule 7).
+
+- **The monitors change while the app runs** (a monitor plugged in or out, a new resolution). The cap is read once, so the window doesn't resize itself.
+  - **To a smaller screen:** the window keeps its size. Where the compositor re-fits the window to the new output, the pages scroll as on any small screen (**unverified**: the compositor decides); where it doesn't, part of the window may lie off the screen, until the user moves it with the compositor's own means or closes the app and opens it again, which reads the monitors afresh and fits.
+  - **To a larger screen:** the window keeps its size, and a window that was capped keeps its scrollbars until the app is opened again.
+  - A window that resizes itself at every hot-plug, while the user is working, is the worse choice for a settings window that is opened for a minute ([Answers decided on 2026-11-19, Task 9](#answers-decided-on-2026-11-19-task-9)).
+
+- **Text never sets the window's width.** A wrapping `GtkLabel`'s natural width is its text on one line unless `max-width-chars` says otherwise (docs.gtk.org, `GtkLabel`, Text layout), so a long sentence would widen the window. Every wrapping label that spans a container asks for a measure instead; once the window is wider, the label rewraps to the room it gets.
+
+  | Text | `max-width-chars` | About |
+  |---|---|---|
+  | Banner text | 100 | 740 px, under the window's width |
+  | A hint or note under a card's rows (the Music hint, the Startup hint, the Start at boot note) | 72 | the rows' 520 px |
+  | The off screen's heading and text | 48 | centred |
+  | The not-available message | 40 | the window's width less its 48 px of margin |
+  | The preview column's lines, the label blocks' hints, the GPU box's lines | 28, 28, 40 | as built |
+
+  The terminal commands set the Startup card's width up to about 540 px (the longest command, and Copy beside it), which is under the Display page's, so they never change the window.
+
+- **What the tests check** (the app's window tests, which need a realised window: `--features weston-tests`; `Weston::start` takes the output's size). No test pins a pixel count, because the font differs between machines; each compares the window with its own measurement:
+  - **Natural size.** On an output larger than anything the window needs (2560 × 1600), the window is exactly its natural size (`measure` of the window), and no page, the column nor the window scroller shows a scrollbar (`upper` ≤ `page_size` on each adjustment).
+  - **No change of size on a page change.** The window's size is the same on Display, Configuration and the off screen, and after the service stops and comes back.
+  - **A screen that just fits.** On an output of the natural size plus 48 px in each direction, the window is its natural size and nothing scrolls.
+  - **A smaller screen.** On an output 120 px lower than that, the window's height is the output's less 48 px (±2 px), its width is unchanged, the Configuration page has a vertical scrollbar, the preview column has none, the preview's position doesn't change when the page is scrolled to its end, and the page bar stays.
+  - **640 × 480.** The window is at most 592 × 432 (so never wider than the output); the Display and Configuration pages each have a vertical scrollbar; the window scroller has a horizontal one; no page and not the column has a horizontal scrollbar.
+  - **Not resizable.** `resizable` is false, `default_size` is (0, 0), and `size_request` of the window is (−1, −1).
+  - **The cap's rule,** as a unit test with no display: no monitor gives `None`; one gives its size less 48; several give the smallest width and the smallest height, which may be two monitors'; a tiny one gives the floor (320 × 240).
+  - **Not available.** The window is at most 480 × 220 px, shows the title and the close icon, and grows to the natural size when the service answers.
+  - **A banner.** After a `not-found` state, the window is taller by the banner's height, or, when GTK doesn't resize a mapped window, the Display page's viewport is shorter by it; the test records which, and neither lets the banner or the window go beyond the cap.
 
 ## Preview column
 
@@ -221,13 +373,14 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
   | the service isn't running | "No picture" | "Cooler: unknown", hollow | "No picture" |
   | not available in this session | the column isn't there ([Not available in this session](#not-available-in-this-session)) | | |
 
-- **Widgets:** the column is a vertical `GtkBox` (class `side`, 10 px between its children, 262 px wide) of the frame, the caption, the reason box (hidden unless a reading is lost) and the status box. The description is set on the `GtkDrawingArea` by the app each time the caption or the cooler's state changes (`names.describe`), and the caption label is only a label.
+- **Widgets:** the column is a vertical `GtkBox` (10 px between its children, 18 px of padding, 262 px wide with the divider) of the frame, the caption, the reason box (hidden unless a reading is lost) and the status box, inside its own `GtkScrolledWindow` (the column scroller, class `side`, which draws the 1 px divider so it runs the window's full height; [Size and scrolling](#size-and-scrolling)). The column stays in place while a page scrolls down, and scrolls by itself only where the window is shorter than it. Its lines wrap at 28 characters, so no line widens it. The description is set on the `GtkDrawingArea` by the app each time the caption or the cooler's state changes (`names.describe`), and the caption label is only a label.
 
 ## Display page
 
 **Purpose:** choose the mode (settings.md: the only setting outside the configuration screen). The page is home: the window opens on it, and no tab leads to it.
 
 - **Page bar** at the top, outside the scrolled area ([Window](#window)): the title "Display" at the start, and the Refresh icon at the end ([Refresh](#refresh)). The icon sits at the right end of the bar, above the Load group and level with the title; the preview column is on its left and isn't involved.
+- **Size:** this is the widest page. Its natural width is the Music group's six tiles (a flow box asks for room for `max-children-per-line` children, docs.gtk.org, `GtkFlowBox`; a tile in a homogeneous flow box is as wide as the widest caption in its group, "GPU temperature" in Music), about 754 px. Its natural height, about 575 px, is the shortest of the pages, and stays under the Configuration page's even with a reason line under each of the four group headings. Where the page gets less than its natural width, the flow boxes wrap their tiles, so the page grows taller instead of wider ([Size and scrolling](#size-and-scrolling)). That the natural width is the six tiles', and not another number, is **unverified**: the docs give no formula, and the layout test measures it.
 - **The unit** isn't here any more. The temperature tiles show the unit set on the Configuration page, and redraw when the service confirms a change ([The unit](#display)).
 - **Tile gallery:** four groups, each a heading `GtkLabel` and a `GtkFlowBox`.
   - **Load** takes a full row. **Temperature** and **Power** share a row (a horizontal `GtkBox`). **Music** takes two rows.
@@ -285,8 +438,8 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
 - **A row** is a horizontal `GtkBox` of two children, 24 px apart (`spacing` 24): the label block, then the control. Nothing in it has `hexpand`, so the row is as wide as the two and the rest of the card stays empty at the right. That is the layout the owner asked for: left-sided.
 - **The label block** is a vertical `GtkBox` (`spacing` 2, `hexpand` false, `halign` start, `valign` start) of:
   - the **title**, a `GtkLabel` (`xalign` 0);
-  - the **hint**, when the setting has one, a `GtkLabel` with the classes `muted` and `small`, `xalign` 0, `wrap` true, `wrap-mode` word, `max-width-chars` **28**.
-  - **How a hint wraps.** docs.gtk.org's GtkLabel page: "For wrapping labels, width-chars is used as the minimum width, if specified, and max-width-chars is used as the natural width", and "wrapping labels will be rewrapped to use all of the available width" (read 2026-11-19). So a hint asks for about 28 characters and breaks at word boundaries there: "Used wherever the display shows a temperature" takes two lines, "Turns the picture clockwise" one. A hint never makes its block wider than 28 characters, which is what keeps the controls close, and it takes the full width of the block once the size group (below) widens it.
+  - the **hint**, when the setting has one, a `GtkLabel` with the classes `muted` and `small`, `xalign` 0, `wrap` true, `wrap-mode` word, `width-chars` and `max-width-chars` both **28** (as built, so the block's minimum is the same 28 characters).
+  - **How a hint wraps.** docs.gtk.org's GtkLabel page: "For wrapping labels, width-chars is used as the minimum width, if specified, and max-width-chars is used as the natural width", and "wrapping labels will be rewrapped to use all of the available width" (read 2026-11-19). So a hint asks for about 28 characters, as its minimum and as its natural width, and breaks at word boundaries there: "Used wherever the display shows a temperature" takes two lines, "Turns the picture clockwise" one. A hint never makes its block wider than 28 characters, which is what keeps the controls close, and it takes the full width of the block once the size group (below) widens it.
   - The hint's size is the class `small`, which `app.css` has no rule for (nothing in `crates/odc-app/src` styles it, 2026-11-19; whether GTK's own theme gives it a size is **unverified**). Phase 11a Task 11's type scale defines it; the 28 characters don't depend on it. The mockups draw it at 12 px.
 - **One column of controls.** Every label block of the Configuration page is in one `GtkSizeGroup` (`mode` horizontal). GTK's docs: "the size requested for each widget in a GtkSizeGroup is the maximum of the sizes that would have been requested" (class page, read 2026-11-19). So the group's width is the widest block's, which is the 28-character hint (about 176 px in the mockups' type), and all the page's controls start at the same x, across the Display, Music and Startup cards. Task 11's Theme card joins the same group.
   - The Startup card leaves the group while it stands on the [off screen](#the-off-screen), where it is alone and needs only its own width; it joins again when it moves back into the Configuration page (`StartupCard::place`).
@@ -301,12 +454,12 @@ Decided under the same delegation, for the owner's four items of 2026-11-18 that
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
 
   The toggles and the switches are shorter than a block of a title and a hint, so they centre against it. The dropdown's box and the scales hang from the top, level with the title, since a scale's marks and the dropdown's lines hang below them.
-- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the terminal commands, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group.
+- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the terminal commands, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
 - **Hidden rows.** The GPU row hides with one `set_visible(false)`, as it does today. The card's 14 px spacing skips hidden children (GtkBox), so a PC with one GPU has no gap there.
 - **Narrow windows.**
-  - The window now opens at the size of its content and isn't resizable by the user (Task 9), so a narrow page comes only from a small monitor, where the content is capped to the screen and scrolls.
-  - A row needs its label block, 24 px and its control: about 176 + 24 + 320 = 520 px, 588 px with the card's padding and the page's margins, 850 px with the preview column beside it. Below that, the label block narrows first (a hint wraps at its longest word), and then the page scrolls sideways: Task 9 sets each page's `GtkScrolledWindow` to scroll horizontally when it must (`hscrollbar-policy` automatic; `scrolled()` sets `Never` today).
-  - No row stacks its control under its label, and the GPU box and the scales keep their 320 px (`width-request`) and don't shrink. (Whether GTK could give a scale a smaller minimum than its natural width isn't in the documentation: **unverified**, and not needed, since the page scrolls.)
+  - The window opens at the size of its content and isn't resizable by the user, so a page is narrower than its natural width only where the monitor is: the content is capped to the screen ([Size and scrolling](#size-and-scrolling)).
+  - A row needs its label block, 24 px and its control: about 176 + 24 + 320 = 520 px, 588 px with the card's padding and the page's margins, 850 px with the preview column beside it. A row doesn't narrow below that: the label block keeps its 28 characters (its minimum, `width-chars`) and the control its 320 px. Below 850 px the pages' own scrolled windows don't scroll sideways (`hscrollbar-policy` never); the window's outer scrolled window does, with the preview column.
+  - No row stacks its control under its label, and the GPU box and the scales keep their 320 px (`width-request`) and don't shrink. (Whether GTK could give a scale a smaller minimum than its natural width isn't in the documentation: **unverified**, and not needed, since the content scrolls.)
 - **Right-to-left text** mirrors the rows by itself (a `GtkBox` follows the text direction): the block at the right, the control at its left.
 - **What the tests check** (the app's layout tests, which need a realised window: `--features weston-tests`):
   - in every row, the control's left edge is 24 px (±1) right of its block's right edge, and the block's width is the group's;
@@ -400,6 +553,7 @@ A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `Gt
 | Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. The preview's description adds "Not on the cooler: sending it fails." Status "Cooler: sending fails", with a yellow dot |
 
 - **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the gear is insensitive, the pages (and so Refresh) aren't shown, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
+- **Size:** the banner is part of the window's content, above the screens and inside the window scroller ([Size and scrolling](#size-and-scrolling)). While it shows, it adds its own height to the window, about 44 px for one line and about 64 for two, and gives it back when it goes; where the window is at its cap, the pages' viewports give up that height instead, so the page scrolls a little more and the banner is never cut off. It never widens the window: its text is a wrapping label with `max-width-chars` 100 (about 740 px), and it rewraps to the room the window gives it. The banner doesn't scroll away with a page.
 - **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service is down, there's no cooler banner, because the cooler's state is unknown then.
 - **Why the fix for `no-access` reads as it does:**
   - At boot, udev applies its rules to every device: systemd's `systemd-udev-trigger.service`, "Coldplug All udev Devices", runs `udevadm trigger --type=all --action=add` (systemd's unit source, read 2026-11-06). So a restart applies a rule that's installed but wasn't applied.
@@ -594,7 +748,7 @@ When the switch reads off and something is set up, one note under the row says w
 - **Text** under the heading, in `--muted`, the same for both: "The cooler shows nothing until the display service runs."
 - **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:". Its row is the same label block and switch as on the Configuration page, left-aligned in the card; the block is at its own width here, since the card leaves the page's size group on the off screen ([Rows](#rows)).
 - **No banner.** The note says what's wrong, and the switch is the fix.
-- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` and without a page bar. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
+- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` (a page scroller: [Size and scrolling](#size-and-scrolling)) and without a page bar. **Its size:** it is smaller than the other pages and the stack is homogeneous, so it doesn't change the window: the window keeps the size it had with the pages, the off screen stands centred in it, and when the service comes back the page appears in the same window with nothing moving. Its heading and text wrap at 48 characters (`max-width-chars`) and its card and commands set a width of about 560 px, under the Display page's. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
 - **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on. The gear is insensitive here, so a page that was closed by the service going down gives its focus to this switch, not to the gear.
 
 ### Who may flip it
@@ -608,22 +762,22 @@ When the switch reads off and something is set up, one note under the row says w
 **When:** the service refuses `GetState()` with `NotAuthorized`, because the app runs in a remote or inactive session (owner, 2026-10-26). The service refuses such a session every read, change and preview frame (polkit `allow_active` only), so the app has nothing to show. This state replaces the view-only state, which no longer exists.
 
 ```
-┌ GtkApplicationWindow ──────────────────────────────────────────────────────┐
-│ GtkHeaderBar                    OpenDeepCool                          [✕]  │
-├────────────────────────────────────────────────────────────────────────────┤
-│                                                                            │
-│                                                                            │
-│          OpenDeepCool can be used only from the session at the PC          │
-│                This session is remote or not the active one.               │
-│                                                                            │
-│                                                                            │
-└────────────────────────────────────────────────────────────────────────────┘
+┌ GtkApplicationWindow ───────────────────────────┐
+│ GtkHeaderBar     OpenDeepCool              [✕]  │
+├─────────────────────────────────────────────────┤
+│                                                 │
+│       OpenDeepCool can be used only from        │
+│              the session at the PC              │
+│   This session is remote or not the active one. │
+│                                                 │
+└─────────────────────────────────────────────────┘
 ```
 
+- **Size:** the window is as small as its message, about 440 × 170 px, not the size of the full window. The message is in the `screens` stack, which isn't homogeneous, so the window takes the size of whichever screen shows ([Size and scrolling](#size-and-scrolling)). The app presents the window before the service has answered, with the main screen, so in a session that can't use OpenDeepCool the window is first mapped at its full size and shrinks to the message when the service refuses, a few milliseconds later, with no animation. (Should that flash be visible, presenting the window after the first answer is the fallback; it isn't needed in the normal case, where the same size serves the off screen and the pages.) When the session becomes usable, the window grows to its full size. It stays not resizable by the user, and capped to the screen.
 - **Text:** the heading "OpenDeepCool can be used only from the session at the PC", and under it, in `--muted`, "This session is remote or not the active one."
 - **Widgets**, all plain GTK4 (no libadwaita, so no `AdwStatusPage`):
   - the same `GtkHeaderBar`, with the title and the close icon only. The gear is hidden (`visible` false), not just insensitive; Refresh is on the Display page, which isn't shown. The close icon is the app's own: the desktop's window buttons are off ([Window](#window));
-  - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center), holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center), so a narrow window wraps them instead of cutting them. They look like the off screen's heading and text;
+  - the body is a vertical `GtkBox`, centred in the window (`halign` and `valign` center) with 24 px of margin all round, holding two `GtkLabel`s, the heading and the text. Both wrap (`wrap` true, `justify` center) at 40 characters (`max-width-chars`), which is what sets the window's width here. They look like the off screen's heading and text;
   - nothing else: no banner, no preview column, no pages, no status, nothing that could show a value.
 - **Keyboard and screen readers:** nothing in the content takes focus, and in the window only the close icon does. Ctrl+W and Ctrl+Q still close the window; the Configuration, back and Refresh shortcuts do nothing, because their actions are disabled. On entering the state, the app announces the heading and text once (`gtk_accessible_announce`, since GTK 4.14, verified).
 - **Trying again,** without polling: when the window becomes active again (`notify::is-active` on `GtkWindow:is-active`, verified) and when the service's bus name gets a new owner (`NameOwnerChanged`). If `GetState()` succeeds then, the normal screens appear with the current state.
@@ -686,6 +840,12 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
 | A change refused | The control stays on the saved value; the overlay label, at the bottom centre, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
 | Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
+| A large screen | The window opens at the natural size of its content (estimated about 1016 × 814 px: the widest page beside the 262 px column, under the tallest page), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 813 high) |
+| A small screen | The window is never larger than the smallest monitor less 48 px in each direction. The pages scroll down under their page bars, with the preview column and the banner in place; the whole content scrolls sideways below about 850 px; the column scrolls by itself on a screen under about 540 px high | every mockup: a browser window shorter than the mockup scrolls the page inside it (only the page scrolls sideways there, not the whole content) |
+| Not resizable | `resizable` false: no resizing or maximising by the user, and a compositor that floats fixed-size windows floats it; on one that tiles it anyway, the window is a tile that scrolls inside, and nothing breaks | — |
+| The monitors change while the app runs | The window keeps its size; the cap is read once. On a smaller screen the compositor decides whether to re-fit it; reopening the app fits it | — |
+| A banner, a note or the terminal commands appear | The window grows by their height, or the page scrolls a little more where the window is at its cap; the width never changes | cooler-disconnected, cooler-no-access, boot-partly |
+| Not available, drawn small | The window is as small as its message (about 440 × 170 px), and grows when the service answers | [not-available.html](mockups/not-available.html) |
 | Live theme switch | Colours change in place, with no restart and the same page and scroll position | every mockup: the theme buttons above the window |
 | Default theme (no Omarchy theme) | The default dark palette | every mockup: "Default theme, dark" or "Default theme, light" |
 
@@ -774,6 +934,7 @@ Muted text on the selected fill is below 4.5:1 (dark 3.8), so nothing muted is d
 
 - **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
 - **Where focus lands on a page change:** see [Window](#window), The pages. Opening the Configuration page puts it on the back icon; closing the page puts it on the gear. Nothing else moves it.
+- **The scrolled windows take no focus** (`focusable` false on the window scroller, the column and every page, [Size and scrolling](#size-and-scrolling)), so they add no Tab stop and the order above stands. Whether `GtkScrolledWindow` is focusable by default isn't in the docs (**unverified**), so the app sets it. Scrolling by keyboard goes through focus: a viewport scrolls to the focused control by itself (`GtkViewport:scroll-to-focus`, "whether to scroll when the focus changes", docs.gtk.org; its default and its behaviour in nested viewports are **unverified**, and the window test focuses the last control of the Configuration page on a small output and checks it came into view). The preview column has nothing to focus, so on a screen too short for it the column scrolls only by wheel or touch; every control stays reachable, and the column's words are also in the preview's description and the status items' names. Fallback if a nested viewport doesn't scroll to focus: the app moves the page's vertical adjustment itself when focus enters a control that lies outside the viewport.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
 - **Insensitive tiles can't take focus.** Their reasons are visible text under the group heading.
 - **Toggle groups** (rotation and the unit): Tab reaches them; Enter or Space toggles. Arrow keys between the buttons of a group are **unverified** for grouped `GtkToggleButton`s; if GTK doesn't do it, each button is a Tab stop. The gear is one toggle on its own, not a group.
@@ -838,6 +999,8 @@ A scale's value text reaches AT-SPI as its Value interface's text, the stop's na
 
 A Configuration row, its label block and its hint (Task 8, [Rows](#rows)) are a plain `GtkBox` and `GtkLabel`s with no name of their own: a title and a hint read as the labels they are, in the page's order, and each control keeps the fixed name above. The two switches' size (40 × 22) changes no name, role or state. The preview column has no line under the caption to name (a label is named by its own text, D72): the layer 4 scenarios that look for the cooler's words read the preview's description instead.
 
+The window's size and its scrolled windows (Task 9, [Size and scrolling](#size-and-scrolling)) add no name, role or state the app sets: the window scroller, the column and the page scrollers are unnamed containers with the role GTK gives a scrolled window, and each control below them keeps its fixed name and its place in the tree order. A control that has scrolled out of the viewport keeps its name, state and actions, and the layer 4 scenarios act through AT-SPI actions, not the pointer, so they shouldn't need to scroll first (**unverified**: the first run of the scenarios on a capped window shows it). The scenarios that read a widget's position on screen start the fake Wayland output at a size that doesn't cap the window (`Weston::start` takes the size).
+
 ## Text
 
 - Short English sentences, with the mode names Load, Temperature, Power and Music, never "Guardian" or "… Mode".
@@ -890,6 +1053,9 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | The preview column holds the picture, its caption, the lost reading's reason and the status; no "Shown on the cooler now", and no other line under the caption (owner, 2026-11-18) | [Preview column](#preview-column) | every mockup with the column |
 | Both pages reachable with no tab: the gear opens Configuration; the back icon, the gear again, Escape and Alt+Left return to Display | Header bar; the Configuration page's bar; [Keyboard](#keyboard) | display, configuration |
 | The app closes from its own window | The close icon at the right of the header bar (the desktop's window buttons are off), Ctrl+W, Ctrl+Q | every mockup |
+| The window opens outside tiling mode (owner, 2026-11-18) | `resizable` false; a compositor that floats fixed-size windows floats it, and none is named or asked for anything in the app ([Size and scrolling](#size-and-scrolling), Not resizable, and floating) | — |
+| The window is the smallest size that fits its content in width and height, so it depends on the monitor | No default or minimum size: the natural size of the largest page beside the preview column, capped at the smallest monitor less 48 px ([Size and scrolling](#size-and-scrolling)) | every mockup (drawn at the natural size) |
+| Scrollbars where the content would overflow the screen | Each page and the preview column scroll down; the whole content scrolls sideways below about 850 px | every mockup (vertical, in a short browser window) |
 | Refresh, only for the user at the PC | The icon at the top right of the Display page; not drawn when not available in this session or while the service isn't running (the gear is insensitive then); F5 and Ctrl+R from either page while the service runs; a refusal shows as a refused change | display, service-not-running, not-available |
 | Status: cooler connected | Status line; cooler banner | cooler-disconnected |
 | Status: the cooler found but not usable (`no-access`), told apart from not connected, with the fix | Its own error banner; status line; the preview's description | cooler-no-access |
@@ -948,7 +1114,7 @@ Each point the design left open, with its answer and source, or the fallback the
 | `GtkScale` and whole stops | `GtkRange:round-digits` rounds the value "when it changes", drags included: with 0 digits over 0–4 the scale only holds whole stops, and the app applies each stop as it's reached (at most five calls a drag). If a test shows otherwise, the stop is applied on release | docs.gtk.org, `Gtk.Range:round-digits` |
 | Arrow keys between grouped `GtkToggleButton`s | **Unverified.** Each unit and rotation toggle is a Tab stop as well, so the keyboard reaches each one either way. AT-SPI's key events don't reach a Wayland app (Phase 10 Task 8, decisions log D71), so no test types keys; the shortcuts' keys are checked in-process | the fallback of Keyboard |
 | Tooltips on insensitive widgets | **Unverified**, and not relied on: the reason line under each group says why a tile is unavailable | Display page, Unavailable modes |
-| Hyprland and the window's minimum size | **Unverified**: it can be seen only in the owner's session, and no test opens a window there. The app sets its minimum size as designed; the optional attended tour looks at it | Window |
+| A compositor and the window's minimum size | Superseded (Phase 11a Task 9, 2026-11-19): the window has no minimum size any more, and is not resizable ([Size and scrolling](#size-and-scrolling)). What Task 1 measured in a real session is in [Unverified points, answered (Phase 11a Task 1)](#unverified-points-answered-phase-11a-task-1-2026-11-18) | Window |
 | `GtkWindow:is-active` after a session switch | **Unverified** under Hyprland, for the same reason. The app also follows logind's `Active` property of its own session (org.freedesktop.login1), a third trigger for connecting again, still without polling. The reconnect on activation itself is checked in headless weston, where another window takes the focus and closes (Phase 10 Task 8, decisions log D78) | Not available in this session |
 | glib's one-shot timer name | `glib::timeout_add_local_once`, in glib 0.22, gtk4 0.11's (its source, `src/source.rs`, read 2026-11-06) | Banners, `write-failed` |
 
@@ -1012,6 +1178,25 @@ The points the Configuration rows, the switches and the preview column depend on
 | What `min-width` and `min-height` measure | **Unverified:** the CSS Properties page lists them and names no box. Task 1's 34 × 18 doesn't say whether the app's 1 px border was in it. The test pins the switch's outer size, 40 × 22, not the numbers ([The switches](#the-switches)) | docs.gtk.org, GTK CSS Properties; the Task 1 row, "Smaller switches" |
 | The slider's height inside the trough | **Unverified:** `GtkSwitch`'s page lists the nodes `switch`, `image` and `slider` and no sizes. The mockups draw an 18 px knob with 1 px beside the border; the app takes what GTK draws | docs.gtk.org, `Gtk.Switch`, CSS nodes |
 | The pointer target of a 40 × 22 switch | Verified from the criterion's text: SC 2.5.8's spacing exception holds when no other target, nor another undersized target's 24 px circle, lies within the circle centred on the switch's box (1 px beyond it, above and below). The rows are 14 px apart | w3.org, Understanding SC 2.5.8 (Target Size (Minimum)) |
-| Where a form puts a label in a narrow window | KDE's Kirigami `FormLayout` stacks a label above its control when there is no room. The app doesn't: its window isn't resizable (Task 9), and a `GtkBox` can't wrap a control under its label, so the page scrolls | develop.kde.org, Kirigami form layouts (read 2026-11-19; as the search summary gave it, the page itself was not opened) |
+| Where a form puts a label in a narrow window | KDE's Kirigami `FormLayout` stacks a label above its control when there is no room. The app doesn't: its window isn't resizable (Task 9), and a `GtkBox` can't wrap a control under its label, so the content scrolls sideways | develop.kde.org, Kirigami form layouts (read 2026-11-19; as the search summary gave it, the page itself was not opened) |
 | The `small` style class | **Unverified** whether GTK's own theme defines it; the app's stylesheet doesn't (no match in `crates/odc-app/src`, 2026-11-19). The design never relies on its size: Task 11's type scale gives it one | grep of the tree |
 | A description on an image-role `GtkDrawingArea` | `Names::describe` sets `GTK_ACCESSIBLE_PROPERTY_DESCRIPTION` on it today (the preview's description is the caption); the rows above change only its text. AT-SPI reads it as the Phase 10 layer 4 run found for every description | the Accessible names notes; the Phase 10 Task 8 run |
+
+## Unverified points, answered (Phase 11a Task 9, 2026-11-19)
+
+The points the window's size and scrolling depend on. Read in the official documents and, for the window's sizing, in GTK's source on 2026-11-19; nothing was run, since the designer has no shell. What only a window can show is marked **unverified**, with the fallback, and the implementer's window tests check it. The pixel sizes in [Size and scrolling](#size-and-scrolling) are estimates from this design's numbers (and assume GTK's flow-box child has the 3 px of padding its default theme gives it, **unverified**); no test pins them.
+
+| Point | Answer | Source, or the fallback |
+|---|---|---|
+| How GTK sizes a window that has no default size | `gtk_window_compute_default_size` has no branch on `resizable`: unless a default size was set, it takes the natural size, and clamps it between the minimum and the bounds the toplevel gives (`gdk_toplevel_size_get_bounds`, which on Wayland come from the compositor). `should_remember_size` is false when the window isn't resizable, so its size isn't kept as its default. The docs say only "If true, users can resize the window". It matches what Task 1 measured in weston (915 px wanted, 800 given on an 800 px output). Read from the source, not run | `gtk/gtkwindow.c` (GNOME/gtk, main), read 2026-11-19 through a fetch tool that summarised the file's first 200,000 characters, not by eye; docs.gtk.org, `Gtk.Window:resizable` |
+| A mapped, non-resizable window follows its content's natural size (the banner appearing) | **Unverified.** The source read showed no code that stores such a window's size, so the window should follow; the path from a child's size change to the toplevel wasn't in the part read. The design holds either way: if it doesn't follow, the banner takes its height from the pages' viewports instead. The window test records which happens | The banner test in [Size and scrolling](#size-and-scrolling) |
+| Nested scrolled windows: natural size, and the cap on the outer one | **Unverified.** Task 1 measured one scrolled window. The design relies on a viewport scrolling only when it's allocated less than its child's minimum, and on the column and the pages having a small minimum height so that they take the squeeze. The window tests check: the window is its natural size; capped, it is the cap; the pages shrink, and the window scroller never scrolls down. **Fallback, the flat tree:** no window scroller; `max-content-width` and `-height` on the column and each page, the height as the cap less the header bar (48), the page bar (44) and the banner's height, which the app then measures (`Widget::measure`) and sets again whenever the banner's state changes; `hscrollbar-policy` automatic on the pages, so a page scrolls sideways beside the column | docs.gtk.org, `Gtk.Viewport`: it "starts scrolling" when allocated less than the child's minimum in that orientation (read 2026-11-19) |
+| The monitors' list and sizes | Verified: `gdk_display_get_monitors` "lists the monitors attached to the display" as a `GListModel` of `GdkMonitor`, the same list on every call, with `items-changed` for additions and removals (not used); `gdk_monitor_get_geometry` is "in application pixels, not in device pixels". gtk4-rs has `DisplayExt::monitors() -> ListModel` and `MonitorExt::geometry() -> Rectangle` | docs.gtk.org, `Gdk.Display.get_monitors` and `Gdk.Monitor.get_geometry`; docs.rs, `gdk4` 0.x `DisplayExt` and `MonitorExt`, read 2026-11-19 |
+| The Display page's natural width | **Unverified** that a flow box's natural width is `max-children-per-line` children and the gaps: the class page says "The maximum amount of children to request space for consecutively in the given orientation" and gives no formula. The window test reads the page's natural width and only requires it to be at least the six tiles' width | docs.gtk.org, `Gtk.FlowBox:max-children-per-line` |
+| A non-homogeneous `screens` stack gives the window the not-available message's size | **Unverified.** Task 1 measured the default (homogeneous) stack. If a hidden child still counted, the app sets it invisible (`set_visible(false)`) while the other shows | The not-available window test |
+| The header bar's height, the 48 px reserved for it | **Unverified.** About 47 from the design's own numbers: the 32 px buttons, 7 px of padding above and below, and the 1 px rule. A constant, not a measure, so a capped window can differ from the cap by a pixel or two, which the margin absorbs and the test allows (2 px) | The mockups' `.hb` rule; the window test |
+| The margin of 48 px | A judgment, not a measurement: panels are typically 30 to 50 px (**unverified**), and a compositor that sends bounds sets the exact limit, which GTK takes as the smaller of the two | [Answers decided on 2026-11-19, Task 9](#answers-decided-on-2026-11-19-task-9) |
+| Whether a scrolled window, and a viewport inside it, scroll a focused child into view by default | **Unverified**: the docs describe `GtkViewport:scroll-to-focus` as "whether to scroll when the focus changes" and give no default; `GtkScrolledWindow`'s `focusable` default isn't on its page. The app sets `focusable` false, and the test checks that focusing the last control of the Configuration page on a small output brings it into view; fallback in [Keyboard](#keyboard) | docs.gtk.org, `Gtk.Viewport`, `Gtk.ScrolledWindow` |
+| Classic (non-overlay) scrollbars and the natural size | **Unverified** whether a scrollbar that takes room counts in the natural width or height. With GTK's default overlay scrolling nothing is added | docs.gtk.org, `Gtk.ScrolledWindow:overlay-scrolling` ("whether overlay scrolling is enabled") |
+| A compositor that tiles the window anyway; what a compositor does with a window larger than a new, smaller output | **Unverified** for any compositor but the one in Task 1's session: GTK lays the content out in whatever size it is given, and a smaller size scrolls; whether a compositor re-fits a window after a monitor change is the compositor's own matter | [Size and scrolling](#size-and-scrolling), Not resizable, and floating; The monitors change |
+| The first map in a remote or inactive session | The window is presented before the service answers, so it is drawn at the full size for a few milliseconds before the not-available message shrinks it. **Unverified** whether the flash is visible. Fallback: present the window after the first answer | `crates/odc-app/src/main.rs`, `connect_activate`, read 2026-11-19 |

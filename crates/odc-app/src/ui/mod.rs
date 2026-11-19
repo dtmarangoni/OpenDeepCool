@@ -10,6 +10,7 @@ pub mod dropdowns;
 pub mod names;
 pub mod page;
 pub mod preview;
+pub mod size;
 pub mod startup;
 pub mod theme;
 pub mod tiles;

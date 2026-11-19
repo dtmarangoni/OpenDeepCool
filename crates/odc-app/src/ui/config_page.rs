@@ -15,7 +15,7 @@ use odc_ipc::{FallStop, TemperatureUnit};
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
 use super::names::{Names, group};
-use super::page::{icon_button, page, page_bar};
+use super::page::{icon_button, page, page_bar, scroller_of};
 use crate::model;
 
 /// The request a unit toggle sends.
@@ -71,6 +71,9 @@ pub struct ConfigPage {
     cards: gtk::Box,
     /// Every row's label block, in one horizontal size group.
     labels: gtk::SizeGroup,
+    /// An empty box at the page's end, as tall as the Startup card, while the card is on the off
+    /// screen: the page, and so the window, keeps its height (Size and scrolling).
+    spacer: gtk::Box,
     back: gtk::Button,
     rotations: [gtk::ToggleButton; 4],
     celsius: gtk::ToggleButton,
@@ -393,11 +396,16 @@ impl ConfigPage {
             "Back",
             "Back to Display",
         );
+        // Where the Startup card is while the service is down: as tall as the card, so the page
+        // doesn't get shorter (the window's height is the tallest page's).
+        let spacer = gtk::Box::builder().build();
+        root.append(&spacer);
         let page = page(&page_bar(Some(&back), "Configuration", None), &root);
         ConfigPage {
             root: page,
             cards: root,
             labels,
+            spacer,
             back,
             rotations,
             celsius,
@@ -421,9 +429,24 @@ impl ConfigPage {
         &self.root
     }
 
+    /// The page's scrolled window, for the tests.
+    pub fn scroller(&self) -> gtk::ScrolledWindow {
+        scroller_of(&self.root)
+    }
+
     /// The box the cards are in.
     pub fn cards(&self) -> &gtk::Box {
         &self.cards
+    }
+
+    /// The empty box that holds the Startup card's room on the page while the card is away.
+    pub fn spacer(&self) -> &gtk::Box {
+        &self.spacer
+    }
+
+    /// The room the spacer holds: the card's height on this page.
+    pub fn reserve(&self, height: i32) {
+        self.spacer.set_height_request(height);
     }
 
     /// The size group of the rows' label blocks, which the Startup card joins on this page.

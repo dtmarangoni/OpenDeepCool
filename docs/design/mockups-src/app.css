@@ -28,7 +28,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, sans-serif; padding: 16px; color: #111; }
-.mock-bar { max-width: 1040px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
+.mock-bar { max-width: 930px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
 .mock-bar h1 { font-size: 15px; margin: 0 0 4px; }
 .mock-bar p { margin: 0 0 8px; }
 .mock-bar .row2 { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
@@ -37,8 +37,18 @@ body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, san
 .mock-bar nav a { color: #0645ad; margin-right: 8px; white-space: nowrap; }
 .mock-bar .label { font-weight: 600; }
 
-.window { max-width: 1040px; margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
-  overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); min-height: 660px; display: flex; flex-direction: column; }
+/* The window's size (design, Window, Size and scrolling): as large as its content, which is the widest page beside the
+   262 px column and the tallest page under the header bar, here 930 x 813 px (the mockups' tiles are 98 px wide, the
+   app's about 113, so the app's estimate is about 1016 x 814); and never larger than the screen less 48 px. A browser
+   window narrower or shorter than that makes the window scroll its page, as the app does on a small monitor (the
+   preview column and the header stay). Drawn only for the page: below about 850 px the app scrolls the whole content
+   sideways, the column with it, which the mockups don't draw. */
+.window { width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(813px, calc(100vh - 48px));
+  margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
+  overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+/* Not available in this session: the window is as small as its message (design, Window, Size and scrolling). */
+.window.only { width: 440px; min-height: 0; }
+.window.only .page.empty { min-height: 0; padding: 24px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 svg { width: 16px; height: 16px; flex: none; }
@@ -89,7 +99,8 @@ button { font: inherit; color: inherit; }
 .banner code { display: block; margin: 6px 0; font: 13px ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
 
 .body { display: flex; flex: 1; min-height: 0; }
-.side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+.side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+  overflow: auto; /* the column's own scroller: only where the window is shorter than the column */ }
 .preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius); }
 .pv-caption { margin-top: 10px; font-weight: 600; }
 .reason { display: flex; gap: 6px; font-size: 12px; margin-top: 8px; }

@@ -35,7 +35,7 @@
 * { box-sizing: border-box; }
 html, body { margin: 0; }
 body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, sans-serif; padding: 16px; color: #111; }
-.mock-bar { max-width: 1040px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
+.mock-bar { max-width: 930px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
 .mock-bar h1 { font-size: 15px; margin: 0 0 4px; }
 .mock-bar p { margin: 0 0 8px; }
 .mock-bar .row2 { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
@@ -44,8 +44,18 @@ body { background: #8a8f96; font: 14px/1.4 system-ui, "Segoe UI", Cantarell, san
 .mock-bar nav a { color: #0645ad; margin-right: 8px; white-space: nowrap; }
 .mock-bar .label { font-weight: 600; }
 
-.window { max-width: 1040px; margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
-  overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); min-height: 660px; display: flex; flex-direction: column; }
+/* The window's size (design, Window, Size and scrolling): as large as its content, which is the widest page beside the
+   262 px column and the tallest page under the header bar, here 930 x 813 px (the mockups' tiles are 98 px wide, the
+   app's about 113, so the app's estimate is about 1016 x 814); and never larger than the screen less 48 px. A browser
+   window narrower or shorter than that makes the window scroll its page, as the app does on a small monitor (the
+   preview column and the header stay). Drawn only for the page: below about 850 px the app scrolls the whole content
+   sideways, the column with it, which the mockups don't draw. */
+.window { width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(813px, calc(100vh - 48px));
+  margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
+  overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+/* Not available in this session: the window is as small as its message (design, Window, Size and scrolling). */
+.window.only { width: 440px; min-height: 0; }
+.window.only .page.empty { min-height: 0; padding: 24px; }
 .muted { color: var(--muted); }
 .small { font-size: 12px; }
 svg { width: 16px; height: 16px; flex: none; }
@@ -96,7 +106,8 @@ button { font: inherit; color: inherit; }
 .banner code { display: block; margin: 6px 0; font: 13px ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
 
 .body { display: flex; flex: 1; min-height: 0; }
-.side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+.side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+  overflow: auto; /* the column's own scroller: only where the window is shorter than the column */ }
 .preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius); }
 .pv-caption { margin-top: 10px; font-weight: 600; }
 .reason { display: flex; gap: 6px; font-size: 12px; margin-top: 8px; }
@@ -190,7 +201,7 @@ button { font: inherit; color: inherit; }
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
   <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up.</p>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 813 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
 </div>
 <div id="win" class="window"></div>
 <script>
@@ -250,6 +261,15 @@ const CONFIG = {"theme": "omarchy", "page": "display", "service": true, "cooler"
 //   in one column. The Startup card on the off screen keeps its block at its own width.
 // - The two switches (Peak dots, Start at boot) are 40 x 22 with an 18 px knob.
 // - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
+//
+// The window's size (Phase 11a Task 9, 2026-11-19; docs/design/settings-app.md, Window, Size and scrolling). No new
+// CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
+// widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
+// scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
+// least 813 px high (the height of the Configuration page, the tallest, so Display leaves room under its tiles, as in
+// the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
+// whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
+// (class "only"), as small as its message.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -756,7 +776,7 @@ function notAvailablePage() {
 
 function render() {
   const win = document.getElementById("win");
-  win.className = "window";
+  win.className = S.notAvailable ? "window only" : "window";
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${

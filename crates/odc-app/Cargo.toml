@@ -54,6 +54,11 @@ name = "theme"
 harness = false
 required-features = ["weston-tests"]
 
+[[test]]
+name = "size"
+harness = false
+required-features = ["weston-tests"]
+
 [dev-dependencies]
 odc-testkit = { path = "../odc-testkit" }
 proptest.workspace = true

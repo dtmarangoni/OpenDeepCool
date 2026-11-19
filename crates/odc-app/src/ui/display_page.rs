@@ -14,7 +14,7 @@ use odc_render::{Kind, Mode, Unit, mode_info};
 
 use super::Request;
 use super::names::{Names, group};
-use super::page::{icon_button, page, page_bar};
+use super::page::{icon_button, page, page_bar, scroller_of};
 use super::tiles::{self, TileWidget};
 use crate::model::{self, group_name};
 use crate::theme::Tokens;
@@ -152,6 +152,11 @@ impl DisplayPage {
     /// The page: its bar over the scrolled tiles.
     pub fn widget(&self) -> &gtk::Box {
         &self.root
+    }
+
+    /// The page's scrolled window, for the tests.
+    pub fn scroller(&self) -> gtk::ScrolledWindow {
+        scroller_of(&self.root)
     }
 
     /// The Refresh icon, for the tests.

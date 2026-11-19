@@ -15,7 +15,7 @@ use super::names::{Names, group};
 use crate::boot::{self, Commands, Place, Style, Switch};
 
 /// The most characters the card's lines ask room for.
-const NOTE_CHARS: i32 = 64;
+const NOTE_CHARS: i32 = 72;
 
 pub struct StartupCard {
     card: gtk::Box,

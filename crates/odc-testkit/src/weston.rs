@@ -31,8 +31,9 @@ const START_WAIT: Duration = Duration::from_secs(10);
 /// The prefix of every socket this module names.
 const PREFIX: &str = "odc-test-";
 
-/// The output's size: room for the window's default 1040 × 720 (`docs/design/settings-app.md`,
-/// Window).
+/// The default output's size: larger than the window's natural height is capped at, so most
+/// checks see the window at its natural size, and a test that needs another size starts its own
+/// (`docs/design/settings-app.md`, Window, Size and scrolling).
 pub const SIZE: (u32, u32) = (1280, 800);
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);

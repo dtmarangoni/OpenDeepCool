@@ -174,8 +174,11 @@ label selection {
 
 /* The preview column. */
 .side {
-  padding: 18px;
   border-right: 1px solid var(--line);
+}
+
+.side-box {
+  padding: 18px;
 }
 
 .preview {

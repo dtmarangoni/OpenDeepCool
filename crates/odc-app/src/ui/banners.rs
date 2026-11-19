@@ -33,11 +33,16 @@ fn revealer(child: &impl IsA<gtk::Widget>) -> gtk::Revealer {
         .build()
 }
 
+/// The most characters a banner's sentence asks room for, so a long one wraps instead of widening
+/// the window (Size and scrolling).
+const BANNER_CHARS: i32 = 100;
+
 fn text(markup: &str) -> gtk::Label {
     gtk::Label::builder()
         .use_markup(true)
         .label(markup)
         .wrap(true)
+        .max_width_chars(BANNER_CHARS)
         .xalign(0.0)
         .build()
 }

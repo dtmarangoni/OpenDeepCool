@@ -327,7 +327,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "not-available.html",
             "Not available in this session",
-            "A remote or inactive session. The service refuses it every read, change and preview frame, so the window shows only this message, and the header keeps only the title and the close icon: no values, no preview, no controls, no gear, no Refresh. The app tries again, without polling, when its window becomes active and when the service's bus name gets a new owner.",
+            "A remote or inactive session. The service refuses it every read, change and preview frame, so the window is as small as the message needs, shows only this message, and the header keeps only the title and the close icon: no values, no preview, no controls, no gear, no Refresh. The app tries again, without polling, when its window becomes active and when the service's bus name gets a new owner.",
             base().with("notAvailable", Json::Bool(true)),
         ),
         page(
@@ -375,7 +375,7 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
   <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span>@@NAV@@</nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up.</p>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 813 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
 </div>
 <div id="win" class="window"></div>
 <script>

@@ -21,8 +21,9 @@ use super::banners::Banners;
 use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::{Names, group};
-use super::page::{icon_button, scrolled};
+use super::page::{icon_button, keep_natural_height, scrolled};
 use super::preview::Preview;
+use super::size;
 use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::boot::{self, Boot, Place};
@@ -33,13 +34,14 @@ use crate::model::{
 use crate::pci_ids;
 use crate::theme::Tokens;
 
-/// The window's default and smallest size (Window).
-pub const DEFAULT_SIZE: (i32, i32) = (1040, 720);
-pub const MIN_SIZE: (i32, i32) = (720, 560);
-
 /// The preview column's width, and the most characters its wrapping lines ask room for.
 const COLUMN_WIDTH: i32 = 262;
 const COLUMN_CHARS: i32 = 28;
+
+/// The most characters the off screen's lines and the not-available message's ask room for, so
+/// a long line wraps instead of widening the window (Size and scrolling).
+const OFF_SCREEN_CHARS: i32 = 48;
+const NOT_AVAILABLE_CHARS: i32 = 40;
 
 /// The status items' accessible names, in the column's order.
 const STATUS_NAMES: [&str; 3] = ["Cooler status", "Service status", "Music sound status"];
@@ -99,6 +101,9 @@ struct Inner {
     inputs: RefCell<Inputs>,
     shown: RefCell<Option<View>>,
     header: Header,
+    /// The scrolled window around everything under the header bar, and the preview column's.
+    window_scroller: gtk::ScrolledWindow,
+    column_scroller: gtk::ScrolledWindow,
     /// The window is setting the gear itself: its `toggled` is no request.
     applying: Cell<bool>,
     feedback: gtk::Box,
@@ -180,10 +185,8 @@ impl Window {
         let window = gtk::ApplicationWindow::builder()
             .application(app)
             .title("OpenDeepCool")
-            .default_width(DEFAULT_SIZE.0)
-            .default_height(DEFAULT_SIZE.1)
+            .resizable(false)
             .build();
-        window.set_size_request(MIN_SIZE.0, MIN_SIZE.1);
 
         // The header bar: the title in the middle, the gear and the close icon at the end, and
         // no window buttons of the desktop's own, so none is drawn twice (Window).
@@ -257,7 +260,7 @@ impl Window {
         });
         // The column keeps the design's width (the mockups' 262 px), however long its lines.
         let column_box = vbox(10);
-        column_box.add_css_class("side");
+        column_box.add_css_class("side-box");
         column_box.set_hexpand(false);
         column_box.set_width_request(COLUMN_WIDTH);
         for line in [&caption, &reason] {
@@ -286,6 +289,8 @@ impl Window {
         let config_page = ConfigPage::new(&names, Rc::clone(&send));
         pages.add_named(config_page.widget(), Some("config"));
         let startup = StartupCard::new(&names, Rc::clone(&send));
+        // Until the card has stood on the page, its room there is its natural height.
+        config_page.reserve(startup.card().measure(gtk::Orientation::Vertical, -1).1);
 
         // The off screen (D10): the message, then the Startup card and the commands, centred.
         let off = gtk::Box::builder()
@@ -308,12 +313,25 @@ impl Window {
         for line in [&off_heading, &off_text] {
             line.set_justify(gtk::Justification::Center);
             line.set_xalign(0.5);
+            line.set_max_width_chars(OFF_SCREEN_CHARS);
             off_message.append(line);
         }
         off.append(&off_message);
         pages.add_named(&scrolled(&off), Some("off"));
+        // The column scrolls down on its own, so the picture stays put while a page scrolls.
+        let column_scroller = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Never)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .propagate_natural_width(true)
+            .propagate_natural_height(true)
+            .vexpand(true)
+            .focusable(false)
+            .css_classes(["side"])
+            .child(&column_box)
+            .build();
+        keep_natural_height(&column_scroller);
         let main = gtk::Box::builder().vexpand(true).build();
-        main.append(&column_box);
+        main.append(&column_scroller);
         main.append(&pages);
 
         // Not available in this session: two labels, centred, wrapping.
@@ -324,6 +342,10 @@ impl Window {
             .spacing(8)
             .halign(gtk::Align::Center)
             .valign(gtk::Align::Center)
+            .margin_top(24)
+            .margin_bottom(24)
+            .margin_start(24)
+            .margin_end(24)
             .build();
         for (text, classes) in [
             (NOT_AVAILABLE_HEADING, &["heading"][..]),
@@ -332,6 +354,7 @@ impl Window {
             let line = label(text, classes);
             line.set_justify(gtk::Justification::Center);
             line.set_xalign(0.5);
+            line.set_max_width_chars(NOT_AVAILABLE_CHARS);
             not_available.append(&line);
         }
         names.name(&not_available, "Not available in this session");
@@ -339,8 +362,11 @@ impl Window {
             &not_available,
             Some(&format!("{NOT_AVAILABLE_HEADING}. {NOT_AVAILABLE_TEXT}")),
         );
+        // Not homogeneous: the not-available message is a small window of its own.
         let screens = gtk::Stack::builder()
             .transition_type(gtk::StackTransitionType::None)
+            .hhomogeneous(false)
+            .vhomogeneous(false)
             .vexpand(true)
             .build();
         screens.add_named(&main, Some("main"));
@@ -362,7 +388,23 @@ impl Window {
         names.name(&feedback, "Change feedback");
         feedback.append(&feedback_icon);
         feedback.append(&feedback_label);
-        let overlay = gtk::Overlay::builder().child(&content).build();
+        // The window takes its content's natural size, capped at the smallest monitor's less a
+        // margin, and scrolls inside the cap (Size and scrolling).
+        let window_scroller = gtk::ScrolledWindow::builder()
+            .hscrollbar_policy(gtk::PolicyType::Automatic)
+            .vscrollbar_policy(gtk::PolicyType::Automatic)
+            .propagate_natural_width(true)
+            .propagate_natural_height(true)
+            .hexpand(true)
+            .vexpand(true)
+            .focusable(false)
+            .child(&content)
+            .build();
+        if let Some((width, height)) = size::cap(&size::monitors(&WidgetExt::display(&window))) {
+            window_scroller.set_max_content_width(width);
+            window_scroller.set_max_content_height(height - size::HEADER);
+        }
+        let overlay = gtk::Overlay::builder().child(&window_scroller).build();
         overlay.add_overlay(&feedback);
         window.set_child(Some(&overlay));
 
@@ -405,6 +447,8 @@ impl Window {
                 gear,
                 close,
             },
+            window_scroller,
+            column_scroller,
             applying: Cell::new(false),
             feedback,
             feedback_icon,
@@ -747,6 +791,7 @@ impl Window {
                     inner.config.cards(),
                     inner.config.label_group(),
                 );
+                inner.config.spacer().set_visible(false);
                 inner.startup.show(&inner.names, &normal.startup);
                 self.announce_note(normal.startup.note.as_ref());
             }
@@ -759,7 +804,16 @@ impl Window {
     fn show_off_screen(&self, screen: &boot::OffScreen) {
         let inner = &self.0;
         let startup = &inner.startup;
+        // The card leaves the Configuration page: the page keeps its room, so the window, which
+        // is as tall as the tallest page, doesn't shrink (Size and scrolling).
+        // `compute_bounds` is the card's whole box; `height()` leaves its padding out.
+        if let Some(bounds) = startup.card().compute_bounds(inner.config.cards())
+            && bounds.height() > 0.0
+        {
+            inner.config.reserve(bounds.height().round() as i32);
+        }
         startup.place(Place::OffScreen, &inner.off, inner.config.label_group());
+        inner.config.spacer().set_visible(true);
         let Some(heading) = screen.heading else {
             inner.off_message.set_visible(false);
             startup.hide_all();
@@ -908,6 +962,17 @@ impl Window {
         let h = &self.0.header;
         let bounds = h.title.compute_bounds(&h.bar)?;
         Some(bounds.x() + bounds.width() / 2.0 - h.bar.width() as f32 / 2.0)
+    }
+
+    /// The window's scrolled window (the cap and the sideways scroll) and the preview column's,
+    /// for the tests (Size and scrolling).
+    pub fn scrollers(&self) -> (&gtk::ScrolledWindow, &gtk::ScrolledWindow) {
+        (&self.0.window_scroller, &self.0.column_scroller)
+    }
+
+    /// The header bar's height, for the tests.
+    pub fn header_height(&self) -> i32 {
+        self.0.header.bar.height()
     }
 
     /// The gear, the back icon and Refresh, for the tests that press or focus them.
