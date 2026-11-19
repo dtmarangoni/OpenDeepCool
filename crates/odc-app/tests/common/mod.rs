@@ -203,6 +203,28 @@ pub fn close(window: Window) {
     run_for(Duration::from_millis(20));
 }
 
+/// The design's sample values as the service's `Readings` would give them.
+pub fn sample_readings() -> HashMap<String, (i64, u64)> {
+    let values = odc_app::live::sample_values();
+    odc_sensors::Metric::ALL
+        .into_iter()
+        .filter_map(|metric| {
+            let value = values.get(metric)?;
+            Some((metric.spec_name().to_owned(), (value.num(), value.den())))
+        })
+        .collect()
+}
+
+/// GTK's animations switched on or off for the checks that follow, in this process: off, the
+/// tiles stand at rest (design: Live tiles, Reduced motion), so their pictures don't depend on
+/// the time. A window follows it from its construction on; the checks that need motion switch it
+/// back on.
+pub fn animations(on: bool) {
+    gtk::Settings::default()
+        .expect("GTK's settings")
+        .set_gtk_enable_animations(on);
+}
+
 /// A made-up state: Load · CPU, everything there.
 pub fn base() -> State {
     State {
@@ -219,7 +241,7 @@ pub fn base() -> State {
         music_peaks: Some(true),
         music_bar_fall: Some(FallStop::Moderate),
         music_peak_fall: Some(FallStop::Slow),
-        readings: Some(HashMap::new()),
+        readings: Some(sample_readings()),
         use_system_theme: Some(true),
         dark_theme: Some(true),
         audio_connected: Some(true),

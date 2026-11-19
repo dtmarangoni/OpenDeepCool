@@ -149,6 +149,7 @@ pub struct Run {
     frame_log: PathBuf,
     omarchy_state: PathBuf,
     wayland_display: PathBuf,
+    app_pid: Option<u32>,
 }
 
 /// The made-up vendor IDs are in no `pci.ids` here, so every label names the GPU's driver.
@@ -185,6 +186,7 @@ impl Run {
             frame_log: paths.frame_log.clone(),
             omarchy_state: paths.omarchy_state.clone(),
             wayland_display: paths.wayland_display.clone(),
+            app_pid: paths.app_pid,
         })
     }
 
@@ -491,7 +493,7 @@ impl Run {
 
 pub type Scenario = fn(&mut Run) -> Result<String>;
 
-pub const ALL: [(&str, Scenario); 28] = [
+pub const ALL: [(&str, Scenario); 30] = [
     ("service_down", service_down),
     ("first_start", first_start),
     ("names", names),
@@ -520,6 +522,8 @@ pub const ALL: [(&str, Scenario); 28] = [
     ("boot_off_screen", boot_off_screen),
     ("boot_remote", boot_remote),
     ("theme", theme),
+    ("tiles_live", tiles_live),
+    ("tile_cost", tile_cost),
 ];
 
 const NO_NOTE: Result<String> = Ok(String::new());
@@ -1194,6 +1198,11 @@ fn unavailable_metric(run: &mut Run) -> Result<String> {
     run.fake.service.available = (1..=23)
         .filter(|m| !GPU_MODES.iter().any(|(g, _)| g == m))
         .collect();
+    // The readings the reasons are about have no value.
+    run.fake
+        .service
+        .readings
+        .retain(|metric, _| !metric.starts_with("Gpu"));
     run.fake.write()?;
     for mode in 1..=23 {
         let name = tile(mode);
@@ -1247,6 +1256,7 @@ fn reading_lost(run: &mut Run) -> Result<String> {
         .map(|&m| (m, "Gpu usage: no device found".to_owned()))
         .collect();
     run.fake.service.available = (1..=23).filter(|m| !usage.contains(m)).collect();
+    run.fake.service.readings.remove("Gpu usage");
     run.fake.write()?;
     run.expect_state("grid cell", "Load: GPU", State::Selected, true)?;
     run.check_state("grid cell", "Load: GPU", State::Sensitive, true)?;
@@ -1806,4 +1816,179 @@ fn theme(run: &mut Run) -> Result<String> {
     )?;
     run.page("Display")?;
     NO_NOTE
+}
+
+/// Each tile's flag and its sensitivity, from assistive technology: `flagged` modes are
+/// "Unavailable", `lost` is the saved mode's, usable and "Reading lost", the rest usable with
+/// their caption alone.
+fn flags(run: &Run, flagged: &[u32], lost: Option<u32>) -> Result<()> {
+    for mode in 1..=23 {
+        let name = tile(mode);
+        let (_, option) = TILES[mode as usize - 1];
+        if lost == Some(mode) {
+            run.expect_state("grid cell", &name, State::Sensitive, true)?;
+            run.expect_texts("grid cell", &name, &[option, "Reading lost"])?;
+        } else if flagged.contains(&mode) {
+            run.expect_state("grid cell", &name, State::Sensitive, false)?;
+            run.check_texts("grid cell", &name, &[option, "Unavailable"])?;
+        } else {
+            run.expect_state("grid cell", &name, State::Sensitive, true)?;
+            run.check_texts("grid cell", &name, &[option])?;
+        }
+    }
+    Ok(())
+}
+
+/// The live tiles (Phase 11a Task 14; design: Live tiles). A picture is no accessible
+/// property, and the tiles' names and descriptions are static, so layer 4 checks what a person
+/// with assistive technology gets: the flags follow what the service lists, not the readings. A
+/// reading the service has no value for, with no reason listed, leaves every tile as it was
+/// (its picture draws dashes, which the app's own tests check); with the reason listed for the
+/// modes that show it, those tiles are "Unavailable", or "Reading lost" on the saved mode's,
+/// and the others are untouched; the reading and the reason gone, everything is as it was.
+fn tiles_live(run: &mut Run) -> Result<String> {
+    run.reset()?;
+    flags(run, &[], None)?;
+    // GPU usage has no value for a moment: nothing changes for assistive technology.
+    run.fake.service.readings.remove("Gpu usage");
+    run.fake.write()?;
+    flags(run, &[], None)?;
+    run.expect_state("grid cell", "Load: CPU", State::Selected, true)?;
+    // The service lists the reason for the modes that show it.
+    let usage = [2_u32, 4, 6, 21];
+    run.fake.service.reasons = usage
+        .iter()
+        .map(|&m| (m, "Gpu usage: no device found".to_owned()))
+        .collect();
+    run.fake.service.available = (1..=23).filter(|m| !usage.contains(m)).collect();
+    run.fake.write()?;
+    flags(run, &usage, None)?;
+    // The saved mode is one of them: its tile stays usable and says what was lost.
+    run.fake.service.mode = 2;
+    run.fake.write()?;
+    flags(run, &[4, 6, 21], Some(2))?;
+    // The reading comes back, and the reason goes.
+    run.fake.service.readings.insert("Gpu usage", (63, 1));
+    run.fake.service.reasons.clear();
+    run.fake.service.available = (1..=23).collect();
+    run.fake.write()?;
+    flags(run, &[], None)?;
+    run.check_texts("grid cell", "Load: GPU", &["GPU"])?;
+    NO_NOTE
+}
+
+/// The app's CPU time in seconds, from `/proc/<pid>/stat`: `utime` and `stime`, in the clock
+/// ticks `/proc` gives, which are a hundredth of a second on every platform Linux builds for
+/// (`USER_HZ`).
+fn cpu_seconds(pid: u32) -> Result<f64> {
+    let path = format!("/proc/{pid}/stat");
+    let stat = fs::read_to_string(&path).map_err(|e| format!("{path}: {e}"))?;
+    // The command's name, in brackets, may hold spaces: the fields count from the last one.
+    let rest = stat
+        .rsplit_once(')')
+        .ok_or_else(|| format!("{path}: no command name"))?
+        .1;
+    let field = |n: usize| -> Result<f64> {
+        rest.split_whitespace()
+            .nth(n)
+            .and_then(|f| f.parse::<f64>().ok())
+            .ok_or_else(|| format!("{path}: no field {}", n + 3))
+    };
+    // After the command: the state is field 3, utime 14 and stime 15.
+    Ok((field(11)? + field(12)?) / 100.0)
+}
+
+/// How long each state of the tiles' cost check runs.
+const COST_FOR: Duration = Duration::from_secs(10);
+
+/// The most CPU the app may use in each state, as a share of one core: about sixty times the
+/// highest of three measurements here (owner, 2026-11-17: slower PCs must pass), floored at 1 %
+/// and capped at one core (design: Live tiles, The cost). Measured on 2026-11-19 in this run's
+/// build, in a headless weston with the Cairo renderer: steady 6.3 %, busy 12 % and still 0.0 %
+/// of a core, so the first two reach the cap, where the check only catches a runaway and the
+/// counts of steps and draws in `tests/live_tiles.rs` carry the proof, and the last the floor.
+const COST_CEILING: [(&str, f64); 3] = [("steady", 1.0), ("busy", 1.0), ("still", 0.01)];
+
+/// The tiles' cost (Phase 11a Task 14): the app's CPU over ten seconds in three states, each
+/// under its ceiling. `pace` is called every 100 ms with the tick's number.
+fn cost(run: &mut Run, pid: u32, mut pace: impl FnMut(&mut Run, u32) -> Result<()>) -> Result<f64> {
+    // Let the page settle first.
+    thread::sleep(Duration::from_millis(1000));
+    let (cpu, wall) = (cpu_seconds(pid)?, Instant::now());
+    let mut tick = 0;
+    while wall.elapsed() < COST_FOR {
+        pace(run, tick)?;
+        tick += 1;
+        let due = wall + Duration::from_millis(100) * tick;
+        if let Some(wait) = due.checked_duration_since(Instant::now()) {
+            thread::sleep(wait);
+        }
+    }
+    Ok((cpu_seconds(pid)? - cpu) / wall.elapsed().as_secs_f64())
+}
+
+fn tile_cost(run: &mut Run) -> Result<String> {
+    let pid = run
+        .app_pid
+        .ok_or("--app-pid is needed for the tiles' cost")?;
+    let levels = |n: u32| -> Vec<f64> {
+        (0..14)
+            .map(|c| (f64::from((n + c) % 20) + 1.0) / 21.0)
+            .collect()
+    };
+    let mut notes = Vec::new();
+    let mut measured = Vec::new();
+    for (state, ceiling) in COST_CEILING {
+        run.reset()?;
+        run.fake.service.readings.insert("CPU Usage", (150, 1));
+        let used = match state {
+            // Readings once a second, one of them 100 or more: the emoji and the scrolling tiles.
+            "steady" => {
+                run.fake.write()?;
+                cost(run, pid, |run, tick| {
+                    if tick % 10 == 0 {
+                        run.fake
+                            .service
+                            .readings
+                            .insert("CPU Usage", (150 + i64::from(tick / 10), 1));
+                        run.fake.write()?;
+                    }
+                    Ok(())
+                })?
+            }
+            // A Music mode with sound, ten `Levels` a second that change each time: every tile
+            // that moves, at its busiest.
+            "busy" => {
+                run.fake.service.mode = 13;
+                run.fake.write()?;
+                cost(run, pid, |run, tick| {
+                    run.fake.levels = Some(levels(tick));
+                    run.fake.write()
+                })?
+            }
+            // The Configuration page: no tile is on screen, so nothing moves.
+            _ => {
+                run.fake.write()?;
+                run.page("Configuration")?;
+                let used = cost(run, pid, |_, _| Ok(()))?;
+                run.page("Display")?;
+                used
+            }
+        };
+        run.fake.levels = None;
+        measured.push((state, used, ceiling));
+        notes.push(format!("{state} {:.2} % of a core", used * 100.0));
+    }
+    run.reset()?;
+    for (state, used, ceiling) in &measured {
+        if used > ceiling {
+            return Err(format!(
+                "{state}: {:.1} % of a core, over its ceiling of {:.0} % ({})",
+                used * 100.0,
+                ceiling * 100.0,
+                notes.join(", ")
+            ));
+        }
+    }
+    Ok(format!("{} (ceilings 100 %, 100 %, 1 %)", notes.join(", ")))
 }

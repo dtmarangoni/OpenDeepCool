@@ -81,6 +81,21 @@ pub struct Service {
     pub use_system_theme: bool,
     pub dark_theme: bool,
     pub audio_connected: bool,
+    /// `Readings`: each metric that has a value, by its spec name, as numerator and denominator.
+    pub readings: BTreeMap<&'static str, (i64, u64)>,
+}
+
+/// The design's sample values as `Readings`, each metric its own.
+pub fn sample_readings() -> BTreeMap<&'static str, (i64, u64)> {
+    BTreeMap::from([
+        ("CPU Usage", (42, 1)),
+        ("Gpu usage", (63, 1)),
+        ("Memory Load", (51, 1)),
+        ("CPU Temperature", (57, 1)),
+        ("Gpu temperature", (38, 1)),
+        ("CPU Power", (65, 1)),
+        ("Gpu power", (88, 1)),
+    ])
 }
 
 impl Service {
@@ -103,6 +118,7 @@ impl Service {
             use_system_theme: true,
             dark_theme: true,
             audio_connected: true,
+            readings: sample_readings(),
         }
     }
 
@@ -155,6 +171,23 @@ impl Service {
         put("MusicPeaks", Boolean(self.peaks));
         put("MusicBarFall", text(self.bar_fall));
         put("MusicPeakFall", text(self.peak_fall));
+        put(
+            "Readings",
+            toml::Value::Table(
+                self.readings
+                    .iter()
+                    .map(|(metric, (num, den))| {
+                        (
+                            (*metric).to_owned(),
+                            Array(vec![
+                                Integer(*num),
+                                Integer(i64::try_from(*den).unwrap_or(i64::MAX)),
+                            ]),
+                        )
+                    })
+                    .collect(),
+            ),
+        );
         put("UseSystemTheme", Boolean(self.use_system_theme));
         put("DarkTheme", Boolean(self.dark_theme));
         put("AudioConnected", Boolean(self.audio_connected));
@@ -175,6 +208,8 @@ pub struct Fake {
     pub refuse: Option<String>,
     /// The preview frame sent to frame watchers: 196 dots, `0` or `1`, row by row.
     pub frame: Option<String>,
+    /// The spectrum's levels, sent as `Levels` to frame watchers when they change.
+    pub levels: Option<Vec<f64>>,
     pub service: Service,
 }
 
@@ -201,6 +236,7 @@ impl Fake {
             reads: true,
             refuse: None,
             frame: None,
+            levels: None,
             service: Service::first_start(),
         }
     }
@@ -221,6 +257,12 @@ impl Fake {
         }
         if let Some(frame) = &self.frame {
             fake.insert("frame".to_owned(), toml::Value::String(frame.clone()));
+        }
+        if let Some(levels) = &self.levels {
+            fake.insert(
+                "levels".to_owned(),
+                toml::Value::Array(levels.iter().map(|&l| toml::Value::Float(l)).collect()),
+            );
         }
         let mut file = toml::Table::new();
         file.insert("fake".to_owned(), toml::Value::Table(fake));

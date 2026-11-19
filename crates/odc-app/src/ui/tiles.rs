@@ -1,7 +1,7 @@
 //! The tiles (`docs/design/settings-app.md`, Display page): one per mode, a 63 px picture and
-//! its caption. The picture comes from the service's own drawing code, `odc_render`, with the
-//! design's fixed sample values, upright, in the current unit and with the current peak
-//! setting; it redraws only when one of those, or the theme, changes.
+//! its caption. The picture comes from the service's own drawing code, `odc_render`, from the
+//! service's readings and drawn by `live::Live` (Phase 11a Task 14); the widget draws the frame
+//! it is given, and only when that differs from the last.
 
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
@@ -10,11 +10,7 @@ use gtk::accessible::Property;
 use gtk::gio;
 use gtk::prelude::*;
 use odc_protocol::Frame;
-use odc_render::{
-    COLUMNS, EmojiLoop, Mode, Pose, Spectrum, Unit, Values, mode_info, spectrum_height,
-    with_spectrum,
-};
-use odc_sensors::{Exact, Metric};
+use odc_render::{Mode, mode_info};
 
 use super::dots;
 use super::names::Names;
@@ -24,63 +20,6 @@ use crate::theme::{Rgb, Rgba, Tokens, UNLIT_ALPHA};
 /// The tile picture's pitch, px per dot: 14 × 4.5 = 63 px, as the mockups draw it.
 pub const PITCH: f64 = 4.5;
 pub const SIDE: i32 = 63;
-
-/// The design's sample values (Display page, Tile content).
-pub fn sample_values() -> Values {
-    [
-        (Metric::CpuUsage, 42),
-        (Metric::GpuUsage, 63),
-        (Metric::MemoryLoad, 51),
-        (Metric::CpuTemperature, 57),
-        (Metric::GpuTemperature, 38),
-        (Metric::CpuPower, 65),
-        (Metric::GpuPower, 88),
-    ]
-    .into_iter()
-    .fold(Values::new(), |values, (metric, n)| {
-        values.with(metric, Exact::whole(n))
-    })
-}
-
-/// The fixed sample spectrum's bars and peaks, the mockups' (`app.js`, `SAMPLE_SPECTRUM`).
-pub const SAMPLE_BARS: [f64; COLUMNS] = [
-    0.55, 0.8, 0.95, 0.7, 0.6, 0.5, 0.62, 0.45, 0.38, 0.42, 0.3, 0.22, 0.15, 0.08,
-];
-pub const SAMPLE_PEAKS: [f64; COLUMNS] = [
-    0.7, 0.9, 1.0, 0.85, 0.7, 0.62, 0.7, 0.6, 0.5, 0.5, 0.42, 0.3, 0.22, 0.12,
-];
-
-/// The picture of `mode`'s tile: a value's home frame, an emoji loop's first picture or the
-/// Dancer standing, with the sample spectrum below where the mode has one.
-pub fn picture(mode: Mode, unit: Unit, peaks: bool) -> Frame {
-    if mode.number() == 23 {
-        return Pose::STILL.frame();
-    }
-    let top = match mode.number() {
-        13 => Frame::blank(),
-        14..=17 => EmojiLoop::of(mode).map_or(Frame::blank(), |mut emoji| emoji.tick()),
-        _ => match odc_render::picture(mode, &sample_values(), unit) {
-            Ok(picture) => picture.frame_at(picture.home()),
-            // Every mode is drawn; one that weren't would show no value.
-            Err(_) => Frame::blank(),
-        },
-    };
-    match spectrum_height(mode) {
-        Some(h) => {
-            let columns = Spectrum::at(SAMPLE_BARS, SAMPLE_PEAKS).draw(h, peaks);
-            with_spectrum(&top, &columns, h)
-        }
-        None => top,
-    }
-}
-
-/// Whether `mode`'s picture follows the unit: it shows a temperature.
-pub fn follows_unit(mode: Mode) -> bool {
-    mode_info(mode)
-        .metrics
-        .iter()
-        .any(|m| matches!(m, Metric::CpuTemperature | Metric::GpuTemperature))
-}
 
 struct Drawn {
     frame: Frame,
@@ -264,44 +203,20 @@ impl TileWidget {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use odc_render::Picture;
-
-    // Each tile shows its mode's picture from the service's drawing code: a value's home frame
-    // with the sample values, the first emoji picture, the Dancer standing, and the spectrum
-    // below in the modes that have one.
-    #[test]
-    fn each_tile_draws_its_mode_with_the_sample_values() {
-        let home = |mode: Mode, unit| {
-            let p: Picture = odc_render::picture(mode, &sample_values(), unit).expect("drawn");
-            p.frame_at(p.home())
-        };
-        for mode in Mode::all() {
-            for unit in [Unit::Celsius, Unit::Fahrenheit] {
-                for peaks in [true, false] {
-                    let got = picture(mode, unit, peaks);
-                    let spectrum = |top: &Frame, h| {
-                        with_spectrum(
-                            top,
-                            &Spectrum::at(SAMPLE_BARS, SAMPLE_PEAKS).draw(h, peaks),
-                            h,
-                        )
-                    };
-                    let want = match mode.number() {
-                        1..=12 => home(mode, unit),
-                        13 => spectrum(&Frame::blank(), 12),
-                        14..=17 => spectrum(&EmojiLoop::of(mode).expect("emoji").tick(), 6),
-                        18..=22 => spectrum(&home(mode, unit), 6),
-                        _ => Pose::STILL.frame(),
-                    };
-                    assert_eq!(got, want, "mode {}", mode.number());
-                }
-            }
-        }
-    }
+    use crate::live::{Live, follows_unit, sample_values};
+    use odc_render::{MusicSettings, Unit, spectrum_height};
 
     // Only the temperature tiles follow the unit, and only the spectrum tiles the peak dots.
+    // (`tests/live.rs` checks every tile's picture against `odc_render`'s.)
     #[test]
     fn only_temperatures_follow_the_unit_and_only_spectra_the_peaks() {
+        let picture = |mode: Mode, unit: Unit, peaks: bool| {
+            let music = MusicSettings {
+                peaks,
+                ..MusicSettings::default()
+            };
+            *Live::new(unit, music, sample_values()).frame(mode)
+        };
         for mode in Mode::all() {
             let unit_matters =
                 picture(mode, Unit::Celsius, true) != picture(mode, Unit::Fahrenheit, true);

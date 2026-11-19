@@ -91,6 +91,10 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 :disabled { cursor: default; opacity: .45; }
 .tile.on:disabled { opacity: 1; }
+/* An unavailable tile is drawn as the app draws it, without opacity (decisions log D43, D56): its caption in --muted, and its
+   picture's lit dots, which app.js paints, in --muted too. With the live tiles that picture is the dashes of the reading
+   the service can't give (design, Display page, Live tiles). */
+.tile:disabled { opacity: 1; color: var(--muted); }
 /* The app draws an insensitive toggle or switch without opacity (decisions log D43): muted text on the normal fill and border.
    One that is pressed or on and can't be changed still shows its value, as the Theme card does while the system theme is used:
    the selected fill, a muted border, and the text in --fg so the value stays readable (design, Theme card). */
@@ -219,15 +223,15 @@ button { font: inherit; color: inherit; }
 <body>
 <div class="mock-bar" aria-label="Mockup controls">
   <h1>Mockup: Display screen, a value of 100 or more</h1>
-  <p>Power, CPU + GPU with GPU power at 156 W: the preview shows the strip at its home position (the app animates it at the cooler's 100 ms tick). The unit is °F, set on the Configuration page: the temperature tiles show °F.</p>
+  <p>Power, CPU + GPU with GPU power at 156 W; the preview shows the strip at its home position, as does every tile whose value is 100 or more (the app scrolls them at the cooler's 100 ms tick, together). The unit is °F, set on the Configuration page: the temperature tiles show 120 and 111 °F, three digits, so they scroll too.</p>
   <div class="row2">
     <span class="mock-theme"><span class="label">Theme:</span>
       <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>
       <button data-t="dark" onclick="setTheme('dark')">Default theme, dark</button>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
-  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
+  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-music-no-sound.html">Display screen, a Music mode without sound</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
 </div>
 <div id="win" class="window"></div>
 <script>
@@ -310,6 +314,21 @@ const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": t
 // The old "theme" key is no longer read: the theme the window starts in is resolved from these four, as the app does
 // (themeState below, a pure function). The mockup's colour buttons stay as chrome that only preview a palette; the
 // Theme card's controls resolve the theme again and set it, as they do in the app.
+//
+// The live tiles (Phase 11a Task 14, 2026-11-19; docs/design/settings-app.md, Display page, Live tiles). No new CONFIG key.
+// In the app every tile moves, drawn by the service's own code from the service's readings; a static page can show
+// only one moment of that, so each tile here is one moment of what the app draws:
+// - Every tile shows the readings of the CONFIG key "live", in the current unit: the same readings the preview draws, so a
+//   tile and the preview agree. A reading listed in "unavailable" has no value: the tiles that show it draw dashes, as
+//   the cooler does, in --muted on a tile that is disabled (the app's lit dots on an unavailable tile, decisions log D56)
+//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost".
+// - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
+//   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
+//   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
+// - The Music tiles (13 to 22, the emoji tiles' spectrum rows included, and the Dancer) are live only while sound is
+//   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
+//   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
+//   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -346,8 +365,10 @@ const MODES = [
 ];
 const byId = id => MODES.find(m => m.id === id);
 
-// Fixed sample values for the tiles (owner, 2026-10-25), and made-up live readings for the preview.
-const SAMPLE = { cpu_usage: 42, gpu_usage: 63, ram: 51, cpu_temp: 57, gpu_temp: 38, cpu_power: 65, gpu_power: 88 };
+// The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's
+// fixed sample values (42, 63, 51, 57, 38, 65 and 88) live only until its first answer from the service, a few
+// milliseconds, so no page draws them. SAMPLE_SPECTRUM is the Music tiles' still sample (bars and peaks as levels 0 to 1),
+// LIVE_SPECTRUM a moment of levels, which both the preview and the live Music tiles draw.
 const SAMPLE_SPECTRUM = { bars: [.55, .8, .95, .7, .6, .5, .62, .45, .38, .42, .3, .22, .15, .08],
                           peaks: [.7, .9, 1, .85, .7, .62, .7, .6, .5, .5, .42, .3, .22, .12] };
 const LIVE_SPECTRUM = { bars: [.4, .72, .86, .58, .5, .66, .48, .52, .33, .28, .36, .2, .12, .05],
@@ -405,13 +426,15 @@ function strip(n, sym) {
   return cols;
 }
 function blank() { return Array.from({ length: 14 }, () => Array(14).fill(false)); }
+// display.md, Static layout, OpenDeepCool: alignment (Phase 11a Task 12, owner 2026-11-18): one value or two, the picture is
+// placed by its width, the extra spare column of an odd split on the left; two values end at the same column, so a pair is
+// centred as the wider value would be alone and the shorter one's last digit sits under the wider one's. A picture wider
+// than 14 columns has its first digit at column 2 (its home).
 function drawBands(g, strips, topRows) {
   const widths = strips.map(s => s.length), wmax = Math.max(...widths);
+  const home = wmax > 14 ? 2 : Math.ceil((14 - wmax) / 2) + 1;
   strips.forEach((s, i) => {
-    let start;
-    if (wmax > 14) start = 2 + (wmax - widths[i]);
-    else if (strips.length === 1) start = Math.ceil((14 - widths[i]) / 2) + 1;
-    else start = 15 - widths[i];
+    const start = home + (wmax - widths[i]);
     s.forEach((col, k) => {
       const c = start + k;
       if (c < 1 || c > 14) return;
@@ -464,7 +487,8 @@ function hexToRgba(hex, a) {
   const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-function paint(canvas, g, pitch) {
+// The lit dots are --fg, or --muted on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
+function paint(canvas, g, pitch, litVar) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const size = pitch * 14;
@@ -473,7 +497,7 @@ function paint(canvas, g, pitch) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
   const fg = cssVar("--fg");
-  const lit = fg, unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const lit = cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
   const r = pitch * 0.38;
   for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
     ctx.beginPath();
@@ -866,16 +890,22 @@ function render() {
     !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div>` + toast;
   paintAll();
 }
+// One moment of what the app draws (design, Display page, Live tiles): the preview and every tile from the same readings.
 function paintAll() {
   const pv = document.getElementById("pv");
   if (!pv) return;
+  const readings = liveReadings();
+  const silent = { bars: Array(14).fill(0), peaks: Array(14).fill(0) };
   if (S.service) {
-    const g = picture(S.mode, liveReadings(), S.unit, S.audio ? LIVE_SPECTRUM : { bars: Array(14).fill(0), peaks: Array(14).fill(0) }, S.peaks);
+    const g = picture(S.mode, readings, S.unit, S.audio ? LIVE_SPECTRUM : silent, S.peaks);
     paint(pv, rotate(g, S.rotation), 15);
   } else paint(pv, null, 15);
+  // The Music tiles are live only while sound is attached and a Music mode is the one shown; otherwise the still sample.
+  const soundLive = S.service && S.audio && byId(S.mode).group === "Music";
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
-    paint(c, picture(id, SAMPLE, S.unit, SAMPLE_SPECTRUM, S.peaks), 4.5);
+    const unavailable = c.closest("button").disabled;
+    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--muted" : "--fg");
   });
 }
 

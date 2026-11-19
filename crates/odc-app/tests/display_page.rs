@@ -1,5 +1,6 @@
 //! The Display page in a headless weston (Phase 10 plan, Task 5; layer 3): each tile's dots
-//! are `odc_render`'s picture of its mode with the sample values, in each unit and peak setting;
+//! are `odc_render`'s picture of its mode from the readings, at rest (GTK's animations off, so
+//! the time changes nothing), in each unit and peak setting;
 //! a unit change redraws only the temperature tiles and a peak change only the spectrum tiles;
 //! focus never asks for a mode, and each tile's activation asks for its own; the saved mode's
 //! tile alone is marked; unavailable tiles and the lost reading; and the unit toggles. Against a
@@ -12,15 +13,33 @@ use std::process::ExitCode;
 use std::time::Duration;
 
 use gtk::prelude::*;
+use odc_app::live::{Live, sample_values};
 use odc_app::theme::Tokens;
 use odc_app::ui::Request;
 use odc_app::ui::tiles::{self, TileWidget};
 use odc_app::ui::window::Window;
 use odc_ipc::{State, TemperatureUnit};
 use odc_protocol::Frame;
-use odc_render::{Mode, Unit, spectrum_height};
+use odc_render::{Mode, MusicSettings, Unit, spectrum_height};
 
-use common::{Check, Renderer, base, close, dots_of, near, run_for, run_until, save_png, shown};
+use common::{
+    Check, Renderer, animations, base, close, dots_of, near, run_for, run_until, save_png, shown,
+};
+
+/// A window with the tiles at rest: GTK's animations off first.
+fn shown_at_rest(app: &gtk::Application) -> (Window, common::Log<Request>) {
+    animations(false);
+    shown(app)
+}
+
+/// What a tile shows at rest for the sample readings.
+fn at_rest(mode: Mode, unit: Unit, peaks: bool) -> Frame {
+    let music = MusicSettings {
+        peaks,
+        ..MusicSettings::default()
+    };
+    *Live::new(unit, music, sample_values()).frame(mode)
+}
 
 fn main() -> ExitCode {
     common::run(&CHECKS)
@@ -98,7 +117,7 @@ fn with(change: impl FnOnce(&mut State)) -> State {
 fn check_dots(window: &Window, renderer: &Renderer, unit: Unit, peaks: bool) {
     let fg = Tokens::default_theme(true).fg;
     for tile in tiles_of(window) {
-        let want = tiles::picture(tile.mode, unit, peaks);
+        let want = at_rest(tile.mode, unit, peaks);
         assert_eq!(tile.frame(), want, "mode {}", tile.mode.number());
         let colours = dots_of(&renderer.0, tile.picture_widget(), tiles::PITCH);
         for row in 0..Frame::SIZE {
@@ -124,7 +143,7 @@ fn check_dots(window: &Window, renderer: &Renderer, unit: Unit, peaks: bool) {
 // Each tile, in both units and with the peak dots on and off: its picture is `odc_render`'s for
 // its mode and the sample values, and its dots are drawn as the picture says.
 fn pictures(app: &gtk::Application) {
-    let (window, _) = shown(app);
+    let (window, _) = shown_at_rest(app);
     let renderer = Renderer::new();
     for (unit, peaks, ipc_unit) in [
         (Unit::Celsius, true, TemperatureUnit::Celsius),
@@ -150,7 +169,7 @@ fn pictures(app: &gtk::Application) {
 // A unit change redraws only the tiles showing a temperature, a peak change only those with a
 // spectrum, and nothing else (a new mode, a cooler state) redraws a picture.
 fn redraws(app: &gtk::Application) {
-    let (window, _) = shown(app);
+    let (window, _) = shown_at_rest(app);
     window.state(base());
     run_until("the tiles draw", || draws(&window).iter().all(|d| *d > 0));
     run_for(Duration::from_millis(100));
@@ -268,7 +287,7 @@ fn selection(app: &gtk::Application) {
 // stays sensitive, flagged "Reading lost"; every other GPU tile is insensitive and "Unavailable",
 // drawn muted; each group lists its reasons once.
 fn unavailable(app: &gtk::Application) {
-    let (window, asked) = shown(app);
+    let (window, asked) = shown_at_rest(app);
     let reasons: HashMap<u32, String> = [
         (2, "Gpu usage"),
         (4, "Gpu usage"),
@@ -376,7 +395,7 @@ fn unavailable(app: &gtk::Application) {
 // The page has no unit control of its own: the temperature tiles are drawn in the unit the
 // service confirms (the Configuration page asks for it), and only then.
 fn tiles_follow_unit(app: &gtk::Application) {
-    let (window, asked) = shown(app);
+    let (window, asked) = shown_at_rest(app);
     window.state(base());
     for name in ["Celsius", "Fahrenheit"] {
         let toggle = window.names().find(name).expect(name);

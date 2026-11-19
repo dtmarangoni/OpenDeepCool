@@ -4,19 +4,27 @@
 //! focus alone never does. The boxes select nothing themselves, since GTK's selection would
 //! follow focus: the saved mode's tile is marked from the service's state (decisions log D55).
 //! The temperature tiles are drawn in the unit the Configuration page sets.
+//!
+//! The tiles are live (Phase 11a Task 14; design: Live tiles): each is drawn by `odc_render` from
+//! the service's readings and moves as the cooler's picture does. One tick of 100 ms, counted
+//! from the page's frame clock, steps them all together, and it exists only while a tile is on
+//! screen, the window isn't minimised or suspended and the system hasn't asked for reduced
+//! motion. The Music tiles move with the service's `Levels`, once for each, and only while the
+//! sound is live.
 
-use std::cell::Cell;
-use std::rc::Rc;
+use std::cell::{Cell, RefCell};
+use std::rc::{Rc, Weak};
 
+use gtk::glib;
 use gtk::prelude::*;
-use odc_ipc::TemperatureUnit;
-use odc_render::{Kind, Mode, Unit, mode_info};
+use odc_render::{Kind, Mode, MusicSettings, Unit, mode_info};
 
 use super::Request;
 use super::names::{Names, group};
 use super::page::{icon_button, page, page_bar, scroller_of};
-use super::tiles::{self, TileWidget};
-use crate::model::{self, group_name};
+use super::tiles::TileWidget;
+use crate::live::{Beat, Live, sample_values};
+use crate::model::{self, LiveInput, group_name};
 use crate::theme::Tokens;
 
 /// The request a tile's activation sends.
@@ -44,10 +52,220 @@ pub struct DisplayPage {
     root: gtk::Box,
     refresh: gtk::Button,
     groups: Vec<GroupWidgets>,
+    /// The tiles and what moves them.
+    motion: Rc<Motion>,
+}
+
+/// What the tiles are drawn from.
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Input {
+    unit: Unit,
+    live: LiveInput,
+}
+
+fn unit_of(unit: odc_ipc::TemperatureUnit) -> Unit {
+    match unit {
+        odc_ipc::TemperatureUnit::Celsius => Unit::Celsius,
+        odc_ipc::TemperatureUnit::Fahrenheit => Unit::Fahrenheit,
+    }
+}
+
+/// The tiles, their pictures and the tick that moves them, shared with the callbacks.
+struct Motion {
     /// Every tile, mode 1 first.
     tiles: Vec<TileWidget>,
-    /// The unit and peak setting the pictures are drawn with.
-    drawn: Cell<Option<(TemperatureUnit, bool)>>,
+    root: gtk::Box,
+    live: RefCell<Live>,
+    beat: RefCell<Beat>,
+    /// The frame clock's callback: there exactly while the tiles move.
+    tick: RefCell<Option<gtk::TickCallbackId>>,
+    input: RefCell<Input>,
+    /// A tile picture is on screen.
+    mapped: Cell<bool>,
+    /// The window is minimised or suspended.
+    away: Cell<bool>,
+    /// The system asks for reduced motion.
+    reduced: Cell<bool>,
+    /// Steps taken since the app started, for the tests.
+    steps: Cell<u64>,
+}
+
+impl Motion {
+    fn new(tiles: Vec<TileWidget>, root: gtk::Box) -> Rc<Motion> {
+        let input = Input {
+            unit: Unit::Celsius,
+            live: LiveInput {
+                values: sample_values(),
+                music: MusicSettings::default(),
+                sound: false,
+                restart: (1, odc_ipc::TemperatureUnit::Celsius, String::new()),
+            },
+        };
+        let motion = Rc::new(Motion {
+            tiles,
+            root,
+            live: RefCell::new(Live::new(
+                input.unit,
+                input.live.music,
+                input.live.values.clone(),
+            )),
+            beat: RefCell::new(Beat::new()),
+            tick: RefCell::new(None),
+            input: RefCell::new(input),
+            mapped: Cell::new(false),
+            away: Cell::new(false),
+            reduced: Cell::new(false),
+            steps: Cell::new(0),
+        });
+        motion.push_all();
+        let weak = Rc::downgrade(&motion);
+        motion.root.connect_map({
+            let weak = weak.clone();
+            move |_| Motion::set(&weak, |m| m.mapped.set(true))
+        });
+        motion
+            .root
+            .connect_unmap(move |_| Motion::set(&weak, |m| m.mapped.set(false)));
+        motion
+    }
+
+    /// `change`, then the tick follows what the tiles are allowed.
+    fn set(weak: &Weak<Motion>, change: impl FnOnce(&Motion)) {
+        if let Some(motion) = weak.upgrade() {
+            change(&motion);
+            motion.follow();
+        }
+    }
+
+    /// Whether the tiles may move: on screen, the window shown, no reduced motion.
+    fn allowed(&self) -> bool {
+        self.mapped.get() && !self.away.get() && !self.reduced.get()
+    }
+
+    fn moving(&self) -> bool {
+        self.tick.borrow().is_some()
+    }
+
+    /// Starts the tick when the tiles may move and it isn't there, and stops it when they may
+    /// not and it is. A start draws every tile at home; a stop leaves every tile at rest.
+    fn follow(self: &Rc<Self>) {
+        match (self.allowed(), self.moving()) {
+            (true, false) => {
+                self.rebuild();
+                self.beat.borrow_mut().restart();
+                let weak = Rc::downgrade(self);
+                let id = self.root.add_tick_callback(move |_, clock| {
+                    if let Some(motion) = weak.upgrade() {
+                        motion.frame(clock.frame_time());
+                    }
+                    glib::ControlFlow::Continue
+                });
+                *self.tick.borrow_mut() = Some(id);
+            }
+            (false, true) => {
+                if let Some(id) = self.tick.borrow_mut().take() {
+                    id.remove();
+                }
+                self.rebuild();
+            }
+            _ => {}
+        }
+    }
+
+    /// One call of the frame clock: a step when 100 ms are due.
+    fn frame(&self, now: i64) {
+        if self.beat.borrow_mut().due(now) {
+            let changed = self.live.borrow_mut().tick();
+            self.steps.set(self.steps.get() + 1);
+            self.push(&changed);
+        }
+    }
+
+    /// Every tile at home, as the input says, and the sound not live until its first `Levels`.
+    fn rebuild(&self) {
+        let input = self.input.borrow();
+        *self.live.borrow_mut() =
+            Live::new(input.unit, input.live.music, input.live.values.clone());
+        drop(input);
+        self.push_all();
+    }
+
+    fn push(&self, modes: &[Mode]) {
+        let live = self.live.borrow();
+        for mode in modes {
+            if let Some(tile) = self.tiles.get(usize::from(mode.number()) - 1) {
+                tile.set_picture(*live.frame(*mode));
+            }
+        }
+    }
+
+    fn push_all(&self) {
+        let live = self.live.borrow();
+        for tile in &self.tiles {
+            tile.set_picture(*live.frame(tile.mode));
+        }
+    }
+
+    /// The tiles' new input from the service's state. A restart event, or tiles at rest, draw
+    /// every tile again from it; moving tiles take a new reading as the cooler does, and the
+    /// Music settings from the next picture.
+    fn take(&self, unit: Unit, live: &LiveInput) {
+        let next = Input {
+            unit,
+            live: live.clone(),
+        };
+        let previous = self.input.replace(next.clone());
+        if previous == next {
+            return;
+        }
+        let restart = previous.live.restart != next.live.restart;
+        if !self.moving() || restart {
+            self.rebuild();
+            if self.moving() {
+                self.beat.borrow_mut().restart();
+            }
+            return;
+        }
+        let mut changed = Vec::new();
+        {
+            let mut live = self.live.borrow_mut();
+            if previous.live.values != next.live.values {
+                live.set_values(next.live.values.clone());
+            }
+            if previous.live.music != next.live.music {
+                changed.extend(live.set_music(next.live.music));
+            }
+            if !next.live.sound {
+                changed.extend(live.set_sound(false));
+            }
+        }
+        self.push(&changed);
+    }
+
+    /// One tick's `Levels`: while the tiles move and the sound can be live, the first starts the
+    /// Music tiles at rest and each steps them once; otherwise it is dropped.
+    fn levels(&self, levels: &[f64; odc_render::COLUMNS]) {
+        if !self.moving() || !self.input.borrow().live.sound {
+            return;
+        }
+        let mut changed = Vec::new();
+        {
+            let mut live = self.live.borrow_mut();
+            if !live.sound() {
+                changed.extend(live.set_sound(true));
+            }
+            changed.extend(live.levels(levels));
+        }
+        self.push(&changed);
+    }
+
+    /// Every tile at home again, together: a successful Refresh.
+    fn restart(&self) {
+        if self.moving() {
+            self.rebuild();
+            self.beat.borrow_mut().restart();
+        }
+    }
 }
 
 impl DisplayPage {
@@ -140,12 +358,12 @@ impl DisplayPage {
             "Refresh the display: fresh readings, and the picture starts again",
         );
         let root = page(&page_bar(None, "Display", Some(&refresh)), &content);
+        let motion = Motion::new(tiles, root.clone());
         DisplayPage {
             root,
             refresh,
             groups,
-            tiles,
-            drawn: Cell::new(None),
+            motion,
         }
     }
 
@@ -164,23 +382,15 @@ impl DisplayPage {
         &self.refresh
     }
 
-    /// Shows `page` and draws the pictures in its unit with `peaks`.
-    pub fn show(&self, names: &Names, page: &model::DisplayPage, peaks: bool) {
-        if self.drawn.get() != Some((page.unit, peaks)) {
-            self.drawn.set(Some((page.unit, peaks)));
-            let unit = match page.unit {
-                TemperatureUnit::Celsius => Unit::Celsius,
-                TemperatureUnit::Fahrenheit => Unit::Fahrenheit,
-            };
-            for tile in &self.tiles {
-                tile.set_picture(tiles::picture(tile.mode, unit, peaks));
-            }
-        }
+    /// Shows `page`: the pictures drawn from its readings, unit and Music settings, and each
+    /// tile's state.
+    pub fn show(&self, names: &Names, page: &model::DisplayPage) {
+        self.motion.take(unit_of(page.unit), &page.live);
         for (group, widgets) in page.groups.iter().zip(&self.groups) {
             widgets.reasons.set_text(&group.reasons.join("\n"));
             widgets.reasons_group.set_visible(!group.reasons.is_empty());
             for tile in &group.tiles {
-                if let Some(widget) = self.tiles.get(usize::from(tile.mode) - 1) {
+                if let Some(widget) = self.motion.tiles.get(usize::from(tile.mode) - 1) {
                     widget.show(names, tile);
                 }
             }
@@ -188,14 +398,46 @@ impl DisplayPage {
     }
 
     pub fn set_theme(&self, tokens: &Tokens) {
-        for tile in &self.tiles {
+        for tile in &self.motion.tiles {
             tile.set_theme(tokens);
         }
     }
 
+    /// One tick's `Levels` from the service, for the Music tiles.
+    pub fn levels(&self, levels: &[f64; odc_render::COLUMNS]) {
+        self.motion.levels(levels);
+    }
+
+    /// Every tile at home again: a successful Refresh.
+    pub fn restart(&self) {
+        self.motion.restart();
+    }
+
+    /// The window is minimised or suspended, or not any more.
+    pub fn set_away(&self, away: bool) {
+        self.motion.away.set(away);
+        self.motion.follow();
+    }
+
+    /// The system asks for reduced motion, or not any more.
+    pub fn set_reduced(&self, reduced: bool) {
+        self.motion.reduced.set(reduced);
+        self.motion.follow();
+    }
+
+    /// Whether the tick is running: the tiles move.
+    pub fn moving(&self) -> bool {
+        self.motion.moving()
+    }
+
+    /// The steps the tick has taken since the app started, for the tests.
+    pub fn steps(&self) -> u64 {
+        self.motion.steps.get()
+    }
+
     /// Every tile, mode 1 first, for the tests.
     pub fn tiles(&self) -> &[TileWidget] {
-        &self.tiles
+        &self.motion.tiles
     }
 }
 

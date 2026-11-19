@@ -198,19 +198,27 @@ pub fn pages() -> Vec<Page> {
         page(
             "display.html",
             "Display screen",
-            "The mode screen: the header with the title in the middle and a gear and a close icon at the right; the page bar with the Display title and the Refresh icon; 23 mode tiles in four groups; the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU). Nothing stands under the preview's caption but the status items. Click the gear for Configuration.",
+            "The mode screen: the header with the title in the middle and a gear and a close icon at the right; the page bar with the Display title and the Refresh icon; 23 mode tiles in four groups; the live preview on the left. Click a tile: it applies at once (here: Temperature, CPU + GPU). Nothing stands under the preview's caption but the status items. Click the gear for Configuration. Every tile shows its mode drawn with the same readings as the preview, one moment of what the app animates.",
             base(),
         ),
         page(
             "display-music.html",
             "Display screen, a Music mode",
-            "Music, CPU temperature chosen; the status line adds the Music sound item. In the preview the spectrum is a still sample.",
+            "Music, CPU temperature chosen, with sound attached; the status line adds the Music sound item. The preview's spectrum and the Music tiles' spectra are one moment of the same live levels, which the app animates.",
             base().with("mode", Json::Int(18)),
+        ),
+        page(
+            "display-music-no-sound.html",
+            "Display screen, a Music mode without sound",
+            "Music, CPU temperature chosen, but no sound is attached (the status reads \"No sound: spectrum is silent\"). The preview shows the silent spectrum, one bar row, as the cooler does, and the Music tiles show their still sample: they are live only while sound is attached and a Music mode is shown.",
+            base()
+                .with("mode", Json::Int(18))
+                .with("audio", Json::Bool(false)),
         ),
         page(
             "display-scrolling.html",
             "Display screen, a value of 100 or more",
-            "Power, CPU + GPU with GPU power at 156 W: the preview shows the strip at its home position (the app animates it at the cooler's 100 ms tick). The unit is °F, set on the Configuration page: the temperature tiles show °F.",
+            "Power, CPU + GPU with GPU power at 156 W; the preview shows the strip at its home position, as does every tile whose value is 100 or more (the app scrolls them at the cooler's 100 ms tick, together). The unit is °F, set on the Configuration page: the temperature tiles show 120 and 111 °F, three digits, so they scroll too.",
             base().with("mode", Json::Int(12)).with("unit", s("F")),
         ),
         page(
@@ -404,7 +412,7 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
   <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span>@@NAV@@</nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor.</p>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
 </div>
 <div id="win" class="window"></div>
 <script>

@@ -26,7 +26,7 @@ use futures_core::Stream;
 use gtk::glib;
 use odc_ipc::{
     BUS_NAME, Error, INTERFACE, OBJECT_PATH, OpenDeepCoolProxy, State, StateError,
-    frame_from_pixels,
+    frame_from_pixels, levels_from,
 };
 use zbus::fdo::DBusProxy;
 use zbus::message::Type;
@@ -148,6 +148,7 @@ fn signal(
 enum Event {
     State(Message),
     Frame(Message),
+    Levels(Message),
     Owner(Message),
     Session(Message),
     Closed,
@@ -305,6 +306,12 @@ impl Client {
             None,
         )
         .await?;
+        let mut levels = MessageStream::for_match_rule(
+            signal(BUS_NAME, OBJECT_PATH, INTERFACE, "Levels").build()?,
+            &conn,
+            None,
+        )
+        .await?;
         let mut owners = MessageStream::for_match_rule(
             signal(
                 BUS_DRIVER,
@@ -357,9 +364,10 @@ impl Client {
         self.connect().await;
         loop {
             let event = {
-                let (mut state, mut frame, mut owner) = (
+                let (mut state, mut frame, mut level, mut owner) = (
                     pin!(next(&mut states)),
                     pin!(next(&mut frames)),
+                    pin!(next(&mut levels)),
                     pin!(next(&mut owners)),
                 );
                 let mut seat = session.as_mut().map(|s| Box::pin(next(s)));
@@ -367,6 +375,7 @@ impl Client {
                     for (future, wrap) in [
                         (state.as_mut(), Event::State as fn(Message) -> Event),
                         (frame.as_mut(), Event::Frame),
+                        (level.as_mut(), Event::Levels),
                         (owner.as_mut(), Event::Owner),
                     ] {
                         if let Poll::Ready(message) = future.poll(cx) {
@@ -385,6 +394,7 @@ impl Client {
             match event {
                 Event::State(message) => self.state_changed(&message),
                 Event::Frame(message) => self.frame(&message),
+                Event::Levels(message) => self.levels(&message),
                 Event::Owner(message) => self.owner_changed(&message).await,
                 Event::Session(message) => self.session_changed(&message).await,
                 Event::Closed => return Err(zbus::Error::Failure("the bus closed".into())),
@@ -535,6 +545,20 @@ impl Client {
                 }
             }
             self.window().frame(frame);
+        }
+    }
+
+    /// A `Levels` from the service: the spectrum's 14 levels of one tick, for the live Music tiles
+    /// (Phase 11a Task 14). One that isn't 14 values, each finite and within 0 to 1, is ignored,
+    /// as is one from any other connection.
+    fn levels(&self, message: &Message) {
+        if !self.sent_by_owner(message) {
+            return;
+        }
+        if let Ok((levels,)) = message.body().deserialize::<(Vec<f64>,)>()
+            && let Some(levels) = levels_from(&levels)
+        {
+            self.window().levels(&levels);
         }
     }
 

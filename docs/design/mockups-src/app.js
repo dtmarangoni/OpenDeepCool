@@ -76,6 +76,21 @@
 // The old "theme" key is no longer read: the theme the window starts in is resolved from these four, as the app does
 // (themeState below, a pure function). The mockup's colour buttons stay as chrome that only preview a palette; the
 // Theme card's controls resolve the theme again and set it, as they do in the app.
+//
+// The live tiles (Phase 11a Task 14, 2026-11-19; docs/design/settings-app.md, Display page, Live tiles). No new CONFIG key.
+// In the app every tile moves, drawn by the service's own code from the service's readings; a static page can show
+// only one moment of that, so each tile here is one moment of what the app draws:
+// - Every tile shows the readings of the CONFIG key "live", in the current unit: the same readings the preview draws, so a
+//   tile and the preview agree. A reading listed in "unavailable" has no value: the tiles that show it draw dashes, as
+//   the cooler does, in --muted on a tile that is disabled (the app's lit dots on an unavailable tile, decisions log D56)
+//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost".
+// - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
+//   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
+//   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
+// - The Music tiles (13 to 22, the emoji tiles' spectrum rows included, and the Dancer) are live only while sound is
+//   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
+//   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
+//   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -112,8 +127,10 @@ const MODES = [
 ];
 const byId = id => MODES.find(m => m.id === id);
 
-// Fixed sample values for the tiles (owner, 2026-10-25), and made-up live readings for the preview.
-const SAMPLE = { cpu_usage: 42, gpu_usage: 63, ram: 51, cpu_temp: 57, gpu_temp: 38, cpu_power: 65, gpu_power: 88 };
+// The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's
+// fixed sample values (42, 63, 51, 57, 38, 65 and 88) live only until its first answer from the service, a few
+// milliseconds, so no page draws them. SAMPLE_SPECTRUM is the Music tiles' still sample (bars and peaks as levels 0 to 1),
+// LIVE_SPECTRUM a moment of levels, which both the preview and the live Music tiles draw.
 const SAMPLE_SPECTRUM = { bars: [.55, .8, .95, .7, .6, .5, .62, .45, .38, .42, .3, .22, .15, .08],
                           peaks: [.7, .9, 1, .85, .7, .62, .7, .6, .5, .5, .42, .3, .22, .12] };
 const LIVE_SPECTRUM = { bars: [.4, .72, .86, .58, .5, .66, .48, .52, .33, .28, .36, .2, .12, .05],
@@ -171,13 +188,15 @@ function strip(n, sym) {
   return cols;
 }
 function blank() { return Array.from({ length: 14 }, () => Array(14).fill(false)); }
+// display.md, Static layout, OpenDeepCool: alignment (Phase 11a Task 12, owner 2026-11-18): one value or two, the picture is
+// placed by its width, the extra spare column of an odd split on the left; two values end at the same column, so a pair is
+// centred as the wider value would be alone and the shorter one's last digit sits under the wider one's. A picture wider
+// than 14 columns has its first digit at column 2 (its home).
 function drawBands(g, strips, topRows) {
   const widths = strips.map(s => s.length), wmax = Math.max(...widths);
+  const home = wmax > 14 ? 2 : Math.ceil((14 - wmax) / 2) + 1;
   strips.forEach((s, i) => {
-    let start;
-    if (wmax > 14) start = 2 + (wmax - widths[i]);
-    else if (strips.length === 1) start = Math.ceil((14 - widths[i]) / 2) + 1;
-    else start = 15 - widths[i];
+    const start = home + (wmax - widths[i]);
     s.forEach((col, k) => {
       const c = start + k;
       if (c < 1 || c > 14) return;
@@ -230,7 +249,8 @@ function hexToRgba(hex, a) {
   const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-function paint(canvas, g, pitch) {
+// The lit dots are --fg, or --muted on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
+function paint(canvas, g, pitch, litVar) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
   const size = pitch * 14;
@@ -239,7 +259,7 @@ function paint(canvas, g, pitch) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
   const fg = cssVar("--fg");
-  const lit = fg, unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const lit = cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
   const r = pitch * 0.38;
   for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
     ctx.beginPath();
@@ -632,16 +652,22 @@ function render() {
     !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}</main></div>` + toast;
   paintAll();
 }
+// One moment of what the app draws (design, Display page, Live tiles): the preview and every tile from the same readings.
 function paintAll() {
   const pv = document.getElementById("pv");
   if (!pv) return;
+  const readings = liveReadings();
+  const silent = { bars: Array(14).fill(0), peaks: Array(14).fill(0) };
   if (S.service) {
-    const g = picture(S.mode, liveReadings(), S.unit, S.audio ? LIVE_SPECTRUM : { bars: Array(14).fill(0), peaks: Array(14).fill(0) }, S.peaks);
+    const g = picture(S.mode, readings, S.unit, S.audio ? LIVE_SPECTRUM : silent, S.peaks);
     paint(pv, rotate(g, S.rotation), 15);
   } else paint(pv, null, 15);
+  // The Music tiles are live only while sound is attached and a Music mode is the one shown; otherwise the still sample.
+  const soundLive = S.service && S.audio && byId(S.mode).group === "Music";
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
-    paint(c, picture(id, SAMPLE, S.unit, SAMPLE_SPECTRUM, S.peaks), 4.5);
+    const unavailable = c.closest("button").disabled;
+    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--muted" : "--fg");
   });
 }
 

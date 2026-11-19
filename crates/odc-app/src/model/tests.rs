@@ -7,6 +7,8 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::boot::{Facts, Known, Place, Run, UnitFile};
+use crate::live::sample_values;
+use odc_render::Stop;
 
 /// The Start at boot switch fully on: all four facts hold.
 fn startup_on() -> Boot {
@@ -264,6 +266,17 @@ fn base_view() -> Normal {
         display: DisplayPage {
             unit: TemperatureUnit::Celsius,
             groups: expected_groups(9, &[]),
+            live: LiveInput {
+                // The base state's `Readings` is empty: no metric has a value.
+                values: Values::new(),
+                music: MusicSettings {
+                    peaks: true,
+                    bar_fall: Stop::Moderate,
+                    peak_fall: Stop::Slow,
+                },
+                sound: false,
+                restart: (9, TemperatureUnit::Celsius, DEDICATED.to_owned()),
+            },
         },
         config: ConfigPage {
             // No Omarchy theme and no preference: no system theme can be found (state c).
@@ -325,6 +338,7 @@ fn the_gpu_list() {
     ]);
     state.gpu_in_use = Some(INTEGRATED.to_owned());
     let mut want = base_view();
+    want.display.live.restart.2 = INTEGRATED.to_owned();
     want.config.gpu = Some(GpuRow {
         entries: gpu_entries(&[
             (INTEGRATED, INTEGRATED_LABEL, None),
@@ -372,6 +386,7 @@ fn a_gpu_chosen_by_hand() {
     state.chosen_gpu = Some(QUERY_FAILED.to_owned());
     state.gpu_in_use = Some(QUERY_FAILED.to_owned());
     let mut want = base_view();
+    want.display.live.restart.2 = QUERY_FAILED.to_owned();
     want.config.gpu = Some(GpuRow {
         entries: all_gpu_entries(),
         chosen: 3,
@@ -380,6 +395,71 @@ fn a_gpu_chosen_by_hand() {
         description: "driver couldn't be asked".to_owned(),
     });
     assert_eq!(view_of(state), want);
+}
+
+// Phase 11a Task 14: what the live tiles draw from. No `Readings` in the state is the design's
+// sample; `Readings` are each metric by its spec name, one left out has no value; the Music
+// settings are the state's; the sound can be live only with sound attached in a Music mode; and
+// what restarts the tiles together is the mode, the unit and the GPU the readings come from.
+#[test]
+fn the_live_tiles_draw_from_the_states_readings_and_music_settings() {
+    // No `Readings` key yet.
+    let mut state = base();
+    state.readings = None;
+    assert_eq!(view_of(state).display.live.values, sample_values());
+    // Some, with one left out and a fraction.
+    let mut state = base();
+    state.readings = Some(HashMap::from([
+        ("CPU Usage".to_owned(), (42_500, 1000)),
+        ("Gpu power".to_owned(), (88, 1)),
+    ]));
+    let values = view_of(state).display.live.values;
+    assert_eq!(
+        values.get(Metric::CpuUsage),
+        odc_sensors::Exact::new(42_500, 1000)
+    );
+    assert_eq!(values.get(Metric::GpuPower), odc_sensors::Exact::new(88, 1));
+    assert_eq!(values.get(Metric::MemoryLoad), None);
+    // The Music settings.
+    let mut state = base();
+    state.music_peaks = Some(false);
+    state.music_bar_fall = Some(FallStop::Faster);
+    state.music_peak_fall = Some(FallStop::Slower);
+    assert_eq!(
+        view_of(state).display.live.music,
+        MusicSettings {
+            peaks: false,
+            bar_fall: Stop::Faster,
+            peak_fall: Stop::Slower,
+        }
+    );
+    // The sound can be live only with a helper's sound attached in a Music mode.
+    for (mode, connected, live) in [
+        (1, true, false),
+        (12, true, false),
+        (13, true, true),
+        (23, true, true),
+        (13, false, false),
+        (23, false, false),
+    ] {
+        let mut state = base();
+        state.mode = Some(mode);
+        state.audio_connected = Some(connected);
+        assert_eq!(
+            view_of(state).display.live.sound,
+            live,
+            "mode {mode}, connected {connected}"
+        );
+    }
+    // What restarts the tiles.
+    let mut state = base();
+    state.mode = Some(4);
+    state.temperature_unit = Some(TemperatureUnit::Fahrenheit);
+    state.gpu_in_use = Some(NO_RULE.to_owned());
+    assert_eq!(
+        view_of(state).display.live.restart,
+        (4, TemperatureUnit::Fahrenheit, NO_RULE.to_owned())
+    );
 }
 
 // Row "A Music mode": the status adds the sound, connected or not.
@@ -411,6 +491,9 @@ fn a_music_mode() {
             dot: sound.1,
         });
         want.display.groups = expected_groups(mode as u16, &[]);
+        want.display.live.restart.0 = mode as u16;
+        // The sound can be live when a helper's is attached while a Music mode is shown.
+        want.display.live.sound = connected;
         assert_eq!(view_of(state), want, "mode {mode}");
     }
 }
@@ -423,6 +506,7 @@ fn fahrenheit() {
     state.temperature_unit = Some(TemperatureUnit::Fahrenheit);
     let mut want = base_view();
     want.display.unit = TemperatureUnit::Fahrenheit;
+    want.display.live.restart.1 = TemperatureUnit::Fahrenheit;
     want.config.unit = TemperatureUnit::Fahrenheit;
     assert_eq!(view_of(state), want);
 }
@@ -435,6 +519,7 @@ fn first_start() {
     let mut want = base_view();
     want.column.caption = "Load · CPU".to_owned();
     want.display.groups = expected_groups(1, &[]);
+    want.display.live.restart.0 = 1;
     assert_eq!(view_of(state), want);
 }
 
@@ -820,6 +905,7 @@ fn a_metric_unavailable() {
     let mut want = base_view();
     want.column.caption = "Temperature · CPU".to_owned();
     want.display.groups = expected_groups(7, &borrowed(&shown));
+    want.display.live.restart.0 = 7;
     let got = view_of(state);
     assert_eq!(got, want);
     // Each group lists each of its reasons once.
@@ -913,6 +999,7 @@ fn a_gpu_without_a_reading_rule_in_use() {
     let mut want = base_view();
     want.column.caption = "Load · CPU".to_owned();
     want.display.groups = expected_groups(1, &borrowed(&shown));
+    want.display.live.restart = (1, TemperatureUnit::Celsius, NO_RULE.to_owned());
     want.config.gpu = Some(GpuRow {
         entries: all_gpu_entries(),
         chosen: 4,

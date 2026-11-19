@@ -4,6 +4,7 @@ pub mod boot;
 pub mod choice;
 pub mod client;
 pub mod flags;
+pub mod live;
 pub mod model;
 pub mod pci_ids;
 pub mod report;

@@ -276,7 +276,7 @@ fn against_the_fake(stage: &Stage, summary: &mut Summary) -> Result<(), String> 
         .map_err(|e| format!("{}: {e}", pkexec.display()))?;
     let omarchy = stage.dir.join("fake").join("omarchy");
     let frames = stage.dir.join("fake.frames.log");
-    let _app = stage.app(
+    let app = stage.app(
         "fake",
         &[
             OsStr::new("--service-address"),
@@ -294,7 +294,13 @@ fn against_the_fake(stage: &Stage, summary: &mut Summary) -> Result<(), String> 
     let systemd = systemd_dir
         .to_str()
         .ok_or("the fake systemd's folder isn't UTF-8")?;
-    stage.driver("fake", &fake_dir, &["--systemd", systemd], summary)
+    let pid = app.0.id().to_string();
+    stage.driver(
+        "fake",
+        &fake_dir,
+        &["--systemd", systemd, "--app-pid", &pid],
+        summary,
+    )
 }
 
 /// What says the installed service is older than this build: a state without the GPU in use,

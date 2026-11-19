@@ -13,9 +13,10 @@ use std::rc::{Rc, Weak};
 use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
-use gtk::{gio, glib};
+use gtk::{gdk, gio, glib};
 use odc_ipc::{CoolerState, State};
 use odc_protocol::Frame;
+use odc_render::COLUMNS;
 
 use super::banners::Banners;
 use super::config_page::ConfigPage;
@@ -171,6 +172,27 @@ fn preference_of(settings: &gtk::Settings) -> Preference {
         gtk::InterfaceColorScheme::Light => Preference::Light,
         _ => Preference::Default,
     }
+}
+
+/// GTK's settings that say animations are off or reduced.
+const ANIMATION_SETTINGS: [&str; 2] = ["gtk-enable-animations", "gtk-interface-reduced-motion"];
+
+/// Whether the system asks for reduced motion: animations switched off, or, from GTK 4.22, the
+/// preference the XDG desktop portal gives (`reduce`).
+pub fn reduced_motion(settings: &gtk::Settings) -> bool {
+    let animations: bool = settings.property("gtk-enable-animations");
+    let reduce = settings
+        .find_property("gtk-interface-reduced-motion")
+        .is_some_and(|_| {
+            let value = settings.property_value("gtk-interface-reduced-motion");
+            glib::EnumValue::from_value(&value).is_some_and(|(_, value)| value.nick() == "reduce")
+        });
+    !animations || reduce
+}
+
+/// Whether a toplevel's state says no one sees it: minimised, or suspended (GTK 4.12).
+pub fn away(state: gdk::ToplevelState) -> bool {
+    state.intersects(gdk::ToplevelState::MINIMIZED | gdk::ToplevelState::SUSPENDED)
 }
 
 /// A handler on GTK's settings, which outlive the window: disconnected when this is dropped.
@@ -526,6 +548,8 @@ impl Window {
         window.connect(&close_action);
         window.set_theme(tokens);
         window.follow_preference();
+        window.follow_motion();
+        window.follow_toplevel();
         window.render();
         window
     }
@@ -545,6 +569,54 @@ impl Window {
         });
         // Dropped with the window: the settings outlive it.
         self.keep(Unfollow(settings, Some(id)));
+    }
+
+    /// Follows GTK's two settings for reduced motion, read now and at each change: the tiles
+    /// stand at rest while either asks for it (design: Live tiles, Reduced motion). The app
+    /// never writes either.
+    fn follow_motion(&self) {
+        let Some(settings) = gtk::Settings::default() else {
+            return;
+        };
+        self.0.display.set_reduced(reduced_motion(&settings));
+        for name in ANIMATION_SETTINGS {
+            // The second exists from GTK 4.22; without it, only the first matters.
+            if settings.find_property(name).is_none() {
+                continue;
+            }
+            let weak = Rc::downgrade(&self.0);
+            let id = settings.connect_notify_local(Some(name), move |settings, _| {
+                if let Some(inner) = weak.upgrade() {
+                    inner.display.set_reduced(reduced_motion(settings));
+                }
+            });
+            self.keep(Unfollow(settings.clone(), Some(id)));
+        }
+    }
+
+    /// Follows the window's own state on the compositor: minimised or suspended, the tiles don't
+    /// move (design: Live tiles, When the tick runs). The surface exists once the window is
+    /// realised, and again after each realisation.
+    fn follow_toplevel(&self) {
+        let weak = Rc::downgrade(&self.0);
+        self.0.window.connect_realize(move |window| {
+            let Some(toplevel) = window
+                .surface()
+                .and_then(|surface| surface.downcast::<gdk::Toplevel>().ok())
+            else {
+                return;
+            };
+            let show = {
+                let weak = weak.clone();
+                move |toplevel: &gdk::Toplevel| {
+                    if let Some(inner) = weak.upgrade() {
+                        inner.display.set_away(away(toplevel.state()));
+                    }
+                }
+            };
+            show(&toplevel);
+            toplevel.connect_state_notify(show);
+        });
     }
 
     /// The system's preference, as GTK reports it.
@@ -740,8 +812,15 @@ impl Window {
         }
     }
 
+    /// One tick's `Levels` from the service, for the live Music tiles.
+    pub fn levels(&self, levels: &[f64; COLUMNS]) {
+        self.0.display.levels(levels);
+    }
+
     /// The service confirmed a Refresh.
     pub fn refreshed(&self) {
+        // The cooler's picture starts again, and so do the tiles, together with it.
+        self.0.display.restart();
         self.show_feedback("Refreshed", false, REFRESHED_FOR);
     }
 
@@ -892,9 +971,7 @@ impl Window {
                     .pages
                     .set_visible_child_name(if on_config { "config" } else { "display" });
                 self.show_column(&normal.column);
-                inner
-                    .display
-                    .show(&inner.names, &normal.display, normal.config.peaks);
+                inner.display.show(&inner.names, &normal.display);
                 inner.config.show(&inner.names, &normal.config);
                 inner.startup.place(
                     Place::Card,

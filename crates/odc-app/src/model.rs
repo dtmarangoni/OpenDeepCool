@@ -7,11 +7,12 @@ use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use odc_ipc::{CoolerState, FallStop, Gpu, GpuKind, State, TemperatureUnit};
-use odc_render::{Kind, Mode, mode_info};
+use odc_render::{Kind, Mode, MusicSettings, Values, mode_info};
 use odc_sensors::Metric;
 
 use crate::boot::{self, Boot};
 use crate::choice::{self, Preference, Source};
+use crate::live::{music_settings, values_from};
 
 /// What the app knows of the service.
 #[derive(Clone, Debug, PartialEq)]
@@ -195,6 +196,24 @@ pub struct DisplayPage {
     pub unit: TemperatureUnit,
     /// Load, Temperature, Power, Music.
     pub groups: Vec<Group>,
+    /// What the tiles are drawn live from.
+    pub live: LiveInput,
+}
+
+/// What the live tiles draw from (Phase 11a Task 14; design: Live tiles).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LiveInput {
+    /// The readings: the service's, each metric with a value, or the design's sample values
+    /// when the state has none yet.
+    pub values: Values,
+    /// The peak dots and the falls, as the service has them.
+    pub music: MusicSettings,
+    /// The sound may be live: a helper's sound is attached while a Music mode is shown. The
+    /// tiles go live with the first `Levels` after this turns true.
+    pub sound: bool,
+    /// What restarts every tile together when it changes: the mode shown, the unit and the GPU
+    /// the readings come from.
+    pub restart: (u16, TemperatureUnit, String),
 }
 
 /// One tile group.
@@ -419,9 +438,24 @@ pub fn view(
         status,
     };
     let unit = state.temperature_unit.unwrap_or(TemperatureUnit::Celsius);
+    let music = music_settings(
+        state.music_peaks.unwrap_or(true),
+        state.music_bar_fall.unwrap_or(FallStop::Moderate),
+        state.music_peak_fall.unwrap_or(FallStop::Slow),
+    );
     let display = DisplayPage {
         unit,
         groups: groups(mode, &reasons),
+        live: LiveInput {
+            values: values_from(state.readings.as_ref()),
+            music,
+            sound: state.audio_connected == Some(true) && mode_info(mode).kind == Kind::Music,
+            restart: (
+                u16::try_from(state.mode.unwrap_or(1)).unwrap_or(1),
+                unit,
+                state.gpu_in_use.clone().unwrap_or_default(),
+            ),
+        },
     };
     let theme = ThemeCard::of(&choice::Inputs::new(
         ui.system,
