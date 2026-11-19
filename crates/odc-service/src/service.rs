@@ -11,6 +11,7 @@ use std::time::Instant;
 
 use odc_device::{Connector, Link, Lp360, Reason, RecordingHandle};
 use odc_protocol::Frame;
+use odc_render::COLUMNS;
 use odc_sensors::{Binding, Gpu, Metric};
 
 use crate::audio::PipeAudio;
@@ -19,8 +20,9 @@ use crate::engine::{Apply, Drawn, Engine, Published, Requests};
 use crate::log::{Journal, Priority};
 use crate::pulse::Pulse;
 use crate::runtime::{
-    Device, DeviceEvent, Durations, FrameTap, Outputs, Progress, SensorLoop, SensorRequest,
-    Sensors, Slot, SystemTicker, forward, run_device, run_engine, run_sensors, sd_notify,
+    Device, DeviceEvent, Durations, FrameTap, LevelTap, Outputs, Progress, SensorLoop,
+    SensorRequest, Sensors, Slot, SystemTicker, forward, run_device, run_engine, run_sensors,
+    sd_notify,
 };
 use crate::settings::{Settings, SettingsStore};
 use crate::status::{Status, first_readings};
@@ -99,6 +101,8 @@ struct EngineOutputs {
     frames: Arc<Slot<(u64, Frame)>>,
     /// Each frame again for the D-Bus side's `Frame` watchers (Phase 10).
     watched: FrameTap,
+    /// Each Music tick's levels again, for the D-Bus side's `Levels` watchers (Phase 11a Task 13).
+    heard: LevelTap,
     sensors: Sender<SensorRequest>,
     status: Arc<RwLock<Status>>,
     pulse: Arc<Pulse>,
@@ -109,6 +113,10 @@ impl Outputs for EngineOutputs {
     fn frame(&mut self, tick: u64, frame: Frame) {
         self.frames.post((tick, frame));
         self.watched.post(frame);
+    }
+
+    fn levels(&mut self, levels: [f64; COLUMNS]) {
+        self.heard.post(levels);
     }
 
     fn requests(&mut self, requests: Requests) {
@@ -158,6 +166,7 @@ impl Running {
         let published = Arc::new(Slot::<Published>::default());
         let frames = Arc::new(Slot::<(u64, Frame)>::default());
         let watched = FrameTap::default();
+        let heard = LevelTap::default();
         // The dev copy's durations, for the end-to-end run (owner, 2026-11-04).
         let durations = config.dev.as_ref().map(|_| Arc::new(Durations::default()));
         let mut sensors = SensorLoop::new(config.sensors);
@@ -273,6 +282,7 @@ impl Running {
                 let mut outputs = EngineOutputs {
                     frames: Arc::clone(&frames),
                     watched: watched.clone(),
+                    heard: heard.clone(),
                     sensors: requests_tx.clone(),
                     status: Arc::clone(&status),
                     pulse: Arc::clone(&pulse),
@@ -305,6 +315,7 @@ impl Running {
                 sensors: requests_tx,
                 frames: watched.frames,
                 frame_pulse: watched.pulse,
+                levels: heard,
                 pulse,
                 journal,
                 dev: config

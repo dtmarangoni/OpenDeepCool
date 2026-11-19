@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 17] = [
+pub const STATE_KEYS: [(&str, &str); 18] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -23,6 +23,7 @@ pub const STATE_KEYS: [(&str, &str); 17] = [
     ("MusicPeaks", "b"),
     ("MusicBarFall", "s"),
     ("MusicPeakFall", "s"),
+    ("Readings", "a{s(xt)}"),
     ("UseSystemTheme", "b"),
     ("DarkTheme", "b"),
     ("AudioConnected", "b"),
@@ -131,6 +132,10 @@ pub struct State {
     pub music_peaks: Option<bool>,
     pub music_bar_fall: Option<FallStop>,
     pub music_peak_fall: Option<FallStop>,
+    /// Each metric that has a value now, by its spec name, as the exact fraction the display
+    /// rounds from: numerator and denominator (Phase 11a Task 13). A metric with no value is
+    /// left out. `StateChanged` sends it only to a watcher that also watches frames.
+    pub readings: Option<HashMap<String, (i64, u64)>>,
     /// Whether the app follows the system's theme, and whether OpenDeepCool's own is the dark one:
     /// two settings of the whole PC the service only stores (Phase 11a).
     pub use_system_theme: Option<bool>,
@@ -224,6 +229,9 @@ impl State {
         if let Some(stop) = self.music_peak_fall {
             put("MusicPeakFall", owned(stop.as_str()));
         }
+        if let Some(readings) = &self.readings {
+            put("Readings", owned(readings.clone()));
+        }
         if let Some(system) = self.use_system_theme {
             put("UseSystemTheme", owned(system));
         }
@@ -299,6 +307,13 @@ impl State {
                     .collect::<Result<Vec<_>, StateError>>()
             })
             .transpose()?;
+        let readings = get::<HashMap<String, (i64, u64)>>(dict, "Readings")?;
+        if let Some((name, (num, _))) = readings.iter().flatten().find(|(_, (_, den))| *den == 0) {
+            return Err(StateError::BadValue(
+                "Readings",
+                format!("{name}: {num} over 0"),
+            ));
+        }
         Ok(State {
             mode: get(dict, "Mode")?,
             rotation,
@@ -313,6 +328,7 @@ impl State {
             music_peaks: get(dict, "MusicPeaks")?,
             music_bar_fall: text(dict, "MusicBarFall", FallStop::parse)?,
             music_peak_fall: text(dict, "MusicPeakFall", FallStop::parse)?,
+            readings,
             use_system_theme: get(dict, "UseSystemTheme")?,
             dark_theme: get(dict, "DarkTheme")?,
             audio_connected: get(dict, "AudioConnected")?,
@@ -343,6 +359,7 @@ impl State {
             music_peaks,
             music_bar_fall,
             music_peak_fall,
+            readings,
             use_system_theme,
             dark_theme,
             audio_connected,
@@ -375,6 +392,7 @@ impl State {
             music_peaks,
             music_bar_fall,
             music_peak_fall,
+            readings,
             use_system_theme,
             dark_theme,
             audio_connected,

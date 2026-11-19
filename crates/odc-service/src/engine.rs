@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
-    Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Unit, Values, analyse, draws,
-    mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Unit, Values, analyse,
+    draws, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Snapshot, Unavailable};
 
@@ -107,11 +107,14 @@ pub struct Availability {
 }
 
 /// One tick's result.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Tick {
     pub number: u64,
     /// The frame, turned; `None` for a missed deadline.
     pub frame: Option<Frame>,
+    /// The spectrum's 14 levels analysed for that frame: in a Music mode only, and never for a
+    /// missed deadline (Phase 11a Task 13).
+    pub levels: Option<[f64; COLUMNS]>,
     pub requests: Requests,
 }
 
@@ -321,17 +324,24 @@ impl Engine {
         }
         let number = self.tick;
         self.tick += 1;
-        let frame = (!missed).then(|| self.draw(mode).rotated(rotation(&self.settings)));
+        let (frame, levels) = if missed {
+            (None, None)
+        } else {
+            let (frame, levels) = self.draw(mode);
+            (Some(frame.rotated(rotation(&self.settings))), levels)
+        };
         Tick {
             number,
             frame,
+            levels,
             requests,
         }
     }
 
     /// This tick's frame, before it's turned: in a Music mode the sound's window is analysed, the
-    /// spectrum updated with its levels and drawn below the top, or the Dancer stepped with them.
-    fn draw(&mut self, mode: Mode) -> Frame {
+    /// spectrum updated with its levels and drawn below the top, or the Dancer stepped with them;
+    /// those levels come back with the frame.
+    fn draw(&mut self, mode: Mode) -> (Frame, Option<[f64; COLUMNS]>) {
         let levels = takes_sound(mode).then(|| analyse(&self.audio.window()));
         let music = self.settings.music();
         if let (Some(spectrum), Some(levels)) = (self.spectrum.as_mut(), levels.as_ref()) {
@@ -345,10 +355,11 @@ impl Engine {
                 .tick(levels.as_ref().expect("mode 23 takes sound"))
                 .frame(),
         };
-        match (spectrum_height(mode), &self.spectrum) {
+        let frame = match (spectrum_height(mode), &self.spectrum) {
             (Some(h), Some(spectrum)) => with_spectrum(&top, &spectrum.draw(h, music.peaks), h),
             _ => top,
-        }
+        };
+        (frame, levels)
     }
 
     /// The readings to draw: the real ones, or the override's.

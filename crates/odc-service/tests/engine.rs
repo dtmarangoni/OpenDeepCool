@@ -9,7 +9,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use odc_protocol::Rotation;
-use odc_render::{Mode, WINDOW, draws};
+use odc_render::{COLUMNS, Mode, WINDOW, analyse, draws};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, FakeAudio};
 use odc_service::engine::{
@@ -1091,5 +1091,80 @@ fn a_missed_tick_in_music_moves_nothing() {
             let frame = missing.tick(None, None, false).frame;
             assert_eq!(frame, Some(frames[n + 3]), "mode {mode}, tick {}", n + 4);
         }
+    }
+}
+
+// Phase 11a Task 13: a Music mode's tick carries the 14 levels analysed from the sound window the
+// frame was drawn from (the very `analyse` the spectrum takes), every other mode's tick none, and
+// a missed tick none. Every mode, every signal of `spectrum/signals.txt`, every tick of each.
+#[test]
+fn a_music_tick_carries_the_levels_its_frame_was_drawn_from_and_no_other_does() {
+    let mut checked = 0;
+    for mode in 1..=23_u16 {
+        let music = (13..=23).contains(&mode);
+        for signal in signals().iter().filter(|s| !s.is_beat_train()).take(12) {
+            let audio = Arc::new(FakeAudio::new());
+            let mut engine = Engine::with_audio(
+                Settings {
+                    mode,
+                    ..Settings::default()
+                },
+                snapshot(&usage(42)),
+                Arc::clone(&audio) as Arc<dyn AudioSource>,
+                every_mode,
+            );
+            for (n, window) in signal.windows().iter().enumerate() {
+                audio.set(*window);
+                let tick = engine.tick(None, None, false);
+                let want = music.then(|| analyse(window));
+                assert_eq!(tick.levels, want, "mode {mode}, {}, tick {n}", signal.name);
+                if let Some(levels) = tick.levels {
+                    assert!(
+                        levels
+                            .iter()
+                            .all(|l| l.is_finite() && (0.0..=1.0).contains(l)),
+                        "mode {mode}, {}, tick {n}: {levels:?}",
+                        signal.name
+                    );
+                }
+                checked += 1;
+            }
+            // A missed deadline draws nothing, so it analyses nothing.
+            audio.set(signal.windows()[0]);
+            let missed = engine.tick(None, None, true);
+            assert_eq!((missed.frame, missed.levels), (None, None), "mode {mode}");
+        }
+    }
+    assert!(checked > 1000, "{checked} ticks");
+}
+
+// The analysis is bounded whatever the window holds: every level is finite and within 0 to 1 for
+// silence, a constant, the largest samples either way round, and a square wave at each column's
+// centre. (Samples reach the window sanitised, never NaN or infinite: `audio::sanitised`.)
+#[test]
+fn the_levels_are_finite_and_within_zero_to_one_for_any_window() {
+    let mut windows: Vec<[f32; WINDOW]> = vec![
+        [0.0; WINDOW],
+        [1.0; WINDOW],
+        [-1.0; WINDOW],
+        [f32::MAX; WINDOW],
+        [f32::MIN; WINDOW],
+        [f32::MIN_POSITIVE; WINDOW],
+        std::array::from_fn(|i| if i % 2 == 0 { f32::MAX } else { f32::MIN }),
+    ];
+    for period in [2, 3, 5, 8, 13, 21, 34, 55, 89, 144] {
+        windows.push(std::array::from_fn(|i| {
+            if (i / period) % 2 == 0 { 1.0 } else { -1.0 }
+        }));
+    }
+    for (n, window) in windows.iter().enumerate() {
+        let levels = analyse(window);
+        assert_eq!(levels.len(), COLUMNS);
+        assert!(
+            levels
+                .iter()
+                .all(|l| l.is_finite() && (0.0..=1.0).contains(l)),
+            "window {n}: {levels:?}"
+        );
     }
 }

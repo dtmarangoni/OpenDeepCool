@@ -39,7 +39,9 @@ use odc_service::polkit::{
     Action, Answer, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer,
 };
 use odc_service::pulse::Pulse;
-use odc_service::runtime::{DeviceControl, Durations, SensorLoop, SensorRequest, Sensors, Slot};
+use odc_service::runtime::{
+    DeviceControl, Durations, LevelTap, SensorLoop, SensorRequest, Sensors, Slot,
+};
 use odc_service::service::{Config, Running};
 use odc_service::settings::{Fall, Settings, SettingsStore, TemperatureUnit};
 use odc_service::status::{FIRST_READINGS, Status, parse_first_readings};
@@ -276,6 +278,10 @@ struct Harness {
     /// The engine's frames for `Frame` watchers, which the test posts itself.
     frames: Arc<Slot<Frame>>,
     frame_pulse: Arc<Pulse>,
+    /// The levels the engine would analyse in a Music mode, which the test posts itself.
+    levels: LevelTap,
+    /// The pulse the engine sends after a tick whose status changed.
+    pulse: Arc<Pulse>,
     journal: Arc<Recorded>,
     /// The threads' durations, which the test writes itself.
     durations: Arc<Durations>,
@@ -314,6 +320,8 @@ impl Harness {
         let (frames, frame_pulse) = (Arc::new(Slot::default()), Arc::new(Pulse::default()));
         let durations = Arc::new(Durations::default());
         let audio = Arc::new(PipeAudio::new());
+        let levels = LevelTap::default();
+        let pulse = Arc::new(Pulse::default());
         let side = Side::start(Parts {
             bus: Bus::Address(bus.address().to_owned()),
             checks: Checks::Given {
@@ -328,7 +336,8 @@ impl Harness {
             sensors: sensors_tx,
             frames: Arc::clone(&frames),
             frame_pulse: Arc::clone(&frame_pulse),
-            pulse: Arc::new(Pulse::default()),
+            levels: levels.clone(),
+            pulse: Arc::clone(&pulse),
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
             audio: Arc::clone(&audio),
@@ -346,6 +355,8 @@ impl Harness {
             sensors,
             frames,
             frame_pulse,
+            levels,
+            pulse,
             journal,
             durations,
             audio,
@@ -368,6 +379,17 @@ impl Harness {
     fn frame(&self, frame: Frame) {
         self.frames.post(frame);
         self.frame_pulse.send();
+    }
+
+    /// Hands the D-Bus side the levels of a tick, as the engine does in a Music mode.
+    fn levels(&self, levels: [f64; 14]) {
+        self.levels.post(levels);
+    }
+
+    /// The engine's status after a tick that drew other readings: the snapshot, and the pulse.
+    fn read(&self, snapshot: Snapshot) {
+        self.status.write().expect("the status").snapshot = Some(snapshot);
+        self.pulse.send();
     }
 
     fn saved_settings(&self) -> Settings {
@@ -1339,7 +1361,13 @@ fn a_watcher_that_stops_passing_is_skipped_then_gets_the_whole_state() {
             .flatten()
             .expect("the whole state");
         let changes = signal.args().expect("its changes").changes;
-        assert_eq!(changes.len(), STATE_KEYS.len(), "every key in one signal");
+        // Every key but `Readings`, which only a watcher of frames is sent.
+        assert_eq!(
+            changes.len(),
+            STATE_KEYS.len() - 1,
+            "every other key in one signal"
+        );
+        assert!(!changes.contains_key("Readings"), "not to this watcher");
         assert_eq!(State::from_dict(&changes).expect("a state").mode, Some(3));
     });
 }
@@ -2481,6 +2509,319 @@ fn only_authorized_callers_get_frames_and_a_refused_watcher_waits_for_its_check(
         .await;
         h.frame(lit(6));
         assert_eq!(next_frame(&mut frames, WAIT).await, Some(lit(6)), "back");
+    });
+}
+
+/// A snapshot whose metrics each have their own fraction that isn't whole (`base` thousandths
+/// over 1000, rising with the metric), CPU Power having no value.
+fn fractions(base: i64) -> Snapshot {
+    Snapshot::new(|metric| match metric {
+        Metric::CpuPower => Reading::Unavailable(Unavailable::NoDevice),
+        other => {
+            Reading::Value(Exact::new(base + 1000 * other as i64 + 7, 1000).expect("a denominator"))
+        }
+    })
+}
+
+/// What `Readings` says of [`fractions`]: every metric but CPU Power, by its spec name.
+fn readings_of(base: i64) -> HashMap<String, (i64, u64)> {
+    Metric::ALL
+        .into_iter()
+        .filter(|&metric| metric != Metric::CpuPower)
+        .map(|metric| {
+            (
+                metric.spec_name().to_owned(),
+                (base + 1000 * metric as i64 + 7, 1000),
+            )
+        })
+        .collect()
+}
+
+/// The next `StateChanged` a stream brings within `limit`, as its keys and its state.
+async fn next_changes<S>(stream: &mut S, limit: Duration) -> Option<(Vec<String>, State)>
+where
+    S: Stream<Item = odc_ipc::StateChanged> + Unpin,
+{
+    let signal = within(limit, next(stream)).await.flatten()?;
+    let changes = signal.args().expect("its changes").changes;
+    Some((keys(&changes), state_of(&changes)))
+}
+
+// Phase 11a Task 13, docs/spec/dbus.md, State, `Readings`: every caller's `GetState()` has each
+// metric's exact fraction and leaves out the one with no value; `StateChanged` sends the key only
+// to a watcher that also watches frames, the whole of it the first time and then only when it
+// changed; a watcher of state alone gets every other key and never this one.
+#[test]
+fn readings_reach_only_frame_watchers_whole_the_first_time_then_when_they_change() {
+    let h = Harness::start(
+        "readings",
+        Settings::default(),
+        status(fractions(50_000)),
+        false,
+    );
+    zbus::block_on(async {
+        let (plain, both, reader, changer) = (
+            h.client().await,
+            h.client().await,
+            h.client().await,
+            h.client().await,
+        );
+        for client in [&plain, &both, &reader] {
+            let state = state_of(&client.main.get_state().await.expect("the state"));
+            assert_eq!(state.readings, Some(readings_of(50_000)), "GetState");
+            assert!(
+                !state.readings.expect("readings").contains_key("CPU Power"),
+                "a metric with no value is left out"
+            );
+        }
+        plain.main.watch().await.expect("watches");
+        both.main.watch().await.expect("watches");
+        reader.main.watch_frames().await.expect("watches frames");
+        let mut plain_changes = plain.main.receive_state_changed().await.expect("a stream");
+        let mut both_changes = both.main.receive_state_changed().await.expect("a stream");
+        let mut reader_changes = reader.main.receive_state_changed().await.expect("a stream");
+        // Other readings: no state watcher that doesn't watch frames hears of it at all.
+        h.read(fractions(60_000));
+        assert!(next_changes(&mut plain_changes, QUIET).await.is_none());
+        assert!(next_changes(&mut both_changes, QUIET).await.is_none());
+        // A watcher that starts watching frames gets the whole key at once, from the status as
+        // it is now.
+        both.main.watch_frames().await.expect("watches frames");
+        let (names, state) = next_changes(&mut both_changes, WAIT)
+            .await
+            .expect("Readings");
+        assert_eq!(names, ["Readings"]);
+        assert_eq!(state.readings, Some(readings_of(60_000)));
+        // Readings that change are sent as that key alone, and only to it.
+        h.read(fractions(61_000));
+        let (names, state) = next_changes(&mut both_changes, WAIT)
+            .await
+            .expect("Readings");
+        assert_eq!(names, ["Readings"]);
+        assert_eq!(state.readings, Some(readings_of(61_000)));
+        assert!(next_changes(&mut plain_changes, QUIET).await.is_none());
+        // Other keys change: the frame watcher is not sent the readings again, and the plain
+        // one never is.
+        changer.main.set_mode(2).await.expect("mode 2");
+        for stream in [&mut plain_changes, &mut both_changes] {
+            let (names, state) = next_changes(stream, WAIT).await.expect("Mode");
+            assert_eq!(names, ["Mode"]);
+            assert_eq!(state.readings, None);
+        }
+        // Readings that are the same again are no change.
+        h.read(fractions(61_000));
+        assert!(next_changes(&mut both_changes, QUIET).await.is_none());
+        // A caller that watches frames but not the state is addressed by no `StateChanged`.
+        assert!(next_changes(&mut reader_changes, QUIET).await.is_none());
+        // Every metric lost its value: an empty map, not an absent key.
+        h.read(Snapshot::new(|_| {
+            Reading::Unavailable(Unavailable::NoDevice)
+        }));
+        let (names, state) = next_changes(&mut both_changes, WAIT)
+            .await
+            .expect("Readings");
+        assert_eq!(names, ["Readings"]);
+        assert_eq!(state.readings, Some(HashMap::new()));
+    });
+}
+
+// A frame watcher that stops passing polkit's check gets nothing until it passes again, and then
+// the whole state, readings included.
+#[test]
+fn a_frame_watcher_that_stops_passing_gets_the_whole_state_with_the_readings_again() {
+    let h = Harness::start(
+        "readings-polkit",
+        Settings::default(),
+        status(fractions(50_000)),
+        false,
+    );
+    zbus::block_on(async {
+        let (refused, watcher) = (h.client().await, h.client().await);
+        h.polkit.refuse(&refused.name());
+        assert!(matches!(
+            refused.main.watch_frames().await,
+            Err(Error::NotAuthorized(_))
+        ));
+        watcher.main.watch().await.expect("watches");
+        watcher.main.watch_frames().await.expect("watches frames");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let h = &h;
+        let until = |line: String| async move {
+            for _ in 0..30 {
+                if h.journal_has(&line) {
+                    return;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+            panic!("no journal line {line:?}");
+        };
+        h.polkit.refuse(&watcher.name());
+        until(format!("watcher {} no longer passes", watcher.name())).await;
+        h.read(fractions(70_000));
+        assert!(next_changes(&mut changes, QUIET).await.is_none(), "skipped");
+        h.polkit.allow(&watcher.name());
+        until(format!(
+            "watcher {} passes polkit's check again",
+            watcher.name()
+        ))
+        .await;
+        let (names, state) = next_changes(&mut changes, WAIT).await.expect("the state");
+        assert!(names.contains(&"Readings".to_owned()) && names.contains(&"Mode".to_owned()));
+        assert_eq!(state.readings, Some(readings_of(70_000)));
+    });
+}
+
+/// Levels that are all `n` hundredths, within 0 to 1 for `n` up to 100.
+fn levels_at(n: f64) -> [f64; 14] {
+    std::array::from_fn(|column| (n + column as f64) / 100.0)
+}
+
+/// The next `Levels` a stream brings within `limit`.
+async fn next_levels<S>(stream: &mut S, limit: Duration) -> Option<Vec<f64>>
+where
+    S: Stream<Item = odc_ipc::Levels> + Unpin,
+{
+    let signal = within(limit, next(stream)).await.flatten()?;
+    Some(signal.args().expect("its levels").levels)
+}
+
+// Phase 11a Task 13, docs/spec/dbus.md, `Levels`: to each frame watcher alone, only while sound
+// is attached, never with a value that isn't finite and within 0 to 1, and not once the Music
+// mode is left (which closes the sound).
+#[test]
+fn levels_go_to_each_frame_watcher_alone_while_sound_is_attached_and_never_when_not_finite() {
+    let h = Harness::drawing("levels", music(13), music_status(), false, every_mode);
+    zbus::block_on(async {
+        let (watcher, bystander, plain, helper, changer) = (
+            h.client().await,
+            h.client().await,
+            h.client().await,
+            h.client().await,
+            h.client().await,
+        );
+        let mut seen = watcher.main.receive_levels().await.expect("a stream");
+        let mut unseen = bystander.main.receive_levels().await.expect("a stream");
+        let mut state_only = plain.main.receive_levels().await.expect("a stream");
+        watcher.main.watch_frames().await.expect("watches frames");
+        plain.main.watch().await.expect("watches");
+        // No sound is attached: none.
+        h.levels(levels_at(1.0));
+        assert_eq!(next_levels(&mut seen, QUIET).await, None, "no sound");
+        let _pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        h.levels(levels_at(2.0));
+        assert_eq!(
+            next_levels(&mut seen, WAIT).await,
+            Some(levels_at(2.0).to_vec())
+        );
+        assert_eq!(
+            next_levels(&mut unseen, QUIET).await,
+            None,
+            "a match rule without a watch"
+        );
+        assert_eq!(
+            next_levels(&mut state_only, QUIET).await,
+            None,
+            "a watcher of the state alone"
+        );
+        // Not finite, or outside 0 to 1: never sent. A good one after each shows none was.
+        for bad in [f64::NAN, f64::INFINITY, f64::NEG_INFINITY, -0.001, 1.001] {
+            let mut levels = levels_at(3.0);
+            levels[6] = bad;
+            h.levels(levels);
+            assert_eq!(next_levels(&mut seen, QUIET).await, None, "{bad}");
+        }
+        h.levels(levels_at(4.0));
+        assert_eq!(
+            next_levels(&mut seen, WAIT).await,
+            Some(levels_at(4.0).to_vec())
+        );
+        // The edges of the range are levels.
+        h.levels([0.0; 14]);
+        assert_eq!(next_levels(&mut seen, WAIT).await, Some(vec![0.0; 14]));
+        h.levels([1.0; 14]);
+        assert_eq!(next_levels(&mut seen, WAIT).await, Some(vec![1.0; 14]));
+        // A watcher that left the bus is dropped; another still gets them.
+        let newcomer = h.client().await;
+        let mut fresh = newcomer.main.receive_levels().await.expect("a stream");
+        newcomer.main.watch_frames().await.expect("watches frames");
+        drop(seen);
+        drop(watcher);
+        h.levels(levels_at(5.0));
+        assert_eq!(
+            next_levels(&mut fresh, WAIT).await,
+            Some(levels_at(5.0).to_vec()),
+            "kept"
+        );
+        // The mode leaves Music: the sound closes, and none is sent any more.
+        changer.main.set_mode(1).await.expect("mode 1");
+        assert!(
+            soon(|| h.audio.holder().is_none()).await,
+            "the sound closes"
+        );
+        h.levels(levels_at(6.0));
+        assert_eq!(next_levels(&mut fresh, QUIET).await, None, "no sound");
+        newcomer.main.unwatch_frames().await.expect("stops");
+    });
+}
+
+// A caller polkit refuses can't start watching, so it gets no levels; a watcher the check stops
+// allowing gets none until it passes again.
+#[test]
+fn a_refused_levels_watcher_waits_for_its_check() {
+    let h = Harness::drawing(
+        "levels-polkit",
+        music(13),
+        music_status(),
+        false,
+        every_mode,
+    );
+    zbus::block_on(async {
+        let (refused, watcher, helper) = (h.client().await, h.client().await, h.client().await);
+        h.polkit.refuse(&refused.name());
+        let mut refused_levels = refused.main.receive_levels().await.expect("a stream");
+        assert!(matches!(
+            refused.main.watch_frames().await,
+            Err(Error::NotAuthorized(_))
+        ));
+        let mut levels = watcher.main.receive_levels().await.expect("a stream");
+        watcher.main.watch_frames().await.expect("watches frames");
+        let _pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
+        h.levels(levels_at(7.0));
+        assert_eq!(
+            next_levels(&mut levels, WAIT).await,
+            Some(levels_at(7.0).to_vec())
+        );
+        assert_eq!(next_levels(&mut refused_levels, QUIET).await, None);
+        let h = &h;
+        let until = |line: String| async move {
+            for _ in 0..30 {
+                if h.journal_has(&line) {
+                    return;
+                }
+                sleep(Duration::from_millis(100)).await;
+            }
+            panic!("no journal line {line:?}");
+        };
+        h.polkit.refuse(&watcher.name());
+        until(format!("watcher {} no longer passes", watcher.name())).await;
+        h.levels(levels_at(8.0));
+        assert_eq!(next_levels(&mut levels, QUIET).await, None, "skipped");
+        h.polkit.allow(&watcher.name());
+        until(format!(
+            "watcher {} passes polkit's check again",
+            watcher.name()
+        ))
+        .await;
+        h.levels(levels_at(9.0));
+        assert_eq!(
+            next_levels(&mut levels, WAIT).await,
+            Some(levels_at(9.0).to_vec()),
+            "back"
+        );
     });
 }
 

@@ -6,7 +6,7 @@
 //! the other threads only through the `Apply` mailbox, the device thread's control channel, the
 //! status and the pulse, so a slow polkit check never delays a frame.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::future::{Future, poll_fn};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -18,9 +18,11 @@ use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
 use odc_device::{Link, Reason, RecordingHandle};
-use odc_ipc::{BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, OBJECT_PATH, State, frame_pixels};
+use odc_ipc::{
+    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, LEVELS, OBJECT_PATH, State, frame_pixels,
+};
 use odc_protocol::Frame;
-use odc_render::Mode;
+use odc_render::{COLUMNS, Mode};
 use odc_sensors::{
     Binding, Exact, Metric, PciAddr, Reading, Snapshot, Unavailable, choose, has_gpu_rule,
 };
@@ -36,7 +38,7 @@ use crate::engine::{Apply, Choices, Drawn, Override, shown_mode, takes_sound};
 use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
-use crate::runtime::{DeviceControl, Durations, SensorRequest, Slot};
+use crate::runtime::{DeviceControl, Durations, LevelTap, SensorRequest, Slot};
 use crate::settings::{Fall, Settings, SettingsStore, TemperatureUnit};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
@@ -109,6 +111,9 @@ struct Shared {
     /// The newest frame the engine drew, and the pulse that says one came (Phase 10).
     frames: Arc<Slot<Frame>>,
     frame_pulse: Arc<Pulse>,
+    /// The newest levels the engine analysed, and the pulse that says some came (Phase 11a
+    /// Task 13).
+    levels: LevelTap,
     journal: Arc<dyn Journal>,
     dev: Option<DevSide>,
     /// The last readings override's number.
@@ -546,6 +551,10 @@ impl Shared {
         {
             lock(&self.watchers).remove(&sender);
         }
+        if matches!(what, Watch::Frames) {
+            // A new frame watcher gets the whole `Readings` in the next `StateChanged`.
+            self.pulse.send();
+        }
         Ok(())
     }
 
@@ -636,6 +645,7 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
         music_peaks: Some(settings.music_peaks),
         music_bar_fall: Some(fall(settings.music_bar_fall)),
         music_peak_fall: Some(fall(settings.music_peak_fall)),
+        readings: Some(status.readings()),
         use_system_theme: Some(settings.use_system_theme),
         dark_theme: Some(settings.dark_theme),
         audio_connected: Some(audio_connected),
@@ -969,6 +979,9 @@ impl Main {
 
     #[zbus(signal)]
     pub async fn frame(emitter: &SignalEmitter<'_>, pixels: Vec<u8>) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    pub async fn levels(emitter: &SignalEmitter<'_>, levels: Vec<f64>) -> zbus::Result<()>;
 }
 
 /// The dev interface (`docs/spec/dbus.md`, Dev interface), registered only with `--dev`.
@@ -1132,6 +1145,8 @@ pub struct Parts {
     /// The newest frame the engine drew, and the pulse that says one came (Phase 10).
     pub frames: Arc<Slot<Frame>>,
     pub frame_pulse: Arc<Pulse>,
+    /// The levels the engine analysed in a Music mode, for the `Levels` watchers.
+    pub levels: LevelTap,
     pub journal: Arc<dyn Journal>,
     /// With `--dev`: the service's group, the recording, and the threads' durations.
     pub dev: Option<(u32, RecordingHandle, Arc<Durations>)>,
@@ -1218,6 +1233,7 @@ async fn serve(parts: Parts, ready: &Sender<Result<(), String>>, stop: &AtomicBo
     let tasks: Vec<Pin<Box<dyn Future<Output = ()> + Send + '_>>> = vec![
         Box::pin(tell_watchers(&shared, &conn, stop)),
         Box::pin(tell_frame_watchers(&shared, &conn, stop)),
+        Box::pin(tell_level_watchers(&shared, &conn, stop)),
         Box::pin(names.run(|name| shared.gone(name))),
         Box::pin(sleep.run(|| shared.woke())),
     ];
@@ -1265,6 +1281,7 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
         pulse: parts.pulse,
         frames: parts.frames,
         frame_pulse: parts.frame_pulse,
+        levels: parts.levels,
         journal: parts.journal,
         dev: parts
             .dev
@@ -1318,6 +1335,8 @@ async fn first_of(mut tasks: Vec<Pin<Box<dyn Future<Output = ()> + Send + '_>>>)
 /// gets the whole state; one that fails gets nothing (owner, 2026-10-26).
 async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
     let mut sent = shared.state();
+    // The frame watchers that already have the current `Readings`.
+    let mut with_readings: HashSet<String> = HashSet::new();
     let mut seen = shared.pulse.count();
     let mut check_at = Instant::now() + CHECK_EVERY;
     loop {
@@ -1334,13 +1353,29 @@ async fn tell_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
         };
         let state = shared.state();
         let changes = state.changed_since(&sent);
-        let watchers = lock(&shared.watchers).allowed(Watch::State);
+        let (watchers, frame_watchers) = {
+            let list = lock(&shared.watchers);
+            (list.allowed(Watch::State), list.allowed(Watch::Frames))
+        };
+        // A frame watcher that left, or failed its check, is sent the whole `Readings` again when
+        // it is back.
+        with_readings.retain(|name| frame_watchers.contains(name));
         for name in watchers {
-            let send = if again.contains(&name) {
+            let mut send = if again.contains(&name) {
                 state.clone()
             } else {
                 changes.clone()
             };
+            // The readings change every second: only a watcher of frames, such as the settings
+            // app, is sent them (`docs/spec/dbus.md`, State, `Readings`), the whole of them the
+            // first time, whatever changed.
+            if frame_watchers.contains(&name) {
+                if with_readings.insert(name.clone()) {
+                    send.readings.clone_from(&state.readings);
+                }
+            } else {
+                send.readings = None;
+            }
             if send.is_empty() {
                 continue;
             }
@@ -1375,6 +1410,50 @@ async fn tell_frame_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBo
             signal_frame(conn, &name, frame_pixels(&frame)).await;
         }
     }
+}
+
+/// Sends each frame watcher the levels the engine analysed, once per tick in a Music mode, while a
+/// helper's sound is attached and the watcher passes its one-second check (`docs/spec/dbus.md`,
+/// `Levels`; Phase 11a Task 13). A watcher that fails its check gets nothing until it passes
+/// again; none is sent outside a Music mode (the engine posts none), or with no sound attached.
+async fn tell_level_watchers(shared: &Shared, conn: &Connection, stop: &AtomicBool) {
+    let mut seen = shared.levels.pulse.count();
+    loop {
+        seen = shared.levels.pulse.after(seen).await;
+        if stop.load(Ordering::Relaxed) {
+            return;
+        }
+        let Some(levels) = shared.levels.levels.take() else {
+            continue;
+        };
+        if shared.audio.holder().is_none() || !levels_ok(&levels) {
+            continue;
+        }
+        let watchers = lock(&shared.watchers).allowed(Watch::Frames);
+        for name in watchers {
+            signal_levels(conn, &name, levels.to_vec()).await;
+        }
+    }
+}
+
+/// Whether every level is finite and within 0 to 1, as the contract promises; the analysis
+/// guarantees it, and this is the last check before the bus.
+fn levels_ok(levels: &[f64; COLUMNS]) -> bool {
+    levels.len() == LEVELS
+        && levels
+            .iter()
+            .all(|level| level.is_finite() && (0.0..=1.0).contains(level))
+}
+
+/// `Levels`, addressed to one frame watcher.
+async fn signal_levels(conn: &Connection, to: &str, levels: Vec<f64>) {
+    let (Ok(destination), Ok(emitter)) =
+        (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
+    else {
+        return;
+    };
+    // A watcher that just left misses nothing it could read.
+    let _ = Main::levels(&emitter.set_destination(destination), levels).await;
 }
 
 /// `Frame`, addressed to one frame watcher.

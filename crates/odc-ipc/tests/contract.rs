@@ -104,6 +104,17 @@ fn full() -> State {
         music_peaks: Some(false),
         music_bar_fall: Some(FallStop::Faster),
         music_peak_fall: Some(FallStop::Slower),
+        // Every metric with its own value, a fraction that isn't a whole number, one negative
+        // (below zero the display draws dashes) and the largest the type holds; no `CPU Power`
+        // entry, which is a metric with no value.
+        readings: Some(HashMap::from([
+            ("CPU Temperature".to_owned(), (57_250, 1000)),
+            ("CPU Usage".to_owned(), (4, 3)),
+            ("Gpu temperature".to_owned(), (-3, 1)),
+            ("Gpu usage".to_owned(), (7, 1)),
+            ("Gpu power".to_owned(), (i64::MAX, u64::MAX)),
+            ("Memory Load".to_owned(), (i64::MIN, 1)),
+        ])),
         // Both away from the defaults, so a swapped pair shows.
         use_system_theme: Some(false),
         dark_theme: Some(false),
@@ -188,6 +199,41 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
         State::from_dict(&one("AudioWanted", variant("yes"))),
         Err(StateError::WrongType("AudioWanted"))
     );
+    // Readings: a fraction over 0 isn't one; floating point isn't the type; neither is a map of
+    // plain numbers.
+    assert_eq!(
+        State::from_dict(&one(
+            "Readings",
+            variant(HashMap::from([("CPU Usage".to_owned(), (5_i64, 0_u64))]))
+        )),
+        Err(StateError::BadValue(
+            "Readings",
+            "CPU Usage: 5 over 0".into()
+        ))
+    );
+    assert_eq!(
+        State::from_dict(&one(
+            "Readings",
+            variant(HashMap::from([("CPU Usage".to_owned(), 5.5_f64)]))
+        )),
+        Err(StateError::WrongType("Readings"))
+    );
+    assert_eq!(
+        State::from_dict(&one(
+            "Readings",
+            variant(HashMap::from([("CPU Usage".to_owned(), (5_u64, 1_u64))]))
+        )),
+        Err(StateError::WrongType("Readings"))
+    );
+    // An empty map is a state with no metric that has a value, not an absent key.
+    assert_eq!(
+        State::from_dict(&one(
+            "Readings",
+            variant(HashMap::<String, (i64, u64)>::new())
+        ))
+        .map(|s| s.readings),
+        Ok(Some(HashMap::new()))
+    );
     let gpus = vec![(
         "0000:0a:00.0".to_owned(),
         "amdgpu".to_owned(),
@@ -234,6 +280,7 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
     let newer = State {
         rotation: Some(1),
         music_peaks: Some(true),
+        readings: Some(HashMap::from([("CPU Usage".to_owned(), (5, 1))])),
         use_system_theme: Some(true),
         dark_theme: Some(true),
         ..full()
@@ -244,6 +291,7 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
         State {
             rotation: Some(1),
             music_peaks: Some(true),
+            readings: Some(HashMap::from([("CPU Usage".to_owned(), (5, 1))])),
             use_system_theme: Some(true),
             dark_theme: Some(true),
             ..State::default()

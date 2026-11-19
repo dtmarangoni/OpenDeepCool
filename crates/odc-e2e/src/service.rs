@@ -8,6 +8,7 @@
 //! timing through the engine's own loop, and the start check against a made-up journal and
 //! recording (rule 10: one from the owner's PC would name its drivers).
 
+use std::collections::HashMap;
 use std::process::Command;
 use std::sync::atomic::AtomicBool;
 use std::thread;
@@ -17,10 +18,11 @@ use odc_ipc::State;
 use odc_protocol::{Frame, Message, encode_frame, startup_report};
 use odc_render::{Kind as ModeKind, Marquee, Mode as RenderMode, Unit as RenderUnit, Values};
 use odc_render::{draws, mode_info, picture};
-use odc_sensors::{Exact, Metric, Reading};
+use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Engine, Published, Requests};
 use odc_service::runtime::{Outputs, Progress, Slot, SystemTicker, run_engine};
 use odc_service::settings::Settings;
+use odc_service::status::Status;
 use odc_service::status::{FIRST_READINGS, parse_first_readings};
 use odc_testkit::expected::{
     Case, Change, Kind, Reset, Scenario, Unit, load_mode, load_unavailable, mode_scenarios,
@@ -30,7 +32,7 @@ use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
 
 use crate::plays::{
     Current, FLUSHED_WITHIN, Plan, TICK, message, override_args, play_engine, play_real,
-    recording_lines,
+    recorded_by_tick, recording_lines,
 };
 use crate::session::Session;
 
@@ -192,6 +194,140 @@ fn theme_settings(session: &Session) -> Result<String, String> {
     ))
 }
 
+/// The modes the readings check shows: a Load and a Temperature mode, two values each, in °C.
+const READINGS_MODES: [u16; 2] = [4, 9];
+
+/// How long `Readings` may take to show what an override gave: a tick or two.
+const READINGS_WITHIN: Duration = Duration::from_secs(3);
+
+/// A reading for each metric but CPU Power, each its own value (one a fraction, one with a
+/// single digit), so a swapped pair shows; CPU Power has none.
+fn readings_set() -> Vec<(String, Option<Exact>)> {
+    vec![
+        ("CPU Temperature".to_owned(), Exact::new(57_250, 1000)),
+        ("CPU Usage".to_owned(), Some(Exact::whole(42))),
+        ("CPU Power".to_owned(), None),
+        ("Gpu temperature".to_owned(), Exact::new(38_500, 1000)),
+        ("Gpu usage".to_owned(), Some(Exact::whole(7))),
+        ("Gpu power".to_owned(), Some(Exact::whole(65))),
+        ("Memory Load".to_owned(), Some(Exact::whole(63))),
+    ]
+}
+
+/// The picture `odc_render` draws from a `Readings` map, in °C, at home: what a client draws the
+/// cooler's picture from, and what the service must have drawn.
+fn readings_frame(mode: u16, readings: &HashMap<String, (i64, u64)>) -> Result<Frame, String> {
+    let mut values = Values::new();
+    for metric in Metric::ALL {
+        if let Some(&(num, den)) = readings.get(metric.spec_name()) {
+            let exact = Exact::new(num, den)
+                .ok_or_else(|| format!("{}: a denominator of 0", metric.spec_name()))?;
+            values.set(metric, Some(exact));
+        }
+    }
+    let shown = RenderMode::new(mode).ok_or_else(|| format!("{mode} isn't a mode"))?;
+    let picture = picture(shown, &values, RenderUnit::Celsius)
+        .map_err(|e| format!("mode {mode} isn't drawn: {e:?}"))?;
+    Ok(picture.frame_at(picture.home()))
+}
+
+/// The readings the service tells the settings app (Phase 11a Task 13; `docs/spec/dbus.md`,
+/// State, `Readings`): after an override with a value for each metric but one, `GetState` says
+/// exactly those fractions, the metric with no value left out, and the picture `odc_render`
+/// draws from them is the frame the service wrote, in each of two modes.
+fn readings_real(session: &Session) -> Result<String, String> {
+    let (main, dev) = (session.main(), session.dev());
+    let set = readings_set();
+    for mode in READINGS_MODES {
+        let said = |call: &str, e: odc_ipc::Error| format!("mode {mode}: {call}: {e}");
+        let (values, unavailable) = override_args(&set, mode, &[]);
+        zbus::block_on(main.set_rotation(0)).map_err(|e| said("SetRotation", e))?;
+        zbus::block_on(main.set_temperature_unit("celsius"))
+            .map_err(|e| said("SetTemperatureUnit", e))?;
+        let synced = zbus::block_on(dev.override_readings(values.clone(), unavailable))
+            .map_err(|e| said("OverrideReadings", e))?;
+        zbus::block_on(main.set_mode(u32::from(mode))).map_err(|e| said("SetMode", e))?;
+        let until = Instant::now() + READINGS_WITHIN;
+        let told = loop {
+            let told = state(session)?.readings;
+            if told.as_ref() == Some(&values) || Instant::now() > until {
+                break told;
+            }
+            thread::sleep(TICK / 2);
+        };
+        if told.as_ref() != Some(&values) {
+            return Err(format!(
+                "mode {mode}: Readings are {told:?}, not the override's {values:?}"
+            ));
+        }
+        // Three ticks of the picture, once the mode has been shown from home for a while.
+        let (first, len) = (synced + 3, 3);
+        thread::sleep(TICK * u32::try_from(len + 6).expect("a few ticks") + FLUSHED_WITHIN);
+        let want = vec![Message::Frame(readings_frame(mode, &values)?)];
+        for (n, written) in recorded_by_tick(first, usize::try_from(len).expect("3"))?
+            .iter()
+            .enumerate()
+        {
+            if *written != want {
+                return Err(format!(
+                    "mode {mode}, tick {}: the service wrote {} message(s), not the one picture \
+                     of its Readings",
+                    first + n as u64,
+                    written.len()
+                ));
+            }
+        }
+    }
+    Ok(format!(
+        "modes {READINGS_MODES:?}: Readings are the override's exact fractions (6 of 7 metrics; \
+         CPU Power, with no value, left out), and the picture drawn from them is each tick's \
+         frame"
+    ))
+}
+
+/// [`readings_real`] without a dev service: the engine and the status it feeds, in process.
+fn readings_fake() -> Result<String, String> {
+    let set = readings_set();
+    let snapshot =
+        Snapshot::new(
+            |metric| match set.iter().find(|(name, _)| name == metric.spec_name()) {
+                Some((_, Some(exact))) => Reading::Value(*exact),
+                _ => Reading::Unavailable(Unavailable::NotYet),
+            },
+        );
+    let (values, _) = override_args(&set, 4, &[]);
+    for mode in READINGS_MODES {
+        let mut engine = Engine::new(
+            Settings {
+                mode,
+                ..Settings::default()
+            },
+            snapshot.clone(),
+        );
+        let frame = engine
+            .tick(None, None, false)
+            .frame
+            .ok_or("the first tick drew no frame")?;
+        let mut status = Status::default();
+        status.from_engine(&engine);
+        let told = status.readings();
+        if told != values {
+            return Err(format!(
+                "mode {mode}: the status says {told:?}, not {values:?}"
+            ));
+        }
+        if readings_frame(mode, &told)? != frame {
+            return Err(format!(
+                "mode {mode}: the picture of the readings isn't the engine's frame"
+            ));
+        }
+    }
+    Ok(format!(
+        "in process, modes {READINGS_MODES:?}: the status's readings are the exact fractions, \
+         CPU Power left out, and their picture is the engine's frame"
+    ))
+}
+
 pub(crate) fn state(session: &Session) -> Result<State, String> {
     let dict = zbus::block_on(session.main().get_state()).map_err(|e| format!("GetState: {e}"))?;
     State::from_dict(&dict).map_err(|e| format!("GetState: {e}"))
@@ -225,6 +361,7 @@ fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
     summary.check("service_timing", timing_real(&session));
     summary.check("service_durations", durations(&session));
     summary.check("service_theme", theme_settings(&session));
+    summary.check("service_readings", readings_real(&session));
 
     let switch = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT)
         .map(|usb| usb.join("authorized"))
@@ -251,6 +388,7 @@ fn fake(tick: Duration, modes: &[u16], summary: &mut Summary) {
     summary.check("service_access", crate::access::fake());
     summary.check("service_start", start_fake());
     summary.check("service_timing", timing_fake(tick));
+    summary.check("service_readings", readings_fake());
     for (name, plan) in examples(modes) {
         let result = plan.and_then(|plan| play_engine(&plan));
         summary.check(&name, result);
@@ -746,6 +884,28 @@ mod tests {
 
     // A run started within a second of the service waits for the recording's first flush, and
     // gives up after the flush interval with what's there.
+    #[test]
+    fn the_readings_check_passes_in_process_and_notices_a_wrong_picture() {
+        let note = readings_fake().expect("the in-process check passes");
+        assert!(note.contains("exact fractions"), "{note}");
+        // The picture of other readings is another frame: the comparison is a real one.
+        let set = readings_set();
+        let (values, _) = override_args(&set, 4, &[]);
+        let mut other = values.clone();
+        other.insert("CPU Usage".to_owned(), (43, 1));
+        other.insert("CPU Temperature".to_owned(), (45, 1));
+        for mode in READINGS_MODES {
+            assert_ne!(
+                readings_frame(mode, &values).expect("a picture"),
+                readings_frame(mode, &other).expect("a picture"),
+                "mode {mode}"
+            );
+        }
+        let mut zero = values;
+        zero.insert("CPU Usage".to_owned(), (1, 0));
+        assert!(readings_frame(4, &zero).is_err(), "a denominator of 0");
+    }
+
     #[test]
     fn the_start_check_waits_for_the_first_flush() {
         let report: String = startup_report()

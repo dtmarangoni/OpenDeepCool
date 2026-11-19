@@ -4,6 +4,7 @@
 //! sensor threads each write their part; the D-Bus side only reads (one `Arc<RwLock<Status>>`).
 //! The settings aren't here: the D-Bus side keeps the saved ones itself.
 
+use std::collections::HashMap;
 use std::path::Path;
 
 use odc_device::Link;
@@ -74,6 +75,25 @@ pub struct Status {
 }
 
 impl Status {
+    /// The `Readings` the service tells the settings app: each metric of the snapshot the engine
+    /// drew that has a value, by its spec name, as the exact fraction (`docs/spec/dbus.md`,
+    /// State; Phase 11a Task 13). Before the engine's first tick, and for a metric with no value,
+    /// there is no entry.
+    pub fn readings(&self) -> HashMap<String, (i64, u64)> {
+        let Some(snapshot) = &self.snapshot else {
+            return HashMap::new();
+        };
+        Metric::ALL
+            .into_iter()
+            .filter_map(|metric| match snapshot.get(metric) {
+                Reading::Value(exact) => {
+                    Some((metric.spec_name().to_owned(), (exact.num(), exact.den())))
+                }
+                Reading::Unavailable(_) => None,
+            })
+            .collect()
+    }
+
     /// The engine's part, after a tick; whether any of it changed.
     pub fn from_engine(&mut self, engine: &Engine) -> bool {
         let availability = engine.availability();

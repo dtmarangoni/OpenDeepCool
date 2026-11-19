@@ -343,3 +343,164 @@ fn a_new_frame_goes_to_frame_watchers_once() {
         );
     });
 }
+
+/// The keys of the next `StateChanged` within `wait`, or none.
+async fn changed_keys_within(stream: &mut MessageStream, wait: Duration) -> Option<Vec<String>> {
+    let next = poll_fn(|cx| Pin::new(&mut *stream).poll_next(cx));
+    let message: Message = within(wait, next).await??.ok()?;
+    let (dict,): (HashMap<String, OwnedVariant>,) = message.body().deserialize().ok()?;
+    let mut keys: Vec<String> = dict.into_keys().collect();
+    keys.sort();
+    Some(keys)
+}
+
+// Phase 11a Task 13: `Readings` is a key of the state, as the service has it: in `GetState()` for
+// every caller, and in `StateChanged` only for a watcher that also watches frames, the whole key
+// once after `WatchFrames()`.
+#[test]
+fn readings_reach_only_frame_watchers_whole_after_watch_frames() {
+    let dir = dir("readings");
+    let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
+    let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
+    let with = |cpu: i64, mode: u32| {
+        format!(
+            "{}\nReadings = {{ \"CPU Usage\" = [{cpu}, 1000], \"Gpu usage\" = [7, 1] }}",
+            state(mode)
+        )
+    };
+    write(&dir, ON, &with(57_250, 7));
+    logged(&dir, "state 1");
+    zbus::block_on(async {
+        let conn = connect(&bus).await;
+        let rule = MatchRule::builder()
+            .msg_type(Type::Signal)
+            .member("StateChanged")
+            .build()
+            .expect("a rule");
+        let mut changes = MessageStream::for_match_rule(rule, &conn, None)
+            .await
+            .expect("subscribed");
+        let proxy = OpenDeepCoolProxy::new(&conn).await.expect("the proxy");
+        let read = State::from_dict(&proxy.get_state().await.expect("the state")).expect("read");
+        assert_eq!(
+            read.readings,
+            Some(HashMap::from([
+                ("CPU Usage".to_owned(), (57_250, 1000)),
+                ("Gpu usage".to_owned(), (7, 1)),
+            ]))
+        );
+        proxy.watch().await.expect("watching");
+        // A watcher of the state alone: the other keys, never the readings.
+        write(
+            &dir,
+            "serial = 2\non_bus = true\nreads = true",
+            &with(58_000, 7),
+        );
+        assert_eq!(
+            changed_keys_within(&mut changes, Duration::from_millis(300)).await,
+            None,
+            "readings alone: nothing"
+        );
+        write(
+            &dir,
+            "serial = 3\non_bus = true\nreads = true",
+            &with(59_000, 8),
+        );
+        assert_eq!(changed_keys(&mut changes).await, ["Mode"]);
+        // After WatchFrames() the whole key, then its changes.
+        proxy.watch_frames().await.expect("watching frames");
+        assert_eq!(changed_keys(&mut changes).await, ["Readings"]);
+        write(
+            &dir,
+            "serial = 4\non_bus = true\nreads = true",
+            &with(60_000, 8),
+        );
+        assert_eq!(changed_keys(&mut changes).await, ["Readings"]);
+    });
+}
+
+#[test]
+fn a_readings_table_that_isn_t_fractions_is_refused() {
+    for (n, bad) in [
+        "Readings = { \"CPU Usage\" = 5 }",
+        "Readings = { \"CPU Usage\" = [5] }",
+        "Readings = { \"CPU Usage\" = [5, -1] }",
+        "Readings = [[\"CPU Usage\", 5, 1]]",
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        // Each table in a fake of its own, so the log holds one line.
+        let dir = dir(&format!("readings-bad-{n}"));
+        let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
+        let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
+        write(&dir, ON, &format!("{}\n{bad}", state(7)));
+        logged(&dir, "state error: Readings isn't a{s(xt)}");
+    }
+}
+
+/// The levels of the next `Levels`, within `wait`, or none.
+async fn next_levels(stream: &mut MessageStream, wait: Duration) -> Option<Vec<f64>> {
+    let next = poll_fn(|cx| Pin::new(&mut *stream).poll_next(cx));
+    let message: Message = within(wait, next).await??.ok()?;
+    let (levels,): (Vec<f64>,) = message.body().deserialize().ok()?;
+    Some(levels)
+}
+
+// `levels` of the state file is sent to each frame watcher when it changes, as given.
+#[test]
+fn new_levels_go_to_frame_watchers_once_as_given() {
+    let dir = dir("levels");
+    let bus = PrivateBus::start(&dir.join("bus")).expect("the bus");
+    let _fake = FakeService::start(bus.address(), &dir).expect("the fake");
+    write(&dir, ON, &state(7));
+    logged(&dir, "state 1");
+    let with = |serial: u32, levels: &str| {
+        format!("serial = {serial}\non_bus = true\nreads = true\nlevels = {levels}")
+    };
+    let fourteen = |n: f64| {
+        let levels: Vec<String> = (0..14)
+            .map(|i| format!("{}", n + f64::from(i) / 100.0))
+            .collect();
+        format!("[{}]", levels.join(", "))
+    };
+    zbus::block_on(async {
+        let conn = connect(&bus).await;
+        let rule = MatchRule::builder()
+            .msg_type(Type::Signal)
+            .member("Levels")
+            .build()
+            .expect("a rule");
+        let mut levels = MessageStream::for_match_rule(rule, &conn, None)
+            .await
+            .expect("subscribed");
+        let proxy = OpenDeepCoolProxy::new(&conn).await.expect("the proxy");
+        proxy.watch().await.expect("watching");
+        write(&dir, &with(2, &fourteen(0.1)), &state(7));
+        logged(&dir, "state 2");
+        assert_eq!(
+            next_levels(&mut levels, Duration::from_millis(300)).await,
+            None,
+            "no levels without WatchFrames()"
+        );
+        proxy.watch_frames().await.expect("watching frames");
+        write(&dir, &with(3, &fourteen(0.2)), &state(7));
+        let got = next_levels(&mut levels, Duration::from_secs(5))
+            .await
+            .expect("levels");
+        assert_eq!(got.len(), 14);
+        assert!((got[0] - 0.2).abs() < 1e-12 && (got[13] - 0.33).abs() < 1e-12);
+        // The same levels again send nothing; what breaks the contract is sent as it is.
+        write(&dir, &with(4, &fourteen(0.2)), &state(8));
+        logged(&dir, "state 4");
+        assert_eq!(
+            next_levels(&mut levels, Duration::from_millis(300)).await,
+            None
+        );
+        write(&dir, &with(5, "[0.5, 0.5, 0.5]"), &state(8));
+        assert_eq!(
+            next_levels(&mut levels, Duration::from_secs(5)).await,
+            Some(vec![0.5; 3])
+        );
+    });
+}

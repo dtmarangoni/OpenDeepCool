@@ -4,9 +4,11 @@
 //! properties, and `StateChanged` is addressed to each watcher alone (owner, 2026-10-26).
 
 mod frame;
+mod levels;
 mod state;
 
 pub use frame::{FRAME_PIXELS, frame_from_pixels, frame_pixels};
+pub use levels::{LEVELS, levels_from};
 
 pub use state::{
     CoolerState, FallStop, Gpu, GpuKind, STATE_KEYS, State, StateError, TemperatureUnit,
@@ -115,6 +117,10 @@ pub trait OpenDeepCool {
     /// top left, whether or not the cooler got it.
     #[zbus(signal)]
     fn frame(&self, pixels: Vec<u8>) -> zbus::Result<()>;
+    /// The 14 column levels, each 0 to 1, that the engine analysed for the same tick's frame,
+    /// while a Music mode is shown and sound is attached (Phase 11a Task 13).
+    #[zbus(signal)]
+    fn levels(&self, levels: Vec<f64>) -> zbus::Result<()>;
 }
 
 /// The dev interface (only with `--dev`): the readings and sound overrides and the test session.

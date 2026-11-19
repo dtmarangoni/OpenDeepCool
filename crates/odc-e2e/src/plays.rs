@@ -627,7 +627,7 @@ pub(crate) fn message(report: &Recorded) -> Result<Message, String> {
 }
 
 /// The dev recording's reports with ticks `first` to `first + len - 1`, each tick's in order.
-fn recorded_by_tick(first: u64, len: usize) -> Result<Vec<Vec<Message>>, String> {
+pub(crate) fn recorded_by_tick(first: u64, len: usize) -> Result<Vec<Vec<Message>>, String> {
     let mut ticks = vec![Vec::new(); len];
     for report in recording_lines(None)? {
         let Some(n) = report.tick.checked_sub(first) else {

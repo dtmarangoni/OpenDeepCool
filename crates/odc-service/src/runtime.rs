@@ -16,6 +16,7 @@ use std::time::{Duration, Instant};
 
 use odc_device::{Connector, DisplayPort, Link, Lp360, RecordingHandle};
 use odc_protocol::Frame;
+use odc_render::COLUMNS;
 use odc_sensors::{Binding, Clock, Gpu, Metric, PciAddr, Readings, Registry, Snapshot};
 
 use crate::engine::{Apply, Choices, Engine, Published, Requests};
@@ -142,6 +143,21 @@ impl FrameTap {
     }
 }
 
+/// The newest levels the engine analysed, and the pulse that says some came: the same for the D-Bus
+/// side's `Levels` watchers as [`FrameTap`] is for `Frame`'s (Phase 11a Task 13).
+#[derive(Clone, Default)]
+pub struct LevelTap {
+    pub levels: Arc<Slot<[f64; COLUMNS]>>,
+    pub pulse: Arc<Pulse>,
+}
+
+impl LevelTap {
+    pub fn post(&self, levels: [f64; COLUMNS]) {
+        self.levels.post(levels);
+        self.pulse.send();
+    }
+}
+
 /// When the device and sensor threads last made progress, on the monotonic clock: a finished
 /// write attempt or wait, a finished snapshot.
 pub struct Progress {
@@ -200,6 +216,9 @@ impl Ticker for SystemTicker {
 pub trait Outputs {
     /// The tick's frame, turned, for the device thread.
     fn frame(&mut self, tick: u64, frame: Frame);
+    /// The tick's 14 spectrum levels, in a Music mode, for the D-Bus side's watchers; none by
+    /// default.
+    fn levels(&mut self, _levels: [f64; COLUMNS]) {}
     /// What the engine asks of the sensor thread.
     fn requests(&mut self, requests: Requests);
     /// The engine after its tick, for the status.
@@ -243,6 +262,9 @@ pub fn run_engine(
         let out = engine.tick(apply.take(), published.take(), false);
         if let Some(frame) = out.frame {
             outputs.frame(out.number, frame);
+        }
+        if let Some(levels) = out.levels {
+            outputs.levels(levels);
         }
         if out.requests != Requests::default() {
             outputs.requests(out.requests);

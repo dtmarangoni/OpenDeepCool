@@ -18,11 +18,17 @@
 //! reads = true      # false: every read and watch is refused with NotAuthorized
 //! refuse = "ModeUnavailable: Gpu usage: no device found"  # when set: every change, and Refresh
 //! frame = "0110…"   # when set: 196 dots, row by row, sent as `Frame` to each frame watcher
+//! levels = [0.1, …] # when set: sent as `Levels` to each frame watcher when it changes, whatever
+//!                   # it holds (a test of the app's refusals sends 13 values, or `nan`)
 //!
 //! [state]           # the contract's keys, each as its signature's TOML form
 //! Mode = 1
 //! Gpus = [["0000:0a:00.0", "acmegpu", "dedicated", 4660, 22136, true]]
+//! Readings = { "CPU Usage" = [57250, 1000] }   # metric = [numerator, denominator]
 //! ```
+//!
+//! As the service does, it sends `Readings` in `StateChanged` only to a watcher that also watches
+//! frames, and the whole key once after `WatchFrames()` (Phase 11a Task 13).
 //!
 //! `calls.log` gets one line per call, such as `SetMode(5)`, followed by ` refused <error>` when
 //! refused, and `state <serial>`, or `state error: <why>`, for each file taken.
@@ -66,7 +72,7 @@ pub const ERRORS: [&str; 8] = [
 type Dict = HashMap<String, OwnedVariant>;
 
 /// What the `[fake]` table asks.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq)]
 struct Behaviour {
     serial: u64,
     on_bus: bool,
@@ -75,6 +81,9 @@ struct Behaviour {
     refuse: Option<(String, String)>,
     /// The preview frame, `Frame`'s 196 bytes, sent to each frame watcher when it changes.
     frame: Option<Vec<u8>>,
+    /// The levels, sent as `Levels` to each frame watcher when they change; as given, so a test
+    /// can send what the contract forbids.
+    levels: Option<Vec<f64>>,
 }
 
 #[derive(Default)]
@@ -83,6 +92,8 @@ struct Inner {
     state: Dict,
     watchers: BTreeSet<String>,
     frame_watchers: BTreeSet<String>,
+    /// The frame watchers that are owed the whole `Readings`, after `WatchFrames()`.
+    readings_owed: BTreeSet<String>,
 }
 
 struct Shared {
@@ -246,10 +257,9 @@ impl Main {
 
     async fn watch_frames(&self, #[zbus(header)] header: Header<'_>) -> Result<(), Error> {
         let sender = sender(&header)?;
-        self.shared
-            .read("WatchFrames()")?
-            .frame_watchers
-            .insert(sender);
+        let mut inner = self.shared.read("WatchFrames()")?;
+        inner.frame_watchers.insert(sender.clone());
+        inner.readings_owed.insert(sender);
         Ok(())
     }
 
@@ -273,6 +283,9 @@ impl Main {
 
     #[zbus(signal)]
     async fn frame(emitter: &SignalEmitter<'_>, pixels: Vec<u8>) -> zbus::Result<()>;
+
+    #[zbus(signal)]
+    async fn levels(emitter: &SignalEmitter<'_>, levels: Vec<f64>) -> zbus::Result<()>;
 }
 
 /// The fake, serving until dropped.
@@ -360,6 +373,7 @@ fn run(
             seen = stamp;
             zbus::block_on(take(&conn, &path, shared, &mut owned));
         }
+        zbus::block_on(send_owed_readings(&conn, shared));
         thread::sleep(POLL);
     }
 }
@@ -379,7 +393,7 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
     };
     let serial = behaviour.serial;
     let on_bus = behaviour.on_bus;
-    let (sends, frames) = {
+    let (sends, frames, levels) = {
         let mut inner = lock(&shared.inner);
         let changed: Dict = state
             .iter()
@@ -394,12 +408,17 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
         if !behaviour.reads || !on_bus {
             inner.watchers.clear();
             inner.frame_watchers.clear();
+            inner.readings_owed.clear();
         }
         // A new frame goes to each frame watcher, as the service sends each changed one.
         let new_frame = behaviour
             .frame
             .clone()
             .filter(|frame| inner.behaviour.frame.as_ref() != Some(frame));
+        let new_levels = behaviour
+            .levels
+            .clone()
+            .filter(|levels| inner.behaviour.levels.as_ref() != Some(levels));
         inner.state = state;
         inner.behaviour = behaviour;
         let frames: Vec<(String, Vec<u8>)> = match new_frame {
@@ -410,13 +429,28 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
                 .collect(),
             _ => Vec::new(),
         };
+        let levels: Vec<(String, Vec<f64>)> = match new_levels {
+            Some(levels) if *owned && on_bus => inner
+                .frame_watchers
+                .iter()
+                .map(|watcher| (watcher.clone(), levels.clone()))
+                .collect(),
+            _ => Vec::new(),
+        };
         let mut sends = Vec::new();
         if *owned && on_bus && !changed.is_empty() {
             for watcher in &inner.watchers {
-                sends.push((watcher.clone(), clone(&changed)));
+                let mut changes = clone(&changed);
+                // Only a watcher of frames is sent the readings.
+                if !inner.frame_watchers.contains(watcher) {
+                    changes.remove("Readings");
+                }
+                if !changes.is_empty() {
+                    sends.push((watcher.clone(), changes));
+                }
             }
         }
-        (sends, frames)
+        (sends, frames, levels)
     };
     for (to, changes) in sends {
         if let (Ok(to), Ok(emitter)) =
@@ -432,6 +466,13 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
             let _ = Main::frame(&emitter.set_destination(to), pixels).await;
         }
     }
+    for (to, levels) in levels {
+        if let (Ok(to), Ok(emitter)) =
+            (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
+        {
+            let _ = Main::levels(&emitter.set_destination(to), levels).await;
+        }
+    }
     if on_bus != *owned {
         let result = if on_bus {
             conn.request_name(BUS_NAME).await.map(|_| ())
@@ -445,6 +486,32 @@ async fn take(conn: &Connection, path: &PathBuf, shared: &Shared, owned: &mut bo
         *owned = on_bus;
     }
     shared.log(&format!("state {serial}"));
+}
+
+/// The whole `Readings` to each frame watcher that has just asked for frames and also watches the
+/// state, as the service sends a new frame watcher (`docs/spec/dbus.md`, State, `Readings`).
+async fn send_owed_readings(conn: &Connection, shared: &Shared) {
+    let sends: Vec<(String, Dict)> = {
+        let mut inner = lock(&shared.inner);
+        let owed = std::mem::take(&mut inner.readings_owed);
+        let Some(readings) = inner.state.get("Readings") else {
+            return;
+        };
+        owed.into_iter()
+            .filter(|watcher| inner.watchers.contains(watcher))
+            .map(|watcher| {
+                let readings = readings.try_clone().expect("no file descriptor");
+                (watcher, Dict::from([("Readings".to_owned(), readings)]))
+            })
+            .collect()
+    };
+    for (to, changes) in sends {
+        if let (Ok(to), Ok(emitter)) =
+            (BusName::try_from(to), SignalEmitter::new(conn, OBJECT_PATH))
+        {
+            let _ = Main::state_changed(&emitter.set_destination(to), changes).await;
+        }
+    }
 }
 
 /// A state file: its `[fake]` answers and its `[state]`, each key in the contract's type.
@@ -491,12 +558,19 @@ fn parse(text: &str) -> Result<(Behaviour, Dict), String> {
             Some(pixels)
         }
     };
+    let levels = match fake.get("levels") {
+        None => None,
+        Some(value) => {
+            Some(list(value, number).ok_or("[fake] levels isn't a list of numbers".to_owned())?)
+        }
+    };
     let behaviour = Behaviour {
         serial,
         on_bus: flag("on_bus")?,
         reads: flag("reads")?,
         refuse,
         frame,
+        levels,
     };
     let given = table
         .get("state")
@@ -571,6 +645,18 @@ fn variant(key: &str, signature: &str, value: &toml::Value) -> Result<OwnedVaria
             ))
         })
         .map(Variant::from),
+        "a{s(xt)}" => value.as_table().and_then(|table| {
+            table
+                .iter()
+                .map(|(metric, fraction)| {
+                    let [num, den] = items(fraction, 2)? else {
+                        return None;
+                    };
+                    Some((metric.clone(), (int::<i64>(num)?, int::<u64>(den)?)))
+                })
+                .collect::<Option<HashMap<String, (i64, u64)>>>()
+                .map(Variant::from)
+        }),
         "a(ssusd)" => list(value, |input| {
             let [chip, device, number_, label, rpm] = items(input, 5)? else {
                 return None;
@@ -683,6 +769,7 @@ MusicBarFall = "faster""#
                 reads: true,
                 refuse: Some(("NotAuthorized".to_owned(), "no".to_owned())),
                 frame: None,
+                levels: None,
             }
         );
         for (key, signature) in STATE_KEYS {

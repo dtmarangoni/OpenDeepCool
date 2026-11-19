@@ -23,7 +23,7 @@ The names start with the project's public address, its GitHub repository, as the
 - **Every call is checked with polkit**, reads and changes alike, and every action is granted to the active local session only: `allow_active` yes, `allow_inactive` no, `allow_any` no. No remote or inactive session reads or changes anything, or feeds the service sound (owner, 2026-10-26).
 - **Sound** (Phase 9): `AttachAudio()` is checked for `feed-audio`, and the attached caller is checked again every second. When it no longer passes, when its connection leaves the bus, when a newer authorized caller attaches, or when the display leaves the Music modes, the service closes the pipe and the spectrum hears silence. The journal names each attach by the caller's Unix user and PID from `GetConnectionCredentials`, and each close with its reason, never with any sound (owner, 2026-10-27; solution review P9-11).
 - **No D-Bus properties.** Anyone may read a property through `org.freedesktop.DBus.Properties`, and `PropertiesChanged` reaches every local process. The state is read with `GetState()` instead, and changes come as `StateChanged`, a signal addressed to each watcher alone.
-- **Watchers:** `Watch()` registers the caller for `StateChanged`, and `WatchFrames()` for `Frame` (Phase 10); a caller doing both counts once, at most 8 per Unix user and 32 in all. A watcher is dropped on `Unwatch()`, or when its connection leaves the bus. Each one is checked again every second: one that isn't the active local session any more gets nothing until it passes again, then the whole state in one `StateChanged`.
+- **Watchers:** `Watch()` registers the caller for `StateChanged`, and `WatchFrames()` for `Frame` and `Levels`, and for the `Readings` key of `StateChanged` (Phase 10; Phase 11a Task 13); a caller doing both counts once, at most 8 per Unix user and 32 in all. A watcher is dropped on `Unwatch()`, or when its connection leaves the bus. Each one is checked again every second: one that isn't the active local session any more gets nothing until it passes again, then the whole state in one `StateChanged`.
 - **Arguments** are compared only with what the service found itself: a GPU must be listed in `Gpus`. A string over its limit (64 bytes) is refused before any lookup, and no file path is ever built from a caller's string (owner, 2026-10-26).
 - **The dev interface** exists only when the service starts with `--dev`, at its own object path. Its calls pass three checks: the D-Bus policy lets only group `opendeepcool` send to its path; each method checks the caller's `UnixGroupIDs` from `GetConnectionCredentials`, a missing list meaning no; and polkit's `change-settings` (owner, 2026-10-26).
 
@@ -80,6 +80,9 @@ The names start with the project's public address, its GitHub repository, as the
     <signal name="Frame">
       <arg name="pixels" type="ay"/>
     </signal>
+    <signal name="Levels">
+      <arg name="levels" type="ad"/>
+    </signal>
   </interface>
 </node>
 ```
@@ -99,10 +102,11 @@ The names start with the project's public address, its GitHub repository, as the
 | `SetDarkTheme(b)` | `change-settings` | OpenDeepCool's own theme dark (`true`) or light (`false`), used when the system's theme isn't followed or can't be found; stored the same way | `NotAuthorized`, `Failed` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller; a second `Watch()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
-| `WatchFrames()`, `UnwatchFrames()` | `use` | Starts or stops `Frame` for this caller (Phase 10); a second `WatchFrames()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
+| `WatchFrames()`, `UnwatchFrames()` | `use` | Starts or stops `Frame`, `Levels` and the `Readings` key of `StateChanged` for this caller (Phase 10; Phase 11a Task 13); a second `WatchFrames()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
 | `Diagnostics() → a(sss)` | `use` | One entry per metric, in the order of [sensors.md](sensors.md)'s Metrics: its name as the spec writes it (`CPU Temperature`), its source as the service describes it, empty when none is bound, and its state, `ok` while it has a value, otherwise the one-line reason (`no device found`) (owner, 2026-10-29) | `NotAuthorized` |
 | `StateChanged(a{sv})` | `use`, checked every second | The keys that changed; the whole state after a watcher passes its check again | — |
 | `Frame(ay)` | `use`, checked every second | The frame the engine drew, rotation included, each time it changes: 196 bytes, each 0 or 1, row by row from the top left. It's every frame drawn, whether or not the cooler got it, so a client keeps the picture while the cooler is away. Sent to each frame watcher alone, only while there is one | — |
+| `Levels(ad)` | `use`, checked every second | The 14 column levels of the spectrum, each 0 to 1, left to right, that the engine analysed for the frame of the same tick (`music.md`, OpenDeepCool's spectrum, points 1 to 3), once per tick (100 ms) while a Music mode, 13 to 23, is shown **and** a helper's sound is attached (`AudioConnected`); never otherwise, so an app that gets none shows its still sample. Every value is finite and within 0 to 1 (the service checks before it sends). Sent to each frame watcher alone, only while there is one. It shows nothing more than the `Frame`'s spectrum rows and the Dancer already do (Phase 11a Task 13) | — |
 
 Choosing what is already set succeeds and changes nothing: nothing is saved, sent to the display or signalled.
 
@@ -125,6 +129,7 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `MusicPeaks` | `b` | Whether the spectrum's peak dots are drawn (Phase 9) |
 | `MusicBarFall` | `s` | The bars' fall: `slower`, `slow`, `moderate`, `fast` or `faster` |
 | `MusicPeakFall` | `s` | The peaks' fall, the same five stops |
+| `Readings` | `a{s(xt)}` | Each metric that has a value now, by the name the spec gives it (`CPU Temperature`, `CPU Usage`, `CPU Power`, `Gpu temperature`, `Gpu usage`, `Gpu power`, `Memory Load`; the order of [sensors.md](sensors.md)'s Metrics, as `Diagnostics` writes them), as the exact fraction the display rounds from: the numerator `x` and the denominator `t`, never a floating-point number ([display.md](display.md#values)). A metric with no value is left out, and the app draws it as dashes, as the cooler does. They are the readings the engine drew its frame from, so with the dev copy's override, the override's. They change at most once a second, so `StateChanged` sends this key **only to a watcher that also watches frames** (`WatchFrames()`), as the settings app does; `GetState()` returns it to any caller. Both calls need `use`, as `WatchFrames()` does, so it gives a caller nothing a frame watcher can't have (Phase 11a Task 13) |
 | `UseSystemTheme` | `b` | Whether the app follows the system's theme (default `true`; Phase 11a Task 10) |
 | `DarkTheme` | `b` | Whether OpenDeepCool's own theme is the dark one (default `true`) |
 | `AudioConnected` | `b` | Whether the session's sound comes in: a helper's pipe is attached |
