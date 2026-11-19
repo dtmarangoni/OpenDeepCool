@@ -41,6 +41,9 @@ fn every_field() -> Settings {
         music_peaks: false,
         music_bar_fall: Fall::Faster,
         music_peak_fall: Fall::Slower,
+        // Both away from their defaults, so a lost key shows.
+        use_system_theme: false,
+        dark_theme: false,
         ..Settings::default()
     }
 }
@@ -100,6 +103,11 @@ fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
         ("stop", format!("{base}music_bar_fall = \"fastest\"\n")),
         ("stop-case", format!("{base}music_peak_fall = \"Slow\"\n")),
         ("peaks-type", format!("{base}music_peaks = \"yes\"\n")),
+        (
+            "system-theme-type",
+            format!("{base}use_system_theme = \"yes\"\n"),
+        ),
+        ("dark-theme-type", format!("{base}dark_theme = 1\n")),
     ];
     for (name, text) in cases {
         let (settings, found, d) = load_text(name, &text);
@@ -264,6 +272,23 @@ fn a_file_from_before_the_music_settings_gets_their_defaults() {
         assert!(written.contains(line), "{line}: {written}");
     }
     assert_eq!(settings.music(), odc_render::MusicSettings::default());
+}
+
+// Phase 11a Task 10: a v1 file written before the theme settings loads with both on, the app
+// following the system's theme and OpenDeepCool's own dark (settings.md, defaults), and the next
+// store writes them; the service reads no theme, so any other value is a wrong type (above).
+#[test]
+fn a_file_from_before_the_theme_settings_gets_both_on() {
+    let text = "version = 1\nmode = 4\nrotation = 1\ntemperature_unit = \"celsius\"\n";
+    let (settings, found, d) = load_text("before-theme", text);
+    assert_eq!(found, Found::Read);
+    assert!(settings.use_system_theme && settings.dark_theme);
+    assert_eq!(settings.mode, 4, "the rest as it was");
+    SettingsStore::new(&d).store(&settings).expect("stores");
+    let written = fs::read_to_string(d.join(FILE)).expect("written");
+    for line in ["use_system_theme = true", "dark_theme = true"] {
+        assert!(written.contains(line), "{line}: {written}");
+    }
 }
 
 // The five stops by their names, as the setters take them (music.md point 4).

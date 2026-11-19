@@ -219,6 +219,14 @@ impl Main {
         self.shared.change(format!("SetMusicPeakFall({stop:?})"))
     }
 
+    async fn set_use_system_theme(&self, system: bool) -> Result<(), Error> {
+        self.shared.change(format!("SetUseSystemTheme({system})"))
+    }
+
+    async fn set_dark_theme(&self, dark: bool) -> Result<(), Error> {
+        self.shared.change(format!("SetDarkTheme({dark})"))
+    }
+
     #[zbus(out_args("state"))]
     async fn get_state(&self) -> Result<Dict, Error> {
         Ok(clone(&self.shared.read("GetState()")?.state))

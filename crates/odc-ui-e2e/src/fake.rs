@@ -77,6 +77,9 @@ pub struct Service {
     pub peaks: bool,
     pub bar_fall: &'static str,
     pub peak_fall: &'static str,
+    /// The theme settings the service keeps: follow the system's, and OpenDeepCool's own is dark.
+    pub use_system_theme: bool,
+    pub dark_theme: bool,
     pub audio_connected: bool,
 }
 
@@ -97,6 +100,8 @@ impl Service {
             peaks: true,
             bar_fall: "moderate",
             peak_fall: "slow",
+            use_system_theme: true,
+            dark_theme: true,
             audio_connected: true,
         }
     }
@@ -150,6 +155,8 @@ impl Service {
         put("MusicPeaks", Boolean(self.peaks));
         put("MusicBarFall", text(self.bar_fall));
         put("MusicPeakFall", text(self.peak_fall));
+        put("UseSystemTheme", Boolean(self.use_system_theme));
+        put("DarkTheme", Boolean(self.dark_theme));
         put("AudioConnected", Boolean(self.audio_connected));
         put("AudioWanted", Boolean((13..=23).contains(&self.mode)));
         table

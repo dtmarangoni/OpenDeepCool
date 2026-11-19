@@ -104,6 +104,9 @@ fn full() -> State {
         music_peaks: Some(false),
         music_bar_fall: Some(FallStop::Faster),
         music_peak_fall: Some(FallStop::Slower),
+        // Both away from the defaults, so a swapped pair shows.
+        use_system_theme: Some(false),
+        dark_theme: Some(false),
         audio_connected: Some(true),
         audio_wanted: Some(true),
     }
@@ -231,6 +234,8 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
     let newer = State {
         rotation: Some(1),
         music_peaks: Some(true),
+        use_system_theme: Some(true),
+        dark_theme: Some(true),
         ..full()
     };
     let changes = newer.changed_since(&older);
@@ -239,6 +244,8 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
         State {
             rotation: Some(1),
             music_peaks: Some(true),
+            use_system_theme: Some(true),
+            dark_theme: Some(true),
             ..State::default()
         }
     );

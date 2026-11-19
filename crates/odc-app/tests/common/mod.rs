@@ -183,6 +183,8 @@ pub fn base() -> State {
         music_peaks: Some(true),
         music_bar_fall: Some(FallStop::Moderate),
         music_peak_fall: Some(FallStop::Slow),
+        use_system_theme: Some(true),
+        dark_theme: Some(true),
         audio_connected: Some(true),
         audio_wanted: Some(false),
     }

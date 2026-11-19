@@ -2116,6 +2116,98 @@ fn each_music_setter_validates_stores_and_tells_the_watchers() {
     });
 }
 
+// docs/spec/dbus.md, the theme setters (Phase 11a Task 10): each stores its boolean in the one
+// settings file, tells the watchers, hands the settings to the engine and survives a restart; the
+// same value again changes nothing; a caller polkit refuses gets NotAuthorized and changes nothing.
+// The service never reads a theme: the cooler isn't touched, so the engine gets only the settings.
+#[test]
+fn each_theme_setter_stores_tells_the_watchers_and_survives_a_restart() {
+    let h = Harness::start(
+        "theme-settings",
+        Settings::default(),
+        status(readings(value(51))),
+        false,
+    );
+    zbus::block_on(async {
+        let (changer, watcher) = (h.client().await, h.client().await);
+        watcher.main.watch().await.expect("watches");
+        let mut changes = watcher
+            .main
+            .receive_state_changed()
+            .await
+            .expect("a stream");
+        let state = state_of(&watcher.main.get_state().await.expect("the state"));
+        assert_eq!(
+            (state.use_system_theme, state.dark_theme),
+            (Some(true), Some(true)),
+            "both on by default"
+        );
+        // One at a time, so a swapped pair shows.
+        changer
+            .main
+            .set_use_system_theme(false)
+            .await
+            .expect("stored");
+        let saved = h.saved_settings();
+        assert_eq!((saved.use_system_theme, saved.dark_theme), (false, true));
+        assert_eq!(
+            h.apply.take().and_then(|a| a.settings),
+            Some(saved.clone()),
+            "handed to the engine"
+        );
+        let signal = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("a signal");
+        let seen = state_of(&signal.args().expect("changes").changes);
+        assert_eq!(
+            (seen.use_system_theme, seen.dark_theme, seen.mode),
+            (Some(false), None, None),
+            "only the key that changed"
+        );
+        changer.main.set_dark_theme(false).await.expect("stored");
+        let saved = h.saved_settings();
+        assert_eq!((saved.use_system_theme, saved.dark_theme), (false, false));
+        let signal = within(WAIT, next(&mut changes))
+            .await
+            .flatten()
+            .expect("a signal");
+        let seen = state_of(&signal.args().expect("changes").changes);
+        assert_eq!(
+            (seen.use_system_theme, seen.dark_theme),
+            (None, Some(false))
+        );
+        // A restart of the service reads them back.
+        let (again, _) = SettingsStore::new(&h.state).load().expect("loads");
+        assert_eq!((again.use_system_theme, again.dark_theme), (false, false));
+        // What's already set changes nothing: nothing stored, applied or signalled.
+        h.apply.take();
+        let before = h.saved();
+        changer
+            .main
+            .set_use_system_theme(false)
+            .await
+            .expect("already set");
+        changer
+            .main
+            .set_dark_theme(false)
+            .await
+            .expect("already set");
+        h.nothing_stored_or_applied(&before);
+        // A caller polkit refuses changes nothing.
+        h.polkit.refuse(&changer.name());
+        assert!(matches!(
+            changer.main.set_use_system_theme(true).await,
+            Err(Error::NotAuthorized(_))
+        ));
+        assert!(matches!(
+            changer.main.set_dark_theme(true).await,
+            Err(Error::NotAuthorized(_))
+        ));
+        h.nothing_stored_or_applied(&before);
+    });
+}
+
 // docs/spec/dbus.md, OverrideAudio: the test session's sound replaces the helper's until
 // ClearOverride or the session's end.
 #[test]

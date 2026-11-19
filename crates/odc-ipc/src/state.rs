@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 15] = [
+pub const STATE_KEYS: [(&str, &str); 17] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -23,6 +23,8 @@ pub const STATE_KEYS: [(&str, &str); 15] = [
     ("MusicPeaks", "b"),
     ("MusicBarFall", "s"),
     ("MusicPeakFall", "s"),
+    ("UseSystemTheme", "b"),
+    ("DarkTheme", "b"),
     ("AudioConnected", "b"),
     ("AudioWanted", "b"),
 ];
@@ -129,6 +131,10 @@ pub struct State {
     pub music_peaks: Option<bool>,
     pub music_bar_fall: Option<FallStop>,
     pub music_peak_fall: Option<FallStop>,
+    /// Whether the app follows the system's theme, and whether OpenDeepCool's own is the dark one:
+    /// two settings of the whole PC the service only stores (Phase 11a).
+    pub use_system_theme: Option<bool>,
+    pub dark_theme: Option<bool>,
     /// Whether the session's sound comes in: a helper is attached.
     pub audio_connected: Option<bool>,
     /// Whether the service takes sound: true exactly while a Music mode, 13–23, is shown.
@@ -218,6 +224,12 @@ impl State {
         if let Some(stop) = self.music_peak_fall {
             put("MusicPeakFall", owned(stop.as_str()));
         }
+        if let Some(system) = self.use_system_theme {
+            put("UseSystemTheme", owned(system));
+        }
+        if let Some(dark) = self.dark_theme {
+            put("DarkTheme", owned(dark));
+        }
         if let Some(connected) = self.audio_connected {
             put("AudioConnected", owned(connected));
         }
@@ -301,6 +313,8 @@ impl State {
             music_peaks: get(dict, "MusicPeaks")?,
             music_bar_fall: text(dict, "MusicBarFall", FallStop::parse)?,
             music_peak_fall: text(dict, "MusicPeakFall", FallStop::parse)?,
+            use_system_theme: get(dict, "UseSystemTheme")?,
+            dark_theme: get(dict, "DarkTheme")?,
             audio_connected: get(dict, "AudioConnected")?,
             audio_wanted: get(dict, "AudioWanted")?,
         })
@@ -329,6 +343,8 @@ impl State {
             music_peaks,
             music_bar_fall,
             music_peak_fall,
+            use_system_theme,
+            dark_theme,
             audio_connected,
             audio_wanted
         );
@@ -359,6 +375,8 @@ impl State {
             music_peaks,
             music_bar_fall,
             music_peak_fall,
+            use_system_theme,
+            dark_theme,
             audio_connected,
             audio_wanted
         );

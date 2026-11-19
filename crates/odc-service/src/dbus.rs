@@ -636,6 +636,8 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
         music_peaks: Some(settings.music_peaks),
         music_bar_fall: Some(fall(settings.music_bar_fall)),
         music_peak_fall: Some(fall(settings.music_peak_fall)),
+        use_system_theme: Some(settings.use_system_theme),
+        dark_theme: Some(settings.dark_theme),
         audio_connected: Some(audio_connected),
         audio_wanted: Some(takes_sound(mode)),
     }
@@ -890,6 +892,31 @@ impl Main {
         let result =
             Shared::fall(stop).and_then(|fall| self.shared.save(|s| s.music_peak_fall = fall));
         self.shared.logged(call, &sender, result)
+    }
+
+    async fn set_use_system_theme(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        system: bool,
+    ) -> Result<(), Error> {
+        let call = format!("SetUseSystemTheme({system})");
+        let sender = self.shared.changer(&header, &call).await?;
+        self.shared.logged(
+            &call,
+            &sender,
+            self.shared.save(|s| s.use_system_theme = system),
+        )
+    }
+
+    async fn set_dark_theme(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        dark: bool,
+    ) -> Result<(), Error> {
+        let call = format!("SetDarkTheme({dark})");
+        let sender = self.shared.changer(&header, &call).await?;
+        self.shared
+            .logged(&call, &sender, self.shared.save(|s| s.dark_theme = dark))
     }
 
     #[zbus(out_args("state"))]

@@ -58,6 +58,12 @@ The names start with the project's public address, its GitHub repository, as the
     <method name="SetMusicPeakFall">
       <arg name="stop" type="s" direction="in"/>
     </method>
+    <method name="SetUseSystemTheme">
+      <arg name="system" type="b" direction="in"/>
+    </method>
+    <method name="SetDarkTheme">
+      <arg name="dark" type="b" direction="in"/>
+    </method>
     <method name="GetState">
       <arg name="state" type="a{sv}" direction="out"/>
     </method>
@@ -89,6 +95,8 @@ The names start with the project's public address, its GitHub repository, as the
 | `AttachAudio() → h` | `feed-audio` | Only while a Music mode (13–23) is shown: the write end of a new pipe, which the service reads raw `f32` stereo frames from, 48 000 a second, in the machine's byte order (little-endian on x86_64, the only platform OpenDeepCool supports), as `pw-record --raw --format f32 --channels 2` writes them. It replaces an earlier caller's pipe, which the service closes. The pipe closes as **Sound** above says; the caller sees `EPIPE` | `AudioNotWanted`, `NotAuthorized`, `Failed` |
 | `SetMusicPeaks(b)` | `change-settings` | The peak dots on or off ([music.md](music.md#opendeepcools-spectrum-precisely) point 7); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `Failed` |
 | `SetMusicBarFall(s)`, `SetMusicPeakFall(s)` | `change-settings` | The bars' or the peaks' fall: `slower`, `slow`, `moderate`, `fast` or `faster` (point 4); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `SetUseSystemTheme(b)` | `change-settings` | Whether the settings app follows the system's theme (an Omarchy theme if there is one, else the system's dark or light preference) or OpenDeepCool's own; a setting of the whole PC (owner, 2026-11-18, UI review D6). The service only stores it, never interprets a theme, and touches neither the cooler nor the picture | `NotAuthorized`, `Failed` |
+| `SetDarkTheme(b)` | `change-settings` | OpenDeepCool's own theme dark (`true`) or light (`false`), used when the system's theme isn't followed or can't be found; stored the same way | `NotAuthorized`, `Failed` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller; a second `Watch()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
 | `WatchFrames()`, `UnwatchFrames()` | `use` | Starts or stops `Frame` for this caller (Phase 10); a second `WatchFrames()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
@@ -117,6 +125,8 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `MusicPeaks` | `b` | Whether the spectrum's peak dots are drawn (Phase 9) |
 | `MusicBarFall` | `s` | The bars' fall: `slower`, `slow`, `moderate`, `fast` or `faster` |
 | `MusicPeakFall` | `s` | The peaks' fall, the same five stops |
+| `UseSystemTheme` | `b` | Whether the app follows the system's theme (default `true`; Phase 11a Task 10) |
+| `DarkTheme` | `b` | Whether OpenDeepCool's own theme is the dark one (default `true`) |
 | `AudioConnected` | `b` | Whether the session's sound comes in: a helper's pipe is attached |
 | `AudioWanted` | `b` | Whether the service takes sound: true exactly while a Music mode, 13–23, is shown (owner, 2026-10-26), so the session's helper captures only then |
 

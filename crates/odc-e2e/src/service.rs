@@ -128,6 +128,16 @@ impl Drop for Restore<'_> {
         {
             said.push(format!("SetMusicPeakFall: {e}"));
         }
+        if let Some(system) = self.state.use_system_theme
+            && let Err(e) = zbus::block_on(main.set_use_system_theme(system))
+        {
+            said.push(format!("SetUseSystemTheme: {e}"));
+        }
+        if let Some(dark) = self.state.dark_theme
+            && let Err(e) = zbus::block_on(main.set_dark_theme(dark))
+        {
+            said.push(format!("SetDarkTheme: {e}"));
+        }
         for line in said {
             eprintln!("odc-e2e: the owner's settings weren't all set back: {line}");
         }
@@ -142,6 +152,44 @@ pub(crate) fn gpu_addresses(state: &State) -> Vec<String> {
         .flatten()
         .map(|gpu| gpu.pci.clone())
         .collect()
+}
+
+/// The two theme settings the service keeps for the app (Phase 11a Task 10): each setter changes
+/// its own key and nothing else, which `GetState` says; the run's [`Restore`] sets the values it
+/// found back.
+fn theme_settings(session: &Session) -> Result<String, String> {
+    let main = session.main();
+    let before = state(session)?;
+    let (Some(system), Some(dark)) = (before.use_system_theme, before.dark_theme) else {
+        return Err("GetState has no UseSystemTheme or no DarkTheme".to_owned());
+    };
+    zbus::block_on(main.set_use_system_theme(!system))
+        .map_err(|e| format!("SetUseSystemTheme: {e}"))?;
+    let one = state(session)?;
+    if (one.use_system_theme, one.dark_theme) != (Some(!system), Some(dark)) {
+        return Err(format!(
+            "SetUseSystemTheme({}) gave {:?} and {:?}",
+            !system, one.use_system_theme, one.dark_theme
+        ));
+    }
+    zbus::block_on(main.set_dark_theme(!dark)).map_err(|e| format!("SetDarkTheme: {e}"))?;
+    let two = state(session)?;
+    if (two.use_system_theme, two.dark_theme) != (Some(!system), Some(!dark)) {
+        return Err(format!(
+            "SetDarkTheme({}) gave {:?} and {:?}",
+            !dark, two.use_system_theme, two.dark_theme
+        ));
+    }
+    // Nothing else changed: the display is the owner's, as it was.
+    if (two.mode, two.rotation, two.temperature_unit)
+        != (before.mode, before.rotation, before.temperature_unit)
+    {
+        return Err("a theme setting changed the mode, the rotation or the unit".to_owned());
+    }
+    Ok(format!(
+        "system theme {system} to {}, dark {dark} to {}, the rest as it was",
+        !system, !dark
+    ))
 }
 
 pub(crate) fn state(session: &Session) -> Result<State, String> {
@@ -176,6 +224,7 @@ fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
     };
     summary.check("service_timing", timing_real(&session));
     summary.check("service_durations", durations(&session));
+    summary.check("service_theme", theme_settings(&session));
 
     let switch = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT)
         .map(|usb| usb.join("authorized"))

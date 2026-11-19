@@ -107,6 +107,12 @@ fn peaks_slow() -> Fall {
     Fall::Slow
 }
 
+/// The theme settings' default, both on: follow the system's theme, and OpenDeepCool's own is the
+/// dark one (owner, 2026-11-18).
+fn theme_on() -> bool {
+    true
+}
+
 /// The settings (`docs/spec/settings.md`; the defaults are OpenDeepCool's, the same as
 /// DeepCreative's first start).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -127,6 +133,13 @@ pub struct Settings {
     pub music_bar_fall: Fall,
     #[serde(default = "peaks_slow")]
     pub music_peak_fall: Fall,
+    /// The theme (`docs/spec/settings.md`; Phase 11a): the app follows the system's, and
+    /// OpenDeepCool's own is dark. The service only stores them, for the whole PC; a file
+    /// written before them gets both on.
+    #[serde(default = "theme_on")]
+    pub use_system_theme: bool,
+    #[serde(default = "theme_on")]
+    pub dark_theme: bool,
     /// The fields a later build added, as they were.
     #[serde(flatten)]
     pub later: toml::Table,
@@ -143,6 +156,8 @@ impl Default for Settings {
             music_peaks: peaks_on(),
             music_bar_fall: bars_moderate(),
             music_peak_fall: peaks_slow(),
+            use_system_theme: theme_on(),
+            dark_theme: theme_on(),
             later: toml::Table::new(),
         }
     }

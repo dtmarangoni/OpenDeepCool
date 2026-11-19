@@ -40,7 +40,7 @@ Evidence:
 
 The same as DeepCreative's first start: mode 1, rotation 0, Celsius.
 
-OpenDeepCool's own settings: Music peak dots on, bar fall moderate, peak fall slow (Winamp's defaults) ([music.md](music.md#opendeepcools-spectrum-precisely); owner, 2026-10-25).
+OpenDeepCool's own settings: Music peak dots on, bar fall moderate, peak fall slow (Winamp's defaults) ([music.md](music.md#opendeepcools-spectrum-precisely); owner, 2026-10-25); and the theme: use the system's theme on, OpenDeepCool's own theme dark (owner, 2026-11-18). Both theme settings are the service's, kept in its one settings file for the whole PC, so "no app-only settings in v1" stays true; the service stores them and never interprets a theme ([dbus.md](dbus.md): `SetUseSystemTheme`, `SetDarkTheme`). A file written before them loads with both on.
 
 GPU: the dedicated GPU when the PC has one, otherwise the integrated GPU ([sensors.md](sensors.md#gpu-choice)).
 

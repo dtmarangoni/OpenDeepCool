@@ -138,6 +138,8 @@ fn base() -> State {
         music_peaks: Some(true),
         music_bar_fall: Some(FallStop::Moderate),
         music_peak_fall: Some(FallStop::Slow),
+        use_system_theme: Some(true),
+        dark_theme: Some(true),
         audio_connected: Some(false),
         audio_wanted: Some(false),
     }
@@ -1071,6 +1073,8 @@ prop_compose! {
             music_peaks: Some(music.0),
             music_bar_fall: Some(stops[music.1]),
             music_peak_fall: Some(stops[music.2]),
+            use_system_theme: Some(true),
+            dark_theme: Some(true),
             audio_connected: Some(music.3),
             audio_wanted: Some(music.3),
         }

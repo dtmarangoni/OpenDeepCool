@@ -93,6 +93,10 @@ pub trait OpenDeepCool {
     async fn set_music_peaks(&self, peaks: bool) -> Result<(), Error>;
     async fn set_music_bar_fall(&self, stop: &str) -> Result<(), Error>;
     async fn set_music_peak_fall(&self, stop: &str) -> Result<(), Error>;
+    /// Whether the app follows the system's theme, and whether OpenDeepCool's own theme is the
+    /// dark one: two settings of the whole PC, only stored (Phase 11a).
+    async fn set_use_system_theme(&self, system: bool) -> Result<(), Error>;
+    async fn set_dark_theme(&self, dark: bool) -> Result<(), Error>;
     /// The whole state, as `a{sv}`; [`State::from_dict`] reads it.
     async fn get_state(&self) -> Result<HashMap<String, OwnedVariant>, Error>;
     /// Sends this caller `StateChanged` while it watches.
