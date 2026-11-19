@@ -21,7 +21,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 8] = [
+const CHECKS: [(&str, Check); 9] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -38,6 +38,7 @@ const CHECKS: [(&str, Check); 8] = [
         "the_theme_line_sits_under_use_system_theme_in_every_state",
         theme_line_place,
     ),
+    ("the_cards_are_10_px_apart", card_gaps),
     ("the_page_saved_as_a_picture", picture_file),
 ];
 
@@ -218,6 +219,39 @@ fn removed_lines(app: &gtk::Application) {
         assert!(
             texts.iter().all(|t| !t.contains(words)),
             "{what} is back: {texts:?}"
+        );
+    }
+    close(window);
+}
+
+// The cards are 10 px apart, one under the other (owner, 2026-11-19: 18 before): the gap between
+// a card and the next, and nothing else of the page's margins.
+fn card_gaps(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    let page = window.config_page().cards().clone();
+    let place = |name: &str| {
+        find::<gtk::Widget>(&window, name)
+            .compute_bounds(&page)
+            .map(|b| (b.y(), b.y() + b.height()))
+            .unwrap_or_else(|| panic!("{name} has a place"))
+    };
+    let names = [
+        "Theme settings",
+        "Display settings",
+        "Music settings",
+        "Startup settings",
+    ];
+    for pair in names.windows(2) {
+        let (above, below) = (place(pair[0]), place(pair[1]));
+        assert_eq!(
+            below.0 - above.1,
+            10.0,
+            "{} to {}: {above:?}, {below:?}",
+            pair[0],
+            pair[1]
         );
     }
     close(window);

@@ -203,7 +203,7 @@ impl ConfigPage {
         // Under the page bar the cards start 6 px down (Window, Page bar).
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
-            .spacing(18)
+            .spacing(10)
             .margin_top(6)
             .margin_bottom(18)
             .margin_start(18)
