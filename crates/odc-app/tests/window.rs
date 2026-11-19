@@ -31,7 +31,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 11] = [
+const CHECKS: [(&str, Check); 12] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
@@ -39,6 +39,10 @@ const CHECKS: [(&str, Check); 11] = [
     ("sending_fails_shows_after_2_s", sending_fails),
     ("the_feedback_label", feedback),
     ("the_status_items_stand_24_px_under_the_caption", status_gap),
+    (
+        "each_page_s_content_starts_14_px_under_its_title",
+        title_to_content,
+    ),
     (
         "the_caption_and_the_status_items_are_centred_in_the_column",
         column_centred,
@@ -574,6 +578,41 @@ fn column_centred(app: &gtk::Application) {
             middle(&row)
         );
     }
+    close(window);
+}
+
+// Each page's content starts 14 px under its page bar (owner, 2026-11-19: more room between the
+// title and what follows; 6 px before): the bar's 8 px below and the page's own 6.
+fn title_to_content(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(base());
+    run_for(Duration::from_millis(200));
+    // The Display page, then the Configuration page: the first content of each, its bar above.
+    let display_first = window
+        .names()
+        .find("Load options")
+        .and_then(|flow| flow.parent())
+        .expect("the Load group");
+    let gap_under_bar = |content: &gtk::Widget, window: &Window| {
+        let scroller = content
+            .ancestor(gtk::ScrolledWindow::static_type())
+            .expect("the page's scroller");
+        let bar = scroller
+            .parent()
+            .and_then(|page| page.first_child())
+            .expect("the page bar");
+        let place = |w: &gtk::Widget| w.compute_bounds(window.widget()).expect("a place");
+        let (bar_at, content_at) = (place(&bar), place(content));
+        content_at.y() - (bar_at.y() + bar_at.height())
+    };
+    assert_eq!(gap_under_bar(&display_first, &window), 14.0, "Display");
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    let config_first = window
+        .names()
+        .find("Theme settings")
+        .expect("the Theme card");
+    assert_eq!(gap_under_bar(&config_first, &window), 14.0, "Configuration");
     close(window);
 }
 

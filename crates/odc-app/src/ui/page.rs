@@ -29,9 +29,12 @@ pub fn page_bar(
     title: &str,
     trailing: Option<&gtk::Button>,
 ) -> gtk::Box {
+    // 8 px below the bar and the content's 6 above it: 14 px from the title to the content
+    // (owner, 2026-11-19).
     let bar = gtk::Box::builder()
         .spacing(8)
         .margin_top(12)
+        .margin_bottom(8)
         .margin_start(18)
         .margin_end(18)
         .css_classes(["page-bar"])
