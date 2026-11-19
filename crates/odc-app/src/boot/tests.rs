@@ -640,11 +640,6 @@ fn pkexec_s_codes_and_the_program_s_message() {
 
 #[test]
 fn the_card_s_words_as_the_design_writes_them() {
-    assert_eq!(
-        HINT,
-        "When it's on, the display service starts at every boot, and the sound for the Music \
-         options at every login."
-    );
     assert_eq!(TITLE, "Start at boot");
     assert_eq!(
         OFF_SCREEN_TEXT,

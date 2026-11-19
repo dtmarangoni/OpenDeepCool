@@ -389,7 +389,7 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
   | Text | `max-width-chars` | About |
   |---|---|---|
   | Banner text | 100 | 740 px, under the window's width |
-  | A hint or note under a card's rows (the Music hint, the Startup hint, the Start at boot note) | 72 | the rows' 520 px |
+  | A hint or note under a card's rows (the Music hint, the Start at boot note) | 72 | the rows' 520 px |
   | The off screen's heading and text | 48 | centred |
   | The not-available message | 40 | the window's width less its 48 px of margin |
   | The preview column's lines, the label blocks' hints, the GPU box's lines | 28, 28, 40 | as built |
@@ -660,7 +660,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
 
   The toggles and the switches are shorter than a block of a title and a hint, so they centre against it. The dropdown's box and the scales hang from the top, level with the title, since a scale's marks and the dropdown's lines hang below them.
-- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
+- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
 - **Hidden rows.** The GPU row hides with one `set_visible(false)`, as it does today. The card's 14 px spacing skips hidden children (GtkBox), so a PC with one GPU has no gap there.
 - **Narrow windows.**
   - The window opens at the size of its content and isn't resizable by the user, so a page is narrower than its natural width only where the monitor is: the content is capped to the screen ([Size and scrolling](#size-and-scrolling)).
@@ -766,7 +766,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
 ### Startup
 
-- **Start at boot:** a `GtkSwitch` ([The switches](#the-switches)), on only when OpenDeepCool is ready to use, with a note under the row when one applies, and the card's hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." (One sentence: the password is said by the "Turning on…" and "Turning off…" lines at the moment a flip asks for it, owner, 2026-11-18.)
+- **Start at boot:** a `GtkSwitch` ([The switches](#the-switches)), on only when OpenDeepCool is ready to use, with a note under the row when one applies, and no hint at the card's foot (the hint "When it's on, the display service starts at every boot, and the sound for the Music options at every login." went on 2026-11-19; the password is said by the "Turning on…" and "Turning off…" lines at the moment a flip asks for it, owner, 2026-11-18).
 - It's the last card, because it's flipped about once per PC. Its states, texts and flows are in [Start at boot](#start-at-boot).
 
 ### The switches
@@ -890,7 +890,7 @@ The saved mode's lost reading gets no banner. It shows under the preview and on 
 - **The trough** (`state`) is on only when all four facts hold; **the handle** (`active`) is the latest flip. A flip from off always goes to on, and from on to off.
 - **Insensitive** while a flip runs, while the state is unknown, and while the display service is starting. The stylesheet draws an insensitive switch with the normal fill and border and a `--muted` slider, without `opacity` (decisions log D43); a checked one keeps the `--accent` trough, so a running flip's "off / on" (the trough at systemd's state) still shows (Phase 11 Task 3, as built).
 - The handle's slide is GTK's own and follows the user's `gtk-enable-animations` setting, as the peak dots switch does.
-- **Row:** a label block, the title "Start at boot" alone (the subtitle "For the whole PC" went on 2026-11-19), and the switch beside it, left-aligned, 24 px from the block ([Rows](#rows): `halign` start, `valign` center). The switch is 40 × 22 ([The switches](#the-switches)). Under the row, the note, when one applies. At the card's foot, the hint: "When it's on, the display service starts at every boot, and the sound for the Music options at every login." It no longer says that each change asks for the administrator's password (owner, 2026-11-18). The "Turning on…" and "Turning off…" lines say so at the moment a flip asks, and the desktop's own dialog is the authority.
+- **Row:** a label block, the title "Start at boot" alone (the subtitle "For the whole PC" went on 2026-11-19), and the switch beside it, left-aligned, 24 px from the block ([Rows](#rows): `halign` start, `valign` center). The switch is 40 × 22 ([The switches](#the-switches)). Under the row, the note, when one applies, and nothing at the card's foot: the hint that was there went on 2026-11-19 (it had lost its sentence about the password on 2026-11-18). The "Turning on…" and "Turning off…" lines say that a password is asked at the moment a flip asks, and the desktop's own dialog is the authority.
 
 ### The note
 
@@ -988,7 +988,6 @@ Until Phase 11a the card showed the commands, with a Copy button, under a failur
 │ ○ Service off        │  ┌───────────────────────────────────────────────┐  │
 │   (● Service not     │  │ Start at boot                       ( ○    )  │  │
 │    running, red)     │  │ ⚠ Not fully on: the display service failed. … │  │
-│                      │  │ When it's on, the display service starts …    │  │
 │                      │  └───────────────────────────────────────────────┘  │
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```

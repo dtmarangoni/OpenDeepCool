@@ -205,10 +205,8 @@ pub const IS_OFF: &str = "OpenDeepCool is off";
 pub const NOT_RUNNING: &str = "OpenDeepCool isn't running";
 pub const OFF_SCREEN_TEXT: &str = "The cooler shows nothing until the display service runs.";
 
-/// The row's words and the card's hint (Configuration page, Startup).
+/// The row's words (Configuration page, Startup).
 pub const TITLE: &str = "Start at boot";
-pub const HINT: &str = "When it's on, the display service starts at every boot, and the sound for \
-                        the Music options at every login.";
 
 /// A running flip's lines.
 pub const TURNING_ON: &str =

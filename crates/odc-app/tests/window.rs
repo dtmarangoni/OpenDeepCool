@@ -361,6 +361,11 @@ fn start_at_boot(app: &gtk::Application) {
     let mut texts = Vec::new();
     label_texts(startup.card().upcast_ref(), &mut texts);
     assert!(texts.iter().all(|t| !t.contains("whole PC")), "{texts:?}");
+    // And no hint at the card's foot (owner, 2026-11-19).
+    assert!(
+        texts.iter().all(|t| !t.starts_with("When it's on")),
+        "{texts:?}"
+    );
     assert_eq!(startup.note(), None, "a new install has no note");
     assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
     run_until("the switch takes the first focus", || switch.is_focus());

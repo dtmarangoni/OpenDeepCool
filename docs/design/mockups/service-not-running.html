@@ -656,7 +656,6 @@ function bootCard(where) {
     <div class="row"><div class="row-l"><span>Start at boot</span></div>
       <div class="row-r mid">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
-    <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login.</span></div>
   </section>`;
 }
 

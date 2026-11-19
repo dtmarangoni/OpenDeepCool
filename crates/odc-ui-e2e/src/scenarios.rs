@@ -1412,7 +1412,9 @@ fn boot_on(run: &mut Run) -> Result<String> {
     run.check_state("switch", BOOT, State::Sensitive, true)?;
     run.gone("group", "Start at boot status")?;
     run.no_terminal()?;
-    run.node(
+    // The card holds the title and the switch, and a note when one applies: no hint at its foot
+    // (owner, 2026-11-19).
+    run.gone(
         "label",
         "When it's on, the display service starts at every boot, and the sound for the Music \
          options at every login.",
