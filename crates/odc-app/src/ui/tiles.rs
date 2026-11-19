@@ -14,7 +14,7 @@ use odc_render::{Mode, mode_info};
 
 use super::dots;
 use super::names::Names;
-use crate::model::{Flag, Tile, group_name, option};
+use crate::model::{Tile, group_name, option};
 use crate::theme::{Rgb, Rgba, Tokens, UNLIT_ALPHA};
 
 /// The tile picture's pitch, px per dot: 14 × 4.5 = 63 px, as the mockups draw it.
@@ -128,23 +128,13 @@ impl TileWidget {
         match tile.flag {
             Some(flag) => {
                 self.flag.set_text(flag.text());
-                self.flag.set_css_classes(&[
-                    "flag",
-                    "small",
-                    if flag == Flag::ReadingLost {
-                        "warn-text"
-                    } else {
-                        "muted"
-                    },
-                ]);
+                // Plain text in the tile's own colour, even for a lost reading: warning-coloured
+                // small text on the selected fill misses 4.5:1 in the light theme (design: Design
+                // review, Task 15). The warning colour stays on the reason under the preview.
+                self.flag.set_css_classes(&["flag", "small"]);
                 self.flag.set_visible(true);
             }
             None => self.flag.set_visible(false),
-        }
-        if tile.flag == Some(Flag::ReadingLost) {
-            self.child.add_css_class("lost");
-        } else {
-            self.child.remove_css_class("lost");
         }
         names.describe(&self.child, tile.description.as_deref());
         self.child.set_tooltip_text(tile.description.as_deref());

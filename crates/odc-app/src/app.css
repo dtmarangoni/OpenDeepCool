@@ -258,10 +258,6 @@ popover > contents {
   font-weight: 600;
 }
 
-flowboxchild.tile.lost .flag {
-  color: var(--yellow);
-}
-
 /* A saved input that isn't found: a warning border. */
 dropdown.warn > button {
   border-color: var(--yellow);

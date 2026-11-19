@@ -147,12 +147,17 @@ button { font: inherit; color: inherit; }
 
 /* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; }
-.page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 20px 0; }
+.page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 18px 0; }
 .page-title { flex: 1; margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
-.page-scroll { flex: 1; overflow: auto; padding: 6px 20px 24px; }
+/* A page's margins are 18 px (design, Window, Page bar; Spacing), 6 px under the page bar. */
+.page-scroll { flex: 1; overflow: auto; padding: 6px 18px 18px; }
 .group h3, .card h3 { font-size: var(--fs); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
 .group-reason { display: flex; gap: 6px; font-size: var(--fs-small); margin: -2px 0 6px; align-items: center; }
-.pair { display: flex; gap: 28px; flex-wrap: wrap; }
+/* Temperature and Power share a row, 24 px apart, as in the app (design, Display page). The app sizes a tile by the widest
+   caption of its group, so these two groups' tiles are narrower than the Music group's; the mockups draw every tile at
+   98 px, and 90 px here keeps the pair in one row in the 930 px window (632 px of room) instead of wrapping. */
+.pair { display: flex; gap: 0 24px; flex-wrap: wrap; }
+.pair .tile { width: 90px; }
 .tiles { display: flex; flex-wrap: wrap; gap: 8px; }
 .tile { width: 98px; padding: 8px 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .tile canvas { display: block; }
@@ -161,24 +166,35 @@ button { font: inherit; color: inherit; }
 .tile-cap { font-size: 12px; text-align: center; line-height: 1.2; }
 .tile-flag { font-size: 11px; }
 .tile-flag svg { width: 11px; height: 11px; }
+/* "Reading lost" on the saved mode's tile: the words in --fg, with no warning colour and no icon (the app's flag is a
+   label). Small text in the light theme's bronze on the selected fill is 4.2:1, under the 4.5:1 text needs (design, The
+   contrast table, Pairs outside the table); the warning colour and icon stay on the reason line under the preview. */
+.tile-flag.lost { color: var(--fg); }
 
-.config .card { background: var(--surface); border-radius: var(--radius-box); padding: 4px 16px 12px; margin-bottom: 14px; }
+/* A card (design, Configuration page, Rows): a vertical box, 14 px between its children (the heading, each row, a note
+   or a hint) and 14 px above and below, 16 px at the sides; 18 px between cards. There is no rule between rows: the
+   app draws none, and a title sits 2 px from its hint and 14 px from the next row. */
+.card { background: var(--surface); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.config .card { margin-bottom: 18px; }
+.card h3 { margin: 0; }
 /* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
    left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
    GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
    from the top (the GPU box, a scale) starts level with the title; a toggle group or a switch centres on the block. */
-.row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; padding: 10px 0; border-bottom: 1px solid color-mix(in srgb, var(--fg) 8%, transparent); }
-.row:last-of-type { border-bottom: 0; }
+.row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; }
 .row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
 .row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .row-r.mid { align-self: center; }
 /* The Startup card on the off screen is outside the page's size group: its block takes its own width */
 .off-screen .row-l { width: auto; }
-.hint { display: flex; gap: 6px; font-size: var(--fs-small); margin-top: 6px; max-width: 520px; }
-.row-r .hint { margin-top: 0; max-width: 320px; }
+.hint { display: flex; gap: 6px; font-size: var(--fs-small); margin: 0; max-width: 520px; }
+.row-r .hint { max-width: 320px; }
 .dd { position: relative; }
 .dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 6px 10px; text-align: left; }
-.dd-pop { position: absolute; left: 0; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
+/* The open list is as wide as its longest entry with its note (about 470 px), wider than the 320 px button. GTK's popover
+   opens at the button's left edge and slides back inside the screen when it would leave it; the mockup's window clips, so
+   the list is anchored by its right end, 10 px short of the window's edge (the button's right end is 114 px from it). */
+.dd-pop { position: absolute; left: auto; right: -104px; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius-box); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
 .dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
 .dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
@@ -198,10 +214,10 @@ button { font: inherit; color: inherit; }
 /* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do) */
 .switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
 /* The Startup card in the window's body while the service is down, and the terminal commands */
-.empty .boot-card { background: var(--surface); border-radius: var(--radius-box); padding: 4px 16px 12px; margin: 18px auto 0;
-  width: 560px; max-width: 100%; text-align: left; }
+.empty .boot-card { margin: 18px auto 0; width: 560px; max-width: 100%; text-align: left; }
 .off-screen { width: 560px; max-width: 100%; }
 .terminal { margin-top: 10px; text-align: left; }
+.card .terminal { margin-top: 0; }
 .terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
 .terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px;
   background: color-mix(in srgb, var(--fg) 8%, transparent); }
@@ -210,6 +226,10 @@ button { font: inherit; color: inherit; }
 .marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
 .marks span.on { color: var(--fg); font-weight: 600; }
 .empty { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 400px; }
+/* The off screen is centred in the whole height of the page, as the design says (Start at boot, The off screen); its scroller
+   is a flex box only for it, so the pages with content are laid out as before. */
+.page-scroll:has(> .page.empty) { display: flex; }
+.page-scroll > .page.empty { flex: 1; min-width: 0; }
 .empty h2 { font-size: var(--fs-heading); font-weight: 600; margin: 0 0 6px; }
 /* Not available in this session: the message alone, centred in the whole window body */
 .content.only { display: flex; }
@@ -296,8 +316,8 @@ const CONFIG = {"omarchyTheme": false, "colorScheme": "light", "useSystemTheme":
 // CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
 // widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
 // scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
-// least 813 px high (the height of the Configuration page, the tallest, so Display leaves room under its tiles, as in
-// the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
+// least 1007 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
+// in the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
 //
@@ -781,7 +801,7 @@ function tile(m) {
       ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
       <canvas data-mode="${m.id}"></canvas>
       <span class="tile-cap">${m.caption}</span>
-      ${why && sel ? `<span class="tile-flag warn-text">${ICON.warn}Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
     </button>`;
 }
 function group(name, extraClass) {

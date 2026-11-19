@@ -58,8 +58,8 @@
 // CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
 // widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
 // scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
-// least 813 px high (the height of the Configuration page, the tallest, so Display leaves room under its tiles, as in
-// the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
+// least 1007 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
+// in the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
 //
@@ -543,7 +543,7 @@ function tile(m) {
       ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
       <canvas data-mode="${m.id}"></canvas>
       <span class="tile-cap">${m.caption}</span>
-      ${why && sel ? `<span class="tile-flag warn-text">${ICON.warn}Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
     </button>`;
 }
 function group(name, extraClass) {
