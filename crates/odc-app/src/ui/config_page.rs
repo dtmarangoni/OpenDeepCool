@@ -364,7 +364,7 @@ impl ConfigPage {
             &display,
             &labels,
             "Temperature unit",
-            Some("Used wherever the display shows a temperature"),
+            None,
             &unit_toggles,
             true,
         );

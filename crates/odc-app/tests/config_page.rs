@@ -89,13 +89,17 @@ fn rows(app: &gtk::Application) {
             x_of(name)
         );
     }
-    // The unit's hint wraps to two lines at 28 characters.
-    let hint = parent("Celsius")
+    // A hint wraps at 28 characters (Rows): the Peak dots', the one row with a hint under its
+    // title now that the owner removed the others (2026-11-19). Its text fits a line at that
+    // width, so the rule is checked on the label, not on a count of lines.
+    let hint = find::<gtk::Widget>(&window, "Peak dots")
         .prev_sibling()
         .and_then(|block| block.last_child())
         .and_then(|w| w.downcast::<gtk::Label>().ok())
-        .expect("the unit's hint");
-    assert_eq!(hint.layout().line_count(), 2, "{}", hint.text());
+        .expect("the Peak dots' hint");
+    assert_eq!(hint.text(), "A dot above each bar that falls slowly");
+    assert!(hint.wraps());
+    assert_eq!((hint.width_chars(), hint.max_width_chars()), (28, 28));
     // The switches.
     for name in ["Peak dots", "Start at boot"] {
         let switch = find::<gtk::Switch>(&window, name);
@@ -182,9 +186,13 @@ fn unit_toggles(app: &gtk::Application) {
 // Made-up GPUs (AGENTS.md rule 10), in the service's order.
 /// The sentences the owner took off the Configuration page (2026-11-19: Tasks 19 to 24 of Phase
 /// 11a) and the words each began with: none of them is on the page, in any card.
-const REMOVED: [(&str, &str); 2] = [
+const REMOVED: [(&str, &str); 3] = [
     ("except Dancer", "the Music card's closing sentence"),
     ("Turns the picture clockwise", "the Rotation row's hint"),
+    (
+        "Used wherever the display shows",
+        "the Temperature unit row's hint",
+    ),
 ];
 
 // The page holds none of the sentences the owner removed.

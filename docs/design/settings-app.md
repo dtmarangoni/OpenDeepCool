@@ -630,8 +630,6 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 │ Display                                                                     │
 │ Rotation                    [ 0° ][ 90° ][ 180° ][ 270° ]                   │
 │ Temperature unit            [ °C ][ °F ]                                    │
-│ Used wherever the display                                                   │
-│ shows a temperature                                                         │
 │ GPU                         [ Automatic                         v ]         │
 │ Where the display's GPU     Using Dedicated · Contoso Graphics R870.        │
 │ values come from                                                            │
@@ -730,7 +728,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 ### Display
 
 - **Rotation:** no hint (the line "Turns the picture clockwise" went on 2026-11-19). Four grouped `GtkToggleButton`s, `0°`, `90°`, `180°`, `270°`, which call `SetRotation`. The preview turns with the next frame.
-- **Temperature unit,** the row after Rotation: "Temperature unit", with the hint "Used wherever the display shows a temperature". The same control as Rotation's: two grouped `GtkToggleButton`s, `°C` and `°F`, linked, with the accessible names "Celsius" and "Fahrenheit" (`gtk_toggle_button_set_group`, verified).
+- **Temperature unit,** the row after Rotation: "Temperature unit", with no hint (the line "Used wherever the display shows a temperature" went on 2026-11-19). The same control as Rotation's: two grouped `GtkToggleButton`s, `°C` and `°F`, linked, with the accessible names "Celsius" and "Fahrenheit" (`gtk_toggle_button_set_group`, verified).
   - A toggle calls `SetTemperatureUnit` and goes back to the saved unit until the service confirms the change (`StateChanged`), as every control does ([Refused changes](#refused-changes)).
   - In a mode without a temperature, the unit is only saved and the cooler doesn't change (display.md, Mode switches). Nothing in the app needs to say so, because the preview stays the same.
   - The temperature tiles on the Display page redraw in the confirmed unit.
