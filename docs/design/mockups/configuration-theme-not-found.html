@@ -845,7 +845,7 @@ function configPage() {
   return pageBar("config") + `<div class="page-scroll"><div class="page config">
     ${themeCard()}
     <section class="card" aria-label="Display settings"><h3>Display</h3>
-      <div class="row"><div class="row-l"><span id="rot-l">Rotation</span><span class="muted small">Turns the picture clockwise</span></div>
+      <div class="row"><div class="row-l"><span id="rot-l">Rotation</span></div>
         <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
       <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span><span class="muted small">Used wherever the display shows a temperature</span></div>
         <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>

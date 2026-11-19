@@ -182,7 +182,10 @@ fn unit_toggles(app: &gtk::Application) {
 // Made-up GPUs (AGENTS.md rule 10), in the service's order.
 /// The sentences the owner took off the Configuration page (2026-11-19: Tasks 19 to 24 of Phase
 /// 11a) and the words each began with: none of them is on the page, in any card.
-const REMOVED: [(&str, &str); 1] = [("except Dancer", "the Music card's closing sentence")];
+const REMOVED: [(&str, &str); 2] = [
+    ("except Dancer", "the Music card's closing sentence"),
+    ("Turns the picture clockwise", "the Rotation row's hint"),
+];
 
 // The page holds none of the sentences the owner removed.
 fn removed_lines(app: &gtk::Application) {

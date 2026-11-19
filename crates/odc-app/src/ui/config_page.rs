@@ -319,14 +319,7 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(
-            &display,
-            &labels,
-            "Rotation",
-            Some("Turns the picture clockwise"),
-            &toggles,
-            true,
-        );
+        row(&display, &labels, "Rotation", None, &toggles, true);
 
         // The temperature unit, after Rotation: the same kind of control.
         let celsius = gtk::ToggleButton::builder().label("°C").build();
