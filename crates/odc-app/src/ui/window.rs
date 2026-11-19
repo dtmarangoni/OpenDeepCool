@@ -52,6 +52,9 @@ const COLUMN_CHARS: i32 = 28;
 const OFF_SCREEN_CHARS: i32 = 48;
 const NOT_AVAILABLE_CHARS: i32 = 40;
 
+/// The room added above the status items to the column's 10 px between its children.
+const STATUS_GAP: i32 = 14;
+
 /// The status items' accessible names, in the column's order.
 const STATUS_NAMES: [&str; 3] = ["Cooler status", "Service status", "Music sound status"];
 
@@ -256,7 +259,10 @@ impl Window {
                 .build(),
         );
         reason_box.append(&reason);
+        // The status items stand 24 px from what is above them (the column's 10 and 14 more), to
+        // set them apart from the caption (owner, 2026-11-19).
         let status_box = vbox(4);
+        status_box.set_margin_top(STATUS_GAP);
         let status = STATUS_NAMES.map(|name| {
             let row = group().spacing(8).build();
             names.name(&row, name);
