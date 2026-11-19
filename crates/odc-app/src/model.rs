@@ -477,7 +477,7 @@ pub fn view(
         column,
         display,
         config,
-        startup: boot::switch(startup, boot::Place::Card),
+        startup: boot::switch(startup),
     }))
 }
 

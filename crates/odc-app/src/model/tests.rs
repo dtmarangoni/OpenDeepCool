@@ -6,7 +6,7 @@ use std::collections::{BTreeMap, HashMap};
 use proptest::prelude::*;
 
 use super::*;
-use crate::boot::{Facts, Known, Place, Run, UnitFile};
+use crate::boot::{Facts, Known, Run, UnitFile};
 use crate::live::sample_values;
 use odc_render::Stop;
 
@@ -29,7 +29,6 @@ const STARTUP_ON: boot::Switch = boot::Switch {
     trough: true,
     sensitive: true,
     note: None,
-    commands: None,
 };
 
 /// The design's tile table (Display page), typed here apart from the model's own.
@@ -845,7 +844,7 @@ fn service_not_running() {
     let View::Normal(normal) = normal else {
         panic!("not the normal screens");
     };
-    assert_eq!(normal.startup, boot::switch(&failed, Place::Card));
+    assert_eq!(normal.startup, boot::switch(&failed));
     assert!(
         normal
             .startup
@@ -1095,14 +1094,9 @@ fn identical_gpus_get_their_addresses() {
 }
 
 /// Every text of a view.
-/// The switch's note and commands.
+/// The switch's note.
 fn switch_texts(switch: &boot::Switch) -> Vec<String> {
-    let mut out: Vec<String> = switch.note.iter().map(|n| n.text.clone()).collect();
-    if let Some(commands) = &switch.commands {
-        out.push(commands.lead.to_owned());
-        out.extend(commands.lines.iter().map(|l| (*l).to_owned()));
-    }
-    out
+    switch.note.iter().map(|n| n.text.clone()).collect()
 }
 
 /// Some of the switch's states: not read, a failed read, on, a new install, partly on, flipping.

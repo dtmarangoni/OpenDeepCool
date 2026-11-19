@@ -36,23 +36,12 @@ fn read(facts: Facts) -> Boot {
 }
 
 fn note(boot: &Boot) -> Option<(Style, String)> {
-    switch(boot, Place::Card)
-        .note
-        .map(|note| (note.style, note.text))
+    switch(boot).note.map(|note| (note.style, note.text))
 }
 
 fn warn(text: &str) -> Option<(Style, String)> {
     Some((Style::Warning, text.to_owned()))
 }
-
-const ON: Commands = Commands {
-    lead: FROM_A_TERMINAL,
-    lines: &ON_COMMANDS,
-};
-const OFF: Commands = Commands {
-    lead: FROM_A_TERMINAL,
-    lines: &OFF_COMMANDS,
-};
 
 #[test]
 fn every_documented_active_state_reads_as_the_design_says() {
@@ -126,12 +115,11 @@ fn the_note_names_what_is_missing_in_every_combination() {
             combinations += 1;
             let facts = facts(service_file.clone(), *service, sound_file.clone(), *runs);
             let what = format!("{facts:?}");
-            let shown = switch(&read(facts.clone()), Place::Card);
+            let shown = switch(&read(facts.clone()));
             let on = facts == all_on();
             assert_eq!((shown.handle, shown.trough), (on, on), "{what}");
             let starting = *service == Run::Starting;
             assert_eq!(shown.sensitive, !starting, "{what}");
-            assert_eq!(shown.commands, None, "{what}: no commands in the card");
             let off = *service_file == DISABLED && matches!(service, Run::Stopped | Run::Failed);
             let want = if starting {
                 Some((Style::Info, STARTING.to_owned()))
@@ -195,7 +183,7 @@ fn the_design_s_examples_read_word_for_word() {
 /// The unknown states: a failed read, and a unit file state that's neither enabled nor disabled.
 #[test]
 fn unknown_states_are_insensitive_at_off() {
-    let shown = switch(&boot(Known::Failed), Place::Card);
+    let shown = switch(&boot(Known::Failed));
     assert_eq!(
         shown,
         Switch {
@@ -207,10 +195,6 @@ fn unknown_states_are_insensitive_at_off() {
                 text: "Can't tell whether OpenDeepCool is on: reading it from systemd failed."
                     .to_owned(),
             }),
-            commands: Some(Commands {
-                lead: "To turn it on from a terminal:",
-                lines: &ON_COMMANDS,
-            }),
         }
     );
     let masked = facts(
@@ -219,7 +203,7 @@ fn unknown_states_are_insensitive_at_off() {
         ENABLED,
         true,
     );
-    let shown = switch(&read(masked), Place::Card);
+    let shown = switch(&read(masked));
     assert_eq!(
         (shown.handle, shown.trough, shown.sensitive),
         (false, false, false)
@@ -230,10 +214,6 @@ fn unknown_states_are_insensitive_at_off() {
             Style::Info,
             "Can't change it here: systemd reports opendeepcool.service as “masked”.".to_owned()
         ))
-    );
-    assert_eq!(
-        shown.commands, None,
-        "an administrator who set it knows its command"
     );
     // The display service first, then the sound.
     let both = facts(
@@ -256,11 +236,8 @@ fn unknown_states_are_insensitive_at_off() {
         )
     );
     // Not read yet: nothing to say.
-    let shown = switch(&Boot::default(), Place::Card);
-    assert_eq!(
-        (shown.sensitive, shown.note, shown.commands),
-        (false, None, None)
-    );
+    let shown = switch(&Boot::default());
+    assert_eq!((shown.sensitive, shown.note), (false, None));
 }
 
 /// A flip from each state: what it runs, its line, the handle at the new position and the trough
@@ -273,7 +250,7 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
         b.begin(Direction::On),
         Some(vec![Step::Pkexec(Direction::On), Step::StartSound])
     );
-    let shown = switch(&b, Place::Card);
+    let shown = switch(&b);
     assert_eq!(
         (shown.handle, shown.trough, shown.sensitive),
         (true, false, false)
@@ -325,7 +302,7 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
         b.begin(Direction::Off),
         Some(vec![Step::Pkexec(Direction::Off), Step::StopSound])
     );
-    let shown = switch(&b, Place::Card);
+    let shown = switch(&b);
     assert_eq!(
         (shown.handle, shown.trough, shown.sensitive),
         (false, true, false)
@@ -356,10 +333,9 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
     }
 }
 
-/// How a flip ends: each failure's note and commands, for its direction, and the switch back at
-/// systemd's state, sensitive again.
+/// How a flip ends: each failure's note, and the switch back at systemd's state, sensitive again.
 #[test]
-fn each_failure_shows_its_note_and_its_direction_s_commands() {
+fn each_failure_shows_its_note() {
     let on_failures = [
         (
             Failure::NotAuthorized(Direction::On),
@@ -386,7 +362,7 @@ fn each_failure_shows_its_note_and_its_direction_s_commands() {
         b.begin(Direction::On).expect("a flip");
         b.end(Some(failure.clone()), false);
         assert_eq!(b.flip, Flip::Idle, "{failure:?}");
-        let shown = switch(&b, Place::Card);
+        let shown = switch(&b);
         assert_eq!(
             (shown.handle, shown.trough, shown.sensitive),
             (false, false, true)
@@ -398,8 +374,6 @@ fn each_failure_shows_its_note_and_its_direction_s_commands() {
                 text: text.to_owned()
             })
         );
-        assert_eq!(shown.commands, Some(ON), "{failure:?}");
-        assert_eq!(switch(&b, Place::OffScreen).commands, Some(ON));
     }
     for failure in [
         Failure::NotAuthorized(Direction::Off),
@@ -408,32 +382,29 @@ fn each_failure_shows_its_note_and_its_direction_s_commands() {
         let mut b = read(all_on());
         b.begin(Direction::Off).expect("a flip");
         b.end(Some(failure.clone()), true);
-        let shown = switch(&b, Place::Card);
+        let shown = switch(&b);
         assert_eq!(
             (shown.handle, shown.trough, shown.sensitive),
             (true, true, true)
         );
         assert_eq!(
-            shown.commands,
-            Some(OFF),
-            "the off commands after a failed off"
+            shown.note.map(|n| n.style),
+            Some(Style::Warning),
+            "{failure:?}"
         );
-        assert_eq!(switch(&b, Place::OffScreen).commands, Some(OFF));
     }
-    // Turned off, but the sound still runs here: no commands, the whole PC's change was made.
+    // Turned off, but the sound still runs here: the whole PC's change was made.
     let mut b = read(all_on());
     b.begin(Direction::Off).expect("a flip");
     b.end(Some(Failure::SoundNotStopped), false);
     b.read(Known::Facts(facts(DISABLED, Run::Stopped, DISABLED, true)));
-    let shown = switch(&b, Place::Card);
+    let shown = switch(&b);
     assert_eq!(
         shown.note.map(|n| n.text).as_deref(),
         Some(
             "Off, but the sound for Music didn't stop in this session. It stops when you log out."
         )
     );
-    assert_eq!(shown.commands, None);
-    assert_eq!(switch(&b, Place::OffScreen).commands, Some(ON));
     // The failure note wins over the missing parts', which come back once it goes.
     let mut b = read(facts(DISABLED, Run::Running, DISABLED, false));
     b.begin(Direction::On).expect("a flip");
@@ -480,7 +451,7 @@ fn a_failure_s_note_goes_once_the_state_it_wanted_shows() {
         note(&b).is_some_and(|(s, _)| s == Style::Warning),
         "the failure's note first"
     );
-    assert!(!switch(&b, Place::Card).sensitive, "unknown");
+    assert!(!switch(&b).sensitive, "unknown");
 }
 
 /// After a successful `on`, the flip counts as running until the service's name has an owner,
@@ -530,8 +501,7 @@ fn after_on_the_flip_waits_for_the_service_s_name() {
     assert_eq!(b.flip, Flip::Idle);
 }
 
-/// The off screen: its heading, the card in a session that may flip, and the commands always
-/// under the card, `enable --now` first.
+/// The off screen: its heading, and the card in a session that may flip.
 #[test]
 fn the_off_screen_says_off_or_not_running() {
     for (known, heading, status_off) in [
@@ -573,11 +543,6 @@ fn the_off_screen_says_off_or_not_running() {
         assert_eq!(screen.heading, Some(heading), "{known:?}");
         assert_eq!(service_off(&b), Some(status_off), "{known:?}");
         assert!(screen.card, "{known:?}");
-        assert_eq!(screen.switch.commands, Some(ON), "{known:?}");
-        assert_eq!(
-            screen.switch.commands.map(|c| c.lines[0]),
-            Some("sudo systemctl enable --now opendeepcool.service")
-        );
     }
     // A new install has no note; a failed service names it.
     assert_eq!(off_screen(&read(new_install())).switch.note, None);
@@ -589,7 +554,7 @@ fn the_off_screen_says_off_or_not_running() {
                 .text
                 .starts_with("Not fully on: the display service failed."))
     );
-    // A failed read: the read's note only, the commands once, under the card.
+    // A failed read: the read's note only.
     let screen = off_screen(&boot(Known::Failed));
     assert_eq!(
         screen.switch.note.map(|n| n.text).as_deref(),
@@ -601,19 +566,15 @@ fn the_off_screen_says_off_or_not_running() {
     assert_eq!(off_screen(&b).heading, Some(IS_OFF));
     // Not read yet: it waits, with nothing shown.
     let screen = off_screen(&Boot::default());
-    assert_eq!(
-        (screen.heading, screen.card, screen.switch.commands),
-        (None, false, None)
-    );
+    assert_eq!((screen.heading, screen.card), (None, false));
     assert_eq!(service_off(&Boot::default()), None);
-    // A remote or inactive session: no card, but the heading and the commands.
+    // A remote or inactive session: no card, but the heading.
     let b = Boot {
         may_flip: false,
         ..read(new_install())
     };
     let screen = off_screen(&b);
     assert_eq!((screen.heading, screen.card), (Some(IS_OFF), false));
-    assert_eq!(screen.switch.commands, Some(ON));
 }
 
 /// `pkexec`'s end: 126 a closed dialog, 127 everything else of its own, any other code the
@@ -678,22 +639,7 @@ fn pkexec_s_codes_and_the_program_s_message() {
 }
 
 #[test]
-fn the_commands_and_the_card_s_words_as_the_design_writes_them() {
-    assert_eq!(
-        commands(Direction::On),
-        [
-            "sudo systemctl enable --now opendeepcool.service",
-            "sudo systemctl --global enable opendeepcool-audio.service",
-            "systemctl --user start opendeepcool-audio.service",
-        ]
-    );
-    assert_eq!(
-        commands(Direction::Off),
-        [
-            "sudo systemctl disable --now opendeepcool.service",
-            "sudo systemctl --global disable opendeepcool-audio.service",
-        ]
-    );
+fn the_card_s_words_as_the_design_writes_them() {
     assert_eq!(
         HINT,
         "When it's on, the display service starts at every boot, and the sound for the Music \
@@ -722,17 +668,15 @@ fn a_closed_password_dialog_leaves_no_note_and_nothing_kept() {
             facts(DISABLED, Run::Running, DISABLED, false),
         ),
     ] {
-        for place in [Place::Card, Place::OffScreen] {
-            let untouched = switch(&read(facts_before.clone()), place);
-            for owned in [false, true] {
-                let mut b = read(facts_before.clone());
-                b.begin(direction).expect("a flip");
-                b.end(Some(Failure::Dismissed(direction)), owned);
-                assert_eq!(b.failure, None, "not kept");
-                assert_eq!(b.flip, Flip::Idle, "the flip is over, not waiting");
-                // The switch is as it was before the flip, and sensitive.
-                assert_eq!(switch(&b, place), untouched, "{direction:?} {place:?}");
-            }
+        let untouched = switch(&read(facts_before.clone()));
+        for owned in [false, true] {
+            let mut b = read(facts_before.clone());
+            b.begin(direction).expect("a flip");
+            b.end(Some(Failure::Dismissed(direction)), owned);
+            assert_eq!(b.failure, None, "not kept");
+            assert_eq!(b.flip, Flip::Idle, "the flip is over, not waiting");
+            // The switch is as it was before the flip, and sensitive.
+            assert_eq!(switch(&b), untouched, "{direction:?}");
         }
     }
     // pkexec's 126 is still the closed dialog; it is what ends the flip.

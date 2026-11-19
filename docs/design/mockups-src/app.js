@@ -293,7 +293,6 @@ const ICON = {
   error: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
   chevron: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
   check: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  copy: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="5" y="5" width="8.5" height="8.5" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M3 10.5V3.8C3 3.4 3.4 3 3.8 3h6.7" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>'
 };
 
 // ---------- view ----------
@@ -319,11 +318,7 @@ const COOLER = {
 };
 
 // ---------- Start at boot (design, Start at boot) ----------
-const BOOT_CMDS = {
-  on: ["sudo systemctl enable --now opendeepcool.service", "sudo systemctl --global enable opendeepcool-audio.service",
-    "systemctl --user start opendeepcool-audio.service"],
-  off: ["sudo systemctl disable --now opendeepcool.service", "sudo systemctl --global disable opendeepcool-audio.service"]
-};
+// The app has no terminal commands (owner, 2026-11-19): they are in the README.
 // The four facts the switch reads (design, Where its state comes from), or null when they're unknown.
 function bootFacts() {
   if (S.boot === "unknown") return null;
@@ -357,7 +352,7 @@ function missingNote() {
   if (!f || bootOn()) return null;
   const runs = f.serviceRun === "active";
   if (!f.serviceEnabled && !runs) return null; // OpenDeepCool is off, which the off screen's heading says
-  if (serviceStarting()) return { kind: "info", cmds: null, text: "The display service is starting." };
+  if (serviceStarting()) return { kind: "info", text: "The display service is starting." };
   const d = !f.serviceEnabled ? "the display service runs now, but doesn't start at boot"
     : f.serviceRun === "stopped" ? "the display service is stopped"
     : f.serviceRun === "failed" ? "the display service failed" : null;
@@ -366,7 +361,7 @@ function missingNote() {
     : !f.soundRun ? "the sound for Music isn't running in this session" : null;
   const end = onlySoundHere() ? "Turn it on to start it, with no password." : "Turn it on to finish.";
   const journal = d === "the display service failed" ? " The journal says why the service failed." : "";
-  return { kind: "warn", cmds: null, text: `Not fully on: ${[d, a].filter(Boolean).join(", and ")}. ${end}${journal}` };
+  return { kind: "warn", text: `Not fully on: ${[d, a].filter(Boolean).join(", and ")}. ${end}${journal}` };
 }
 function bootFailText(f) {
   if (f.exit === 126) return "Not changed: the password dialog was closed.";
@@ -377,27 +372,18 @@ function bootFailText(f) {
   const m = (f.message || `opendeepcool-boot ended with code ${f.exit}`).replace(/\.$/, "");
   return `Didn't finish: ${m}. The switch shows what's set now; the journal says more.`;
 }
-// The note under the switch, if any: {kind: "" (foreground) | "warn" | "info", text, cmds: null | "on" | "off", lead}.
+// The note under the switch, if any: {kind: "" (foreground) | "warn" | "info", text}.
 // Which shows: a running flip's line, then a failure's note, then unknown, then starting or what's missing.
 function bootNote() {
-  if (S.bootFlip) return { kind: "", cmds: null, text: S.bootFlip === "on" && onlySoundHere()
+  if (S.bootFlip) return { kind: "", text: S.bootFlip === "on" && onlySoundHere()
     ? "Turning on… Starting the sound for Music in this session."
     : `Turning ${S.bootFlip}… Your desktop asks for the administrator's password first.` };
-  if (S.bootFailed) {
-    // Turned off, but the sound in this session didn't stop: the change for the whole PC was made, so no commands.
-    const done = S.bootFailed.exit === "sound" && S.bootFailed.to === "off";
-    return { kind: "warn", text: bootFailText(S.bootFailed), cmds: done ? null : S.bootFailed.to, lead: "From a terminal instead:" };
-  }
+  if (S.bootFailed) return { kind: "warn", text: bootFailText(S.bootFailed) };
   if (S.boot === "unknown") {
-    if (S.bootOther) return { kind: "info", text: `Can't change it here: systemd reports ${S.bootOther.unit} as “${S.bootOther.state}”.`, cmds: null };
-    return { kind: "info", text: "Can't tell whether OpenDeepCool is on: reading it from systemd failed.", cmds: "on", lead: "To turn it on from a terminal:" };
+    if (S.bootOther) return { kind: "info", text: `Can't change it here: systemd reports ${S.bootOther.unit} as “${S.bootOther.state}”.` };
+    return { kind: "info", text: "Can't tell whether OpenDeepCool is on: reading it from systemd failed." };
   }
   return missingNote();
-}
-function terminalBlock(to, lead) {
-  return `<div class="terminal" role="group" aria-label="Terminal commands"><div class="muted small">${lead}</div>
-    <div class="cmds"><code>${BOOT_CMDS[to].join("\n")}</code>
-    <button class="btn" aria-label="Copy terminal commands" onclick="copied(this)">${ICON.copy}<span>Copy</span></button></div></div>`;
 }
 // The switch: its trough shows systemd's state (GtkSwitch:state, CSS :checked), on only when OpenDeepCool is
 // ready to use; its handle the latest flip (GtkSwitch:active, which is also what assistive technology reads).
@@ -408,8 +394,7 @@ function bootSwitch(note) {
   return `<button class="switch${state ? " state-on" : ""}${handle ? " handle-on" : ""}" role="switch" aria-checked="${handle}"
     aria-label="Start at boot"${note ? ` aria-description="${esc(note.text)}"` : ""}${insensitive ? " disabled" : ""} onclick="flipBoot()"><span></span></button>`;
 }
-// The Startup card: "config" on the Configuration page (with its heading, and a note's commands inside it), or
-// "off" on the off screen (whose terminal commands sit under the card, so a note there shows only its sentence).
+// The Startup card: "config" on the Configuration page (with its heading), or "off" on the off screen.
 function bootCard(where) {
   const note = bootNote();
   const icon = note && note.kind === "warn" ? ICON.warn : note && note.kind === "info" ? ICON.info : "";
@@ -418,7 +403,6 @@ function bootCard(where) {
     <div class="row"><div class="row-l"><span>Start at boot</span><span class="muted small">For the whole PC</span></div>
       <div class="row-r mid">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
-    ${note && note.cmds && where === "config" ? terminalBlock(note.cmds, note.lead) : ""}
     <div class="hint muted"><span>When it's on, the display service starts at every boot, and the sound for the Music options at every login.</span></div>
   </section>`;
 }
@@ -468,7 +452,7 @@ function themeCard() {
 function banners() {
   let out = "";
   // No service banner (design, D10): while the service is down the off screen says what's wrong, and its switch
-  // and terminal commands fix it. No cooler banner either: the cooler's state is unknown then.
+  // fixes it. No cooler banner either: the cooler's state is unknown then.
   if (!S.service) return out;
   // One cooler banner at a time, from CoolerState.
   const cs = coolerState();
@@ -631,8 +615,7 @@ function emptyPage() {
   return `<div class="page-scroll"><div class="page empty"><div class="off-screen">
     <div role="group" aria-label="Service message"><h2>${offHeading() ? "OpenDeepCool is off" : "OpenDeepCool isn't running"}</h2>
       <p class="muted">The cooler shows nothing until the display service runs.</p></div>
-    ${bootCard("off")}
-    ${terminalBlock("on", "From a terminal instead:")}</div></div></div>`;
+    ${bootCard("off")}</div></div></div>`;
 }
 // Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
 // and nothing else: no banner, no preview column, no pages, no status, no controls.
@@ -717,7 +700,6 @@ function flipBoot() {
   }, 1500);
 }
 function flash(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
-function copied(b) { b.querySelector("span").textContent = "Copied"; }
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));

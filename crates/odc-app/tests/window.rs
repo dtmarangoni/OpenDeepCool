@@ -12,9 +12,8 @@ use std::collections::BTreeSet;
 use std::process::ExitCode;
 use std::time::Duration;
 
-use gtk::glib;
 use gtk::prelude::*;
-use odc_app::boot::{self, Boot, Direction, Facts, Failure, Known, Run, UnitFile};
+use odc_app::boot::{Boot, Direction, Facts, Failure, Known, Run, UnitFile};
 use odc_app::model::View;
 use odc_app::theme::Tokens;
 use odc_app::ui::window::Window;
@@ -163,7 +162,6 @@ fn banners_and_states(app: &gtk::Application) {
     assert_eq!(window.screen(), ("main".to_owned(), "off".to_owned()));
     assert_eq!(window.off_heading(), None, "not read yet");
     assert!(!window.startup().card().is_visible());
-    assert_eq!(window.startup().commands(), None);
     // The gear stays, insensitive and not pressed; the close icon always works (Window, The
     // header, by state). Refresh is on the Display page, which the off screen replaces.
     assert_eq!(window.header(), [(true, false), (true, true)]);
@@ -315,9 +313,38 @@ fn banners_and_states(app: &gtk::Application) {
     close(window);
 }
 
-// The Start at boot switch (Start at boot): on the off screen without its heading and with the
-// commands under it, on the Configuration page as the last card with the commands inside it;
-// one switch, moved between them. A flip asks the client, keeps the trough at systemd's state,
+/// The text of every label under `widget`.
+fn label_texts(widget: &gtk::Widget, out: &mut Vec<String>) {
+    if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+        out.push(label.text().to_string());
+    }
+    let mut child = widget.first_child();
+    while let Some(next) = child {
+        label_texts(&next, out);
+        child = next.next_sibling();
+    }
+}
+
+/// The app has no terminal commands, lead-in or Copy button anywhere (owner, 2026-11-19): they
+/// are in the README.
+fn assert_no_terminal(window: &Window) {
+    for name in ["Terminal commands", "Copy terminal commands"] {
+        assert!(window.names().find(name).is_none(), "{name}");
+    }
+    let mut texts = Vec::new();
+    label_texts(window.widget().upcast_ref(), &mut texts);
+    for text in texts {
+        let lower = text.to_lowercase();
+        assert!(
+            !lower.contains("systemctl") && !lower.contains("terminal"),
+            "a terminal command in the app: {text:?}"
+        );
+    }
+}
+
+// The Start at boot switch (Start at boot): on the off screen without its heading, on the
+// Configuration page as the last card; one switch, moved between them, and no terminal commands
+// anywhere (owner, 2026-11-19: they are in the README). A flip asks the client, keeps the trough at systemd's state,
 // and at its end screen readers hear the switch's state and the switch has the focus again.
 fn start_at_boot(app: &gtk::Application) {
     let ((window, asked), said) = shown_saying(app);
@@ -325,18 +352,11 @@ fn start_at_boot(app: &gtk::Application) {
     let switch = startup.switch().clone();
     window.down();
     window.boot(new_install());
-    // The off screen: the card, no heading, the on commands under it, `enable --now` first.
+    // The off screen: the card, no heading, and no terminal commands.
     assert!(window.startup_on_off_screen());
     assert!(startup.card().is_visible());
     assert!(!startup.heading_shown());
-    assert!(!startup.commands_inside());
-    assert_eq!(
-        startup.commands(),
-        Some((
-            "From a terminal instead:".to_owned(),
-            boot::ON_COMMANDS.join("\n")
-        ))
-    );
+    assert_no_terminal(&window);
     assert_eq!(startup.note(), None, "a new install has no note");
     assert!(!switch.is_active() && !switch.state() && switch.is_sensitive());
     run_until("the switch takes the first focus", || switch.is_focus());
@@ -376,13 +396,13 @@ fn start_at_boot(app: &gtk::Application) {
     assert_eq!(*said.borrow(), ["Start at boot is off."]);
     run_until("the focus comes back", || switch.is_focus());
 
-    // A remote or inactive session: the heading and the commands, no card.
+    // A remote or inactive session: the heading, no card, and no commands.
     window.boot(Boot {
         may_flip: false,
         ..new_install()
     });
     assert!(!startup.card().is_visible());
-    assert!(startup.commands().is_some());
+    assert_no_terminal(&window);
     assert_eq!(window.off_heading().as_deref(), Some("OpenDeepCool is off"));
 
     // The service runs: the card moves to the Configuration page, last, with its heading.
@@ -408,27 +428,23 @@ fn start_at_boot(app: &gtk::Application) {
              for Music is off. Turn it on to finish."
         )
     );
-    assert_eq!(
-        startup.commands(),
-        None,
-        "none with the missing parts' note"
-    );
-    // A failed read: the commands inside the card, "To turn it on from a terminal:".
+    assert_no_terminal(&window);
+    // A failed read: its note alone, and the switch can't be used.
     window.boot(Boot {
         known: Known::Failed,
         ..Boot::default()
     });
-    assert!(startup.commands_inside());
     assert_eq!(
-        startup.commands().map(|c| c.0).as_deref(),
-        Some("To turn it on from a terminal:")
+        startup.note().as_deref(),
+        Some("Can't tell whether OpenDeepCool is on: reading it from systemd failed.")
     );
+    assert_no_terminal(&window);
     assert!(!switch.is_sensitive());
-    // On: everything holds, no note, no commands.
+    // On: everything holds, no note.
     window.boot(all_on());
     assert!(switch.is_active() && switch.state() && switch.is_sensitive());
-    assert_eq!((startup.note(), startup.commands()), (None, None));
-    // A failed off: the off commands, inside the card.
+    assert_eq!(startup.note(), None);
+    // A failed off: its note, and no commands.
     let mut off = all_on();
     off.begin(Direction::Off).expect("a flip");
     window.boot(off.clone());
@@ -436,12 +452,13 @@ fn start_at_boot(app: &gtk::Application) {
     off.end(Some(Failure::NotAuthorized(Direction::Off)), true);
     window.boot(off);
     assert_eq!(
-        startup.commands(),
-        Some((
-            "From a terminal instead:".to_owned(),
-            boot::OFF_COMMANDS.join("\n")
-        ))
+        startup.note().as_deref(),
+        Some(
+            "Not changed: the password wasn't accepted, or no password dialog could open in this \
+             session."
+        )
     );
+    assert_no_terminal(&window);
     WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(100));
     let page = save_png(
@@ -451,15 +468,6 @@ fn start_at_boot(app: &gtk::Application) {
     );
     print!("{}; ", page.display());
     drop(renderer);
-    let copy = startup.copy().clone();
-    copy.emit_clicked();
-    let text = glib::MainContext::default()
-        .block_on(copy.clipboard().read_text_future())
-        .expect("the clipboard");
-    assert_eq!(
-        text.as_deref(),
-        Some(boot::OFF_COMMANDS.join("\n").as_str())
-    );
     // The app setting the switch itself asks nothing.
     asked.borrow_mut().clear();
     window.boot(new_install());
@@ -635,26 +643,10 @@ fn requests(app: &gtk::Application) {
     ] {
         assert_eq!(app.accels_for_action(action), keys, "{action}");
     }
-    // The off screen's Copy copies every command, one a line.
+    // The off screen has no commands and no Copy button.
     window.down();
     window.boot(new_install());
-    let copy = window
-        .names()
-        .find("Copy terminal commands")
-        .and_then(|w| w.downcast::<gtk::Button>().ok())
-        .expect("the copy button");
-    copy.emit_clicked();
-    let text = glib::MainContext::default()
-        .block_on(copy.clipboard().read_text_future())
-        .expect("the clipboard");
-    assert_eq!(
-        text.as_deref(),
-        Some(
-            "sudo systemctl enable --now opendeepcool.service\n\
-             sudo systemctl --global enable opendeepcool-audio.service\n\
-             systemctl --user start opendeepcool-audio.service"
-        )
-    );
+    assert_no_terminal(&window);
     close(window);
 }
 
@@ -737,8 +729,6 @@ fn names(app: &gtk::Application) {
         ("Startup settings", R::Group),
         ("Start at boot", R::Switch),
         ("Start at boot status", R::Group),
-        ("Terminal commands", R::Group),
-        ("Copy terminal commands", R::Button),
     ];
     want.extend(TILE_NAMES.iter().map(|name| (*name, R::GridCell)));
     let labels: BTreeSet<String> = window.names().labels().into_iter().collect();

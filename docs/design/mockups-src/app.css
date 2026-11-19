@@ -206,14 +206,9 @@ button { font: inherit; color: inherit; }
 .switch.handle-on span { left: 19px; }
 /* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do) */
 .switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
-/* The Startup card in the window's body while the service is down, and the terminal commands */
+/* The Startup card in the window's body while the service is down */
 .empty .boot-card { margin: 18px auto 0; width: 560px; max-width: 100%; text-align: left; }
 .off-screen { width: 560px; max-width: 100%; }
-.terminal { margin-top: 10px; text-align: left; }
-.card .terminal { margin-top: 0; }
-.terminal .cmds { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-top: 4px; }
-.terminal code { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px;
-  background: color-mix(in srgb, var(--fg) 8%, transparent); }
 .scale { width: 320px; }
 .scale input { width: 100%; accent-color: var(--accent); }
 .marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }

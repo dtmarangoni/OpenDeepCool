@@ -178,15 +178,6 @@ button.icon-button:disabled {
   color: var(--yellow);
 }
 
-/* The terminal commands under the Start at boot switch. */
-.command {
-  font-family: monospace;
-  font-size: 0.83em;
-  background-color: var(--code-bg);
-  border-radius: var(--radius);
-  padding: 4px 8px;
-}
-
 label selection {
   background-color: var(--selection);
   color: var(--fg);

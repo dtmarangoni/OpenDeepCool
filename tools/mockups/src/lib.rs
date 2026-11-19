@@ -306,7 +306,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "service-not-running.html",
             "Service not running",
-            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is dimmed, and there is no Refresh (it belongs to the Display page). A flip on starts it again; the terminal commands sit under the card.",
+            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is dimmed, and there is no Refresh (it belongs to the Display page). A flip on starts it again.",
             base()
                 .with("service", Json::Bool(false))
                 .with("serviceRun", s("failed")),
@@ -314,7 +314,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "boot-off.html",
             "OpenDeepCool off, a new install",
-            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch and, under it, the terminal commands to turn it on. The gear is dimmed, and there is no Refresh (it belongs to the Display page). Flip the switch: the mockup skips the password dialog, then shows the normal window.",
+            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch. The gear is dimmed, and there is no Refresh (it belongs to the Display page). Flip the switch: the mockup skips the password dialog, then shows the normal window.",
             base()
                 .with("service", Json::Bool(false))
                 .with("boot", s("off")),
@@ -385,7 +385,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "boot-unknown.html",
             "Start at boot unknown",
-            "Reading the units' state from systemd failed. The switch can't show on or off truthfully, so it's insensitive at off, with the reason and the commands to turn it on from a terminal.",
+            "Reading the units' state from systemd failed. The switch can't show on or off truthfully, so it's insensitive at off, with the reason.",
             config().with("boot", s("unknown")),
         ),
     ]

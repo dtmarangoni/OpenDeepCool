@@ -198,39 +198,7 @@ impl Failure {
             }
         })
     }
-
-    /// The commands it shows: its direction's, or none once the change for the whole PC was
-    /// made.
-    fn commands(&self) -> Option<&'static [&'static str]> {
-        match self {
-            Failure::SoundNotStopped => None,
-            failure => Some(commands(failure.direction())),
-        }
-    }
 }
-
-/// The terminal commands for a direction (settings.md, Start at boot; owner, 2026-11-11): three
-/// to turn on, the third starting the sound in this session at once, and two to turn off.
-pub const ON_COMMANDS: [&str; 3] = [
-    "sudo systemctl enable --now opendeepcool.service",
-    "sudo systemctl --global enable opendeepcool-audio.service",
-    "systemctl --user start opendeepcool-audio.service",
-];
-pub const OFF_COMMANDS: [&str; 2] = [
-    "sudo systemctl disable --now opendeepcool.service",
-    "sudo systemctl --global disable opendeepcool-audio.service",
-];
-
-pub fn commands(to: Direction) -> &'static [&'static str] {
-    match to {
-        Direction::On => &ON_COMMANDS,
-        Direction::Off => &OFF_COMMANDS,
-    }
-}
-
-/// The commands' lead-ins.
-pub const FROM_A_TERMINAL: &str = "From a terminal instead:";
-pub const TO_TURN_ON: &str = "To turn it on from a terminal:";
 
 /// The off screen's headings and text (The off screen).
 pub const IS_OFF: &str = "OpenDeepCool is off";
@@ -398,7 +366,7 @@ impl Boot {
     /// set and the last failure gone; or `None` when the switch can't be flipped now, or `to`
     /// isn't the way the switch goes from where it is (from off always on, from on off).
     pub fn begin(&mut self, to: Direction) -> Option<Vec<Step>> {
-        if !switch(self, Place::Card).sensitive {
+        if !switch(self).sensitive {
             return None;
         }
         let facts = self.facts()?;
@@ -469,22 +437,14 @@ pub struct Note {
     pub text: String,
 }
 
-/// The terminal commands: the lead-in and one command a line.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct Commands {
-    pub lead: &'static str,
-    pub lines: &'static [&'static str],
-}
-
-/// Where the switch is: the Configuration page's Startup card, or the off screen, where the
-/// terminal commands always show under the card.
+/// Where the switch is: the Configuration page's Startup card, or the off screen.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Place {
     Card,
     OffScreen,
 }
 
-/// The switch, its note and the terminal commands under it.
+/// The switch and its note.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Switch {
     /// The handle (GtkSwitch's `active`): the latest flip.
@@ -495,7 +455,6 @@ pub struct Switch {
     /// is starting.
     pub sensitive: bool,
     pub note: Option<Note>,
-    pub commands: Option<Commands>,
 }
 
 fn warning(text: String) -> Note {
@@ -550,7 +509,7 @@ fn missing(facts: &Facts) -> Option<String> {
 /// The switch at `place` (States and their text). Which note shows, when more than one applies:
 /// a running flip's line, then a failure's note, then unknown, then starting, then the missing
 /// parts.
-pub fn switch(boot: &Boot, place: Place) -> Switch {
+pub fn switch(boot: &Boot) -> Switch {
     let facts = boot.facts();
     let on = boot.on();
     let other = facts.and_then(Facts::other);
@@ -569,61 +528,31 @@ pub fn switch(boot: &Boot, place: Place) -> Switch {
         Flip::On { .. } | Flip::Waiting { .. } => Some(TURNING_ON),
         Flip::Off => Some(TURNING_OFF),
     };
-    let (note, card_commands) = if let Some(line) = line {
-        let plain = Note {
+    let note = if let Some(line) = line {
+        Some(Note {
             style: Style::Plain,
             text: line.to_owned(),
-        };
-        (Some(plain), None)
-    } else if let Some((failure, text)) = boot
-        .failure
-        .as_ref()
-        .and_then(|failure| Some((failure, failure.text()?)))
-    {
-        let commands = failure.commands().map(|lines| Commands {
-            lead: FROM_A_TERMINAL,
-            lines,
-        });
-        (Some(warning(text)), commands)
+        })
+    } else if let Some(text) = boot.failure.as_ref().and_then(Failure::text) {
+        Some(warning(text))
     } else {
         match (&boot.known, facts) {
-            (Known::Failed, _) => (
-                Some(info(READ_FAILED)),
-                Some(Commands {
-                    lead: TO_TURN_ON,
-                    lines: &ON_COMMANDS,
-                }),
-            ),
+            (Known::Failed, _) => Some(info(READ_FAILED)),
             (_, Some(facts)) => match other {
-                Some((unit, state)) => (
-                    Some(info(format!(
-                        "Can't change it here: systemd reports {unit} as “{state}”."
-                    ))),
-                    None,
-                ),
-                None if starting => (Some(info(STARTING)), None),
-                None => (missing(facts).map(warning), None),
+                Some((unit, state)) => Some(info(format!(
+                    "Can't change it here: systemd reports {unit} as “{state}”."
+                ))),
+                None if starting => Some(info(STARTING)),
+                None => missing(facts).map(warning),
             },
-            _ => (None, None),
+            _ => None,
         }
-    };
-    let commands = match place {
-        Place::Card => card_commands,
-        // On the off screen, always under the card: the failed flip's direction, else on.
-        Place::OffScreen => Some(Commands {
-            lead: FROM_A_TERMINAL,
-            lines: match card_commands {
-                Some(Commands { lines, .. }) if lines == OFF_COMMANDS => &OFF_COMMANDS,
-                _ => &ON_COMMANDS,
-            },
-        }),
     };
     Switch {
         handle,
         trough: on,
         sensitive,
         note,
-        commands,
     }
 }
 
@@ -640,14 +569,10 @@ pub struct OffScreen {
 
 pub fn off_screen(boot: &Boot) -> OffScreen {
     let heading = boot.off_heading();
-    let mut switch = switch(boot, Place::OffScreen);
-    if heading.is_none() {
-        switch.commands = None;
-    }
     OffScreen {
         heading,
         card: boot.may_flip && heading.is_some(),
-        switch,
+        switch: switch(boot),
     }
 }
 

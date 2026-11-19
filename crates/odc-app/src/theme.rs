@@ -561,7 +561,7 @@ impl Tokens {
         } else {
             widths.join(" ")
         };
-        let tokens: [(&str, String); 26] = [
+        let tokens: [(&str, String); 25] = [
             ("bg", self.bg.css()),
             ("surface", self.surface.css()),
             ("fg", self.fg.css()),
@@ -586,7 +586,6 @@ impl Tokens {
             // Fixed alphas of the design's mockups (`app.css`), computed here so the
             // stylesheet needs no colour functions.
             ("line", fg_at(0.12)),
-            ("code-bg", fg_at(0.08)),
             ("unlit", fg_at(UNLIT_ALPHA)),
             ("banner-error", blend(self.red, self.bg, 0.16).css()),
             ("banner-warn", blend(self.yellow, self.bg, 0.14).css()),
@@ -683,7 +682,6 @@ scale = 1.0
   --radius: 0px;
   --radius-box: 0px;
   --line: rgba(228, 220, 203, 0.12);
-  --code-bg: rgba(228, 220, 203, 0.08);
   --unlit: rgba(228, 220, 203, 0.12);
   --banner-error: #3e2f2c;
   --banner-warn: #393628;

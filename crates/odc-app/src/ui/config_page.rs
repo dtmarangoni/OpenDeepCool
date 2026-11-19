@@ -529,6 +529,9 @@ impl ConfigPage {
     /// The room the spacer holds: the card's height on this page.
     pub fn reserve(&self, height: i32) {
         self.spacer.set_height_request(height);
+        // GTK keeps the size it last measured of a hidden widget: ask for it again, or the room
+        // the spacer holds stays the one measured before.
+        self.spacer.queue_resize();
     }
 
     /// The size group of the rows' label blocks, which the Startup card joins on this page.

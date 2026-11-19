@@ -1,8 +1,8 @@
 //! The Start at boot switch's widgets (`docs/design/settings-app.md`, Start at boot): the
-//! Startup card, with its row, note and hint, and the terminal commands. One card serves both
-//! places, moved between them so its names stay one for AT-SPI (Where it sits): the last card of
-//! the Configuration page, with its heading and the commands inside it when a note brings them;
-//! and the off screen, without its heading, with the commands always under it.
+//! Startup card, with its row and note. One card serves both places, moved between them so its
+//! names stay one for AT-SPI (Where it sits): the last card of the Configuration page, with its
+//! heading; and the off screen, without its heading. The app has no terminal commands: they are
+//! in the README (owner, 2026-11-19).
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -12,7 +12,7 @@ use gtk::prelude::*;
 
 use super::Request;
 use super::names::{Names, group};
-use crate::boot::{self, Commands, Place, Style, Switch};
+use crate::boot::{self, Place, Style, Switch};
 
 /// The most characters the card's lines ask room for.
 const NOTE_CHARS: i32 = 72;
@@ -28,12 +28,6 @@ pub struct StartupCard {
     note_box: gtk::Box,
     note_icon: gtk::Image,
     note: gtk::Label,
-    /// Where the commands go inside the card, between the note and the hint.
-    inside: gtk::Box,
-    terminal: gtk::Box,
-    lead: gtk::Label,
-    lines: gtk::Label,
-    copy: gtk::Button,
     /// The app sets the switch itself: its `state-set` is ignored meanwhile.
     applying: Rc<Cell<bool>>,
 }
@@ -108,48 +102,6 @@ impl StartupCard {
         note_box.append(&note_icon);
         note_box.append(&note);
         card.append(&note_box);
-        let inside = gtk::Box::builder()
-            .orientation(gtk::Orientation::Vertical)
-            .build();
-        card.append(&inside);
-        let hint = small(boot::HINT, &["muted", "small"]);
-        // Room for a line of about this many characters, so the card stays narrow on the off
-        // screen; on the Configuration page it fills the page as the other cards do.
-        hint.set_max_width_chars(NOTE_CHARS);
-        card.append(&hint);
-
-        let terminal = group()
-            .orientation(gtk::Orientation::Vertical)
-            .spacing(4)
-            .visible(false)
-            .build();
-        names.name(&terminal, "Terminal commands");
-        let lead = small("", &["muted", "small"]);
-        let lines = gtk::Label::builder()
-            .selectable(true)
-            .wrap(true)
-            .wrap_mode(gtk::pango::WrapMode::WordChar)
-            .xalign(0.0)
-            .hexpand(true)
-            .css_classes(["command"])
-            .build();
-        let copy_content = gtk::Box::builder().spacing(6).build();
-        copy_content.append(&gtk::Image::from_icon_name("edit-copy-symbolic"));
-        copy_content.append(&gtk::Label::new(Some("Copy")));
-        let copy = gtk::Button::builder()
-            .child(&copy_content)
-            .valign(gtk::Align::Start)
-            .build();
-        names.name(&copy, "Copy terminal commands");
-        let shown = lines.clone();
-        copy.connect_clicked(move |button| button.clipboard().set_text(&shown.text()));
-        let commands = gtk::Box::builder().spacing(8).build();
-        commands.append(&lines);
-        commands.append(&copy);
-        terminal.append(&lead);
-        terminal.append(&commands);
-        inside.append(&terminal);
-
         StartupCard {
             card,
             heading,
@@ -159,19 +111,14 @@ impl StartupCard {
             note_box,
             note_icon,
             note,
-            inside,
-            terminal,
-            lead,
-            lines,
-            copy,
             applying,
         }
     }
 
-    /// Puts the card at `place`: at the end of `parent`, and the commands inside it, or after it
-    /// in `parent` on the off screen. On the page its label block joins `labels`, the page's
-    /// size group, so the switch starts where the other controls do; on the off screen, where
-    /// the card is alone, it leaves the group and takes only its own width (Rows).
+    /// Puts the card at `place`: at the end of `parent`. On the page its label block joins
+    /// `labels`, the page's size group, so the switch starts where the other controls do; on the
+    /// off screen, where the card is alone, it leaves the group and takes only its own width
+    /// (Rows).
     pub fn place(&self, place: Place, parent: &gtk::Box, labels: &gtk::SizeGroup) {
         move_to(&self.card, parent);
         match (place, self.in_group.get()) {
@@ -185,32 +132,13 @@ impl StartupCard {
             }
             _ => {}
         }
-        match place {
-            Place::Card => move_to(&self.terminal, &self.inside),
-            Place::OffScreen => move_to(&self.terminal, parent),
-        }
         self.heading.set_visible(place == Place::Card);
-        self.tidy();
     }
 
-    /// The slot inside the card takes no room while it holds nothing to show: the commands' own
-    /// `visible`, not `is_visible`, which also asks the slot itself.
-    fn tidy(&self) {
-        self.inside
-            .set_visible(self.commands_inside() && self.terminal.get_visible());
-    }
-
-    /// Hides the card alone: the off screen in a session that may not flip it keeps the commands
-    /// (Who may flip it).
+    /// Hides the card: the off screen in a session that may not flip it, and before the first
+    /// read (Who may flip it).
     pub fn hide_card(&self) {
         self.card.set_visible(false);
-    }
-
-    /// Hides the card and the commands: the off screen before the first read.
-    pub fn hide_all(&self) {
-        self.card.set_visible(false);
-        self.terminal.set_visible(false);
-        self.tidy();
     }
 
     /// Shows `switch`, naming its note in its description.
@@ -242,25 +170,6 @@ impl StartupCard {
             &self.switch,
             switch.note.as_ref().map(|note| note.text.as_str()),
         );
-        self.show_commands(names, switch.commands);
-    }
-
-    fn show_commands(&self, names: &Names, commands: Option<Commands>) {
-        let Some(commands) = commands else {
-            self.terminal.set_visible(false);
-            names.describe(&self.terminal, None);
-            self.tidy();
-            return;
-        };
-        let text = commands.lines.join("\n");
-        self.lead.set_text(commands.lead);
-        self.lines.set_text(&text);
-        self.terminal.set_visible(true);
-        self.tidy();
-        names.describe(
-            &self.terminal,
-            Some(&format!("{} {}", commands.lead, commands.lines.join(" "))),
-        );
     }
 
     pub fn switch(&self) -> &gtk::Switch {
@@ -271,27 +180,11 @@ impl StartupCard {
         &self.card
     }
 
-    pub fn copy(&self) -> &gtk::Button {
-        &self.copy
-    }
-
     /// The note's words, while it shows.
     pub fn note(&self) -> Option<String> {
         self.note_box
             .is_visible()
             .then(|| self.note.text().to_string())
-    }
-
-    /// The commands' lead-in and lines, while they show.
-    pub fn commands(&self) -> Option<(String, String)> {
-        self.terminal
-            .is_visible()
-            .then(|| (self.lead.text().to_string(), self.lines.text().to_string()))
-    }
-
-    /// Whether the commands sit inside the card.
-    pub fn commands_inside(&self) -> bool {
-        self.terminal.parent().as_ref() == Some(self.inside.upcast_ref())
     }
 
     /// Whether the card's heading shows.

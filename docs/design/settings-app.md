@@ -30,7 +30,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D7 | Toolkit | Plain GTK4 through gtk4-rs, no libadwaita (PRD Decisions Log) | Every widget needed exists in GTK4, and libadwaita's look would mostly be overridden for Omarchy anyway |
 | D8 | Theming | CSS custom properties in one `GtkCssProvider` at APPLICATION priority, generated from `colors.toml` and the `shell.toml` `[controls]` alphas. A `GFileMonitor` on `current/` triggers a live reload: Omarchy keeps `current/` and replaces only `current/theme` inside it (its `omarchy-theme-set`, read 2026-10-27; solution review P10-06) | [Theme](#theme) |
 | D9 | Where the Start at boot switch sits (2026-11-11) | The last card of the Configuration page, **Startup**, and, while the service isn't running, the window's body, where the pages would be | Configuration already holds every setting but mode and unit, and the switch is flipped about once per PC, so it needn't take the header. While the service is down, Configuration can't be reached, and the body is where the user looks ([Start at boot](#start-at-boot)) |
-| D10 | The window while the service isn't running (2026-11-11, revised the same day) | One screen, the **off screen**, with no banner: the heading "OpenDeepCool is off" (the display service doesn't start at boot) or "OpenDeepCool isn't running" (it does, but it's stopped, failed or starting), the Startup card with its note, and the terminal commands. The red service banner is gone | The switch now reads off whenever OpenDeepCool isn't ready, and a flip on starts a stopped service, so the switch is the fix in every case. A banner would say the same thing as the note, and its terminal command would come before the app's own control. The heading and the status dot ("Service off", hollow, or "Service not running", red) still tell a deliberate off from a fault |
+| D10 | The window while the service isn't running (2026-11-11, revised the same day) | One screen, the **off screen**, with no banner: the heading "OpenDeepCool is off" (the display service doesn't start at boot) or "OpenDeepCool isn't running" (it does, but it's stopped, failed or starting), the Startup card with its note. The red service banner is gone (the terminal commands it once showed went on 2026-11-19) | The switch now reads off whenever OpenDeepCool isn't ready, and a flip on starts a stopped service, so the switch is the fix in every case. A banner would say the same thing as the note, and its terminal command would come before the app's own control. The heading and the status dot ("Service off", hollow, or "Service not running", red) still tell a deliberate off from a fault |
 | D11 | What the switch reads (2026-11-11, revised the same day: "on means ready to use", owner) | **On** only when the display service starts at boot and runs, and the sound starts at every login and runs in this session. Anything else reads **off**, with **one note** built from what's missing: at most one phrase for the display service and one for the sound ([The note](#the-note)) | A flip on always finishes the setup and starts what isn't running, so off-with-a-note is always one flip from ready. One composed note needs 7 phrases, against 15 combinations to word one by one, and still says exactly what's missing |
 | D12 | The header, the page change, Refresh and the temperature unit (Phase 11a Task 7, 2026-11-19, from the owner's review of 2026-11-18) | The header bar holds the centred title and, at the right, two frameless icon buttons: a gear toggle (Configuration) and a close icon. Each page has its own **page bar**: Display has the title "Display" and the Refresh icon at the right; Configuration has a back icon at the start and the title "Configuration". The two pages are two children of one `GtkStack` with no transition. The temperature unit is a row of the Configuration page's Display card, after Rotation | The page change is one icon and one icon back, with no tab to explain. Every control stays a single click or key. The options weighed are in [Answers decided on 2026-11-19](#answers-decided-on-2026-11-19) |
 | D13 | The preview column's line under the caption (Phase 11a Task 8, 2026-11-19, from the owner's review of 2026-11-18) | Gone in every state. What it said lives in the cooler banner, the cooler's status item and the preview's accessible description ([Preview column](#preview-column)). The column is the picture, its caption, the lost reading's reason when there is one, and the status items | In the one state where nothing is wrong it said "Shown on the cooler now", and in the three failures it repeated the banner above the window and the status item right below it. Without the line the column has the same layout in every cooler state, so nothing under the caption jumps when the cooler comes and goes |
@@ -64,7 +64,7 @@ Answers decided on 2026-11-06, under the same delegation, before Phase 10's code
 - **Sending to the cooler fails** (`write-failed`): a warning banner, shown only once the state has lasted 2 s. Before that, the window looks as if the cooler were connected, so unplugging the cooler doesn't flash a second banner.
 - **A GPU whose kind query failed** (`query-failed`): listed as "Unknown type · <name>", with the muted note "driver couldn't be asked" in the open list.
 
-Answers decided on 2026-11-11, under the same delegation, for the Start at boot switch (Phase 11 plan, Task 3; [Start at boot](#start-at-boot)). Each choice, with the options weighed:
+Answers decided on 2026-11-11, under the same delegation, for the Start at boot switch (Phase 11 plan, Task 3; [Start at boot](#start-at-boot)). Each choice, with the options weighed (**superseded in part on 2026-11-19:** the app has no terminal commands, so what is said below of the commands, their box and their Copy button is history):
 
 - **Where it sits (D9):**
   - (a) the header bar, next to the app name or Refresh: always in view, but it gives a once-per-PC, password-gated action the window's most visible place; next to the name it reads as a display on/off, a hidden setting that is out of scope; and at the 720 px minimum the header has no room for a labelled switch;
@@ -367,7 +367,7 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
   |---|---|
   | Cooler banner | Height only: it adds its own height while it shows, about 44 px (about 64 with two lines), and gives it back when it goes. Where the window is at its cap, the pages' viewports give up that height instead. Never width: its text is capped ([below](#size-and-scrolling)) |
   | Reason line under a group heading (Display page), reason line under the preview | About 17 px a line on the page, 17 to 60 under the picture: never enough to make the Display page or the column the tallest part |
-  | Start at boot note and terminal commands (Configuration page) | Height only, about 90 to 130 px on the tallest page; the width stays under the Display page's |
+  | Start at boot note (Configuration page) | Height only, about 90 to 130 px on the tallest page; the width stays under the Display page's |
   | The off screen | Nothing: a child of the homogeneous `pages` stack, smaller than the other pages. The window keeps its size when the service stops and when it comes back, and the preview column stays |
   | The not-available screen | It's in `screens`, a different stack and not homogeneous: the window takes the message's own size, about 440 × 170 px, and grows to its full size when the service answers (a few milliseconds after the first map in a session that is remote or inactive: no animation) |
   | The "Refreshed" and refusal label | Nothing: an overlay child takes no part in the window's size |
@@ -394,7 +394,6 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
   | The not-available message | 40 | the window's width less its 48 px of margin |
   | The preview column's lines, the label blocks' hints, the GPU box's lines | 28, 28, 40 | as built |
 
-  The terminal commands set the Startup card's width up to about 540 px (the longest command, and Copy beside it), which is under the Display page's, so they never change the window.
 
 - **What the tests check** (the app's window tests, which need a realised window: `--features weston-tests`; `Weston::start` takes the output's size). No test pins a pixel count, because the font differs between machines; each compares the window with its own measurement:
   - **Natural size.** On an output larger than anything the window needs (2560 × 1600), the window is exactly its natural size (`measure` of the window), and no page, the column nor the window scroller shows a scrollbar (`upper` ≤ `page_size` on each adjustment).
@@ -661,7 +660,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
 
   The toggles and the switches are shorter than a block of a title and a hint, so they centre against it. The dropdown's box and the scales hang from the top, level with the title, since a scale's marks and the dropdown's lines hang below them.
-- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the terminal commands, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
+- **The lines under a control** (the GPU's "Using …" and "No reading …", with `max-width-chars` 40) and the lines that span a card (the Music hint, the Startup note, the Startup hint) are not in the row: they are children of the card or of the control's box, and wrap at their own width. They have no part in the group. A line that spans a card asks for 72 characters at most (`max-width-chars`, about the rows' 520 px), so a long sentence never makes the page wider than its rows ([Size and scrolling](#size-and-scrolling), Text never sets the window's width).
 - **Hidden rows.** The GPU row hides with one `set_visible(false)`, as it does today. The card's 14 px spacing skips hidden children (GtkBox), so a PC with one GPU has no gap there.
 - **Narrow windows.**
   - The window opens at the size of its content and isn't resizable by the user, so a page is narrower than its natural width only where the monitor is: the content is capped to the screen ([Size and scrolling](#size-and-scrolling)).
@@ -814,7 +813,7 @@ A banner is a `GtkRevealer` (transition none) holding a `GtkBox`: an icon, a `Gt
 | Cooler, no access (error) | `CoolerState` is `no-access`: the service finds the cooler but can't open its device node, a permissions problem such as a missing udev rule (settings.md, Status; solution review P5-02) | "**The cooler is plugged in, but the service can't open it.** The udev rule that gives the service access is missing or not applied yet. Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more." | Nothing is disabled, and changes are saved. The preview keeps mirroring the service's picture, and its description adds "Not on the cooler: the service can't open it." Status "Cooler: no access", with a red dot. There's no button and no command, because both fixes are the user's own and the app can't do either |
 | Cooler, sending fails (warning) | `CoolerState` has been `write-failed` for 2 s | "**The cooler is connected, but sending it the picture fails.** The service keeps trying by itself, and changes are still saved. The journal says more." | Nothing is disabled. The preview's description adds "Not on the cooler: sending it fails." Status "Cooler: sending fails", with a yellow dot |
 
-- **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the gear is insensitive, the pages (and so Refresh) aren't shown, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note and its terminal commands, `sudo systemctl enable --now opendeepcool.service` first, say what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
+- **No service banner** (since 2026-11-11, D10). While the bus name `io.github.dtmarangoni.OpenDeepCool1` has no owner, the window shows the [off screen](#the-off-screen): the gear is insensitive, the pages (and so Refresh) aren't shown, the preview is all unlit, and the status says "Cooler: unknown" and "Service off" or "Service not running". Its note says what the banner said. The app watches `NameOwnerChanged` and connects by itself once the name has an owner ([Talking to the service](#talking-to-the-service)); it doesn't poll.
 - **Size:** the banner is part of the window's content, above the screens and inside the window scroller ([Size and scrolling](#size-and-scrolling)). While it shows, it adds its own height to the window, about 44 px for one line and about 64 for two, and gives it back when it goes; where the window is at its cap, the pages' viewports give up that height instead, so the page scrolls a little more and the banner is never cut off. It never widens the window: its text is a wrapping label with `max-width-chars` 100 (about 740 px), and it rewraps to the room the window gives it. The banner doesn't scroll away with a page.
 - **One cooler banner at a time,** chosen by `CoolerState` (dbus.md, State). The app reads `CoolerState`, never `CoolerConnected`, which stays in the state for other clients. While the service is down, there's no cooler banner, because the cooler's state is unknown then.
 - **Why the fix for `no-access` reads as it does:**
@@ -926,37 +925,34 @@ When the switch reads off and something is set up, one note under the row says w
 
 ### States and their text
 
-| State | Handle / trough / sensitive | Note under the row | Terminal commands |
-|---|---|---|---|
-| On | on / on / yes | none | none |
-| Off, nothing set up (a new install, or turned off) | off / off / yes | none: the off screen's heading says "OpenDeepCool is off" | on the off screen, the on commands always under the card |
-| Not fully on | off / off / yes | warning: [the note](#the-note) | none in the card (on the off screen, always under it) |
-| The display service starting | off / off / no | information: "The display service is starting." | none |
-| Unknown: a read failed | off / off / no | information: "Can't tell whether OpenDeepCool is on: reading it from systemd failed." | "To turn it on from a terminal:", the on commands |
-| Unknown: another unit state | off / off / no | information: "Can't change it here: systemd reports opendeepcool.service as “masked”." (the unit and its state as systemd gives them) | none: `enable` fails on a masked unit, and an administrator who set such a state knows its command |
-| Turning on | on / off / no | "Turning on… Your desktop asks for the administrator's password first." (foreground, no icon) | none |
-| Turning on, only the sound in this session missing | on / off / no | "Turning on… Starting the sound for Music in this session." | none |
-| Turning off (only from on) | off / on / no | "Turning off… Your desktop asks for the administrator's password first." | none |
-| Dialog closed (pkexec 126) | systemd's state / sensitive | none: nothing changed and the switch shows the state, so there is no note and the failure isn't kept (owner, 2026-11-19; Phase 11a Task 18) | none |
-| Not changed: not authorized, or no polkit agent (pkexec 127) | systemd's state / sensitive | warning: "Not changed: the password wasn't accepted, or no password dialog could open in this session." | the same |
-| Didn't finish: a step failed (the program's exit 1; any exit code but 0, 126 and 127 alike) | systemd's state / sensitive | warning: "Didn't finish: ‹the program's message›. The switch shows what's set now; the journal says more." | the same |
-| Didn't finish: the sound didn't start in this session (the app's own step, after `on` or as the flip without a password) | off (the sound isn't running here) / sensitive | warning: "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more." | the on commands |
-| Turned off, but the sound didn't stop in this session | off / sensitive | warning: "Off, but the sound for Music didn't stop in this session. It stops when you log out." | none: the change for the whole PC was made |
+| State | Handle / trough / sensitive | Note under the row |
+|---|---|--- |
+| On | on / on / yes | none |
+| Off, nothing set up (a new install, or turned off) | off / off / yes | none: the off screen's heading says "OpenDeepCool is off" |
+| Not fully on | off / off / yes | warning: [the note](#the-note) |
+| The display service starting | off / off / no | information: "The display service is starting." |
+| Unknown: a read failed | off / off / no | information: "Can't tell whether OpenDeepCool is on: reading it from systemd failed." |
+| Unknown: another unit state | off / off / no | information: "Can't change it here: systemd reports opendeepcool.service as “masked”." (the unit and its state as systemd gives them) |
+| Turning on | on / off / no | "Turning on… Your desktop asks for the administrator's password first." (foreground, no icon) |
+| Turning on, only the sound in this session missing | on / off / no | "Turning on… Starting the sound for Music in this session." |
+| Turning off (only from on) | off / on / no | "Turning off… Your desktop asks for the administrator's password first." |
+| Dialog closed (pkexec 126) | systemd's state / sensitive | none: nothing changed and the switch shows the state, so there is no note and the failure isn't kept (owner, 2026-11-19; Phase 11a Task 18) |
+| Not changed: not authorized, or no polkit agent (pkexec 127) | systemd's state / sensitive | warning: "Not changed: the password wasn't accepted, or no password dialog could open in this session." |
+| Didn't finish: a step failed (the program's exit 1; any exit code but 0, 126 and 127 alike) | systemd's state / sensitive | warning: "Didn't finish: ‹the program's message›. The switch shows what's set now; the journal says more." |
+| Didn't finish: the sound didn't start in this session (the app's own step, after `on` or as the flip without a password) | off (the sound isn't running here) / sensitive | warning: "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more." |
+| Turned off, but the sound didn't stop in this session | off / sensitive | warning: "Off, but the sound for Music didn't stop in this session. It stops when you log out." |
 
 - **Which note shows,** when more than one applies: a running flip's line, then a failure's note, then unknown, then "starting", then the missing parts. A failure's note replaces the missing-parts note, which comes back when the failure's note goes.
 
-- **The commands:**
-  - to turn on (settings.md): `sudo systemctl enable --now opendeepcool.service`, `sudo systemctl --global enable opendeepcool-audio.service`, and `systemctl --user start opendeepcool-audio.service`, which starts the sound for Music in this session at once, without a password (owner, 2026-11-11: the third line, so Music isn't silent until the next login);
-  - to turn off: `sudo systemctl disable --now opendeepcool.service` and `sudo systemctl --global disable opendeepcool-audio.service` (owner, 2026-11-11: the commands for the flip's direction, since the on commands would undo what the user wanted).
-- **How long a note stays:** a failure's note stays until the next flip, or until a read shows the state the failed flip wanted (the user typed the commands), and then goes. The missing-parts, starting and unknown notes follow the state.
+- **No terminal commands in the app** (owner, 2026-11-19; Phase 11a Task 19). Neither the Configuration page nor the off screen shows commands, their lead-in or a Copy button: the switch is the way, and the README, the manual, lists the commands to turn OpenDeepCool on and off ("Installing turns nothing on …"). An administrator who masked the unit, or who can't use the switch, finds them there.
+- **How long a note stays:** a failure's note stays until the next flip, or until a read shows the state the failed flip wanted (the user turned it on or off some other way), and then goes. The missing-parts, starting and unknown notes follow the state.
 - **pkexec's codes** (pkexec(1), read 2026-11-11): 126 is only "the user dismissed the authentication dialog"; 127 is "not authorized, or an authorization could not be obtained through authentication, or an error occurred", so a refused password, no polkit agent and any other pkexec error all end with 127. The 127 sentence covers every one of those causes, so no text depends on pkexec's messages, whose wording is **unverified**. Its stderr goes to the app's log only.
 - **The program's codes** (Phase 11 plan, Task 3): `opendeepcool-boot` exits 2 when it refuses its arguments or its caller, and 1 when a `systemctl` step fails, naming the step in one line on stderr. The app shows that line after "Didn't finish:", without the program's name in front and without a trailing period. The program's commit set the wording: "step 3 of 3, `systemctl start opendeepcool.service`, failed: exit status: 1", or, when one of systemd's two checks can't run, the check's path and the error. An exit 2 can come only from a fault in the app, and shows the same way.
 - **No toast on success:** the switch and the window are the confirmation. Screen readers get "Start at boot is on." or "Start at boot is off." at the end of a flip, and a note's text when one appears (`gtk_accessible_announce`, since GTK 4.14, verified).
 
-### The terminal commands
+### No terminal commands
 
-- A `GtkBox` (group "Terminal commands") with a muted `GtkLabel` ("From a terminal instead:" or "To turn it on from a terminal:"), a selectable monospace `GtkLabel` holding the commands, one a line (three to turn on, two to turn off), on the `--code-bg` fill, which wraps in a narrow window, and a "Copy" `GtkButton` that copies every line (`clipboard().set_text`, as the Phase 10 service banner's Copy did).
-- On the Configuration page it shows under a failure's note and with the unknown note. On the off screen it's always under the card, with the on commands and "From a terminal instead:", so a note there shows only its sentence.
+Until Phase 11a the card showed the commands, with a Copy button, under a failure's note and always on the off screen. The owner removed them on 2026-11-19: the note says what is wrong and the switch is the fix, and the commands are in the README. The `--code-bg` token, the monospace box and the two accessible names ("Terminal commands", "Copy terminal commands") went with them.
 
 ### A flip, step by step
 
@@ -995,11 +991,6 @@ When the switch reads off and something is set up, one note under the row says w
 │                      │  │ ⚠ Not fully on: the display service failed. … │  │
 │                      │  │ When it's on, the display service starts …    │  │
 │                      │  └───────────────────────────────────────────────┘  │
-│                      │  From a terminal instead:                           │
-│                      │  sudo systemctl enable --now opendeepcool.service   │
-│                      │  sudo systemctl --global enable opendeepcool-aud…   │
-│                      │  systemctl --user start opendeepcool-audio.service  │
-│                      │                                          [Copy]     │
 └──────────────────────┴─────────────────────────────────────────────────────┘
 ```
 
@@ -1008,9 +999,9 @@ When the switch reads off and something is set up, one note under the row says w
   - "OpenDeepCool is off" while the display service doesn't start at boot, or a flip toward off runs. The status reads "Service off", with a hollow dot: off on purpose, not a fault;
   - "OpenDeepCool isn't running" otherwise: it's set to start at boot but is stopped, failed or starting, or the state is unknown. The status reads "Service not running", with a red dot.
 - **Text** under the heading, in `--muted`, the same for both: "The cooler shows nothing until the display service runs."
-- **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none), and the terminal commands to turn it on, "From a terminal instead:". Its row is the same label block and switch as on the Configuration page, left-aligned in the card; the block is at its own width here, since the card leaves the page's size group on the off screen ([Rows](#rows)).
+- **Then** the Startup card without its heading, with [the note](#the-note) when one applies (a new install has none). Its row is the same label block and switch as on the Configuration page, left-aligned in the card; the block is at its own width here, since the card leaves the page's size group on the off screen ([Rows](#rows)).
 - **No banner.** The note says what's wrong, and the switch is the fix.
-- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card, then the terminal commands. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` (a page scroller: [Size and scrolling](#size-and-scrolling)) and without a page bar. **Its size:** it is smaller than the other pages and the stack is homogeneous, so it doesn't change the window: the window keeps the size it had with the pages, the off screen stands centred in it, and when the service comes back the page appears in the same window with nothing moving. Its heading and text wrap at 48 characters (`max-width-chars`) and its card and commands set a width of about 560 px, under the Display page's. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
+- **Widgets:** a vertical `GtkBox` centred in the content area, holding a `GtkBox` (group "Service message") around the heading and text `GtkLabel`s (wrapping, centred), then the card. The off screen is the `off` child of the `pages` stack, in its own `GtkScrolledWindow` (a page scroller: [Size and scrolling](#size-and-scrolling)) and without a page bar. **Its size:** it is smaller than the other pages and the stack is homogeneous, so it doesn't change the window: the window keeps the size it had with the pages, the off screen stands centred in it, and when the service comes back the page appears in the same window with nothing moving. Its heading and text wrap at 48 characters (`max-width-chars`) and its card and commands set a width of about 560 px, under the Display page's. The header bar shows the title, the insensitive gear and the close icon ([the header, by state](#window)); the preview column is as before while the service is down.
 - **Focus:** the switch takes the first focus when it's sensitive, so Space turns OpenDeepCool on. The gear is insensitive here, so a page that was closed by the service going down gives its focus to this switch, not to the gear.
 
 ### Who may flip it
@@ -1085,10 +1076,10 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Cooler found, no access (`no-access`) | Error banner with the fix; status "Cooler: no access"; the preview's description adds "Not on the cooler: the service can't open it."; everything still changeable | [cooler-no-access.html](mockups/cooler-no-access.html) |
 | Sending to the cooler fails, 2 s or more (`write-failed`) | Warning banner; status "Cooler: sending fails"; the preview's description adds "Not on the cooler: sending it fails."; everything still changeable | [cooler-write-failed.html](mockups/cooler-write-failed.html) |
 | Sending fails, under 2 s (one bad write, or the cooler being unplugged) | As connected: no banner, until the state changes or 2 s pass | (as display) |
-| Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the terminal commands under the card; the header keeps the title and the close icon, with the gear visible but insensitive, and there's no Refresh (it belongs to the Display page); nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
+| Service not running, set to start at boot (stopped, failed or restarting) | The off screen headed "OpenDeepCool isn't running", status "Service not running" (red); no banner; the switch off, with "Not fully on: the display service failed. Turn it on to finish. The journal says why the service failed."; the header keeps the title and the close icon, with the gear visible but insensitive, and there's no Refresh (it belongs to the Display page); nothing else changeable | [service-not-running.html](mockups/service-not-running.html) |
 | The same, just stopped | As above, with "the display service is stopped" and no journal sentence | (as service-not-running) |
 | The display service starting (at boot or login, before it's ready) | As above, with "The display service is starting." and the switch insensitive | (as service-not-running) |
-| OpenDeepCool is off (a new install, or turned off) | The off screen headed "OpenDeepCool is off": no banner, "Service off", the switch off with no note, the terminal commands under it. Flip it in the mockup to see the window turn on | [boot-off.html](mockups/boot-off.html) |
+| OpenDeepCool is off (a new install, or turned off) | The off screen headed "OpenDeepCool is off": no banner, "Service off", the switch off with no note. Flip it in the mockup to see the window turn on | [boot-off.html](mockups/boot-off.html) |
 | Turning on (the password dialog is open, or the program runs) | The handle on, the trough off, the switch insensitive; "Turning on… Your desktop asks for the administrator's password first." | [boot-changing.html](mockups/boot-changing.html) |
 | Turning on, only the sound in this session missing | As boot-changing, in the Configuration card, with "Turning on… Starting the sound for Music in this session."; no password | (as boot-changing) |
 | Turning off | The same, the other way; the window turns to the off screen as the service stops | (as boot-changing) |
@@ -1099,7 +1090,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Not fully on: only the sound in this session | The note ends "Turn it on to start it, with no password." | (as boot-partly) |
 | Start at boot unknown | The switch insensitive at off; the reason; the on commands | [boot-unknown.html](mockups/boot-unknown.html) |
 | Start at boot on, normal window | The Startup card, last on the Configuration page | [configuration.html](mockups/configuration.html) |
-| Service down in a remote or inactive session | The off screen without the Startup card: its heading, text and the terminal commands | (as service-not-running, without the card) |
+| Service down in a remote or inactive session | The off screen without the Startup card: its heading and text | (as service-not-running, without the card) |
 | Metric unavailable | Tiles disabled with "Unavailable"; each group lists its reasons once | [unavailable-metric.html](mockups/unavailable-metric.html) |
 | The saved mode lost a reading | Tile still selected with "Reading lost"; dashes in the preview; reason under the preview | [reading-lost.html](mockups/reading-lost.html) |
 | Not available in this session (remote or inactive) | Only one message: no values, no preview, no controls, no gear and no Refresh. The header keeps the title and the close icon | [not-available.html](mockups/not-available.html) |
@@ -1113,7 +1104,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | A small screen | The window is never larger than the smallest monitor less 48 px in each direction. The pages scroll down under their page bars, with the preview column and the banner in place; the whole content scrolls sideways below about 850 px; the column scrolls by itself on a screen under about 540 px high | every mockup: a browser window shorter than the mockup scrolls the page inside it (only the page scrolls sideways there, not the whole content) |
 | Not resizable | `resizable` false: no resizing or maximising by the user, and a compositor that floats fixed-size windows floats it; on one that tiles it anyway, the window is a tile that scrolls inside, and nothing breaks | — |
 | The monitors change while the app runs | The window keeps its size; the cap is read once. On a smaller screen the compositor decides whether to re-fit it; reopening the app fits it | — |
-| A banner, a note or the terminal commands appear | The window grows by their height, or the page scrolls a little more where the window is at its cap; the width never changes | cooler-disconnected, cooler-no-access, boot-partly |
+| A banner or a note appears | The window grows by their height, or the page scrolls a little more where the window is at its cap; the width never changes | cooler-disconnected, cooler-no-access, boot-partly |
 | Not available, drawn small | The window is as small as its message (about 440 × 170 px), and grows when the service answers | [not-available.html](mockups/not-available.html) |
 | Live theme switch | Colours change in place, with no restart and the same page and scroll position: an Omarchy theme replaced, the system's preference flipped, or one of the two Theme settings changed | every mockup: the colour buttons above the window preview the palettes; the Theme card's controls on the Configuration pages resolve the theme as the app does |
 | Theme card: an Omarchy theme found and followed (a) | The Theme card first on the Configuration page: "Use system theme" on, "Dark or light" dimmed on the theme's scheme (Dark in the sample), the line "Using the Omarchy theme." | [configuration.html](mockups/configuration.html) and every other mockup of the page |
@@ -1204,7 +1195,7 @@ The 12 rows cover all 32 combinations of the inputs (2 × 4 × 2 × 2): 8 + 4 + 
 | `--radius` | (none in `shell.toml`) | controls: buttons, toggles, tiles, the dropdown button, the command box. 0 px with an Omarchy theme, 4 px in OpenDeepCool's own |
 | `--radius-box` | (none in `shell.toml`) | what holds controls: cards, the preview frame, popovers, the feedback label. 0 px with an Omarchy theme, 10 px in OpenDeepCool's own. **New in Task 11** |
 
-- **Computed tokens**, from the fixed alphas of the mockups: `--line` (`--fg` at 0.12: header, column and banner rules), `--code-bg` (`--fg` at 0.08: the start command), `--unlit` (`--fg` at 0.12: unlit preview dots), `--banner-error` and `--banner-warn` (`--red` at 0.16 and `--yellow` at 0.14 over `--bg`, opaque).
+- **Computed tokens**, from the fixed alphas of the mockups: `--line` (`--fg` at 0.12: header, column and banner rules), `--unlit` (`--fg` at 0.12: unlit preview dots), `--banner-error` and `--banner-warn` (`--red` at 0.16 and `--yellow` at 0.14 over `--bg`, opaque).
 - **Values the tables leave open** (decisions log D30–D32, D39, D43):
   - a border width is CSS's four sides, as `shell.toml`'s comment allows (`N`, `"Y X"`, `"T X B"`, `"T R B L"`, with `-top`, `-right`, `-bottom` and `-left` keys over it), each from 0 to 16 px;
   - a missing or rejected `shell.toml` colour key takes the theme's own `--fg`, as Omarchy's template writes them, and a missing alpha the default theme's; `--ctl-pressed-fill` uses `normal-color`;
@@ -1252,7 +1243,7 @@ Five base tones and three status colours. Each is a hex the implementer copies; 
 
 - **Hover firms a border up** (0.60 over 0.44): hover never weakens the border that makes the control visible. The focus fill and border are the hover ones. The selected border is `--accent` as drawn by the stylesheet, and a selected control keeps it under the pointer.
 - **Focus is always visible:** every focused control also has the 2 px `--accent` outline at 2 px offset, whatever the alphas (WCAG 2.4.7). It is the brightest tone against both `--bg` and `--surface`.
-- **Computed tokens** keep their rules (`--line`, `--code-bg`, `--unlit` at `--fg` 0.12 and 0.08; `--banner-error` and `--banner-warn` at 0.16 and 0.14 of the status colour over `--bg`). `--selection` is `--accent` at 0.25 over `--bg`.
+- **Computed tokens** keep their rules (`--line`, `--unlit` at `--fg` 0.12; `--banner-error` and `--banner-warn` at 0.16 and 0.14 of the status colour over `--bg`). `--selection` is `--accent` at 0.25 over `--bg`.
 - **Not tinted near-black, and a little cool:** the dark ground is slightly blue (`#202326`), the text slightly warm (`#e6e3dc`), so lit dots read as light on metal. The light ground is a neutral aluminium, not a cream.
 
 #### Type
@@ -1267,7 +1258,7 @@ The system font (`gtk-font-name`; no new package, rule 7). Every size is a multi
 | `app-name` | 1em | 600 | `--fg` | the title in the header bar |
 | `caption` | 1em | 600 | `--fg` | the preview's caption |
 | body (no class) | 1em | 400 | `--fg` | row titles, status items, tile captions, banners, buttons |
-| `small` | 0.83em | 400 | `--muted` (with `muted`) | hints, notes, reason lines, scale marks, the terminal commands' box, a tile's flag |
+| `small` | 0.83em | 400 | `--muted` (with `muted`) | hints, notes, reason lines, scale marks, a tile's flag |
 | `num` | as its text | as its text | | `font-variant-numeric: tabular-nums` (as built) |
 
 - **In the stylesheet:** `.small { font-size: 0.83em; }`, `.page-title { font-size: 1.2em; font-weight: 600; }`, `.heading { font-size: 1.44em; font-weight: 600; }`; the other roles are weight 600 alone, which `app.css` already has. `.command` takes `small`.
@@ -1332,7 +1323,7 @@ The refused change (d) has no page of its own: it is the overlay label every ref
 
 ## Keyboard
 
-- **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: Use system theme, then Dark and Light (Tab stops only while they are sensitive, so none while the system theme is followed), rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot, then Copy of the terminal commands when they show. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive, then the commands' Copy.
+- **Tab order:** the gear → the close icon → the banner button (when present) → the page bar's icon (Refresh on the Display page, the back icon on the Configuration page) → page content. On the Display page: each tile group in turn. On the Configuration page: Use system theme, then Dark and Light (Tab stops only while they are sensitive, so none while the system theme is followed), rotation, temperature unit, GPU, peak dots, bar fall, peak fall, Start at boot. While the service is down, on the off screen: the gear is insensitive and takes no focus, so the order is the close icon, then Start at boot, which takes the first focus when it's sensitive.
 - **Where focus lands on a page change:** see [Window](#window), The pages. Opening the Configuration page puts it on the back icon; closing the page puts it on the gear. Nothing else moves it.
 - **The scrolled windows take no focus** (`focusable` false on the window scroller, the column and every page, [Size and scrolling](#size-and-scrolling)), so they add no Tab stop and the order above stands. Whether `GtkScrolledWindow` is focusable by default isn't in the docs (**unverified**), so the app sets it. Scrolling by keyboard goes through focus: a viewport scrolls to the focused control by itself (`GtkViewport:scroll-to-focus`, "whether to scroll when the focus changes", docs.gtk.org; its default and its behaviour in nested viewports are **unverified**, and the window test focuses the last control of the Configuration page on a small output and checks it came into view). The preview column has nothing to focus, so on a screen too short for it the column scrolls only by wheel or touch; every control stays reachable, and the column's words are also in the preview's description and the status items' names. Fallback if a nested viewport doesn't scroll to focus: the app moves the page's vertical adjustment itself when focus enters a control that lies outside the viewport.
 - **Inside a tile group:** the arrow keys move focus (`GtkFlowBox` keyboard navigation), and Enter or Space chooses the tile, which applies it. Focus alone never applies.
@@ -1395,8 +1386,6 @@ What AT-SPI showed, and what the app does about it (decisions log D67–D72):
 | Peak fall | `GtkScale` (slider) | `Peak fall` | the same (`Slow`) |
 | Start at boot | `GtkSwitch` (switch) | `Start at boot` | checked: the handle (`active`; GTK sets the accessible checked state from it, `gtk/gtkswitch.c`); disabled while a flip runs, while the state is unknown and while the display service is starting; description: the note's text when one shows ("Turning on… Your desktop asks for the administrator's password first.", "Not fully on: …", "Not changed: …") |
 | Start at boot note | `GtkBox` (group) around the icon and the `GtkLabel` under the row | `Start at boot status` | its label's text; present only while a note applies |
-| Terminal commands | `GtkBox` (group) around the muted label, the selectable command label and Copy | `Terminal commands` | its labels' text: the lead-in and the commands |
-| Copy terminal commands | `GtkButton` (button) | `Copy terminal commands` | — (it copies every line) |
 
 A scale's value text reaches AT-SPI as its Value interface's text, the stop's name (`GTK_ACCESSIBLE_PROPERTY_VALUE_TEXT`; the layer 4 run reads "Moderate").
 
@@ -1410,7 +1399,7 @@ The window's size and its scrolled windows (Task 9, [Size and scrolling](#size-a
 - Metrics are named as the display shows them: CPU usage, GPU usage, RAM usage, CPU temperature, GPU temperature, CPU power, GPU power.
 - Reasons come from the service and aren't rewritten. The service puts the metric in front by the spec's name ("Gpu usage: …", "Memory Load: …"); the app writes that name as the display does ("GPU usage: …", "RAM usage: …") and keeps the rest (decisions log D35).
 - A banner that needs the user's action says what happened in bold, then the fix in one sentence. Details, such as device paths and error codes, go to the journal, and the banner says "The journal says more."
-- Terminal commands are shown whole, in a selectable monospace label with a Copy button, never inside a sentence. Users read "the sound for Music", never "sound helper" or a unit name, except where systemd's own answer names a unit.
+- The app shows no terminal commands. Users read "the sound for Music", never "sound helper" or a unit name, except where systemd's own answer names a unit.
 
 ## What the Phase 10 plan must add to the D-Bus contract
 
@@ -1499,7 +1488,6 @@ Every item from settings.md "What the settings app must offer", display.md, musi
 | It works while the service isn't running | The off screen holds the switch | boot-off, service-not-running |
 | A change that doesn't happen: the switch goes back to systemd's state, and the commands for the flip's direction show (three lines to turn on, two to turn off) | The note under the switch: not authorized or no agent (127, `--disable-internal-agent`), a step failed (the program's code); none for a dismissed dialog (126), which changed nothing | boot-not-changed |
 | Unknown | Insensitive at off, with the reason and the commands | boot-unknown |
-| The service-not-running command is `sudo systemctl enable --now opendeepcool.service` | The off screen's terminal commands, first line | boot-off, service-not-running |
 | Only the user at the PC may flip it | polkit `allow_active` only; no switch when not available, nor on the off screen in a remote or inactive session | not-available |
 | English only, no app-only settings | — | — |
 

@@ -308,7 +308,7 @@ impl Window {
         // Until the card has stood on the page, its room there is its natural height.
         config_page.reserve(startup.card().measure(gtk::Orientation::Vertical, -1).1);
 
-        // The off screen (D10): the message, then the Startup card and the commands, centred.
+        // The off screen (D10): the message, then the Startup card, centred.
         let off = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(14)
@@ -820,8 +820,8 @@ impl Window {
         *inner.shown.borrow_mut() = Some(shown);
     }
 
-    /// The off screen: its heading and text, then the Startup card and the commands; nothing
-    /// until the first read of systemd, so no heading flashes.
+    /// The off screen: its heading and text, then the Startup card; nothing until the first read
+    /// of systemd, so no heading flashes.
     fn show_off_screen(&self, screen: &boot::OffScreen) {
         let inner = &self.0;
         let startup = &inner.startup;
@@ -837,7 +837,7 @@ impl Window {
         inner.config.spacer().set_visible(true);
         let Some(heading) = screen.heading else {
             inner.off_message.set_visible(false);
-            startup.hide_all();
+            startup.hide_card();
             inner.names.describe(&inner.off_message, None);
             return;
         };

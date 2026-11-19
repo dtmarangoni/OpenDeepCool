@@ -106,18 +106,6 @@ const PKEXEC_ARGS: &str = "--disable-internal-agent /usr/lib/opendeepcool/opende
 const START_SOUND: &str = "user StartUnit(\"opendeepcool-audio.service\", \"replace\")";
 const STOP_SOUND: &str = "user StopUnit(\"opendeepcool-audio.service\", \"replace\")";
 
-/// The terminal commands for each direction, and their lead-ins (The terminal commands).
-const ON_LINES: [&str; 3] = [
-    "sudo systemctl enable --now opendeepcool.service",
-    "sudo systemctl --global enable opendeepcool-audio.service",
-    "systemctl --user start opendeepcool-audio.service",
-];
-const OFF_LINES: [&str; 2] = [
-    "sudo systemctl disable --now opendeepcool.service",
-    "sudo systemctl --global disable opendeepcool-audio.service",
-];
-const FROM_A_TERMINAL: &str = "From a terminal instead:";
-
 /// The off screen's message, as its group describes it (The off screen).
 const IS_OFF: &str =
     "OpenDeepCool is off. The cooler shows nothing until the display service runs.";
@@ -451,13 +439,11 @@ impl Run {
         self.expect_description("switch", BOOT, text)
     }
 
-    /// Waits until the terminal commands read `lead` and `lines`.
-    fn commands(&self, lead: &str, lines: &[&str]) -> Result<()> {
-        self.expect_description(
-            "group",
-            "Terminal commands",
-            &format!("{lead} {}", lines.join(" ")),
-        )
+    /// The app has no terminal commands and no Copy button: they are in the README (owner,
+    /// 2026-11-19).
+    fn no_terminal(&self) -> Result<()> {
+        self.gone("group", "Terminal commands")?;
+        self.gone("button", "Copy terminal commands")
     }
 
     /// Flips the switch; returns once the fake `pkexec` runs with `to`, the only run since.
@@ -529,16 +515,15 @@ pub const ALL: [(&str, Scenario); 30] = [
 const NO_NOTE: Result<String> = Ok(String::new());
 
 /// Service not running, at the start: the fake hasn't taken the bus, and systemd answers as a
-/// new install. The off screen, "OpenDeepCool is off", with the switch off and usable, and the
-/// commands to turn it on under it, `enable --now` first (The off screen; D10).
+/// new install. The off screen, "OpenDeepCool is off", with the switch off and usable, and
+/// no terminal commands (they are in the README; owner, 2026-11-19; The off screen; D10).
 fn service_down(run: &mut Run) -> Result<String> {
     run.expect_description("group", "Service message", IS_OFF)?;
     run.check_state("switch", BOOT, State::Sensitive, true)?;
     run.check_state("switch", BOOT, State::Checked, false)?;
     run.expect_state("switch", BOOT, State::Focused, true)?;
     run.gone("group", "Start at boot status")?;
-    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
-    run.check_state("button", "Copy terminal commands", State::Sensitive, true)?;
+    run.no_terminal()?;
     run.node("group", "Startup settings")?;
     // The gear stays, dimmed and not pressed; Refresh belongs to the Display page, which the off
     // screen replaces; the close icon always works.
@@ -1311,7 +1296,7 @@ fn service_stops(run: &mut Run) -> Result<String> {
         "Not fully on: the display service failed. Turn it on to finish. The journal says why the \
          service failed.",
     )?;
-    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.no_terminal()?;
     run.expect_state("toggle button", "Configuration", State::Sensitive, false)?;
     run.gone("grid cell", "Load: CPU")?;
     run.expect_texts("group", "Service status", &["Service not running"])?;
@@ -1426,7 +1411,7 @@ fn boot_on(run: &mut Run) -> Result<String> {
     run.expect_state("switch", BOOT, State::Checked, true)?;
     run.check_state("switch", BOOT, State::Sensitive, true)?;
     run.gone("group", "Start at boot status")?;
-    run.gone("group", "Terminal commands")?;
+    run.no_terminal()?;
     run.node(
         "label",
         "When it's on, the display service starts at every boot, and the sound for the Music \
@@ -1472,7 +1457,7 @@ fn boot_flip(run: &mut Run) -> Result<String> {
     run.check_state("switch", BOOT, State::Checked, false)?;
     run.gone("group", "Start at boot status")?;
     run.expect_texts("group", "Service status", &["Service off"])?;
-    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.no_terminal()?;
 
     // On, from the off screen.
     let mark = run.flip("on")?;
@@ -1530,8 +1515,8 @@ fn boot_flip(run: &mut Run) -> Result<String> {
 
 /// A flip that doesn't happen: the dialog closed (126), not authorized or no agent (127), and a
 /// failed step (1, the program's message). The switch goes back, usable; a closed dialog has no
-/// note (it changed nothing: owner, 2026-11-19), the others a note and the commands for the
-/// flip's direction; the app's own step is skipped. The note goes once systemd shows what the
+/// note (it changed nothing: owner, 2026-11-19), the others a note; the app's own step is
+/// skipped. The note goes once systemd shows what the
 /// flip wanted (States and their text).
 fn boot_refused(run: &mut Run) -> Result<String> {
     run.reset()?;
@@ -1570,23 +1555,23 @@ fn boot_refused(run: &mut Run) -> Result<String> {
         run.note(note)?;
         run.expect_state("switch", BOOT, State::Sensitive, true)?;
         run.check_state("switch", BOOT, State::Checked, true)?;
-        run.commands(FROM_A_TERMINAL, &OFF_LINES)?;
+        run.no_terminal()?;
         let calls = run.systemd.calls_since(mark)?;
         if calls.iter().any(|c| c.contains("StopUnit")) {
             return Err(format!("the sound stopped after exit {code}: {calls:?}"));
         }
     }
-    // Turned off in a terminal: the note and the commands go once the window is active again.
+    // Turned off in a terminal: the note goes once the window is active again.
     run.units(Units::new_install())?;
     run.gone("group", "Start at boot status")?;
-    run.gone("group", "Terminal commands")?;
+    run.no_terminal()?;
     run.check_state("switch", BOOT, State::Checked, false)?;
     run.page("Display")?;
     NO_NOTE
 }
 
 /// Only the sound in this session missing: a flip on starts it through the user's own manager,
-/// with no `pkexec` and no password; when it doesn't start, its note and the on commands.
+/// with no `pkexec` and no password; when it doesn't start, its note.
 fn boot_only_sound(run: &mut Run) -> Result<String> {
     run.reset()?;
     let missing = Units {
@@ -1611,7 +1596,7 @@ fn boot_only_sound(run: &mut Run) -> Result<String> {
     if !runs.is_empty() {
         return Err(format!("pkexec ran: {runs:?}"));
     }
-    // The sound doesn't start: its note, and the on commands.
+    // The sound doesn't start: its note.
     run.units(Units {
         job: "failed",
         ..missing
@@ -1623,7 +1608,7 @@ fn boot_only_sound(run: &mut Run) -> Result<String> {
         "Didn't finish: the sound for Music didn't start in this session. It starts at your next \
          login; the journal says more.",
     )?;
-    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.no_terminal()?;
     run.expect_state("switch", BOOT, State::Sensitive, true)?;
     run.check_state("switch", BOOT, State::Checked, false)?;
     // The note stays at a read that still misses the sound, and goes once a read shows it
@@ -1638,7 +1623,7 @@ fn boot_only_sound(run: &mut Run) -> Result<String> {
     ])?;
     run.units(Units::all_on())?;
     run.gone("group", "Start at boot status")?;
-    run.gone("group", "Terminal commands")?;
+    run.no_terminal()?;
     run.expect_state("switch", BOOT, State::Checked, true)?;
     run.page("Display")?;
     NO_NOTE
@@ -1671,7 +1656,7 @@ fn boot_partly(run: &mut Run) -> Result<String> {
         run.note(note)?;
         run.check_state("switch", BOOT, State::Checked, false)?;
         run.check_state("switch", BOOT, State::Sensitive, true)?;
-        run.gone("group", "Terminal commands")?;
+        run.no_terminal()?;
     }
     let mark = run.flip("on")?;
     run.systemd.units = Units::all_on();
@@ -1686,7 +1671,7 @@ fn boot_partly(run: &mut Run) -> Result<String> {
 
 /// The off screen's states (Where its state comes from; States and their text): starting, a
 /// masked unit, a failed read and one that doesn't answer within 1 s; each insensitive, with its
-/// note, and the on commands under the card.
+/// note.
 fn boot_off_screen(run: &mut Run) -> Result<String> {
     run.reset()?;
     run.systemd.units.service = ("enabled", "activating", "start");
@@ -1724,7 +1709,7 @@ fn boot_off_screen(run: &mut Run) -> Result<String> {
         run.expect_description("group", "Service message", NOT_RUNNING)?;
         run.check_state("switch", BOOT, State::Sensitive, false)?;
         run.check_state("switch", BOOT, State::Checked, false)?;
-        run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+        run.no_terminal()?;
     }
     run.systemd.units = Units::all_on();
     run.systemd.write()?;
@@ -1734,9 +1719,9 @@ fn boot_off_screen(run: &mut Run) -> Result<String> {
     NO_NOTE
 }
 
-/// A session logind reports as remote: the off screen keeps its heading and the commands, but
-/// has no switch, since polkit would refuse the flip there (Who may flip it). logind's change
-/// is read when it comes.
+/// A session logind reports as remote: the off screen keeps its heading, but has no switch,
+/// since polkit would refuse the flip there (Who may flip it). logind's change is read when it
+/// comes.
 fn boot_remote(run: &mut Run) -> Result<String> {
     run.reset()?;
     run.systemd.units = Units::new_install();
@@ -1750,7 +1735,7 @@ fn boot_remote(run: &mut Run) -> Result<String> {
     run.gone("switch", BOOT)?;
     run.gone("group", "Startup settings")?;
     run.expect_description("group", "Service message", IS_OFF)?;
-    run.commands(FROM_A_TERMINAL, &ON_LINES)?;
+    run.no_terminal()?;
     run.systemd.units = Units::all_on();
     run.systemd.write()?;
     run.node("switch", BOOT)?;
