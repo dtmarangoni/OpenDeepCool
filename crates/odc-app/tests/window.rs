@@ -31,7 +31,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 10] = [
+const CHECKS: [(&str, Check); 11] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
@@ -39,6 +39,10 @@ const CHECKS: [(&str, Check); 10] = [
     ("sending_fails_shows_after_2_s", sending_fails),
     ("the_feedback_label", feedback),
     ("the_status_items_stand_24_px_under_the_caption", status_gap),
+    (
+        "the_caption_and_the_status_items_are_centred_in_the_column",
+        column_centred,
+    ),
     ("the_header_and_the_two_pages", header_and_pages),
     ("the_window_s_requests", requests),
     ("every_name_of_the_design_s_table", names),
@@ -534,6 +538,42 @@ fn status_gap(app: &gtk::Application) {
         24.0,
         "the caption {caption_at:?}, the first status item {status_at:?}"
     );
+    close(window);
+}
+
+// The caption's text and each status item are centred in the column (owner, 2026-11-19), each
+// item on its own, so a row that changes its words moves only itself.
+fn column_centred(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(base());
+    run_for(Duration::from_millis(200));
+    let preview = window
+        .names()
+        .find("Cooler display preview")
+        .expect("the preview");
+    let frame = preview.parent().expect("its frame");
+    let column = frame.parent().expect("the column");
+    let caption = frame
+        .next_sibling()
+        .and_then(|w| w.downcast::<gtk::Label>().ok())
+        .expect("the caption");
+    assert_eq!(caption.xalign(), 0.5, "the caption's text");
+    assert_eq!(caption.justify(), gtk::Justification::Center);
+    let middle = |widget: &gtk::Widget| {
+        let b = widget
+            .compute_bounds(&column)
+            .expect("a place in the column");
+        b.x() + b.width() / 2.0
+    };
+    let axis = middle(caption.upcast_ref());
+    for name in ["Cooler status", "Service status"] {
+        let row = window.names().find(name).expect(name);
+        assert!(
+            (middle(&row) - axis).abs() <= 1.0,
+            "{name} is at {}, the caption's middle at {axis}",
+            middle(&row)
+        );
+    }
     close(window);
 }
 

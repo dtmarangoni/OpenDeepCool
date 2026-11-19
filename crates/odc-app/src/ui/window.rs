@@ -245,7 +245,10 @@ impl Window {
             .halign(gtk::Align::Start)
             .build();
         frame.append(preview.widget());
+        // The caption and the status items are centred in the column (owner, 2026-11-19).
         let caption = label("", &["caption"]);
+        caption.set_xalign(0.5);
+        caption.set_justify(gtk::Justification::Center);
         let reason = label("", &["warn-text", "small"]);
         // A label's fixed name goes on a group around it: GTK names a label by its own text,
         // again at each change, so a name never sticks to it (decisions log D72).
@@ -264,7 +267,7 @@ impl Window {
         let status_box = vbox(4);
         status_box.set_margin_top(STATUS_GAP);
         let status = STATUS_NAMES.map(|name| {
-            let row = group().spacing(8).build();
+            let row = group().spacing(8).halign(gtk::Align::Center).build();
             names.name(&row, name);
             let dot = gtk::Box::builder()
                 .css_classes(["dot"])
