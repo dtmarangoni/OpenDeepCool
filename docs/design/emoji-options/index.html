@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenDeepCool: twenty emoji pictures to choose from</title>
+<style>
+:root {
+  color-scheme: light dark;
+  --bg: #f2eee4; --panel: #fbf9f3; --ink: #1c1a16; --mute: #6b655a; --line: #ddd6c6;
+  --accent: #b8501f; --accent-ink: #ffffff; --chip: #e9e3d3;
+  --glass: #0d0f11; --lit: #f5ead2;
+  --mono: ui-monospace, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, Cantarell, "Helvetica Neue", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #141618; --panel: #1c1f22; --ink: #ebe6da; --mute: #9a9588; --line: #2c3035;
+    --accent: #e8946a; --accent-ink: #1a1008; --chip: #262a2e;
+  }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+button, input { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 20px; }
+header.top { padding: 40px 0 20px; }
+.eyebrow { font: 600 12px/1 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--accent); margin: 0 0 14px; }
+h1 { font-size: clamp(28px, 5vw, 44px); line-height: 1.08; letter-spacing: -.02em; margin: 0 0 12px; font-weight: 650; }
+.lede { max-width: 62ch; margin: 0; color: var(--mute); font-size: 16px; }
+.lede b { color: var(--ink); font-weight: 600; }
+
+.bar { position: sticky; top: 0; z-index: 5; background: color-mix(in srgb, var(--bg) 92%, transparent);
+  backdrop-filter: blur(6px); border-bottom: 1px solid var(--line); border-top: 1px solid var(--line); }
+.bar .wrap { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; padding-top: 10px; padding-bottom: 10px; }
+.group { display: flex; align-items: center; gap: 6px; }
+.group > .lbl { font: 600 11px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--mute); margin-right: 2px; }
+.btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 12px; line-height: 1.2; min-height: 34px; }
+.btn:hover { border-color: var(--mute); }
+.btn[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.seg { display: inline-flex; }
+.seg .btn { border-radius: 0; margin-left: -1px; }
+.seg .btn:first-child { border-radius: 8px 0 0 8px; margin-left: 0; }
+.seg .btn:last-child { border-radius: 0 8px 8px 0; }
+.spacer { flex: 1 1 20px; }
+.count { font: 600 13px var(--mono); color: var(--mute); }
+.count b { color: var(--ink); }
+#picksOut { margin: 0; font-size: 13px; color: var(--mute); min-height: 1.4em; }
+.picksline { padding: 10px 0 0; }
+
+main.wrap { padding-top: 24px; padding-bottom: 28px; }
+.grid { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); list-style: none; padding: 0; margin: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 12px 12px 14px; display: flex; flex-direction: column; gap: 10px; }
+.card.liked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.screen { display: block; width: 100%; padding: 0; border: 0; border-radius: 10px; background: var(--glass); overflow: hidden; position: relative; aspect-ratio: 1; }
+.screen canvas, .zoom canvas { display: block; width: 100%; height: 100%; }
+.screen::after { content: "Enlarge"; position: absolute; right: 8px; bottom: 8px; font: 600 11px var(--mono); letter-spacing: .06em; text-transform: uppercase;
+  color: #cfc6b0; background: rgba(0,0,0,.55); padding: 3px 7px; border-radius: 6px; opacity: 0; transition: none; }
+.screen:hover::after, .screen:focus-visible::after { opacity: 1; }
+.head { display: flex; align-items: baseline; gap: 10px; }
+.num { font: 700 22px/1 var(--mono); color: var(--accent); letter-spacing: -.02em; }
+.head h2 { font-size: 17px; line-height: 1.2; margin: 0; font-weight: 600; flex: 1; }
+.pick { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; user-select: none; cursor: pointer; padding: 4px 8px; border-radius: 8px; border: 1px solid var(--line); background: var(--bg); }
+.pick input { width: 18px; height: 18px; accent-color: var(--accent); margin: 0; cursor: pointer; }
+.idea { margin: 0; color: var(--mute); font-size: 14px; }
+.meta { margin: 0; font: 12.5px/1.45 var(--mono); color: var(--mute); }
+.meta b { color: var(--ink); font-weight: 600; }
+
+footer { border-top: 1px solid var(--line); padding: 16px 0 36px; color: var(--mute); font-size: 13px; }
+footer p { margin: 0 0 6px; max-width: 80ch; }
+#check { font: 12px/1.4 var(--mono); }
+#check[data-status="ok"] { color: var(--mute); }
+#check[data-status="error"] { color: #c0392b; font-weight: 700; }
+
+.zoom { position: fixed; inset: 0; z-index: 20; background: rgba(8,9,10,.72); display: flex; align-items: center; justify-content: center; padding: 12px; overflow: auto; }
+.zoom[hidden] { display: none; }
+.zoom-card { background: var(--panel); border: 1px solid var(--line); border-radius: 16px; padding: 14px; width: min(94vw, 560px); max-height: 100%; overflow: auto; }
+.zoom-head { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.zoom-head .id { display: flex; align-items: baseline; gap: 10px; font-size: 18px; }
+.zoom-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.zoom canvas { aspect-ratio: 1; border-radius: 12px; background: var(--glass); width: min(100%, 62vh); margin: 0 auto; }
+.film { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.film figure { margin: 0; text-align: center; }
+.film canvas { width: 112px; height: 56px; aspect-ratio: auto; border-radius: 6px; border: 2px solid transparent; }
+.film figure.now canvas { border-color: var(--accent); }
+.film figcaption { font: 11px var(--mono); color: var(--mute); margin-top: 3px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+@media (max-width: 520px) {
+  .wrap { padding: 0 14px; }
+  header.top { padding-top: 26px; }
+  .grid { grid-template-columns: 1fr; }
+  .bar .wrap { gap: 8px; }
+  .spacer { display: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="wrap">
+    <p class="eyebrow">OpenDeepCool &middot; Music modes 14 to 17</p>
+    <h1>Twenty emoji pictures to choose from</h1>
+    <p class="lede">Each one is a small loop on the cooler's 100 ms tick: a <b>14 &times; 7 dot picture</b> in rows 1 to 7, with the spectrum rising in rows 8 to 14 below it. Dots are lit or unlit, nothing in between. Tick the ones you want; <b>four are needed</b>, more are welcome. Nothing on the cooler changes until you choose.</p>
+  </div>
+</header>
+
+<div class="bar" role="region" aria-label="Controls">
+  <div class="wrap">
+    <div class="group">
+      <button class="btn" id="playBtn" type="button" aria-pressed="true">Pause all</button>
+      <button class="btn" id="restartBtn" type="button">Restart</button>
+    </div>
+    <div class="group">
+      <span class="lbl" id="speedLbl">Speed</span>
+      <span class="seg" role="group" aria-labelledby="speedLbl">
+        <button class="btn" type="button" data-speed="0.5" aria-pressed="false">0.5&times;</button>
+        <button class="btn" type="button" data-speed="1" aria-pressed="true">1&times;</button>
+        <button class="btn" type="button" data-speed="2" aria-pressed="false">2&times;</button>
+      </span>
+    </div>
+    <div class="group">
+      <button class="btn" id="specBtn" type="button" aria-pressed="true">Spectrum</button>
+    </div>
+    <span class="spacer"></span>
+    <span class="count">Picks <b id="pickCount">0</b></span>
+    <button class="btn primary" id="copyBtn" type="button">Copy my picks</button>
+    <button class="btn" id="clearBtn" type="button">Clear</button>
+  </div>
+  <div class="wrap picksline"><p id="picksOut" role="status" aria-live="polite"></p></div>
+</div>
+
+<main class="wrap">
+  <ul class="grid" id="gallery" aria-label="The twenty animations"></ul>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Pictures are strictly 1-bit: a dot is lit or unlit, 14 columns by 7 rows. The spectrum under each is a made-up demo, not music. The displays keep their dark glass look in both light and dark. Loops restart together; on the cooler a loop restarts whenever the mode is entered.</p>
+    <div id="check" data-status="pending">Checking the animations...</div>
+  </div>
+</footer>
+
+<div class="zoom" id="zoom" hidden role="dialog" aria-modal="true" aria-labelledby="zTitle">
+  <div class="zoom-card">
+    <div class="zoom-head">
+      <div class="id"><span class="num" id="zNum"></span><strong id="zTitle"></strong></div>
+      <div class="zoom-actions">
+        <label class="pick"><input type="checkbox" id="zPick"> Pick</label>
+        <button class="btn" type="button" id="zPrev">Previous</button>
+        <button class="btn" type="button" id="zNext">Next</button>
+        <button class="btn" type="button" id="zClose">Close</button>
+      </div>
+    </div>
+    <canvas id="zCanvas" width="700" height="700" aria-label="Enlarged display"></canvas>
+    <p class="idea" id="zIdea" style="margin-top:10px"></p>
+    <p class="meta" id="zMeta"></p>
+    <div class="film" id="zFilm" aria-label="Every picture of the loop"></div>
+  </div>
+</div>
+
+<!-- The data: 20 animations. Each frame is 7 strings of 14 characters, # lit and . unlit; holds are in 100 ms ticks. -->
+<script>
+var ANIMS = [];
+/* Small helpers for the animations that are built rather than typed. Rows and columns count from 0. */
+function grid() { var g = [], r, c; for (r = 0; r < 7; r++) { g.push([]); for (c = 0; c < 14; c++) { g[r].push("."); } } return g; }
+function dot(g, r, c) { if (r >= 0 && r < 7 && c >= 0 && c < 14) { g[r][c] = "#"; } }
+function stamp(g, rows, r0, c0) { var r, c; for (r = 0; r < rows.length; r++) { for (c = 0; c < rows[r].length; c++) { if (rows[r].charAt(c) === "#") { dot(g, r0 + r, c0 + c); } } } }
+function dots(g, list) { list.forEach(function (p) { dot(g, p[0], p[1]); }); }
+function rowsOf(g) { return g.map(function (row) { return row.join(""); }); }
+/* 1 */
+(function () {
+  var S = [
+    "..............",
+    "....##..##....",
+    "...########...",
+    "...########...",
+    "....######....",
+    ".....####.....",
+    "......##......"];
+  var B = [
+    "...###..###...",
+    "..##########..",
+    "..##########..",
+    "...########...",
+    "....######....",
+    ".....####.....",
+    "......##......"];
+  var B2 = [
+    "...###..###...",
+    "..##########..",
+    "#.##########.#",
+    "...########...",
+    "....######....",
+    ".....####.....",
+    "......##......"];
+  ANIMS.push({ n: 1, name: "Lub-dub",
+    idea: "A heart at rest swells twice, the second beat throwing off two side ticks, then settles. It grows upward from its tip.",
+    frames: [S, B, S, B2, S], holds: [4, 1, 1, 2, 2] });
+})();
+/* 2 */
+(function () {
+  var R1 = [
+    "..............",
+    "......##......",
+    "......##......",
+    ".....####.....",
+    ".....#..#.....",
+    "..............",
+    "...########..."];
+  var R2 = [
+    "..............",
+    "......##......",
+    "......##......",
+    ".....####.....",
+    ".....#..#.....",
+    "......##......",
+    "...########..."];
+  var R3 = [
+    "......##......",
+    "......##......",
+    ".....####.....",
+    ".....#..#.....",
+    "......##......",
+    ".....#..#.....",
+    "...########..."];
+  var R4 = [
+    ".....####.....",
+    ".....#..#.....",
+    "......##......",
+    ".....#..#.....",
+    "......##......",
+    "..##......##..",
+    "...########..."];
+  var R5 = [
+    "......##......",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "..##......##..",
+    "##.########.##"];
+  var R6 = [
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    ".#..........#.",
+    "...########..."];
+  ANIMS.push({ n: 2, name: "Liftoff",
+    idea: "Ignition, a slow first rise that speeds up, a smoke puff on the pad, then the next rocket waits.",
+    frames: [R1, R2, R3, R4, R5, R6], holds: [3, 2, 2, 1, 1, 2] });
+})();
+/* 3 */
+(function () {
+  var A = [
+    "......##......",
+    "......##......",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "......##......"];
+  var B = [
+    "..............",
+    "..............",
+    "......##......",
+    "......##......",
+    "......##......",
+    "..............",
+    ".....####....."];
+  var C = [
+    "..............",
+    "..............",
+    "..............",
+    "......##......",
+    "......##......",
+    "......##......",
+    "....######...."];
+  var D = [
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    "..............",
+    ".....####.....",
+    "....######...."];
+  var G = [
+    "..............",
+    "......##......",
+    "......##......",
+    "..............",
+    "..............",
+    "..............",
+    "......##......"];
+  ANIMS.push({ n: 3, name: "Squash ball",
+    idea: "A ball drops, stretching as it speeds up, flattens on the floor, springs back and hangs a moment at the top. The shadow grows as it nears.",
+    frames: [A, B, C, D, B, G], holds: [3, 1, 1, 2, 1, 1] });
+})();
+/* 4 */
+(function () {
+  var H = [
+    "...###......##",
+    "..#####.....##",
+    ".#######...#..",
+    ".#.....#..#...",
+    ".#######.#....",
+    "..#####.......",
+    "...###........"];
+  var D1 = [
+    "...###......##",
+    "..####......##",
+    ".####.##...#..",
+    ".###.###..#...",
+    ".##.####.#....",
+    "...####.......",
+    "...###........"];
+  var V = [
+    "...###......##",
+    "..##.##.....##",
+    ".###.###...#..",
+    ".###.###..#...",
+    ".###.###.#....",
+    "..##.##.......",
+    "...###........"];
+  var D2 = [
+    "...###......##",
+    "...####.....##",
+    ".##.####...#..",
+    ".###.###..#...",
+    ".####.##.#....",
+    "..####........",
+    "...###........"];
+  ANIMS.push({ n: 4, name: "Spinning vinyl",
+    idea: "A record with a light glint turning an eighth of a turn at a time under a resting tone arm.",
+    frames: [H, D1, V, D2], holds: [2, 2, 2, 2] });
+})();
+/* 5 */
+(function () {
+  var FA = [
+    "..............",
+    "......##......",
+    ".....####.....",
+    ".....####.....",
+    "....######....",
+    "....######....",
+    "..####..####.."];
+  var FB = [
+    ".......#......",
+    "......##......",
+    "......###.#...",
+    ".....####.....",
+    "....#####.....",
+    "....######....",
+    "..####..####.."];
+  var FD = [
+    "......#.......",
+    "......##..#...",
+    ".....###......",
+    ".....####.....",
+    ".....#####....",
+    "....######....",
+    "..####..####.."];
+  var FC = [
+    "..........#...",
+    "..............",
+    "......##......",
+    ".....####.....",
+    "....######....",
+    "...########...",
+    "..####..####.."];
+  ANIMS.push({ n: 5, name: "Campfire",
+    idea: "Flame licks left, right and low over two logs, and one spark climbs out of it.",
+    frames: [FA, FB, FD, FC, FA, FB], holds: [2, 1, 1, 2, 1, 1] });
+})();
+/* 6 */
+(function () {
+  var cup = [
+    "....######.##.",
+    "....######..#.",
+    ".....####.....",
+    "...########..."];
+  function steam(a, b, c) { return [a, b, c].concat(cup); }
+  var T0 = steam(".........#....", "........#.....", ".....#........");
+  var T1 = steam(".........#....", "......#.......", ".....#........");
+  var T2 = steam(".....#........", "......#.......", ".....#........");
+  var T3 = steam(".....#........", "......#.......", ".........#....");
+  var T4 = steam(".....#........", "........#.....", ".........#....");
+  var T5 = steam(".........#....", "........#.....", ".........#....");
+  ANIMS.push({ n: 6, name: "Coffee break",
+    idea: "A cup on its saucer, two threads of steam that curl up and fade in turn, one after the other.",
+    frames: [T0, T1, T2, T3, T4, T5], holds: [2, 2, 2, 2, 2, 2] });
+})();
+/* 7 */
+(function () {
+  var blank = "..............", s1 = "......##......", s2 = "......###.....", s3 = "......####....", hull = "...########...";
+  var w6 = [".#...#...#...#", "#...#...#...#.", "...#...#...#..", "..#...#...#..."];
+  var w7 = ["#.###.###.###.", ".###.###.###.#", "###.###.###.##", "##.###.###.###"];
+  function up(f) { return [s1, s2, s3, hull, blank, w6[f], w7[f]]; }
+  function down(f) { return [blank, s1, s2, s3, hull, w6[f], w7[f]]; }
+  ANIMS.push({ n: 7, name: "Sailboat",
+    idea: "A boat rides over waves that roll past under it, rising on the crest and sinking in the trough.",
+    frames: [up(0), up(1), down(2), down(3)], holds: [2, 2, 2, 2] });
+})();
+/* 8 */
+(function () {
+  var cloud1 = [".....####.....", "...########...", "..##########.."];
+  var cloud2 = ["....######....", "...########...", "..##########.."];
+  var cols = [2, 5, 8, 11], phase = [0, 1, 2, 1];
+  function rain(cloud, k) {
+    var g = grid(), i, top;
+    stamp(g, cloud, 0, 0);
+    for (i = 0; i < cols.length; i++) { top = 3 + ((k + phase[i]) % 3); dot(g, top, cols[i]); dot(g, top + 1, cols[i]); }
+    return rowsOf(g);
+  }
+  ANIMS.push({ n: 8, name: "Rain cloud",
+    idea: "Four streaks of rain fall at their own offsets from a cloud that puffs up on every second round.",
+    frames: [rain(cloud1, 0), rain(cloud1, 1), rain(cloud1, 2), rain(cloud2, 0), rain(cloud2, 1), rain(cloud2, 2)],
+    holds: [1, 1, 1, 1, 1, 1] });
+})();
+/* 9 */
+(function () {
+  function sun(kind) {
+    var g = grid();
+    stamp(g, [".##.", "####", ".##."], 2, 5);
+    if (kind === "plus") { dots(g, [[3, 2], [3, 3], [3, 10], [3, 11], [0, 6], [0, 7], [6, 6], [6, 7]]); }
+    if (kind === "cross") { dots(g, [[1, 4], [0, 3], [1, 9], [0, 10], [5, 4], [6, 3], [5, 9], [6, 10]]); }
+    if (kind === "short") { dots(g, [[3, 3], [3, 10], [1, 6], [1, 7], [5, 6], [5, 7], [1, 4], [1, 9], [5, 4], [5, 9]]); }
+    return rowsOf(g);
+  }
+  var A = sun("plus"), C = sun("short"), B = sun("cross");
+  ANIMS.push({ n: 9, name: "Sunshine",
+    idea: "The rays swing an eighth of a turn, from straight to diagonal, with a short burst of all of them in between.",
+    frames: [A, C, B, C], holds: [3, 1, 3, 1] });
+})();
+/* 10 */
+(function () {
+  var leaf = ["......###.....", "......#......."];
+  var G1 = ["..............", "......#.......", ".....###......", ".....###......", "......#......."].concat(leaf);
+  var G2 = ["..............", ".....#.#......", ".....###......", ".....###......", "......#......."].concat(leaf);
+  var G3 = ["....#...#.....", "....#.#.#.....", "....#####.....", ".....###......", "......#......."].concat(leaf);
+  var G3b = ["....#...#..#..", "....#.#.#.....", "....#####.....", ".....###......", "......#......."].concat(leaf);
+  ANIMS.push({ n: 10, name: "Tulip",
+    idea: "A closed bud parts, opens wide, glints once, and closes again on its stem with a leaf.",
+    frames: [G1, G2, G3, G3b, G2], holds: [3, 1, 2, 2, 1] });
+})();
+/* 11 */
+(function () {
+  var head = ["....#....#....", "....######....", "....######....", ".....####....."];
+  var CA = head.concat(["...########...", "...#########.#", "...########.##"]);
+  var CB = head.concat(["...########..#", "...##########.", "...########..."]);
+  var CC = ["....#....#....", "....######....", "....######...#", ".....####...#.", "...########.#.", "...#########..", "...########..."];
+  ANIMS.push({ n: 11, name: "Cat tail",
+    idea: "A sitting cat in silhouette, ears up, its tail flicking from the floor up into a high curl and back.",
+    frames: [CA, CB, CC, CB], holds: [3, 1, 2, 1] });
+})();
+/* 12 */
+(function () {
+  function flake(size, spark) {
+    var g = grid();
+    if (size === 0) { dot(g, 3, 7); }
+    if (size === 1) { stamp(g, [".#.", "###", ".#."], 2, 6); }
+    if (size === 2) { stamp(g, ["#.#.#", ".###.", "#####", ".###.", "#.#.#"], 1, 5); }
+    if (size === 3) { stamp(g, ["#..#..#", ".#.#.#.", "..###..", "#######", "..###..", ".#.#.#.", "#..#..#"], 0, 4); }
+    dots(g, spark === 1 ? [[1, 2], [5, 11]] : [[5, 2], [1, 11]]);
+    return rowsOf(g);
+  }
+  ANIMS.push({ n: 12, name: "Snowflake",
+    idea: "A single speck grows into a six-armed crystal, holds while two sparkles trade places, then shrinks away.",
+    frames: [flake(0, 1), flake(1, 2), flake(2, 1), flake(3, 2), flake(3, 1), flake(2, 2), flake(1, 1)],
+    holds: [1, 1, 1, 2, 2, 1, 1] });
+})();
+/* 13 */
+(function () {
+  function star(k) {
+    var g = grid(), c = 14 - 2 * k;
+    dots(g, [[0, 5], [5, 11], [2, 2]]);
+    if (k > 0) { dot(g, k, c); dots(g, [[k, c + 1], [k - 1, c + 2], [k - 1, c + 3], [k - 2, c + 4]]); }
+    return rowsOf(g);
+  }
+  var sp = grid();
+  dots(sp, [[0, 5], [5, 11], [2, 2], [5, 2], [6, 1], [6, 2], [6, 3]]);
+  ANIMS.push({ n: 13, name: "Shooting star",
+    idea: "Three quiet stars, then a streak with a broken tail dives across the sky and lands in a flash.",
+    frames: [star(0), star(1), star(2), star(3), star(4), star(5), rowsOf(sp)],
+    holds: [3, 1, 1, 1, 1, 1, 2] });
+})();
+/* 14 */
+(function () {
+  var note = [".######", ".#....#", ".#....#", ".#....#", "##...##", "##...##"];
+  var squash = [".######", ".#....#", ".#....#", "##...##", "##...##"];
+  function build(rows, r0) { var g = grid(); stamp(g, rows, r0, 4); return g; }
+  var G = rowsOf(build(note, 1));
+  var Q = rowsOf(build(squash, 2));
+  var Ag = build(note, 0);
+  dots(Ag, [[6, 5], [6, 6], [6, 7], [6, 8], [1, 1], [3, 12]]);
+  ANIMS.push({ n: 14, name: "Hopping notes",
+    idea: "A pair of beamed notes crouches, springs off the floor with its shadow below, and lands with a squash.",
+    frames: [G, Q, rowsOf(Ag), Q], holds: [4, 1, 2, 1] });
+})();
+/* 15 */
+(function () {
+  var cans = ["...########...", "..##......##..", "..#........#..", "..###....###..", "..###....###..", "...##....##..."];
+  function phones(r0, waves) { var g = grid(); stamp(g, cans, r0, 0); dots(g, waves); return rowsOf(g); }
+  var A = phones(0, []);
+  var B = phones(1, [[4, 0], [5, 0], [4, 13], [5, 13]]);
+  var C = phones(0, [[2, 0], [3, 0], [4, 0], [5, 0], [2, 13], [3, 13], [4, 13], [5, 13]]);
+  ANIMS.push({ n: 15, name: "Headphones",
+    idea: "Headphones nod down on the beat while sound marks swell at both ears, then pop back up and settle.",
+    frames: [A, B, C, B], holds: [3, 1, 2, 1] });
+})();
+/* 16 */
+(function () {
+  var X = [".#.#.#..#.#.#.", ".#..#....#..#.", ".#.#.#..#.#.#."];
+  var P = [".#..#....#..#.", ".#.###..###.#.", ".#..#....#..#."];
+  function tape(k) {
+    var reel = (k % 2 === 0) ? X : P;
+    var rows = [".############.", ".#..........#."].concat(reel, [".#...####...#.", ".############."]);
+    var g = rows.map(function (s) { return s.split(""); });
+    g[1][3 + k] = "#";
+    return rowsOf(g);
+  }
+  ANIMS.push({ n: 16, name: "Cassette",
+    idea: "Both reels turn an eighth of a turn at a time while the tape counter creeps across the label.",
+    frames: [tape(0), tape(1), tape(2), tape(3), tape(4), tape(5), tape(6), tape(7)],
+    holds: [1, 1, 1, 1, 1, 1, 1, 1] });
+})();
+/* 17 */
+(function () {
+  var bolt = ["..###.", ".###..", "###...", "######", "..##..", ".##...", "#....."];
+  var b = grid();
+  stamp(b, bolt, 0, 4);
+  var BOLT = rowsOf(b);
+  var FLASH = BOLT.map(function (row) { return row.replace(/[#.]/g, function (ch) { return ch === "#" ? "." : "#"; }); });
+  var d1 = grid(); dots(d1, [[0, 2], [3, 11], [5, 2], [1, 12]]);
+  var d2 = grid(); dots(d2, [[2, 1], [4, 12], [0, 10], [6, 3]]);
+  ANIMS.push({ n: 17, name: "Lightning",
+    idea: "Quiet dark, a bolt, the whole picture flashes with the bolt as a dark crack, the bolt again, then the dark returns.",
+    frames: [rowsOf(d1), BOLT, FLASH, BOLT, rowsOf(d2)], holds: [3, 1, 1, 1, 2] });
+})();
+/* 18 */
+(function () {
+  var body = ["..####..", ".######.", "########", "##.##.##", "########"];
+  var hemA = "#.##.##.", hemB = ".##.##.#";
+  function ghost(r0, hem, mouth) {
+    var g = grid(), rows = body.slice();
+    if (mouth) { rows[4] = "###..###"; }
+    rows.push(hem);
+    stamp(g, rows, r0, 3);
+    return rowsOf(g);
+  }
+  ANIMS.push({ n: 18, name: "Ghost",
+    idea: "A ghost with hollow eyes drifts up and down, its hem rippling, and lets out one round Boo at the bottom.",
+    frames: [ghost(0, hemA), ghost(0, hemB), ghost(1, hemA), ghost(1, hemA, true), ghost(1, hemB)],
+    holds: [2, 2, 1, 2, 1] });
+})();
+/* 19 */
+(function () {
+  var rim = [".##.##.##.##..", ".#.##.##.##.#.", "..##.##.##.##."];
+  var beam = [".....#..#.....", "....#....#....", "...#......#..."];
+  function ufo(k, n, spark) {
+    var rows = [".....####.....", "....######....", rim[k], "...########..."], i;
+    for (i = 0; i < 3; i++) { rows.push(i < n ? beam[i] : ".............."); }
+    var g = rows.map(function (s) { return s.split(""); });
+    if (spark) { g[5][6] = "#"; }
+    return rowsOf(g);
+  }
+  ANIMS.push({ n: 19, name: "Saucer",
+    idea: "A flying saucer whose rim lights chase round while a tractor beam opens downward, sparks once, and closes.",
+    frames: [ufo(0, 0, 0), ufo(1, 0, 0), ufo(2, 1, 0), ufo(0, 2, 0), ufo(1, 3, 0), ufo(2, 3, 1), ufo(0, 2, 0), ufo(1, 1, 0)],
+    holds: [1, 1, 1, 1, 1, 1, 1, 1] });
+})();
+/* 20 */
+(function () {
+  function ring(i) {
+    var g = grid();
+    if (i === 0) { stamp(g, ["##"], 3, 6); }
+    if (i === 1) { stamp(g, ["####", "#..#", "####"], 2, 5); }
+    if (i === 2) { stamp(g, [".######.", "#......#", "#......#", "#......#", ".######."], 1, 3); }
+    if (i === 3) { stamp(g, ["..########..", "##........##", "#..........#", "#..........#", "#..........#", "##........##", "..########.."], 0, 1); }
+    if (i === 4) { dots(g, [[2, 0], [3, 0], [4, 0], [2, 13], [3, 13], [4, 13]]); }
+    return g;
+  }
+  function wave(t) {
+    var a = ring(t), b = ring(t - 2), r, c;
+    for (r = 0; r < 7; r++) { for (c = 0; c < 14; c++) { if (b[r][c] === "#") { a[r][c] = "#"; } } }
+    return rowsOf(a);
+  }
+  ANIMS.push({ n: 20, name: "Ripple",
+    idea: "A drop at the centre sends out rings that widen, chase each other and slip off the sides of the display.",
+    frames: [wave(0), wave(1), wave(2), wave(3), wave(4), wave(5), wave(6)], holds: [2, 1, 1, 1, 1, 1, 1] });
+})();
+</script>
+
+<script>
+(function () {
+  "use strict";
+  var COLS = 14, PIC_ROWS = 7, TICK = 100, KEY = "odc-emoji-picks";
+  var GLASS = "#0d0f11", LIT = "#f5ead2", UNLIT = "rgba(245,234,210,0.12)";
+
+  /* ---------- the self-check: runs first, before anything is drawn ---------- */
+  function checkAnims() {
+    if (typeof ANIMS === "undefined" || !Array.isArray(ANIMS)) { return { error: "ANIMS is missing" }; }
+    if (ANIMS.length !== 20) { return { error: "expected 20 animations, found " + ANIMS.length }; }
+    var names = {}, sets = {}, frameTotal = 0, distinctTotal = 0, minT = 1e9, maxT = 0, i, j, k;
+    for (i = 0; i < ANIMS.length; i++) {
+      var a = ANIMS[i];
+      var tag = "animation " + (i + 1) + (a && a.name ? " (" + a.name + ")" : "");
+      if (!a || a.n !== i + 1) { return { error: tag + ": n must be " + (i + 1) }; }
+      if (typeof a.name !== "string" || !a.name) { return { error: tag + ": no name" }; }
+      if (names[a.name]) { return { error: tag + ": name used twice" }; }
+      names[a.name] = 1;
+      if (!Array.isArray(a.frames) || !Array.isArray(a.holds)) { return { error: tag + ": frames or holds missing" }; }
+      if (a.frames.length < 2 || a.frames.length > 12) { return { error: tag + ": needs 2 to 12 frames, has " + a.frames.length }; }
+      if (a.frames.length !== a.holds.length) { return { error: tag + ": " + a.frames.length + " frames but " + a.holds.length + " holds" }; }
+      var distinct = {}, ticks = 0;
+      for (j = 0; j < a.frames.length; j++) {
+        var f = a.frames[j];
+        if (!Array.isArray(f) || f.length !== PIC_ROWS) { return { error: tag + ", frame " + (j + 1) + ": needs " + PIC_ROWS + " rows, has " + (f && f.length) }; }
+        for (k = 0; k < f.length; k++) {
+          if (typeof f[k] !== "string" || f[k].length !== COLS) { return { error: tag + ", frame " + (j + 1) + ", row " + (k + 1) + ": needs " + COLS + " characters, has " + (f[k] && f[k].length) }; }
+          if (!/^[#.]+$/.test(f[k])) { return { error: tag + ", frame " + (j + 1) + ", row " + (k + 1) + ": only # and . are allowed" }; }
+        }
+        distinct[f.join("/")] = 1;
+        var h = a.holds[j];
+        if (!Number.isInteger(h) || h < 1) { return { error: tag + ", frame " + (j + 1) + ": hold must be a whole number of ticks, 1 or more" }; }
+        ticks += h;
+      }
+      var keys = Object.keys(distinct).sort();
+      if (keys.length < 2) { return { error: tag + ": needs at least 2 different pictures" }; }
+      if (keys.length > 8) { return { error: tag + ": more than 8 different pictures (" + keys.length + ")" }; }
+      if (ticks < 6 || ticks > 20) { return { error: tag + ": loop is " + ticks + " ticks, must be 6 to 20" }; }
+      var setKey = keys.join("|");
+      if (sets[setKey]) { return { error: tag + ": has the same pictures as animation " + sets[setKey] }; }
+      sets[setKey] = i + 1;
+      if (typeof a.idea !== "string" || !a.idea) { return { error: tag + ": no one-line idea" }; }
+      a.total = ticks; a.distinct = keys.length;
+      a.cum = []; var c = 0;
+      for (j = 0; j < a.holds.length; j++) { c += a.holds[j]; a.cum.push(c); }
+      frameTotal += a.frames.length; distinctTotal += keys.length;
+      if (ticks < minT) { minT = ticks; } if (ticks > maxT) { maxT = ticks; }
+    }
+    return { ok: "OK: 20 animations, " + frameTotal + " frames (" + distinctTotal + " distinct pictures), loops of " + minT + " to " + maxT + " ticks, every picture 14 x 7, 1-bit" };
+  }
+
+  var checkEl = document.getElementById("check");
+  var result;
+  try { result = checkAnims(); } catch (e) { result = { error: "check failed: " + e.message }; }
+  if (result.ok) { checkEl.textContent = result.ok; checkEl.setAttribute("data-status", "ok"); }
+  else { checkEl.textContent = "ERROR: " + result.error; checkEl.setAttribute("data-status", "error"); return; }
+
+  /* ---------- the display ---------- */
+  function spectrumHeight(c, t) {
+    var v = Math.abs(Math.sin(t * 0.34 + c * 0.83)) * 4.2 + Math.abs(Math.sin(t * 0.19 + c * 1.71)) * 3.2;
+    var h = Math.round(v);
+    return h < 1 ? 1 : (h > 7 ? 7 : h);
+  }
+  function frameIndex(a, tick) {
+    var t = tick % a.total;
+    for (var i = 0; i < a.cum.length; i++) { if (t < a.cum[i]) { return i; } }
+    return 0;
+  }
+  function paint(canvas, pic, tick, spectrum) {
+    var ctx = canvas.getContext("2d"), size = canvas.width, cell = size / COLS, r = cell * 0.4, x, y, on;
+    ctx.fillStyle = GLASS; ctx.fillRect(0, 0, size, size);
+    for (y = 0; y < COLS; y++) {
+      for (x = 0; x < COLS; x++) {
+        if (y < PIC_ROWS) { on = pic[y].charAt(x) === "#"; }
+        else { on = spectrum && (COLS - 1 - y) < spectrumHeight(x, tick); }
+        ctx.fillStyle = on ? LIT : UNLIT;
+        ctx.beginPath(); ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, r, 0, 6.2832); ctx.fill();
+      }
+    }
+  }
+  function paintPicture(canvas, pic) {
+    var ctx = canvas.getContext("2d"), cell = canvas.width / COLS, r = cell * 0.4, x, y;
+    ctx.fillStyle = GLASS; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    for (y = 0; y < PIC_ROWS; y++) {
+      for (x = 0; x < COLS; x++) {
+        ctx.fillStyle = pic[y].charAt(x) === "#" ? LIT : UNLIT;
+        ctx.beginPath(); ctx.arc((x + 0.5) * cell, (y + 0.5) * cell, r, 0, 6.2832); ctx.fill();
+      }
+    }
+  }
+
+  /* ---------- state ---------- */
+  var picks = {};
+  try { var saved = JSON.parse(localStorage.getItem(KEY) || "[]"); if (Array.isArray(saved)) { saved.forEach(function (n) { if (n >= 1 && n <= 20) { picks[n] = true; } }); } } catch (e) {}
+  function savePicks() { try { localStorage.setItem(KEY, JSON.stringify(pickedList())); } catch (e) {} }
+  function pickedList() { var out = []; for (var n = 1; n <= 20; n++) { if (picks[n]) { out.push(n); } } return out; }
+
+  var playing = true, speed = 1, spectrumOn = true, acc = 0, last = 0, raf = 0, zoomed = 0, lastFocus = null;
+  try { if (window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches) { playing = false; } } catch (e) {}
+  var cards = [];
+
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) { e.className = cls; } if (text != null) { e.textContent = text; } return e; }
+  function metaHtml(a) {
+    var ms = a.holds.map(function (h) { return (h * TICK); }).join(" + ");
+    return a.frames.length + " frames (" + a.distinct + " pictures) · " + a.total + " ticks · " + (a.total * TICK) + " ms loop · holds " + ms + " ms";
+  }
+  function currentTick() { return Math.floor(acc / TICK); }
+
+  function drawAll() {
+    var t = currentTick(), i;
+    for (i = 0; i < cards.length; i++) { paint(cards[i].canvas, cards[i].a.frames[frameIndex(cards[i].a, t)], t, spectrumOn); }
+    if (zoomed) { drawZoom(t); }
+  }
+
+  /* ---------- cards ---------- */
+  var gridEl = document.getElementById("gallery");
+  ANIMS.forEach(function (a) {
+    var li = el("li", "card"); li.id = "a" + a.n;
+    var shot = el("button", "screen"); shot.type = "button"; shot.setAttribute("aria-label", "Enlarge " + a.n + ", " + a.name);
+    var cv = el("canvas"); cv.width = 392; cv.height = 392; cv.setAttribute("role", "img"); cv.setAttribute("aria-label", a.n + " " + a.name + ": " + a.idea);
+    shot.appendChild(cv);
+    var head = el("div", "head");
+    head.appendChild(el("span", "num", (a.n < 10 ? "0" : "") + a.n));
+    head.appendChild(el("h2", null, a.name));
+    var lab = el("label", "pick"), cb = el("input"); cb.type = "checkbox"; cb.checked = !!picks[a.n]; cb.setAttribute("data-n", a.n);
+    lab.appendChild(cb); lab.appendChild(el("span", null, "Pick"));
+    head.appendChild(lab);
+    li.appendChild(shot); li.appendChild(head); li.appendChild(el("p", "idea", a.idea)); li.appendChild(el("p", "meta", metaHtml(a)));
+    if (picks[a.n]) { li.classList.add("liked"); }
+    gridEl.appendChild(li);
+    cards.push({ a: a, canvas: cv, li: li, cb: cb });
+    cb.addEventListener("change", function () { setPick(a.n, cb.checked); });
+    shot.addEventListener("click", function () { openZoom(a.n, shot); });
+  });
+
+  function setPick(n, on) {
+    if (on) { picks[n] = true; } else { delete picks[n]; }
+    cards[n - 1].cb.checked = on; cards[n - 1].li.classList.toggle("liked", on);
+    if (zoomed === n) { document.getElementById("zPick").checked = on; }
+    savePicks(); refreshPicks();
+  }
+  function pickText() {
+    var l = pickedList();
+    if (!l.length) { return "No picks yet."; }
+    return "My picks (" + l.length + "): " + l.map(function (n) { return n + " " + ANIMS[n - 1].name; }).join(", ");
+  }
+  function refreshPicks() {
+    document.getElementById("pickCount").textContent = pickedList().length;
+    document.getElementById("picksOut").textContent = pickText();
+  }
+
+  /* ---------- controls ---------- */
+  var playBtn = document.getElementById("playBtn");
+  function loop(ts) {
+    raf = 0;
+    if (!playing) { return; }
+    if (last) { acc += Math.min(ts - last, 200) * speed; }
+    last = ts;
+    var t = currentTick();
+    if (t !== loop.lastTick) { loop.lastTick = t; drawAll(); }
+    raf = requestAnimationFrame(loop);
+  }
+  loop.lastTick = -1;
+  function play() { playing = true; last = 0; playBtn.textContent = "Pause all"; playBtn.setAttribute("aria-pressed", "true"); if (!raf) { raf = requestAnimationFrame(loop); } }
+  function pause() { playing = false; if (raf) { cancelAnimationFrame(raf); raf = 0; } last = 0; playBtn.textContent = "Play all"; playBtn.setAttribute("aria-pressed", "false"); drawAll(); }
+  playBtn.addEventListener("click", function () { if (playing) { pause(); } else { play(); } });
+  document.getElementById("restartBtn").addEventListener("click", function () { acc = 0; last = 0; loop.lastTick = -1; drawAll(); });
+  Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (b) {
+    b.addEventListener("click", function () {
+      speed = parseFloat(b.getAttribute("data-speed"));
+      Array.prototype.forEach.call(document.querySelectorAll("[data-speed]"), function (o) { o.setAttribute("aria-pressed", o === b ? "true" : "false"); });
+    });
+  });
+  var specBtn = document.getElementById("specBtn");
+  specBtn.addEventListener("click", function () { spectrumOn = !spectrumOn; specBtn.setAttribute("aria-pressed", spectrumOn ? "true" : "false"); drawAll(); });
+  document.getElementById("clearBtn").addEventListener("click", function () { for (var n = 1; n <= 20; n++) { if (picks[n]) { setPick(n, false); } } });
+  document.getElementById("copyBtn").addEventListener("click", function () {
+    var text = pickText(), out = document.getElementById("picksOut"), done = function () { out.textContent = text + "  (copied)"; };
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) { navigator.clipboard.writeText(text).then(done, function () { fallbackCopy(text, done); }); return; }
+    } catch (e) {}
+    fallbackCopy(text, done);
+  });
+  function fallbackCopy(text, done) {
+    try {
+      var ta = document.createElement("textarea"); ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.select(); var ok = document.execCommand("copy"); document.body.removeChild(ta);
+      if (ok) { done(); }
+    } catch (e) {}
+  }
+
+  /* ---------- enlarge ---------- */
+  var zoom = document.getElementById("zoom"), zCanvas = document.getElementById("zCanvas"), zFilm = document.getElementById("zFilm"), zFrames = [];
+  function openZoom(n, from) {
+    zoomed = n; lastFocus = from || null;
+    var a = ANIMS[n - 1];
+    document.getElementById("zNum").textContent = (n < 10 ? "0" : "") + n;
+    document.getElementById("zTitle").textContent = a.name;
+    document.getElementById("zIdea").textContent = a.idea;
+    document.getElementById("zMeta").textContent = metaHtml(a);
+    document.getElementById("zPick").checked = !!picks[n];
+    zFilm.textContent = ""; zFrames = [];
+    a.frames.forEach(function (f, i) {
+      var fig = el("figure"), c = el("canvas"); c.width = 224; c.height = 112; paintPicture(c, f);
+      fig.appendChild(c); fig.appendChild(el("figcaption", null, (i + 1) + " · " + (a.holds[i] * TICK) + " ms"));
+      zFilm.appendChild(fig); zFrames.push(fig);
+    });
+    zoom.hidden = false; drawZoom(currentTick());
+    document.getElementById("zClose").focus();
+  }
+  function drawZoom(t) {
+    var a = ANIMS[zoomed - 1], fi = frameIndex(a, t);
+    paint(zCanvas, a.frames[fi], t, spectrumOn);
+    for (var i = 0; i < zFrames.length; i++) { zFrames[i].classList.toggle("now", i === fi); }
+  }
+  function closeZoom() { zoomed = 0; zoom.hidden = true; if (lastFocus) { try { lastFocus.focus(); } catch (e) {} } }
+  function stepZoom(d) { var n = ((zoomed - 1 + d + 20) % 20) + 1; openZoom(n, lastFocus); }
+  document.getElementById("zClose").addEventListener("click", closeZoom);
+  document.getElementById("zPrev").addEventListener("click", function () { stepZoom(-1); });
+  document.getElementById("zNext").addEventListener("click", function () { stepZoom(1); });
+  document.getElementById("zPick").addEventListener("change", function (e) { setPick(zoomed, e.target.checked); });
+  zoom.addEventListener("click", function (e) { if (e.target === zoom) { closeZoom(); } });
+  document.addEventListener("keydown", function (e) {
+    if (!zoomed) { return; }
+    if (e.key === "Escape") { closeZoom(); }
+    else if (e.key === "ArrowLeft") { stepZoom(-1); }
+    else if (e.key === "ArrowRight") { stepZoom(1); }
+  });
+
+  /* ---------- start ---------- */
+  refreshPicks();
+  if (!playing) { playBtn.textContent = "Play all"; playBtn.setAttribute("aria-pressed", "false"); }
+  drawAll();
+  if (playing) { raf = requestAnimationFrame(loop); }
+})();
+</script>
+</body>
+</html>
