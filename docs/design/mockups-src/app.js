@@ -54,7 +54,8 @@
 //   24 px apart; the label blocks share one width (a GtkSizeGroup in the app, 28 characters here) so the controls start
 //   in one column. The Startup card on the off screen keeps its block at its own width.
 // - The three switches (Use system theme, Peak dots, Start at boot) are 32 x 18 with a 14 px knob.
-// - The Start at boot hint has one sentence: the password is said by the "Turning on…" line.
+// - A running Start at boot flip shows no line under the switch (owner, 2026-11-22): the handle, the trough and the
+//   insensitive switch say it, and the desktop's own dialog says what it asks for.
 //
 // The window's size (Phase 11a Task 9, 2026-11-19; docs/design/settings-app.md, Window, Size and scrolling). No new
 // CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
@@ -374,11 +375,9 @@ function bootFailText(f) {
   return `Didn't finish: ${m}. The switch shows what's set now; the journal says more.`;
 }
 // The note under the switch, if any: {kind: "" (foreground) | "warn" | "info", text}.
-// Which shows: a running flip's line, then a failure's note, then unknown, then starting or what's missing.
+// Which shows: none while a flip runs, then a failure's note, then unknown, then starting or what's missing.
 function bootNote() {
-  if (S.bootFlip) return { kind: "", text: S.bootFlip === "on" && onlySoundHere()
-    ? "Turning on… Starting the sound for Music in this session."
-    : `Turning ${S.bootFlip}… Your desktop asks for the administrator's password first.` };
+  if (S.bootFlip) return null;
   if (S.bootFailed) return { kind: "warn", text: bootFailText(S.bootFailed) };
   if (S.boot === "unknown") {
     if (S.bootOther) return { kind: "info", text: `Can't change it here: systemd reports ${S.bootOther.unit} as “${S.bootOther.state}”.` };

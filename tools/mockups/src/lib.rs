@@ -322,7 +322,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "boot-changing.html",
             "Turning on",
-            "Start at boot was flipped on. The desktop's own polkit dialog asks for the administrator's password (not drawn), then the program runs. The handle shows the flip, the trough systemd's state (still off), and the switch is insensitive until the program ends. Turning off looks the same the other way.",
+            "Start at boot was flipped on. The desktop's own polkit dialog asks for the administrator's password (not drawn), then the program runs. The handle shows the flip, the trough systemd's state (still off), and the switch is insensitive until the program ends; no line says so. Turning off looks the same the other way.",
             base()
                 .with("service", Json::Bool(false))
                 .with("boot", s("off"))

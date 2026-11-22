@@ -380,19 +380,14 @@ fn start_at_boot(app: &gtk::Application) {
     run_for(Duration::from_millis(20));
     assert_eq!(*asked.borrow(), [Request::StartAtBoot(true)]);
     assert!(!switch.state(), "the trough keeps systemd's state");
-    // The client's flip runs: the handle on, the trough off, insensitive, its line.
+    // The client's flip runs: the handle on, the trough off, insensitive, no line (owner,
+    // 2026-11-22).
     let mut flipping = new_install();
     flipping.begin(Direction::On).expect("a flip");
     window.boot(flipping.clone());
     assert!(switch.is_active() && !switch.state() && !switch.is_sensitive());
-    assert_eq!(
-        startup.note().as_deref(),
-        Some("Turning on… Your desktop asks for the administrator's password first.")
-    );
-    assert_eq!(
-        window.names().description("Start at boot").as_deref(),
-        startup.note().as_deref()
-    );
+    assert_eq!(startup.note(), None);
+    assert_eq!(window.names().description("Start at boot"), None);
     // Closed dialog: back at off, sensitive, with no note (it changed nothing, and the switch
     // shows the state; owner, 2026-11-19); announced as the switch's state, focus back.
     said.borrow_mut().clear();

@@ -152,15 +152,13 @@ impl StartupCard {
             Some(note) => {
                 self.note.set_text(&note.text);
                 let (icon, class) = match note.style {
-                    Style::Plain => (None, None),
-                    Style::Info => (Some("dialog-information-symbolic"), Some("muted")),
-                    Style::Warning => (Some("dialog-warning-symbolic"), Some("warn-text")),
+                    Style::Info => ("dialog-information-symbolic", "muted"),
+                    Style::Warning => ("dialog-warning-symbolic", "warn-text"),
                 };
-                self.note_icon.set_icon_name(icon);
-                self.note_icon.set_visible(icon.is_some());
-                let classes: Vec<&str> = class.into_iter().collect();
-                self.note.set_css_classes(&classes);
-                self.note_icon.set_css_classes(&classes);
+                self.note_icon.set_icon_name(Some(icon));
+                self.note_icon.set_visible(true);
+                self.note.set_css_classes(&[class]);
+                self.note_icon.set_css_classes(&[class]);
                 self.note_box.set_visible(true);
             }
             None => self.note_box.set_visible(false),

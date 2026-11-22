@@ -208,13 +208,6 @@ pub const OFF_SCREEN_TEXT: &str = "The cooler shows nothing until the display se
 /// The row's words (Configuration page, Startup).
 pub const TITLE: &str = "Start at boot";
 
-/// A running flip's lines.
-pub const TURNING_ON: &str =
-    "Turning on… Your desktop asks for the administrator's password first.";
-pub const TURNING_ON_SOUND: &str = "Turning on… Starting the sound for Music in this session.";
-pub const TURNING_OFF: &str =
-    "Turning off… Your desktop asks for the administrator's password first.";
-
 /// The information notes.
 pub const READ_FAILED: &str =
     "Can't tell whether OpenDeepCool is on: reading it from systemd failed.";
@@ -419,11 +412,10 @@ impl Boot {
     }
 }
 
-/// How a note is drawn: a running flip's line in the foreground, without an icon; information
-/// muted, with the information icon; a warning yellow, with the warning icon.
+/// How a note is drawn: information muted, with the information icon; a warning yellow, with the
+/// warning icon.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Style {
-    Plain,
     Info,
     Warning,
 }
@@ -504,8 +496,9 @@ fn missing(facts: &Facts) -> Option<String> {
 }
 
 /// The switch at `place` (States and their text). Which note shows, when more than one applies:
-/// a running flip's line, then a failure's note, then unknown, then starting, then the missing
-/// parts.
+/// a failure's note, then unknown, then starting, then the missing parts; none while a flip runs
+/// (owner, 2026-11-22: no "Turning on…" or "Turning off…" line), since the moved handle and the
+/// insensitive switch say it.
 pub fn switch(boot: &Boot) -> Switch {
     let facts = boot.facts();
     let on = boot.on();
@@ -517,19 +510,8 @@ pub fn switch(boot: &Boot) -> Switch {
         Flip::Off => false,
         Flip::Idle => on,
     };
-    let line = match boot.flip {
-        Flip::Idle => None,
-        Flip::On {
-            password: false, ..
-        } => Some(TURNING_ON_SOUND),
-        Flip::On { .. } | Flip::Waiting { .. } => Some(TURNING_ON),
-        Flip::Off => Some(TURNING_OFF),
-    };
-    let note = if let Some(line) = line {
-        Some(Note {
-            style: Style::Plain,
-            text: line.to_owned(),
-        })
+    let note = if boot.flipping() {
+        None
     } else if let Some(text) = boot.failure.as_ref().and_then(Failure::text) {
         Some(warning(text))
     } else {

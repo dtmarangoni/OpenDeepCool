@@ -240,8 +240,8 @@ fn unknown_states_are_insensitive_at_off() {
     assert_eq!((shown.sensitive, shown.note), (false, None));
 }
 
-/// A flip from each state: what it runs, its line, the handle at the new position and the trough
-/// at systemd's, insensitive until it ends.
+/// A flip from each state: what it runs, the handle at the new position and the trough at
+/// systemd's, insensitive until it ends, and no note while it runs (owner, 2026-11-22).
 #[test]
 fn a_flip_runs_its_steps_and_shows_its_line() {
     // On from a new install: pkexec, then the sound in this session.
@@ -255,26 +255,13 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
         (shown.handle, shown.trough, shown.sensitive),
         (true, false, false)
     );
-    assert_eq!(
-        shown.note,
-        Some(Note {
-            style: Style::Plain,
-            text: "Turning on… Your desktop asks for the administrator's password first."
-                .to_owned()
-        })
-    );
+    assert_eq!(shown.note, None);
     assert_eq!(b.begin(Direction::On), None, "never twice at once");
 
     // Only the sound in this session missing: no pkexec, no password.
     let mut b = read(facts(ENABLED, Run::Running, ENABLED, false));
     assert_eq!(b.begin(Direction::On), Some(vec![Step::StartSound]));
-    assert_eq!(
-        note(&b),
-        Some((
-            Style::Plain,
-            "Turning on… Starting the sound for Music in this session.".to_owned()
-        ))
-    );
+    assert_eq!(note(&b), None);
 
     // Every partly-on state turns on through pkexec, the sound included.
     for partly in [
@@ -290,6 +277,8 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
             Some(vec![Step::Pkexec(Direction::On), Step::StartSound]),
             "{partly:?}"
         );
+        // Whatever note the state had (the missing parts), none shows while the flip runs.
+        assert_eq!(note(&b), None, "{partly:?}");
         // A partly-on setup can't be turned off in one flip.
         let mut b = read(partly);
         assert_eq!(b.begin(Direction::Off), None);
@@ -307,13 +296,7 @@ fn a_flip_runs_its_steps_and_shows_its_line() {
         (shown.handle, shown.trough, shown.sensitive),
         (false, true, false)
     );
-    assert_eq!(
-        note(&b),
-        Some((
-            Style::Plain,
-            "Turning off… Your desktop asks for the administrator's password first.".to_owned()
-        ))
-    );
+    assert_eq!(note(&b), None);
 
     // Never while unknown, starting or not read.
     for known in [
@@ -467,10 +450,7 @@ fn after_on_the_flip_waits_for_the_service_s_name() {
     b.read(Known::Facts(facts(ENABLED, Run::Starting, ENABLED, true)));
     let screen = off_screen(&b);
     assert_eq!(screen.heading, Some("OpenDeepCool is off"));
-    assert_eq!(
-        screen.switch.note.map(|n| n.text).as_deref(),
-        Some(TURNING_ON)
-    );
+    assert_eq!(screen.switch.note, None, "no line while it waits");
     assert!(!screen.switch.sensitive);
     b.owned();
     assert_eq!(b.flip, Flip::Idle);

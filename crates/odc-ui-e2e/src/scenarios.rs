@@ -112,10 +112,6 @@ const IS_OFF: &str =
 const NOT_RUNNING: &str =
     "OpenDeepCool isn't running. The cooler shows nothing until the display service runs.";
 
-/// The running flips' lines (States and their text).
-const TURNING_ON: &str = "Turning on… Your desktop asks for the administrator's password first.";
-const TURNING_OFF: &str = "Turning off… Your desktop asks for the administrator's password first.";
-
 /// A made-up light Omarchy theme.
 const COLORS: &str = r##"mode = "light"
 accent = "#8a4b16"
@@ -437,6 +433,13 @@ impl Run {
     fn note(&self, text: &str) -> Result<()> {
         self.expect_texts("group", "Start at boot status", &[text])?;
         self.expect_description("switch", BOOT, text)
+    }
+
+    /// A running flip shows no note and the switch has no description (owner, 2026-11-22: no
+    /// "Turning on…" or "Turning off…" line).
+    fn no_note(&self) -> Result<()> {
+        self.gone("group", "Start at boot status")?;
+        self.expect_description("switch", BOOT, "")
     }
 
     /// The app has no terminal commands and no Copy button: they are in the README (owner,
@@ -1435,8 +1438,8 @@ fn boot_flip(run: &mut Run) -> Result<String> {
     let mark = run.flip("off")?;
     run.expect_state("switch", BOOT, State::Sensitive, false)?;
     run.check_state("switch", BOOT, State::Checked, false)?;
-    run.note(TURNING_OFF)?;
     thread::sleep(HOLD);
+    run.no_note()?;
     if run.systemd.calls_since(mark)?.iter().any(|c| is_job(c)) {
         return Err("the sound moved before pkexec ended".to_owned());
     }
@@ -1465,7 +1468,8 @@ fn boot_flip(run: &mut Run) -> Result<String> {
     let mark = run.flip("on")?;
     run.expect_state("switch", BOOT, State::Sensitive, false)?;
     run.check_state("switch", BOOT, State::Checked, true)?;
-    run.note(TURNING_ON)?;
+    thread::sleep(HOLD);
+    run.no_note()?;
     // What the program leaves: both enabled, the service started. It takes its name just
     // before it's ready, here after pkexec ends, so the flip waits for it.
     run.systemd.units = Units {
@@ -1482,7 +1486,7 @@ fn boot_flip(run: &mut Run) -> Result<String> {
     run.systemd.units.sound.1 = "active";
     thread::sleep(HOLD);
     run.expect_description("group", "Service message", IS_OFF)?;
-    run.note(TURNING_ON)?;
+    run.no_note()?;
     run.check_state("switch", BOOT, State::Sensitive, false)?;
     // The service owns its name: the pages come back on the page last shown, the switch on.
     run.systemd.units.service = ("enabled", "active", "running");
