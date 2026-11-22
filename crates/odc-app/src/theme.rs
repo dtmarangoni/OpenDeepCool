@@ -90,27 +90,28 @@ struct Palette {
     alphas: [f64; 6],
 }
 
-/// OpenDeepCool's own theme, dark: a graphite ground with the lit tone as its one accent
-/// (`docs/design/settings-app.md`, OpenDeepCool's own theme; Phase 11a Task 11).
+/// OpenDeepCool's own theme, dark, "Coolant": Lagoon, Tide, Foam, Fog and Flare, a petrol-blue
+/// family with one rose accent (`docs/design/settings-app.md`, OpenDeepCool's own theme; Phase 11a
+/// Task 44, redesigned from Task 11's graphite).
 const DARK: Palette = Palette {
-    bg: Rgb([0x20, 0x23, 0x26]),
-    surface: Rgb([0x2a, 0x2e, 0x33]),
-    fg: Rgb([0xe6, 0xe3, 0xdc]),
-    muted: Rgb([0x9c, 0xa1, 0xaa]),
-    accent: Rgb([0xfb, 0xf8, 0xf0]),
-    red: Rgb([0xff, 0x7a, 0x66]),
-    yellow: Rgb([0xe8, 0xc1, 0x4f]),
-    green: Rgb([0x6d, 0xd2, 0x8b]),
+    bg: Rgb([0x0f, 0x26, 0x30]),
+    surface: Rgb([0x18, 0x38, 0x46]),
+    fg: Rgb([0xf1, 0xec, 0xe2]),
+    muted: Rgb([0x8f, 0xb0, 0xb8]),
+    accent: Rgb([0xfb, 0x7f, 0xb0]),
+    red: Rgb([0xff, 0x6b, 0x57]),
+    yellow: Rgb([0xf0, 0xc9, 0x4e]),
+    green: Rgb([0x5f, 0xd6, 0x8a]),
     alphas: [0.05, 0.44, 0.09, 0.60, 0.16, 0.24],
 };
 
-/// The same, light: a neutral aluminium ground, the dark tone as its accent.
+/// The same family in daylight: Frost, Glacier, Deep, Slate and Flare.
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xe4, 0xe6, 0xe9]),
-    surface: Rgb([0xff, 0xff, 0xff]),
-    fg: Rgb([0x1b, 0x1e, 0x22]),
-    muted: Rgb([0x56, 0x5c, 0x66]),
-    accent: Rgb([0x0a, 0x0c, 0x0f]),
+    bg: Rgb([0xd2, 0xe0, 0xe6]),
+    surface: Rgb([0xf6, 0xfa, 0xfb]),
+    fg: Rgb([0x0e, 0x2a, 0x35]),
+    muted: Rgb([0x42, 0x60, 0x6a]),
+    accent: Rgb([0xb0, 0x14, 0x5f]),
     red: Rgb([0xb9, 0x3a, 0x22]),
     yellow: Rgb([0x7a, 0x52, 0x00]),
     green: Rgb([0x1d, 0x7a, 0x3f]),
@@ -1217,14 +1218,13 @@ scale = 1.0
             (
                 true,
                 [
-                    12.3, 10.7, 6.1, 5.3, 14.9, 12.9, 9.2, 7.9, 6.2, 8.5, 6.9, 3.5, 8.9, 9.6, 5.6,
+                    13.3, 10.5, 6.8, 5.4, 6.5, 5.2, 9.8, 7.8, 5.6, 8.6, 6.7, 3.7, 9.5, 4.1, 8.7,
                 ],
             ),
             (
                 false,
                 [
-                    13.4, 16.7, 5.4, 6.7, 15.7, 19.6, 5.5, 6.9, 4.5, 4.3, 12.6, 3.4, 10.6, 11.9,
-                    7.7,
+                    11.1, 14.3, 5.0, 6.4, 5.0, 6.4, 5.1, 6.6, 4.2, 4.0, 10.9, 3.3, 8.9, 3.9, 7.3,
                 ],
             ),
         ];
