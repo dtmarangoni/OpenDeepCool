@@ -242,6 +242,12 @@ impl Client {
             Request::SetDarkTheme(on) => {
                 self.change(move |service| async move { service.set_dark_theme(on).await })
             }
+            Request::SetWindowOpacity(opacity) => self.change(move |service| async move {
+                service.set_window_opacity(opacity.as_str()).await
+            }),
+            Request::SetWindowCorners(corners) => self.change(move |service| async move {
+                service.set_window_corners(corners.as_str()).await
+            }),
             Request::SetMusicPeaks(on) => {
                 self.change(move |service| async move { service.set_music_peaks(on).await })
             }

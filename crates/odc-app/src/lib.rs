@@ -11,3 +11,4 @@ pub mod report;
 pub mod startup;
 pub mod theme;
 pub mod ui;
+pub mod window_style;

@@ -6,7 +6,9 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use odc_ipc::{CoolerState, FallStop, Gpu, GpuKind, State, TemperatureUnit};
+use odc_ipc::{
+    CoolerState, FallStop, Gpu, GpuKind, State, TemperatureUnit, WindowCorners, WindowOpacity,
+};
 use odc_render::{Kind, Mode, MusicSettings, Values, mode_info};
 use odc_sensors::Metric;
 
@@ -284,8 +286,13 @@ pub struct ThemeCard {
     /// The pressed button: Dark, or else Light. While the system's theme is followed, the scheme
     /// of the theme in use.
     pub dark: bool,
-    /// Dark and Light can be used only while the system's theme isn't followed.
+    /// The Default Theme (its heading, Appearance, Window Opacity and Window Corners) can be used
+    /// only while the system's theme isn't followed.
     pub toggles_sensitive: bool,
+    /// The pressed Window Opacity and Window Corners buttons: the service's settings, which only
+    /// OpenDeepCool's own theme applies (Phase 11a Task 49).
+    pub opacity: WindowOpacity,
+    pub corners: WindowCorners,
     pub line: ThemeLine,
 }
 
@@ -351,6 +358,8 @@ impl ThemeCard {
             use_system_sensitive: inputs.system_found(),
             dark: inputs.shown_dark(),
             toggles_sensitive: !follows,
+            opacity: inputs.opacity,
+            corners: inputs.corners,
             line,
         }
     }
@@ -457,11 +466,17 @@ pub fn view(
             ),
         },
     };
-    let theme = ThemeCard::of(&choice::Inputs::new(
-        ui.system,
-        state.use_system_theme.unwrap_or(true),
-        state.dark_theme.unwrap_or(true),
-    ));
+    let theme = ThemeCard::of(
+        &choice::Inputs::new(
+            ui.system,
+            state.use_system_theme.unwrap_or(true),
+            state.dark_theme.unwrap_or(true),
+        )
+        .with_window(
+            state.window_opacity.unwrap_or(WindowOpacity::Opaque),
+            state.window_corners.unwrap_or(WindowCorners::Rounded),
+        ),
+    );
     let config = ConfigPage {
         theme,
         rotation: state.rotation.unwrap_or(0),

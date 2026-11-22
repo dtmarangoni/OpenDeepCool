@@ -65,6 +65,11 @@ harness = false
 required-features = ["weston-tests"]
 
 [[test]]
+name = "window_style"
+harness = false
+required-features = ["weston-tests"]
+
+[[test]]
 name = "live_tiles"
 harness = false
 required-features = ["weston-tests"]

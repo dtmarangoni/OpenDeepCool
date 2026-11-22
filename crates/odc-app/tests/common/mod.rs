@@ -331,8 +331,19 @@ impl Picture {
 
     /// The colour at `(x, y)`.
     pub fn at(&self, x: i32, y: i32) -> [u8; 3] {
+        let [r, g, b, _] = self.rgba(x, y);
+        [r, g, b]
+    }
+
+    /// The colour at `(x, y)` with its alpha, straight (not premultiplied).
+    pub fn rgba(&self, x: i32, y: i32) -> [u8; 4] {
         let at = y as usize * self.stride + x as usize * 4;
-        [self.bytes[at], self.bytes[at + 1], self.bytes[at + 2]]
+        [
+            self.bytes[at],
+            self.bytes[at + 1],
+            self.bytes[at + 2],
+            self.bytes[at + 3],
+        ]
     }
 }
 

@@ -3,6 +3,8 @@
 //! app knows (an Omarchy theme found or not, the system's dark or light preference) and what the
 //! service keeps for the whole PC (follow the system's theme; OpenDeepCool's own is dark).
 
+use odc_ipc::{WindowCorners, WindowOpacity};
+
 /// The system's dark or light preference, as GTK reports it in
 /// `GtkSettings:gtk-interface-color-scheme`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -35,6 +37,10 @@ pub struct Inputs {
     pub use_system: bool,
     /// The service's `DarkTheme`: OpenDeepCool's own theme is the dark one.
     pub dark: bool,
+    /// The service's `WindowOpacity` and `WindowCorners`: how OpenDeepCool's own theme draws the
+    /// window (Phase 11a Task 49); with the system's theme neither applies.
+    pub opacity: WindowOpacity,
+    pub corners: WindowCorners,
 }
 
 /// The theme the window shows.
@@ -54,6 +60,18 @@ impl Inputs {
             preference: facts.preference,
             use_system,
             dark,
+            opacity: WindowOpacity::Opaque,
+            corners: WindowCorners::Rounded,
+        }
+    }
+
+    /// The same with the service's window opacity and corners: the defaults, opaque and
+    /// rounded, until the service has answered.
+    pub fn with_window(self, opacity: WindowOpacity, corners: WindowCorners) -> Inputs {
+        Inputs {
+            opacity,
+            corners,
+            ..self
         }
     }
 
@@ -114,6 +132,8 @@ mod tests {
             preference,
             use_system,
             dark,
+            opacity: WindowOpacity::Opaque,
+            corners: WindowCorners::Rounded,
         }
     }
 

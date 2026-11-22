@@ -11,6 +11,10 @@
 
 use std::fmt::Write as _;
 
+use odc_ipc::{WindowCorners, WindowOpacity};
+
+use crate::window_style;
+
 /// The app's stylesheet, after the `:root` block.
 const STYLESHEET: &str = include_str!("app.css");
 
@@ -67,6 +71,13 @@ pub struct Tokens {
     pub radius: u8,
     /// The same of what holds controls (cards, the preview's frame, popovers): 0, and 10.
     pub radius_box: u8,
+    /// How see-through the window is (Phase 11a Tasks 45 and 51): with an Omarchy theme, Omarchy's
+    /// own Window Opacity, read from its toggle files; with OpenDeepCool's own, the service's.
+    pub opacity: WindowOpacity,
+    /// OpenDeepCool's own theme's corners, sharp or rounded, which also give the window, the
+    /// switches and the knobs their shapes; `None` with an Omarchy theme, whose corners the
+    /// compositor and the theme's own zero radii keep (Window opacity and corners).
+    pub corners: Option<WindowCorners>,
 }
 
 /// A theme and what was wrong with its files, one line each, for the journal.
@@ -115,7 +126,7 @@ const LIGHT: Palette = Palette {
     red: Rgb([0xb9, 0x3a, 0x22]),
     yellow: Rgb([0x7a, 0x52, 0x00]),
     green: Rgb([0x1d, 0x7a, 0x3f]),
-    alphas: [0.04, 0.54, 0.07, 0.72, 0.14, 0.20],
+    alphas: [0.04, 0.56, 0.07, 0.74, 0.14, 0.20],
 };
 
 /// The selection's accent over the background, as Omarchy's own `selection-fill-alpha` default
@@ -147,6 +158,43 @@ impl Tokens {
             controls: default_controls(p.fg, p),
             radius: 4,
             radius_box: 10,
+            opacity: WindowOpacity::Opaque,
+            corners: Some(WindowCorners::Rounded),
+        }
+    }
+
+    /// The own theme with the service's window opacity and corners (Phase 11a Task 51): sharp
+    /// gives every box, control and the window radius 0, rounded the design's 4, 10 and 12 px.
+    pub fn with_window(self, opacity: WindowOpacity, corners: WindowCorners) -> Tokens {
+        let (radius, radius_box) = match corners {
+            WindowCorners::Rounded => (4, 10),
+            WindowCorners::Sharp => (0, 0),
+        };
+        Tokens {
+            opacity,
+            corners: Some(corners),
+            radius,
+            radius_box,
+            ..self
+        }
+    }
+
+    /// The window's own radius in px: 12 for the own theme rounded, else 0 (an Omarchy theme
+    /// writes no rule for it).
+    pub fn radius_win(&self) -> u8 {
+        match self.corners {
+            Some(WindowCorners::Rounded) => 12,
+            _ => 0,
+        }
+    }
+
+    /// The switch's trough and the scale's bar: round in every theme, square only while the
+    /// own theme's corners are sharp.
+    pub fn radius_pill(&self) -> u8 {
+        if self.corners == Some(WindowCorners::Sharp) {
+            0
+        } else {
+            9
         }
     }
 }
@@ -249,6 +297,8 @@ pub fn theme(colors: Option<&str>, shell: Option<&str>) -> Theme {
             controls,
             radius: 0,
             radius_box: 0,
+            opacity: WindowOpacity::Opaque,
+            corners: None,
         },
         problems,
     }
@@ -562,9 +612,17 @@ impl Tokens {
         } else {
             widths.join(" ")
         };
-        let tokens: [(&str, String); 25] = [
+        // The window's ground and the cards' plate, and the banners' tints, with the window's
+        // alpha (Tasks 45 and 51): solid unless the window is see-through. What must stay solid
+        // (the preview's frame, the open list, the notice) uses `surface`.
+        let alpha = window_style::alpha(self.opacity);
+        let at = |rgb, alpha| Rgba { rgb, alpha }.css();
+        let sharp = self.corners == Some(WindowCorners::Sharp);
+        let tokens: [(&str, String); 32] = [
             ("bg", self.bg.css()),
             ("surface", self.surface.css()),
+            ("ground", at(self.bg, alpha)),
+            ("plate", at(self.surface, alpha)),
             ("fg", self.fg.css()),
             ("muted", self.muted.css()),
             ("accent", self.accent.css()),
@@ -584,12 +642,20 @@ impl Tokens {
             ("ctl-pressed-fill", c.pressed_fill.css()),
             ("radius", format!("{}px", self.radius)),
             ("radius-box", format!("{}px", self.radius_box)),
+            ("radius-win", format!("{}px", self.radius_win())),
+            ("radius-pill", format!("{}px", self.radius_pill())),
+            // A scale's bar: a third of the pill's radius.
+            ("radius-bar", format!("{}px", self.radius_pill() / 3)),
+            ("radius-knob", if sharp { "0px" } else { "50%" }.to_owned()),
             // Fixed alphas of the design's mockups (`app.css`), computed here so the
             // stylesheet needs no colour functions.
             ("line", fg_at(0.12)),
             ("unlit", fg_at(UNLIT_ALPHA)),
-            ("banner-error", blend(self.red, self.bg, 0.16).css()),
-            ("banner-warn", blend(self.yellow, self.bg, 0.14).css()),
+            ("banner-error", at(blend(self.red, self.bg, 0.16), alpha)),
+            ("banner-warn", at(blend(self.yellow, self.bg, 0.14), alpha)),
+            // The one literal the stylesheet needs, written once: the frameless icon buttons'
+            // fill at rest, which a see-through window's ground shows through.
+            ("none", "transparent".to_owned()),
         ];
         let mut root = String::from(":root {\n");
         for (name, value) in tokens {
@@ -663,6 +729,8 @@ scale = 1.0
 :root {
   --bg: #1f2120;
   --surface: #2a2c2a;
+  --ground: rgba(31, 33, 32, 1);
+  --plate: rgba(42, 44, 42, 1);
   --fg: #e4dccb;
   --muted: #9c9585;
   --accent: #d9a35b;
@@ -682,10 +750,15 @@ scale = 1.0
   --ctl-pressed-fill: rgba(228, 220, 203, 0.22);
   --radius: 0px;
   --radius-box: 0px;
+  --radius-win: 0px;
+  --radius-pill: 9px;
+  --radius-bar: 3px;
+  --radius-knob: 50%;
   --line: rgba(228, 220, 203, 0.12);
   --unlit: rgba(228, 220, 203, 0.12);
-  --banner-error: #3e2f2c;
-  --banner-warn: #393628;
+  --banner-error: rgba(62, 47, 44, 1);
+  --banner-warn: rgba(57, 54, 40, 1);
+  --none: transparent;
 }
 ";
 
@@ -971,7 +1044,7 @@ scale = 1.0
     }
 
     /// Every token's value in `css` is one this module writes: a hex colour, an `rgba()` of
-    /// numbers, or px widths; and nothing of `raw` got in.
+    /// numbers, px widths, or the two words `transparent` and `50%`; and nothing of `raw` got in.
     fn assert_only_written_values(css: &str, raw: &str) {
         let (root, rest) = css.split_once("}\n").expect("the :root block");
         for line in root.lines().skip(1) {
@@ -980,9 +1053,11 @@ scale = 1.0
                 .split_once(": ")
                 .and_then(|(_, v)| v.strip_suffix(';'))
                 .unwrap_or_else(|| panic!("{line}"));
-            let ok = (value.len() == 7
-                && value.starts_with('#')
-                && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
+            let ok = value == "transparent"
+                || value == "50%"
+                || (value.len() == 7
+                    && value.starts_with('#')
+                    && value[1..].chars().all(|c| c.is_ascii_hexdigit()))
                 || value
                     .strip_prefix("rgba(")
                     .and_then(|v| v.strip_suffix(')'))
@@ -1208,6 +1283,87 @@ scale = 1.0
     fn over(fg: Rgb, bg: Rgb, alpha: f64) -> Exact {
         let (fg, bg) = (fg.unit(), bg.unit());
         std::array::from_fn(|i| alpha * fg[i] + (1.0 - alpha) * bg[i])
+    }
+
+    // The window's style, as the design's table of Window opacity and corners gives it
+    // (Phase 11a Tasks 45 and 51): the alpha of the ground and the plate by opacity, the blur
+    // class's condition, and the radii by corners, for every combination of the own theme and for
+    // an Omarchy theme.
+    #[test]
+    fn the_window_style_follows_the_design_s_tables() {
+        use odc_ipc::{WindowCorners as C, WindowOpacity as O};
+        for dark in [true, false] {
+            for (opacity, alpha) in [
+                (O::Opaque, "1"),
+                (O::Transparent, "0.985"),
+                (O::Glassy, "0.75"),
+            ] {
+                for (corners, radii) in [
+                    (C::Rounded, ("4px", "10px", "12px", "9px", "3px", "50%")),
+                    (C::Sharp, ("0px", "0px", "0px", "0px", "0px", "0px")),
+                ] {
+                    let t = Tokens::default_theme(dark).with_window(opacity, corners);
+                    let root = t.root();
+                    let has = |token: &str| root.contains(token);
+                    let p = Palette::of(dark);
+                    for (name, rgb) in [("ground", p.bg), ("plate", p.surface)] {
+                        let [r, g, b] = rgb.0;
+                        assert!(
+                            has(&format!("--{name}: rgba({r}, {g}, {b}, {alpha});")),
+                            "{dark} {opacity:?} {corners:?}: {name}\n{root}"
+                        );
+                    }
+                    for (name, value) in [
+                        ("radius", radii.0),
+                        ("radius-box", radii.1),
+                        ("radius-win", radii.2),
+                        ("radius-pill", radii.3),
+                        ("radius-bar", radii.4),
+                        ("radius-knob", radii.5),
+                    ] {
+                        assert!(
+                            has(&format!("--{name}: {value};")),
+                            "{dark} {opacity:?} {corners:?}: {name}\n{root}"
+                        );
+                    }
+                    assert!(has("--none: transparent;"));
+                    assert_eq!(t.corners, Some(corners));
+                }
+            }
+        }
+        // The own theme as it is by default: opaque and rounded.
+        let default = Tokens::default_theme(true);
+        assert_eq!(
+            (default.opacity, default.corners),
+            (O::Opaque, Some(C::Rounded))
+        );
+        // An Omarchy theme: no corners of the app's own, controls and boxes square, the switches
+        // and knobs round as before, and the window's alpha only from its mode.
+        let omarchy = theme(Some(COLORS), Some(SHELL)).tokens;
+        assert_eq!(omarchy.corners, None);
+        let root = omarchy.root();
+        for want in [
+            "--radius: 0px;",
+            "--radius-box: 0px;",
+            "--radius-win: 0px;",
+            "--radius-pill: 9px;",
+            "--radius-knob: 50%;",
+        ] {
+            assert!(root.contains(want), "{want}\n{root}");
+        }
+        for (opacity, alpha) in [
+            (O::Opaque, "1"),
+            (O::Transparent, "0.985"),
+            (O::Glassy, "0.75"),
+        ] {
+            let t = Tokens { opacity, ..omarchy };
+            assert!(
+                t.root()
+                    .contains(&format!("--ground: rgba(31, 33, 32, {alpha});"))
+            );
+        }
+        // The blur is a class of the window: the rule is in the stylesheet, applied by the class.
+        assert!(STYLESHEET.contains("window.glassy {\n  backdrop-filter: blur(20px);\n}"));
     }
 
     // The app's default palettes have the contrast of the design's table (Default theme), to

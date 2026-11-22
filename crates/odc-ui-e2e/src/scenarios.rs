@@ -652,6 +652,16 @@ fn names(run: &mut Run) -> Result<String> {
         ("switch", "Use system theme"),
         ("toggle button", "Dark theme"),
         ("toggle button", "Light theme"),
+        // The Default Theme subcategory (Phase 11a Task 50).
+        ("group", "Default Theme"),
+        ("group", "Appearance"),
+        ("group", "Window Opacity"),
+        ("group", "Window Corners"),
+        ("toggle button", "Opaque window"),
+        ("toggle button", "Transparent window"),
+        ("toggle button", "Glassy window"),
+        ("toggle button", "Sharp corners"),
+        ("toggle button", "Rounded corners"),
         ("group", "Theme status"),
         ("group", "Display settings"),
         ("group", "Music settings"),
@@ -1772,6 +1782,19 @@ fn theme(run: &mut Run) -> Result<String> {
     run.check_state("toggle button", "Light theme", State::Pressed, true)?;
     run.check_state("toggle button", "Dark theme", State::Sensitive, false)?;
     run.check_state("toggle button", "Light theme", State::Sensitive, false)?;
+    // The whole Default Theme is dimmed while the system theme is followed, the saved opacity and
+    // corners still shown (Phase 11a Task 50).
+    for name in [
+        "Opaque window",
+        "Transparent window",
+        "Glassy window",
+        "Sharp corners",
+        "Rounded corners",
+    ] {
+        run.check_state("toggle button", name, State::Sensitive, false)?;
+    }
+    run.check_state("toggle button", "Opaque window", State::Pressed, true)?;
+    run.check_state("toggle button", "Rounded corners", State::Pressed, true)?;
     // The switch turned off asks the service, and keeps its state until the service confirms;
     // then OpenDeepCool's own theme shows, and the buttons come alive on `DarkTheme`.
     run.change(
@@ -1789,6 +1812,21 @@ fn theme(run: &mut Run) -> Result<String> {
                 &["Using OpenDeepCool's dark theme."],
             )
         },
+    )?;
+    // Window Opacity: asked with its word, the saved one stays pressed until the service says so.
+    run.change(
+        |run| run.act("toggle button", "Glassy window", "Click"),
+        "SetWindowOpacity(\"glassy\")",
+        |run| run.check_state("toggle button", "Opaque window", State::Pressed, true),
+        |service| service.window_opacity = "glassy",
+        |run| run.expect_state("toggle button", "Glassy window", State::Pressed, true),
+    )?;
+    run.change(
+        |run| run.act("toggle button", "Sharp corners", "Click"),
+        "SetWindowCorners(\"sharp\")",
+        |run| run.check_state("toggle button", "Rounded corners", State::Pressed, true),
+        |service| service.window_corners = "sharp",
+        |run| run.expect_state("toggle button", "Sharp corners", State::Pressed, true),
     )?;
     // Light: asked, the saved Dark stays pressed until the service says so.
     run.change(

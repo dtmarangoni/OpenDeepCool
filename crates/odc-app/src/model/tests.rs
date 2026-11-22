@@ -286,6 +286,9 @@ fn base_view() -> Normal {
                 use_system_sensitive: false,
                 dark: true,
                 toggles_sensitive: true,
+                // The service's defaults, which the state here doesn't override.
+                opacity: WindowOpacity::Opaque,
+                corners: WindowCorners::Rounded,
                 line: ThemeLine::NotFound,
             },
             rotation: 0,
@@ -624,6 +627,8 @@ fn the_theme_card_in_each_state_of_the_design() {
         use_system_sensitive: sensitive,
         dark,
         toggles_sensitive: toggles,
+        opacity: WindowOpacity::Opaque,
+        corners: WindowCorners::Rounded,
         line,
     };
     // (a) An Omarchy theme is found and followed: the toggles dimmed on its mode, whatever the

@@ -24,6 +24,7 @@ use gtk::{gio, glib};
 
 use super::window::{WeakWindow, Window};
 use crate::theme::{self, Theme, Tokens};
+use crate::window_style;
 
 /// The quiet a change waits for before the theme is read again.
 pub const QUIET: Duration = Duration::from_millis(150);
@@ -50,7 +51,11 @@ pub fn load(state: Option<&Path>, log: &dyn Fn(&str)) -> Option<Theme> {
         ));
         return None;
     }
-    let theme = theme::theme(Some(&colors), read("shell.toml").as_deref());
+    let mut theme = theme::theme(Some(&colors), read("shell.toml").as_deref());
+    // The window follows Omarchy's own Window Opacity, from its toggle files (Task 45).
+    if let Some(state) = state {
+        theme.tokens.opacity = window_style::omarchy_opacity(state);
+    }
     for problem in &theme.problems {
         log(&format!("theme: {problem}"));
     }
@@ -65,13 +70,20 @@ fn source(theme_found: bool) -> &'static str {
     }
 }
 
-/// The folders watched for `state`: each of `state`, `current/` and `current/theme/` that exists,
-/// and the nearest existing folder above `state` when it doesn't.
+/// The folders watched for `state`: each of `state`, `current/`, `current/theme/`, `toggles/` and
+/// `toggles/hypr/` (Omarchy's Window Opacity, Task 45) that exists, and the nearest existing
+/// folder above `state` when it doesn't.
 fn watched(state: &Path) -> Vec<PathBuf> {
-    let mut folders: Vec<PathBuf> = [state.to_path_buf(), state.join("current"), theme_dir(state)]
-        .into_iter()
-        .filter(|p| p.is_dir())
-        .collect();
+    let mut folders: Vec<PathBuf> = [
+        state.to_path_buf(),
+        state.join("current"),
+        theme_dir(state),
+        state.join("toggles"),
+        window_style::toggles_dir(state),
+    ]
+    .into_iter()
+    .filter(|p| p.is_dir())
+    .collect();
     if folders.is_empty() {
         let mut above = state.parent();
         while let Some(folder) = above {
@@ -213,6 +225,50 @@ mod tests {
             watched(&state),
             [state.clone(), state.join("current"), theme_dir(&state)]
         );
+        // Omarchy's toggle files too, once their folders exist.
+        fs::create_dir_all(window_style::toggles_dir(&state)).expect("toggles");
+        assert_eq!(
+            watched(&state),
+            [
+                state.clone(),
+                state.join("current"),
+                theme_dir(&state),
+                state.join("toggles"),
+                window_style::toggles_dir(&state)
+            ]
+        );
+        fs::remove_dir_all(&root).expect("cleaned");
+    }
+
+    // The Omarchy theme's tokens carry Omarchy's own Window Opacity, read from its toggle files at
+    // each load (Phase 11a Task 45), and its corners are untouched.
+    #[test]
+    fn the_omarchy_theme_carries_omarchy_s_window_opacity() {
+        use odc_ipc::WindowOpacity;
+        let root = std::env::temp_dir().join(format!("odc-app-opacity-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(theme_dir(&root)).expect("a theme folder");
+        fs::write(
+            theme_dir(&root).join("colors.toml"),
+            "mode = \"dark\"\nbackground = \"#1f2120\"\nforeground = \"#e4dccb\"\naccent = \"#d9a35b\"\n",
+        )
+        .expect("colors");
+        let opacity = || load(Some(&root), &|_| {}).expect("a theme").tokens;
+        // No toggle file: transparent, Omarchy's default; the corners are not the app's.
+        let tokens = opacity();
+        assert_eq!(tokens.opacity, WindowOpacity::Transparent);
+        assert_eq!(tokens.corners, None);
+        let toggles = window_style::toggles_dir(&root);
+        fs::create_dir_all(&toggles).expect("toggles");
+        fs::write(toggles.join("window-glassy.lua"), "-- glassy\n").expect("glassy");
+        assert_eq!(opacity().opacity, WindowOpacity::Glassy);
+        fs::write(toggles.join("window-opaque.lua"), "-- opaque\n").expect("opaque");
+        assert_eq!(opacity().opacity, WindowOpacity::Opaque);
+        fs::remove_file(toggles.join("window-opaque.lua")).expect("removed");
+        fs::remove_file(toggles.join("window-glassy.lua")).expect("removed");
+        assert_eq!(opacity().opacity, WindowOpacity::Transparent);
+        // Without a state folder there is no theme, and so no mode to follow.
+        assert!(load(None, &|_| {}).is_none());
         fs::remove_dir_all(&root).expect("cleaned");
     }
 }

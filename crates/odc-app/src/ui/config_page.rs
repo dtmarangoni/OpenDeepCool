@@ -11,7 +11,7 @@ use std::rc::Rc;
 use gtk::accessible::Property;
 use gtk::glib;
 use gtk::prelude::*;
-use odc_ipc::{FallStop, TemperatureUnit};
+use odc_ipc::{FallStop, TemperatureUnit, WindowCorners, WindowOpacity};
 
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
@@ -77,6 +77,15 @@ pub struct ConfigPage {
     use_system: gtk::Switch,
     dark: gtk::ToggleButton,
     light: gtk::ToggleButton,
+    /// The Default Theme subcategory: its heading and rows, insensitive together while the
+    /// system's theme is followed.
+    default_theme: gtk::Box,
+    /// Window Opacity's and Window Corners' buttons, in the order of [`OPACITIES`] and
+    /// [`CORNERS`], and the index each was last confirmed at.
+    opacity: Vec<gtk::ToggleButton>,
+    corners: Vec<gtk::ToggleButton>,
+    saved_opacity: Rc<Cell<usize>>,
+    saved_corners: Rc<Cell<usize>>,
     theme_icon: gtk::Image,
     theme_line: gtk::Label,
     /// An empty box at the page's end, as tall as the Startup card, while the card is on the off
@@ -99,6 +108,79 @@ pub struct ConfigPage {
     /// The scales' last asked stops, so a drag asks once a stop.
     asked: Rc<[Cell<Option<FallStop>>; 2]>,
     applying: Rc<Cell<bool>>,
+}
+
+/// Window Opacity's words: the button, its accessible name and the setting (Omarchy's own
+/// words for its Window Opacity).
+const OPACITIES: [(&str, &str, WindowOpacity); 3] = [
+    ("Opaque", "Opaque window", WindowOpacity::Opaque),
+    (
+        "Transparent",
+        "Transparent window",
+        WindowOpacity::Transparent,
+    ),
+    ("Glassy", "Glassy window", WindowOpacity::Glassy),
+];
+
+/// Window Corners' words, the same.
+const CORNERS: [(&str, &str, WindowCorners); 2] = [
+    ("Sharp", "Sharp corners", WindowCorners::Sharp),
+    ("Rounded", "Rounded corners", WindowCorners::Rounded),
+];
+
+/// A row of linked toggle buttons, one word each (Window Opacity, Window Corners): a press asks
+/// `ask(value)` and the pressed button goes back to the one last confirmed, `saved`, until the
+/// service confirms the change, as every control of the page does.
+#[allow(clippy::too_many_arguments)]
+fn words_row<T: Copy + 'static>(
+    parent: &gtk::Box,
+    labels: &gtk::SizeGroup,
+    names: &Names,
+    title: &str,
+    words: &[(&str, &str, T)],
+    send: &Rc<dyn Fn(Request)>,
+    applying: &Rc<Cell<bool>>,
+    saved: &Rc<Cell<usize>>,
+    ask: fn(T) -> Request,
+) -> Vec<gtk::ToggleButton> {
+    let box_ = gtk::Box::builder()
+        .accessible_role(gtk::AccessibleRole::Group)
+        .css_classes(["linked"])
+        .build();
+    names.name(&box_, title);
+    let buttons: Rc<RefCell<Vec<gtk::ToggleButton>>> = Rc::new(RefCell::new(Vec::new()));
+    for (i, (label, name, value)) in words.iter().enumerate() {
+        let button = gtk::ToggleButton::builder().label(*label).build();
+        if let Some(first) = buttons.borrow().first() {
+            button.set_group(Some(first));
+        }
+        names.name(&button, name);
+        box_.append(&button);
+        let (send, applying, saved, others, value) = (
+            Rc::clone(send),
+            Rc::clone(applying),
+            Rc::clone(saved),
+            Rc::clone(&buttons),
+            *value,
+        );
+        button.connect_toggled(move |button| {
+            if applying.get() || !button.is_active() || saved.get() == i {
+                return;
+            }
+            send(ask(value));
+            // Back to the saved button until the service confirms the change.
+            applying.set(true);
+            if let Some(back) = others.borrow().get(saved.get()) {
+                back.set_active(true);
+            }
+            applying.set(false);
+        });
+        buttons.borrow_mut().push(button);
+    }
+    row(parent, labels, title, None, &box_);
+    let all = buttons.borrow().to_vec();
+    #[allow(clippy::let_and_return)]
+    all
 }
 
 fn small(text: &str, classes: &[&str]) -> gtk::Label {
@@ -287,7 +369,45 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(&theme, &labels, "Appearance", None, &dark_or_light);
+        // The Default Theme, a child of the Theme card as Use system theme is: its heading and
+        // three rows, insensitive together while the system's theme is followed.
+        // 14 px between its rows and 10 more above it, so it stands 24 px under the line above.
+        let default_theme = gtk::Box::builder()
+            .accessible_role(gtk::AccessibleRole::Group)
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(14)
+            .margin_top(10)
+            .css_classes(["subcategory"])
+            .build();
+        names.name(&default_theme, "Default Theme");
+        default_theme.append(&small("Default Theme", &["sub-heading"]));
+        names.name(&dark_or_light, "Appearance");
+        row(&default_theme, &labels, "Appearance", None, &dark_or_light);
+        let saved_opacity = Rc::new(Cell::new(0));
+        let saved_corners = Rc::new(Cell::new(0));
+        let opacity = words_row(
+            &default_theme,
+            &labels,
+            names,
+            "Window Opacity",
+            &OPACITIES,
+            &send,
+            &applying,
+            &saved_opacity,
+            Request::SetWindowOpacity,
+        );
+        let corners = words_row(
+            &default_theme,
+            &labels,
+            names,
+            "Window Corners",
+            &CORNERS,
+            &send,
+            &applying,
+            &saved_corners,
+            Request::SetWindowCorners,
+        );
+        theme.append(&default_theme);
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
         let rotations: [gtk::ToggleButton; 4] = std::array::from_fn(|r| {
@@ -466,6 +586,11 @@ impl ConfigPage {
             use_system,
             dark,
             light,
+            default_theme,
+            opacity,
+            corners,
+            saved_opacity,
+            saved_corners,
             theme_icon,
             theme_line,
             spacer,
@@ -624,7 +749,33 @@ impl ConfigPage {
         } else {
             self.light.set_active(true);
         }
-        for button in [&self.dark, &self.light] {
+        // The Default Theme is dimmed together while the system's theme is followed: the heading
+        // and the three titles take the class `muted`, and each button is insensitive and says
+        // why (each control, never only its box).
+        for label in self.default_theme_labels() {
+            if card.toggles_sensitive {
+                label.remove_css_class("muted");
+            } else {
+                label.add_css_class("muted");
+            }
+        }
+        let opacity = OPACITIES
+            .iter()
+            .position(|(_, _, o)| *o == card.opacity)
+            .unwrap_or(0);
+        let corners = CORNERS
+            .iter()
+            .position(|(_, _, c)| *c == card.corners)
+            .unwrap_or(0);
+        self.saved_opacity.set(opacity);
+        self.saved_corners.set(corners);
+        self.opacity[opacity].set_active(true);
+        self.corners[corners].set_active(true);
+        for button in [&self.dark, &self.light]
+            .into_iter()
+            .chain(&self.opacity)
+            .chain(&self.corners)
+        {
             button.set_sensitive(card.toggles_sensitive);
             names.describe(
                 button,
@@ -650,6 +801,45 @@ impl ConfigPage {
             self.dark.is_active(),
             self.dark.is_sensitive() && self.light.is_sensitive(),
             self.theme_line.text().to_string(),
+        )
+    }
+
+    /// The Default Theme's heading and the three rows' titles, in order.
+    fn default_theme_labels(&self) -> Vec<gtk::Widget> {
+        let mut labels = Vec::new();
+        let mut child = self.default_theme.first_child();
+        while let Some(widget) = child {
+            child = widget.next_sibling();
+            // The heading is a label; each row is a box of its label block and its control.
+            match widget.downcast_ref::<gtk::Box>() {
+                Some(line) => {
+                    labels.extend(line.first_child().and_then(|block| block.first_child()))
+                }
+                None => labels.push(widget),
+            }
+        }
+        labels
+    }
+
+    /// The Default Theme as shown, for the tests: whether its buttons can be used, and the
+    /// pressed Window Opacity and Window Corners buttons.
+    pub fn default_theme_shown(&self) -> (bool, Option<WindowOpacity>, Option<WindowCorners>) {
+        (
+            [&self.dark, &self.light]
+                .into_iter()
+                .chain(&self.opacity)
+                .chain(&self.corners)
+                .all(|b| b.is_sensitive()),
+            OPACITIES
+                .iter()
+                .zip(&self.opacity)
+                .find(|(_, b)| b.is_active())
+                .map(|((_, _, o), _)| *o),
+            CORNERS
+                .iter()
+                .zip(&self.corners)
+                .find(|(_, b)| b.is_active())
+                .map(|((_, _, c), _)| *c),
         )
     }
 

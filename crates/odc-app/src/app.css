@@ -9,14 +9,33 @@
   -gtk-icon-shadow: none;
 }
 
+/* The window paints its ground once, --ground (--bg at the window's opacity: solid unless the
+   window is see-through, Window opacity and corners); the header bar, the column and the pages
+   paint none of their own, or the alpha would compound. The cards paint --plate over it. What
+   carries the picture or stands over text stays solid: the preview's frame, a popover, the
+   notice (--surface). */
 window,
 window.background {
-  background-color: var(--bg);
+  background-color: var(--ground);
   color: var(--fg);
 }
 
+/* Glassy asks the compositor to blur what is behind the window: GTK does that only where a
+   backdrop-filter covers it, as in Omarchy's own glass.css. */
+window.glassy {
+  backdrop-filter: blur(20px);
+}
+
+/* OpenDeepCool's own theme draws its window's corners (the class is set only then): 12 px, or 0
+   while Window Corners is Sharp; with an Omarchy theme the compositor's are left alone. */
+window.own-corners,
+window.own-corners.csd {
+  border-radius: var(--radius-win);
+  overflow: hidden;
+}
+
 headerbar {
-  background-color: var(--bg);
+  background-color: var(--none);
   background-image: none;
   color: var(--fg);
   border-bottom: 1px solid var(--line);
@@ -98,21 +117,21 @@ flowboxchild.tile:disabled {
 
 button.link,
 button.link label {
-  background-color: var(--bg);
-  border-color: var(--bg);
+  background-color: var(--none);
+  border-color: var(--none);
   color: var(--accent);
   text-decoration-line: underline;
 }
 
 /* Icon buttons (the gear, the close icon, Back and Refresh): 32 x 32, no frame in any state
-   (Window, Icon buttons). The resting fill is the surface they sit on, since a transparent one
-   would be a literal; these rules read more specifically than the plain button's, so the border
-   stays off in every state. */
+   (Window, Icon buttons). The resting fill is --none, since the window's ground may be
+   see-through and a fill of --bg would show as a box; these rules read more specifically than the
+   plain button's, so the border stays off in every state. */
 button.icon-button {
   min-width: 32px;
   min-height: 32px;
   padding: 0;
-  background-color: var(--bg);
+  background-color: var(--none);
   background-image: none;
   border-style: none;
   color: var(--fg);
@@ -136,7 +155,7 @@ button.icon-button:checked {
 }
 
 button.icon-button:disabled {
-  background-color: var(--bg);
+  background-color: var(--none);
   color: var(--muted);
 }
 
@@ -237,6 +256,10 @@ popover > contents {
 }
 
 .card {
+  background-color: var(--plate);
+}
+
+.card {
   padding: 14px 16px;
 }
 
@@ -249,6 +272,12 @@ popover > contents {
   font-weight: 600;
 }
 
+/* The Theme card's Default Theme heading (Theme card): a step under the card's heading. */
+.sub-heading {
+  font-size: 0.83em;
+  font-weight: 600;
+}
+
 /* A saved input that isn't found: a warning border. */
 dropdown.warn > button {
   border-color: var(--yellow);
@@ -257,6 +286,7 @@ dropdown.warn > button {
 scale > trough {
   background-color: var(--ctl-normal-fill);
   border: 1px solid var(--ctl-normal-border);
+  border-radius: var(--radius-bar);
 }
 
 scale > trough > highlight {
@@ -271,7 +301,6 @@ scale > trough > slider {
   min-width: 16px;
   min-height: 16px;
   margin: -7px;
-  border-radius: 100%;
 }
 
 /* One knob for the scales and the switches (owner, 2026-11-22: the sliders' button in the colour
@@ -283,6 +312,7 @@ switch > slider {
   background-image: none;
   background-color: var(--fg);
   border-style: none;
+  border-radius: var(--radius-knob);
   box-shadow: 0 0 0 1px var(--bg);
 }
 
@@ -299,6 +329,7 @@ switch {
   min-height: 16px;
   background-color: var(--ctl-normal-fill);
   border: 1px solid var(--ctl-normal-border);
+  border-radius: var(--radius-pill);
 }
 
 /* Measured, Phase 11a Task 26: with min-width 30 the switch came out 34 wide, not 32. A 1 px

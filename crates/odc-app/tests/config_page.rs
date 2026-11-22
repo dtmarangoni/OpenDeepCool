@@ -21,7 +21,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 11] = [
+const CHECKS: [(&str, Check); 12] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -39,6 +39,10 @@ const CHECKS: [(&str, Check); 11] = [
         theme_line_place,
     ),
     ("the_cards_are_6_px_apart", card_gaps),
+    (
+        "the_default_theme_asks_for_its_calls_and_is_disabled_with_the_system_theme",
+        default_theme,
+    ),
     (
         "the_space_under_the_last_card_is_the_space_above_the_first",
         page_ends,
@@ -222,7 +226,12 @@ fn unit_toggles(app: &gtk::Application) {
 // Made-up GPUs (AGENTS.md rule 10), in the service's order.
 /// The sentences the owner took off the Configuration page (2026-11-19: Tasks 19 to 24 of Phase
 /// 11a) and the words each began with: none of them is on the page, in any card.
-const REMOVED: [(&str, &str); 3] = [
+const REMOVED: [(&str, &str); 5] = [
+    ("Dark or light", "the Appearance row's old title (Task 47)"),
+    (
+        "Turning on",
+        "Start at boot's changing line (Task 33), which no state shows on this page",
+    ),
     ("except Dancer", "the Music card's closing sentence"),
     ("Turns the picture clockwise", "the Rotation row's hint"),
     (
@@ -278,6 +287,127 @@ fn card_gaps(app: &gtk::Application) {
             pair[1]
         );
     }
+    close(window);
+}
+
+// The Theme card's Default Theme (owner, 2026-11-22; Phase 11a Task 50): Appearance, Window
+// Opacity and Window Corners, with a heading, as a child of the Theme card. Each control asks for
+// its call with the right argument and shows the service's saved value until it confirms; all of
+// it, the heading included, is disabled while the system's theme is followed and enabled when it
+// isn't.
+fn default_theme(app: &gtk::Application) {
+    use odc_ipc::{WindowCorners, WindowOpacity};
+    let (window, asked) = shown(app);
+    let own = |s: &mut State| {
+        s.use_system_theme = Some(false);
+        s.window_opacity = Some(WindowOpacity::Glassy);
+        s.window_corners = Some(WindowCorners::Sharp);
+    };
+    window.state(with(own));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    // The saved values shown, the group enabled, its heading a child of the Theme card.
+    assert_eq!(
+        window.config_page().default_theme_shown(),
+        (
+            true,
+            Some(WindowOpacity::Glassy),
+            Some(WindowCorners::Sharp)
+        )
+    );
+    let group = find::<gtk::Widget>(&window, "Default Theme");
+    let theme = find::<gtk::Widget>(&window, "Theme settings");
+    assert!(group.is_ancestor(&theme), "a child of the Theme card");
+    let toggle = |name: &str| find::<gtk::ToggleButton>(&window, name);
+    // Each press asks its call once, with its word; the saved button stays pressed.
+    asked.borrow_mut().clear();
+    toggle("Transparent window").emit_clicked();
+    run_for(Duration::from_millis(20));
+    assert_eq!(
+        taken(&asked),
+        [Request::SetWindowOpacity(WindowOpacity::Transparent)]
+    );
+    assert!(toggle("Glassy window").is_active(), "the saved one shown");
+    toggle("Rounded corners").emit_clicked();
+    run_for(Duration::from_millis(20));
+    assert_eq!(
+        taken(&asked),
+        [Request::SetWindowCorners(WindowCorners::Rounded)]
+    );
+    assert!(toggle("Sharp corners").is_active());
+    // The service's answer moves them, and asks nothing; the saved word again asks nothing.
+    window.state(with(|s| {
+        own(s);
+        s.window_opacity = Some(WindowOpacity::Transparent);
+        s.window_corners = Some(WindowCorners::Rounded);
+    }));
+    assert_eq!(
+        window.config_page().default_theme_shown(),
+        (
+            true,
+            Some(WindowOpacity::Transparent),
+            Some(WindowCorners::Rounded)
+        )
+    );
+    assert!(
+        taken(&asked).is_empty(),
+        "the service's own change asks nothing"
+    );
+    toggle("Transparent window").emit_clicked();
+    toggle("Rounded corners").emit_clicked();
+    run_for(Duration::from_millis(20));
+    assert!(taken(&asked).is_empty(), "the saved words ask nothing");
+    // The system's theme followed (an Omarchy theme found, "Use system theme" on): the heading
+    // and the rows are disabled together, each button says why, and the saved words still show.
+    window.omarchy_theme(Some(odc_app::theme::Tokens::default_theme(true)));
+    window.state(with(|s| {
+        s.use_system_theme = Some(true);
+        s.window_opacity = Some(WindowOpacity::Glassy);
+        s.window_corners = Some(WindowCorners::Sharp);
+    }));
+    run_for(Duration::from_millis(250));
+    assert_eq!(
+        window.config_page().default_theme_shown(),
+        (
+            false,
+            Some(WindowOpacity::Glassy),
+            Some(WindowCorners::Sharp)
+        )
+    );
+    // The heading and the three titles are muted, with the buttons insensitive; each control, and
+    // not only the box (the design's D70), and the group itself still takes no insensitivity.
+    let muted = |widget: &gtk::Widget| widget.has_css_class("muted");
+    let heading = group.first_child().expect("the heading");
+    assert!(muted(&heading), "the heading is dimmed");
+    assert!(group.is_sensitive());
+    for name in ["Appearance", "Window Opacity", "Window Corners"] {
+        let title = find::<gtk::Widget>(&window, name)
+            .parent()
+            .and_then(|line| line.first_child())
+            .and_then(|block| block.first_child())
+            .expect("a title");
+        assert!(muted(&title), "{name}'s title is dimmed");
+    }
+    for name in [
+        "Dark theme",
+        "Opaque window",
+        "Transparent window",
+        "Glassy window",
+        "Sharp corners",
+        "Rounded corners",
+    ] {
+        assert!(!toggle(name).is_sensitive(), "{name}");
+        assert_eq!(
+            window.names().description(name).as_deref(),
+            Some("Set by the system theme."),
+            "{name}"
+        );
+    }
+    // Turned off, they are enabled again, and the heading is no longer muted.
+    window.state(with(|s| s.use_system_theme = Some(false)));
+    run_for(Duration::from_millis(250));
+    assert!(window.config_page().default_theme_shown().0);
+    assert!(!muted(&heading));
     close(window);
 }
 

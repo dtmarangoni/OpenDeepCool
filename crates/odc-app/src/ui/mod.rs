@@ -33,6 +33,10 @@ pub enum Request {
     /// service keeps for the whole PC (Phase 11a Task 10).
     SetUseSystemTheme(bool),
     SetDarkTheme(bool),
+    /// `SetWindowOpacity(s)` and `SetWindowCorners(s)`: the Default Theme's other two settings,
+    /// which the service keeps for the whole PC (Phase 11a Task 49).
+    SetWindowOpacity(odc_ipc::WindowOpacity),
+    SetWindowCorners(odc_ipc::WindowCorners),
     /// `SetMusicPeaks(b)`, `SetMusicBarFall(s)`, `SetMusicPeakFall(s)`.
     SetMusicPeaks(bool),
     SetMusicBarFall(FallStop),

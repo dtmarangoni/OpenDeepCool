@@ -11,6 +11,7 @@ use gtk::{gdk, glib};
 use super::{Inner, Window};
 use crate::choice::{self, Preference, Source};
 use crate::theme::Tokens;
+use odc_ipc::WindowOpacity;
 
 /// GTK's `gtk-interface-color-scheme` as the app's [`Preference`].
 fn preference_of(settings: &gtk::Settings) -> Preference {
@@ -159,8 +160,9 @@ impl Window {
 
     /// What the theme is made from now: the system's facts and the service's two settings.
     pub(super) fn theme_inputs(&self) -> choice::Inputs {
-        let (use_system, dark) = self.0.theme_settings.get();
+        let (use_system, dark, opacity, corners) = self.0.theme_settings.get();
         choice::Inputs::new(self.0.inputs.borrow().ui.system, use_system, dark)
+            .with_window(opacity, corners)
     }
 
     /// Resolves the theme again when what it is made from changed, and shows it.
@@ -176,7 +178,12 @@ impl Window {
                 .omarchy
                 .get()
                 .unwrap_or_else(|| Tokens::default_theme(true)),
-            Source::Own { dark } => Tokens::default_theme(dark),
+            // OpenDeepCool's own theme from the system's preference: opaque and rounded, the
+            // saved window settings aren't applied (Window opacity and corners, section 5).
+            Source::Own { dark } if inputs.follows_system() => Tokens::default_theme(dark),
+            Source::Own { dark } => {
+                Tokens::default_theme(dark).with_window(inputs.opacity, inputs.corners)
+            }
         };
         self.set_theme(&tokens);
     }
@@ -188,6 +195,18 @@ impl Window {
         }
         self.0.shown_tokens.set(Some(*tokens));
         self.0.provider.load_from_string(&tokens.css());
+        // The window's classes: `glassy` asks for the compositor's blur, `own-corners` gives the
+        // window OpenDeepCool's own theme's corners (Window opacity and corners).
+        for (class, on) in [
+            ("glassy", tokens.opacity == WindowOpacity::Glassy),
+            ("own-corners", tokens.corners.is_some()),
+        ] {
+            if on {
+                self.0.window.add_css_class(class);
+            } else {
+                self.0.window.remove_css_class(class);
+            }
+        }
         self.0.provider.set_prefers_color_scheme(if tokens.dark {
             gtk::InterfaceColorScheme::Dark
         } else {
