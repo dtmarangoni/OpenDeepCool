@@ -376,7 +376,7 @@ impl DisplayPage {
             names,
             "view-refresh-symbolic",
             "Refresh display",
-            "Refresh the display: fresh readings, and the picture starts again",
+            "Refresh the display readings",
         );
         let root = page(&page_bar(None, "Display", Some(&refresh)), &content);
         let motion = Motion::new(tiles, root.clone());

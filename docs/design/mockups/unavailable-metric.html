@@ -753,7 +753,7 @@ function header() {
 // Refresh icon. Configuration: the back icon, then the title.
 function pageBar(page) {
   if (page === "display") return `<div class="page-bar"><span></span><h2 class="page-title">Display</h2>
-    <button class="ibtn" id="refresh" aria-label="Refresh display" title="Refresh the display: fresh readings, and the picture starts again" onclick="flash('Refreshed')">${ICON.refresh}</button></div>`;
+    <button class="ibtn" id="refresh" aria-label="Refresh display" title="Refresh the display readings" onclick="flash('Refreshed')">${ICON.refresh}</button></div>`;
   return `<div class="page-bar"><button class="ibtn" id="back" aria-label="Back" title="Back to Display" onclick="go('display')">${ICON.back}</button>
     <h2 class="page-title">Configuration</h2><span></span></div>`;
 }

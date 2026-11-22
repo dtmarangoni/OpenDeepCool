@@ -223,6 +223,11 @@ fn banners_and_states(app: &gtk::Application) {
     assert_eq!(window.actions_enabled(), [true, false, true]);
     let refresh = window.display_page().refresh();
     assert!(refresh.is_visible() && refresh.is_sensitive());
+    // The owner's words (2026-11-22); the accessible name is another text.
+    assert_eq!(
+        refresh.tooltip_text().as_deref(),
+        Some("Refresh the display readings")
+    );
     assert_eq!(
         window.column_words(),
         ["Load · CPU", "Cooler connected", "Service running"]
