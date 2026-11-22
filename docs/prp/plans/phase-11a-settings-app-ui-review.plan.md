@@ -40,7 +40,7 @@
 - **Uninstalling leaves the system as it was** (rule 7). The app writes no file of its own: the theme choice is the service's setting, saved with the others in its state directory, which the package's removal already deletes (Task 10).
 - **The service's access rules don't widen:** the new data goes only to a caller that watches frames and passes the same one-second check, and a client that doesn't know it ignores it.
 
-**Success signal:** The owner reviews the new build (Task 33) and signs the phase off. Behind that, every acceptance criterion below passes unattended: the app's AT-SPI run on every scenario, `--only display` on every mode, `--only service`, `--only package`, and the full parity run on the installed package.
+**Success signal:** The owner reviews the new build (Task 42) and signs the phase off. Behind that, every acceptance criterion below passes unattended: the app's AT-SPI run on every scenario, `--only display` on every mode, `--only service`, `--only package`, and the full parity run on the installed package.
 
 **Approach:**
 - **Remove first** (the owner's order): keep the fans-and-pump facts in one spec file, then take the feature out of the app, the service with its contract and the sensors, the package (the sensor detection exists only for the fan chip), and the documents.
@@ -61,9 +61,10 @@ D1–D4 answer four questions about the owner's draft review, D5–D8 the soluti
 | D4 | The Music and Dancer tiles when the tiles go live | **Real sound only if already captured:** they show the live spectrum while the cooler is in a Music mode, and a still sample otherwise. When sound is captured doesn't change |
 | D5 | The tiles' motion | **Real time, no pause control, and only while the window is on screen:** a minimised window, or one on another workspace, costs nothing. This knowingly leaves WCAG 2.2 SC 2.2.2 (Level A) to the owner's decision: there is no mechanism to pause the tiles (review P11A-06) |
 | D6 | Where the theme choice lives, and OpenDeepCool's own theme | **The service keeps the choice** for the whole PC, with no manual interaction. **The designer creates OpenDeepCool's own theme**, dark and light, following the UI/UX standards and Anthropic's Frontend Design guidelines |
-| D7 | System steps on the development PC | **Approved to ask:** remove the old package before Task 4, `odc-dev setup` after each service change, install the new package at Task 33. Each still asks for the password when it comes |
+| D7 | System steps on the development PC | **Approved to ask:** remove the old package before Task 4, `odc-dev setup` after each service change, install the new package at Task 42. Each still asks for the password when it comes |
 | D8 | The Dancer's pictures | **Shown, then withdrawn:** drawn on rows 2–13 for the owner on 2026-11-18, who answered that the Dancer stays as today. Nothing is left to approve |
-| D9 | The owner's second list, 2026-11-19, and how it is done | **Sixteen small changes (C11–C26), each its own task and its own commit** (Tasks 17–32), before the build for review; **the full app run once, at the end** (Task 33), and the owner is called only when everything is done (owner, 2026-11-19: "don't disturb me"). Each task updates the design and the mockups before the code (AGENTS.md) and runs only the tests it touches; the guard still runs its checks at every commit. The package installed on 2026-11-19 (before this list) is replaced by a new build at Task 33 |
+| D9 | The owner's second list, 2026-11-19, and how it is done | **Sixteen small changes (C11–C26), each its own task and its own commit** (Tasks 17–32), before the build for review; **the full app run once, at the end** (Task 42 now; it was Task 33 until the third list), and the owner is called only when everything is done (owner, 2026-11-19: "don't disturb me"). Each task updates the design and the mockups before the code (AGENTS.md) and runs only the tests it touches; the guard still runs its checks at every commit. The package installed on 2026-11-19 (before this list) is replaced by a new build at Task 42 |
+| D10 | The owner's third list, 2026-11-22, and how it is done | **Nine small changes (C27–C35), each its own task and its own commit** (Tasks 33–41), before the build for review, which moves to Task 42 (owner, 2026-11-22: "Start working on it without asking me... only call me at the end"). The method is D9's: the design and the mockups first, then the code and the test that measures the change, then one commit with the guard's checks. Numbers and wording the owner didn't give were taken without asking, and each is stated in its task so the review can change it: the gap under a page's title 24 px (from 14), the gap between the cards 6 px (from 10), the notice 48 px above the panel's foot (3 × 16), the knob of a scale in the colour of an on switch's knob. No other scope was added |
 
 ## Recommendation
 
@@ -199,6 +200,15 @@ The service stays the only reader of sensors and sound, and the only authority o
 | C24 | Left panel: more space between the picture's caption and the status items | 30 |
 | C25 | Left panel: the caption and the status items are centred in it | 31 |
 | C26 | More space between a page's title and its content, on Display and on Configuration | 32 |
+| C27 | Start at boot: no phrase under the switch saying it is turning on or off | 33 |
+| C28 | The switches are top-aligned with their labels: Use system theme, Peak dots, Start at boot | 34 |
+| C29 | The sliders' knobs are the colour of the switches' knobs | 35 |
+| C30 | The Display title is centred in the right panel | 36 |
+| C31 | The Configuration title is centred in the right panel | 37 |
+| C32 | More space between the Display and Configuration titles and their pages' content (again) | 38 |
+| C33 | A smaller gap between the Configuration cards, Theme, Display, Music and Startup only (again) | 39 |
+| C34 | The "Refreshed" notice stands three times as far from the right panel's foot | 40 |
+| C35 | The Refresh button's tooltip is "Refresh the display readings" | 41 |
 
 ### Not building
 
@@ -497,7 +507,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 - `crates/odc-ui-e2e/src/{scenarios,fake}.rs` — UPDATE — a `tiles_live` scenario and a `tile_cost` check.
 
 **Implementation**
-- One tick of 100 ms steps every tile's state machine together, so all tiles move in real time and in step, with no pause control (D5). The tick runs only while the window is on screen (D5). It comes from the window's frame clock (`add_tick_callback`, counted to 100 ms), which Task 1 measured stopping by itself when the compositor draws nothing, and it is stopped explicitly when the window is unmapped, hidden or minimised, because Task 1 also measured it still ticking for a hidden window. Whether it stops for a window on another workspace with the screen on is unverified: the sign-off (Task 33) repeats that check. A tile queues a redraw only when its frame differs from the last.
+- One tick of 100 ms steps every tile's state machine together, so all tiles move in real time and in step, with no pause control (D5). The tick runs only while the window is on screen (D5). It comes from the window's frame clock (`add_tick_callback`, counted to 100 ms), which Task 1 measured stopping by itself when the compositor draws nothing, and it is stopped explicitly when the window is unmapped, hidden or minimised, because Task 1 also measured it still ticking for a hidden window. Whether it stops for a window on another workspace with the screen on is unverified: the sign-off (Task 42) repeats that check. A tile queues a redraw only when its frame differs from the last.
 - Value tiles draw with the live `Readings` in the current unit. A reading the service has no value for shows dashes, as the cooler does (`display.md`, Unavailable values), with the tile's existing "Unavailable" and "Reading lost" flags.
 - **Music and Dancer tiles** (D4): while `AudioConnected` is true and a Music mode is shown, the shared `Spectrum` is updated with each `Levels` and the Dancer stepped by it; otherwise the tiles show the still sample, as today. The emoji tiles play their loops always. Nothing asks the service for sound.
 - The app's idle cost is measured in Task 1 and checked here: with the window shown and nothing changing, the tick is the only work.
@@ -549,7 +559,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 - `crates/odc-service/tests/packaging.rs`, `crates/odc-pkg-test/`, `packaging/FILES.md`, `README.md` ("Installed on your system"), the PRD's System Footprint — UPDATE — wherever the one action's id is named or counted.
 
 **Tests**
-- The policy parses to two actions for the program, with `on` and `off`, the same defaults, the two messages and a final dot, and no third; the lists of the README, FILES.md and the PRD name both ids. At the end (Task 33), on the installed package: `pkaction --action-id … --verbose` shows both.
+- The policy parses to two actions for the program, with `on` and `off`, the same defaults, the two messages and a final dot, and no third; the lists of the README, FILES.md and the PRD name both ids. At the end (Task 42), on the installed package: `pkaction --action-id … --verbose` shows both.
 
 ### 18. No note for a closed password dialog (C12)
 
@@ -625,7 +635,43 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 
 - `ui/page.rs` (the page bar), `ui/display_page.rs`, `ui/config_page.rs`, `app.css`, the design and mockups — UPDATE: more space between "Display" and its content and between "Configuration" and its content. Test: the measured gap on both pages.
 
-### 33. A new build, the owner's review, and the sign-off
+### 33. Start at boot without a "Turning on…" or "Turning off…" line (C27)
+
+- `crates/odc-app/src/boot.rs` (`TURNING_ON`, `TURNING_ON_SOUND`, `TURNING_OFF` and their use in `switch()`), `boot/tests.rs`, `crates/odc-app/tests/window.rs`, `crates/odc-ui-e2e/src/scenarios.rs`, `docs/design/settings-app.md` (the states table, the mockup table, the accessibility rows), `docs/design/mockups-src/app.js`, `tools/mockups/src/lib.rs` and the regenerated mockups (`boot-changing`) — UPDATE: the three lines go, the one that names the password dialog included. While a flip runs the card shows **no note at all**: the handle has moved, the trough keeps systemd's state and the switch is insensitive, which is what the card says of a running flip; a failure, "Not fully on" and the other notes keep their rules and show after the flip ends, as before. The screen reader's "Start at boot is on." and "…is off." at a flip's end stay. Test: in every state a flip can start from, in both directions and for the sound-only flip, the card has no note while the flip runs and the same notes as before when it ends.
+
+### 34. The switches top-aligned with their labels (C28)
+
+- `crates/odc-app/src/ui/config_page.rs` (`row()`: the `centred` argument), `ui/startup.rs` (the switch's `valign`), `tests/config_page.rs`, `tests/theme_choice.rs` if it measures a row, `docs/design/settings-app.md` (Rows), `docs/design/mockups-src/app.css` and `tools/mockups/src/lib.rs` — UPDATE: in every row the control's top edge is the label block's top edge, as it already is for the dropdown and the scales. Today the three switches (Use system theme, Peak dots, Start at boot) are centred on their block, so Peak dots, whose label has a hint under it, sits half a hint lower than its title. The toggle-button groups (Dark or light, Rotation, Temperature unit) are as tall as their one-line labels, so they don't move; the rule is one for all rows (the argument goes). Test: the measured top of each switch equals the top of its label block, with Peak dots' hint present.
+
+### 35. The sliders' knobs in the colour of the switches' knobs (C29)
+
+- `crates/odc-app/src/app.css`, `docs/design/settings-app.md` (D21, "The scales' knobs", "The switches"), `docs/design/mockups-src/app.css` — UPDATE: the knob of the Bar fall and Peak fall scales has the colour of a switch's knob. A switch's knob is `--bg` on an `--accent` trough when the switch is on and `--muted` when insensitive (`app.css`); the scale's was `--fg`. **Choice taken without asking:** the on switch's `--bg`, since the three switches are on in the owner's session and the slider's bar is `--accent` to the knob's left, like the switch's trough; the knob's size and the bar stay. A `--bg` disc against the card's `--surface` is about 1.2:1, below WCAG 2.2 SC 1.4.11's 3:1 for a control's parts, so the design checks the render first and keeps the knob visible with a ring only if it needs one (the Task's note in the report says which). Test: the knob's colour is the switch's, read from the realised widgets' styles, in the sensitive and insensitive states; the test of no colour literal outside `:root` still passes.
+
+### 36. The Display title centred in the right panel (C30)
+
+- `crates/odc-app/src/ui/page.rs` (`page_bar`), `ui/display_page.rs`, `tests/display_page.rs`, `app.css`, `docs/design/settings-app.md` (Window, Page bar), `docs/design/mockups-src/app.css` and its script, the mockups — UPDATE: "Display" is centred over the right panel's whole width (a `GtkCenterBox` with the title in the middle, Refresh at the end), not left of the Refresh icon. Test: the title's centre is the panel's centre, within a pixel. The Configuration page keeps its old bar until Task 37, because the two share one function: Task 36 gives it a flag, Task 37 turns it on for Configuration and removes the flag.
+
+### 37. The Configuration title centred in the right panel (C31)
+
+- The same files for the Configuration page (`ui/config_page.rs` or `ui/window.rs`, whichever builds its bar), `tests/config_page.rs` — UPDATE: "Configuration" is centred over the right panel's whole width, with the back icon at the start. Test: the title's centre is the panel's centre, with the back icon present. The flag of Task 36 goes.
+
+### 38. More room between a page's title and its content, again (C32)
+
+- `ui/page.rs` (the bar's bottom margin, now 8 px; the content's own 6 px stay), `app.css` if the number lives there, the design (decision D26's number and the height figures that hold it), the mockups' style sheet, `tests/display_page.rs`, `tests/config_page.rs` or wherever Task 32's measurement is — UPDATE: **24 px** from the title to the content on both pages, from 14. **Choice taken without asking:** 24 px is the step the status gap and the rows' spacing use. Test: the measured gap on both pages is 24 px.
+
+### 39. A smaller gap between the Configuration cards, again (C33)
+
+- `ui/config_page.rs` (the page box's spacing, 10 px), the design (D22's number and the figures that sum the gaps), the mockups' style sheet, the Task 28 check `the_cards_are_10_px_apart` (renamed and re-measured) — UPDATE: **6 px** between Theme, Display, Music and Startup, from 10; the page's margins, the gap to the page bar and the gap to the left panel are as they are. **Choice taken without asking.** Test: the measured gap between each pair of neighbouring cards is 6 px, and the margins are as before.
+
+### 40. The "Refreshed" notice three times as far from the panel's foot (C34)
+
+- `ui/window.rs` (the feedback label's bottom margin, 16 px), `tests/window.rs`, the design (D23's number and the toast's place), the mockups' style sheet — UPDATE: the notice stands **48 px** above the right panel's foot, from 16 (the owner: "3x more space"). Test: the measured distance from the label's foot to the panel's foot is 48 px.
+
+### 41. The Refresh button's tooltip (C35)
+
+- `ui/display_page.rs` (the tooltip text), `tests/display_page.rs`, the design (the Refresh row and the accessible-names table), `tools/mockups/src/lib.rs` or the mockups' script if the tooltip is drawn — UPDATE: the tooltip reads **"Refresh the display readings"** (the owner's words, no full stop); the accessible name "Refresh display" is as it was. Test: the realised button's tooltip is exactly that text.
+
+### 42. A new build, the owner's review, and the sign-off
 
 **Files and integration points**
 - `docs/prp/reports/phase-11a-settings-app-ui-review.report.md` — CREATE.
@@ -687,7 +733,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 | **Rule 8's ban on writing `pwm*`** | Keep one sentence as a safety rule | The ban protects hardware and costs nothing; the draft asks for "everything related to fans" gone | Removing it leaves no written rule against a fan write |
 | **One commit for five modes** (rule 4) | One commit for the centring rule | It is one implementation: one rule in two places, and five modes' frames follow; per-mode commits would each leave the other four inconsistent with the spec | Five commits, each with the rule applied to one mode: contrived, and the spec would be wrong in between |
 | **The detection's leftovers on the development PC** | The owner removes the old package (`pacman -R`), which undoes the detection from its record | The package test proves that undo; no release has the detection | Migration code in the new package: code for one installation |
-| **The development PC's package** | Remove it for the dev-copy runs (Tasks 4–14) and install the new one at the end (Task 33), each step with the owner's OK (approved to ask, 2026-11-18; each still asks for the password) | AGENTS.md: `odc-dev setup` refuses while the package is installed; `--dev-interface` drives the packaged service, which wouldn't have the new code | Running the new service tests needs a new package per task: ten minutes each |
+| **The development PC's package** | Remove it for the dev-copy runs (Tasks 4–14) and install the new one at the end (Task 42), each step with the owner's OK (approved to ask, 2026-11-18; each still asks for the password) | AGENTS.md: `odc-dev setup` refuses while the package is installed; `--dev-interface` drives the packaged service, which wouldn't have the new code | Running the new service tests needs a new package per task: ten minutes each |
 | **`docs/local/machine.md`'s `--require` list** names `board-fans` | The owner edits it by hand | It is local and not committed (rule 10) | `odc-e2e --require board-fans` would fail as an unknown capability |
 | **Phase numbering** | 11a | Sixty references to Phase 12 in history stay valid | Renumbering touches every completed phase's record |
 
