@@ -40,7 +40,7 @@ const CHECKS: [(&str, Check); 13] = [
     ("the_feedback_label", feedback),
     ("the_status_items_stand_24_px_under_the_caption", status_gap),
     (
-        "each_page_s_content_starts_14_px_under_its_title",
+        "each_page_s_content_starts_24_px_under_its_title",
         title_to_content,
     ),
     (
@@ -580,8 +580,8 @@ fn column_centred(app: &gtk::Application) {
     close(window);
 }
 
-// Each page's content starts 14 px under its page bar (owner, 2026-11-19: more room between the
-// title and what follows; 6 px before): the bar's 8 px below and the page's own 6.
+// Each page's content starts 24 px under its page bar (owner, 2026-11-19 and 2026-11-22: more room
+// between the title and what follows; 6 px, then 14): the bar's 18 px below and the page's own 6.
 fn title_to_content(app: &gtk::Application) {
     let (window, _) = shown(app);
     window.state(base());
@@ -604,14 +604,14 @@ fn title_to_content(app: &gtk::Application) {
         let (bar_at, content_at) = (place(&bar), place(content));
         content_at.y() - (bar_at.y() + bar_at.height())
     };
-    assert_eq!(gap_under_bar(&display_first, &window), 14.0, "Display");
+    assert_eq!(gap_under_bar(&display_first, &window), 24.0, "Display");
     WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(250));
     let config_first = window
         .names()
         .find("Theme settings")
         .expect("the Theme card");
-    assert_eq!(gap_under_bar(&config_first, &window), 14.0, "Configuration");
+    assert_eq!(gap_under_bar(&config_first, &window), 24.0, "Configuration");
     close(window);
 }
 

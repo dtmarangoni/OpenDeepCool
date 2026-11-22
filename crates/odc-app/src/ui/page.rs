@@ -32,9 +32,11 @@ pub fn page_bar(
     title: &str,
     trailing: Option<&gtk::Button>,
 ) -> gtk::CenterBox {
+    // 18 px below the bar and the content's 6 above it: 24 px from the title to the content
+    // (owner, 2026-11-19: 14 px; 2026-11-22: more).
     let bar = gtk::CenterBox::builder()
         .margin_top(12)
-        .margin_bottom(8)
+        .margin_bottom(18)
         .margin_start(18)
         .margin_end(18)
         .css_classes(["page-bar"])
