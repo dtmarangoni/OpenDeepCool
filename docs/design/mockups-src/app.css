@@ -130,7 +130,7 @@ button { font: inherit; color: inherit; }
 .preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius-box); }
 .pv-caption { margin-top: 10px; font-weight: 600; text-align: center; }
 .reason { display: flex; gap: 6px; font-size: var(--fs-small); margin-top: 8px; }
-.status { list-style: none; padding: 0; margin: 24px 0 0; font-size: var(--fs); } /* 24 px from the caption or the reason line: the column's 10 and 14 more (Task 30) */
+.status { list-style: none; padding: 0; margin: 36px 0 0; font-size: var(--fs); } /* 36 px from the caption or the reason line: the column's 10 and 26 more (Tasks 30 and 42) */
 .status li { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 2px 0; } /* each item centred on its own (Task 31) */
 .dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
 .dot.good { background: var(--green); } .dot.warn { background: var(--yellow); } .dot.bad { background: var(--red); }

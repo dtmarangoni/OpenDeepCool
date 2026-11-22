@@ -52,8 +52,9 @@ const COLUMN_CHARS: i32 = 28;
 const OFF_SCREEN_CHARS: i32 = 48;
 const NOT_AVAILABLE_CHARS: i32 = 40;
 
-/// The room added above the status items to the column's 10 px between its children.
-const STATUS_GAP: i32 = 14;
+/// The room added above the status items to the column's 10 px between its children: 26 px, so
+/// the first status item stands 36 px under the caption (owner, 2026-11-22; 14 and 24 before).
+const STATUS_GAP: i32 = 26;
 
 /// The status items' accessible names, in the column's order.
 const STATUS_NAMES: [&str; 3] = ["Cooler status", "Service status", "Music sound status"];

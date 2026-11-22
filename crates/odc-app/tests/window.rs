@@ -38,7 +38,7 @@ const CHECKS: [(&str, Check); 13] = [
     ("the_start_at_boot_switch_on_both_screens", start_at_boot),
     ("sending_fails_shows_after_2_s", sending_fails),
     ("the_feedback_label", feedback),
-    ("the_status_items_stand_24_px_under_the_caption", status_gap),
+    ("the_status_items_stand_36_px_under_the_caption", status_gap),
     (
         "each_page_s_content_starts_24_px_under_its_title",
         title_to_content,
@@ -521,8 +521,9 @@ fn sending_fails(app: &gtk::Application) {
     close(window);
 }
 
-// The status items stand 24 px under the caption (owner, 2026-11-19: more room than the column's
-// 10 px between its other children), with no reason line between them.
+// The status items stand 36 px under the caption (owner, 2026-11-19 and 2026-11-22: more room
+// than the column's 10 px between its other children; 24 px before), with no reason line
+// between them.
 fn status_gap(app: &gtk::Application) {
     let (window, _) = shown(app);
     window.state(base());
@@ -543,7 +544,7 @@ fn status_gap(app: &gtk::Application) {
     let (caption_at, status_at) = (place(&caption), place(&status));
     assert_eq!(
         status_at.y() - (caption_at.y() + caption_at.height()),
-        24.0,
+        36.0,
         "the caption {caption_at:?}, the first status item {status_at:?}"
     );
     close(window);
