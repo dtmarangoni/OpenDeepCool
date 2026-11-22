@@ -22,6 +22,33 @@ pub fn icon_button(
     names.name(button, name);
 }
 
+/// A page's bar with the title in the middle of the whole panel (owner, 2026-11-22: "Display"
+/// centred inside the right panel): `leading` at the start, `trailing` at the end, and the title
+/// centred over the bar's full width, whatever the icons beside it. A `GtkCenterBox` centres its
+/// middle child on the box, not on what the two ends leave.
+pub fn centred_page_bar(
+    leading: Option<&gtk::Button>,
+    title: &str,
+    trailing: Option<&gtk::Button>,
+) -> gtk::CenterBox {
+    let bar = gtk::CenterBox::builder()
+        .margin_top(12)
+        .margin_bottom(8)
+        .margin_start(18)
+        .margin_end(18)
+        .css_classes(["page-bar"])
+        .build();
+    bar.set_start_widget(leading);
+    bar.set_center_widget(Some(
+        &gtk::Label::builder()
+            .label(title)
+            .css_classes(["page-title"])
+            .build(),
+    ));
+    bar.set_end_widget(trailing);
+    bar
+}
+
 /// A page's bar: `leading` (the back icon) at the start, then the title, then `trailing`
 /// (Refresh) at the end.
 pub fn page_bar(
@@ -93,7 +120,7 @@ pub fn scroller_of(page: &gtk::Box) -> gtk::ScrolledWindow {
 }
 
 /// A page: its bar, then its content in a scrolled window.
-pub fn page(bar: &gtk::Box, content: &impl IsA<gtk::Widget>) -> gtk::Box {
+pub fn page(bar: &impl IsA<gtk::Widget>, content: &impl IsA<gtk::Widget>) -> gtk::Box {
     let page = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
         .build();

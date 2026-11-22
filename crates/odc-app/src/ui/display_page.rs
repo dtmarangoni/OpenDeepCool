@@ -21,7 +21,7 @@ use odc_render::{Kind, Mode, MusicSettings, Unit, mode_info};
 
 use super::Request;
 use super::names::{Names, group};
-use super::page::{icon_button, page, page_bar, scroller_of};
+use super::page::{centred_page_bar, icon_button, page, scroller_of};
 use super::tiles::TileWidget;
 use crate::live::{Beat, Live, sample_values};
 use crate::model::{self, LiveInput, group_name};
@@ -369,7 +369,7 @@ impl DisplayPage {
                 reasons_group,
             });
         }
-        // The page bar: the title, and Refresh at its end (Refresh).
+        // The page bar: the title centred over the panel, and Refresh at its end (Refresh).
         let refresh = gtk::Button::builder().action_name("win.refresh").build();
         icon_button(
             &refresh,
@@ -378,7 +378,7 @@ impl DisplayPage {
             "Refresh display",
             "Refresh the display: fresh readings, and the picture starts again",
         );
-        let root = page(&page_bar(None, "Display", Some(&refresh)), &content);
+        let root = page(&centred_page_bar(None, "Display", Some(&refresh)), &content);
         let motion = Motion::new(tiles, root.clone());
         DisplayPage {
             root,

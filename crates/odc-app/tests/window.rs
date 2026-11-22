@@ -31,7 +31,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 12] = [
+const CHECKS: [(&str, Check); 13] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
@@ -42,6 +42,10 @@ const CHECKS: [(&str, Check); 12] = [
     (
         "each_page_s_content_starts_14_px_under_its_title",
         title_to_content,
+    ),
+    (
+        "the_page_titles_are_centred_in_the_right_panel",
+        titles_centred,
     ),
     (
         "the_caption_and_the_status_items_are_centred_in_the_column",
@@ -608,6 +612,40 @@ fn title_to_content(app: &gtk::Application) {
         .find("Theme settings")
         .expect("the Theme card");
     assert_eq!(gap_under_bar(&config_first, &window), 14.0, "Configuration");
+    close(window);
+}
+
+// A page's title is centred over the whole right panel, not between its icon and the edge (owner,
+// 2026-11-22): the title's centre is the page's centre, with the Refresh icon at the end.
+fn titles_centred(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(base());
+    run_for(Duration::from_millis(200));
+    let place = |w: &gtk::Widget| w.compute_bounds(window.widget()).expect("a place");
+    let middle = |w: &gtk::Widget| {
+        let b = place(w);
+        b.x() + b.width() / 2.0
+    };
+    let page = window.display_page().widget().clone();
+    let bar = page
+        .first_child()
+        .and_downcast::<gtk::CenterBox>()
+        .expect("a centred bar");
+    let title = bar.center_widget().expect("the title");
+    assert_eq!(
+        title.downcast_ref::<gtk::Label>().map(|l| l.text()),
+        Some("Display".into())
+    );
+    let (title_middle, panel_middle) = (middle(&title), middle(page.upcast_ref()));
+    assert!(
+        (title_middle - panel_middle).abs() <= 1.0,
+        "Display: the title is at {title_middle}, the panel's middle at {panel_middle}"
+    );
+    let refresh = window.display_page().refresh().clone();
+    assert!(
+        place(refresh.upcast_ref()).x() > place(&title).x() + place(&title).width(),
+        "Refresh stays at the end, right of the title"
+    );
     close(window);
 }
 
