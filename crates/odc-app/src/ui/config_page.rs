@@ -195,12 +195,14 @@ fn scale(names: &Names, name: &str) -> gtk::Scale {
 
 impl ConfigPage {
     pub fn new(names: &Names, send: Rc<dyn Fn(Request)>) -> ConfigPage {
-        // Under the page bar the cards start 6 px down (Window, Page bar).
+        // Under the page bar the cards start 6 px down (Window, Page bar), which with the bar's
+        // 12 above, 32 and 18 below makes 68 px from the panel's top to the first card; the same
+        // 68 px stand under the last card (owner, 2026-11-22).
         let root = gtk::Box::builder()
             .orientation(gtk::Orientation::Vertical)
             .spacing(6)
             .margin_top(6)
-            .margin_bottom(18)
+            .margin_bottom(68)
             .margin_start(18)
             .margin_end(18)
             .build();

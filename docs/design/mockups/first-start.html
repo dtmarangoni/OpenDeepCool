@@ -179,7 +179,7 @@ button { font: inherit; color: inherit; }
    app draws none, and a title sits 2 px from its hint and 14 px from the next row. */
 .card { background: var(--surface); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .config .card { margin-bottom: 6px; } /* 6 px between cards: 18, then 10, until Task 39 */
-.config .card:last-child { margin-bottom: 18px; }
+.config .card:last-child { margin-bottom: 68px; } /* as much under the last card as from the panel's top to the first (Task 48) */
 .card h3 { margin: 0; }
 /* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
    left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a

@@ -21,7 +21,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 10] = [
+const CHECKS: [(&str, Check); 11] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -39,6 +39,10 @@ const CHECKS: [(&str, Check); 10] = [
         theme_line_place,
     ),
     ("the_cards_are_6_px_apart", card_gaps),
+    (
+        "the_space_under_the_last_card_is_the_space_above_the_first",
+        page_ends,
+    ),
     ("the_scales_and_the_switches_share_one_knob", knob_colours),
     ("the_page_saved_as_a_picture", picture_file),
 ];
@@ -274,6 +278,29 @@ fn card_gaps(app: &gtk::Application) {
             pair[1]
         );
     }
+    close(window);
+}
+
+// The page has as much room under its last card as from its top to its first card (owner,
+// 2026-11-22): the page bar's 12, 32 and 18, and the content's 6, 68 px, under the Startup card
+// too.
+fn page_ends(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(with(|_| {}));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(300));
+    let page = window.config_page().widget().clone();
+    let place = |widget: &gtk::Widget| widget.compute_bounds(&page).expect("a place in the page");
+    let (first, last) = (
+        place(&find::<gtk::Widget>(&window, "Theme settings")),
+        place(&find::<gtk::Widget>(&window, "Startup settings")),
+    );
+    let page_foot = f32::from(page.height() as i16);
+    let (above, below) = (first.y(), page_foot - (last.y() + last.height()));
+    assert!(
+        (above - 68.0).abs() <= 1.0 && (below - 68.0).abs() <= 1.0,
+        "{above} px above the first card, {below} under the last, the page {page_foot} high"
+    );
     close(window);
 }
 
