@@ -23,10 +23,11 @@ pub fn icon_button(
 }
 
 /// A page's bar with the title in the middle of the whole panel (owner, 2026-11-22: "Display"
-/// centred inside the right panel): `leading` at the start, `trailing` at the end, and the title
-/// centred over the bar's full width, whatever the icons beside it. A `GtkCenterBox` centres its
-/// middle child on the box, not on what the two ends leave.
-pub fn centred_page_bar(
+/// and "Configuration" centred inside the right panel): `leading` (the back icon) at the start,
+/// `trailing` (Refresh) at the end, and the title centred over the bar's full width, whatever the
+/// icons beside it. A `GtkCenterBox` centres its middle child on the box, not on what the two
+/// ends leave.
+pub fn page_bar(
     leading: Option<&gtk::Button>,
     title: &str,
     trailing: Option<&gtk::Button>,
@@ -46,40 +47,6 @@ pub fn centred_page_bar(
             .build(),
     ));
     bar.set_end_widget(trailing);
-    bar
-}
-
-/// A page's bar: `leading` (the back icon) at the start, then the title, then `trailing`
-/// (Refresh) at the end.
-pub fn page_bar(
-    leading: Option<&gtk::Button>,
-    title: &str,
-    trailing: Option<&gtk::Button>,
-) -> gtk::Box {
-    // 8 px below the bar and the content's 6 above it: 14 px from the title to the content
-    // (owner, 2026-11-19).
-    let bar = gtk::Box::builder()
-        .spacing(8)
-        .margin_top(12)
-        .margin_bottom(8)
-        .margin_start(18)
-        .margin_end(18)
-        .css_classes(["page-bar"])
-        .build();
-    if let Some(button) = leading {
-        bar.append(button);
-    }
-    bar.append(
-        &gtk::Label::builder()
-            .label(title)
-            .xalign(0.0)
-            .hexpand(true)
-            .css_classes(["page-title"])
-            .build(),
-    );
-    if let Some(button) = trailing {
-        bar.append(button);
-    }
     bar
 }
 

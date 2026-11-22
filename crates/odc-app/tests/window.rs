@@ -616,7 +616,8 @@ fn title_to_content(app: &gtk::Application) {
 }
 
 // A page's title is centred over the whole right panel, not between its icon and the edge (owner,
-// 2026-11-22): the title's centre is the page's centre, with the Refresh icon at the end.
+// 2026-11-22): the title's centre is the page's centre, with the Refresh icon at the end of
+// Display's bar and the back icon at the start of Configuration's.
 fn titles_centred(app: &gtk::Application) {
     let (window, _) = shown(app);
     window.state(base());
@@ -645,6 +646,29 @@ fn titles_centred(app: &gtk::Application) {
     assert!(
         place(refresh.upcast_ref()).x() > place(&title).x() + place(&title).width(),
         "Refresh stays at the end, right of the title"
+    );
+    // The Configuration page: its title in the middle, the back icon at the start.
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(250));
+    let page = window.config_page().widget().clone();
+    let bar = page
+        .first_child()
+        .and_downcast::<gtk::CenterBox>()
+        .expect("a centred bar");
+    let title = bar.center_widget().expect("the title");
+    assert_eq!(
+        title.downcast_ref::<gtk::Label>().map(|l| l.text()),
+        Some("Configuration".into())
+    );
+    let (title_middle, panel_middle) = (middle(&title), middle(page.upcast_ref()));
+    assert!(
+        (title_middle - panel_middle).abs() <= 1.0,
+        "Configuration: the title is at {title_middle}, the panel's middle at {panel_middle}"
+    );
+    let back = window.config_page().back().clone();
+    assert!(
+        place(back.upcast_ref()).x() + place(back.upcast_ref()).width() < place(&title).x(),
+        "Back stays at the start, left of the title"
     );
     close(window);
 }

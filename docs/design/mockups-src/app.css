@@ -140,12 +140,11 @@ button { font: inherit; color: inherit; }
 
 /* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
 .content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; /* the toast is centred over this panel */ }
-.page-bar { display: flex; align-items: center; gap: 8px; padding: 12px 18px 8px; } /* 8 px below: 14 px from the title to the content with the page's 6 (Task 32) */
-.page-title { flex: 1; margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
-/* The title centred over the whole bar, the icons at its ends (a GtkCenterBox in the app; Task 36 for Display) */
-.page-bar.centred { display: grid; grid-template-columns: 1fr auto 1fr; }
-.page-bar.centred .page-title { flex: none; text-align: center; }
-.page-bar.centred > :last-child { justify-self: end; }
+.page-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 12px 18px 8px; } /* 8 px below: 14 px from the title to the content with the page's 6 (Task 32) */
+.page-title { margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
+/* The title centred over the whole bar, the icons at its ends (a GtkCenterBox in the app; Tasks 36 and 37) */
+.page-bar .page-title { text-align: center; }
+.page-bar > :last-child { justify-self: end; }
 /* A page's margins are 18 px (design, Window, Page bar; Spacing), 6 px under the page bar. */
 .page-scroll { flex: 1; overflow: auto; padding: 6px 18px 18px; }
 .group h3, .card h3 { font-size: var(--fs); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
