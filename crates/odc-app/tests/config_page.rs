@@ -38,7 +38,7 @@ const CHECKS: [(&str, Check); 10] = [
         "the_theme_line_sits_under_use_system_theme_in_every_state",
         theme_line_place,
     ),
-    ("the_cards_are_10_px_apart", card_gaps),
+    ("the_cards_are_6_px_apart", card_gaps),
     ("the_scales_and_the_switches_share_one_knob", knob_colours),
     ("the_page_saved_as_a_picture", picture_file),
 ];
@@ -244,8 +244,8 @@ fn removed_lines(app: &gtk::Application) {
     close(window);
 }
 
-// The cards are 10 px apart, one under the other (owner, 2026-11-19: 18 before): the gap between
-// a card and the next, and nothing else of the page's margins.
+// The cards are 6 px apart, one under the other (owner, 2026-11-19: 18 before; 2026-11-22: 10
+// before): the gap between a card and the next, and nothing else of the page's margins.
 fn card_gaps(app: &gtk::Application) {
     let (window, _) = shown(app);
     window.state(with(|_| {}));
@@ -268,7 +268,7 @@ fn card_gaps(app: &gtk::Application) {
         let (above, below) = (place(pair[0]), place(pair[1]));
         assert_eq!(
             below.0 - above.1,
-            10.0,
+            6.0,
             "{} to {}: {above:?}, {below:?}",
             pair[0],
             pair[1]

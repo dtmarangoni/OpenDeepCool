@@ -53,6 +53,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D30 | The Display title's place (Phase 11a Task 36, 2026-11-22, from the owner's list: "Make Display title centered inside the right panel") | The title is **centred over the right panel's whole width**: the Display page's bar is a `GtkCenterBox` (start empty, the title in the middle, Refresh at the end) | The title was left of Refresh and took the space between; a centre box keeps it on the panel's middle whatever the icon's width. The Configuration title follows in Task 37, which shares the bar's code |
 | D31 | The Configuration title's place (Phase 11a Task 37, 2026-11-22, from the owner's list: "Make Configuration title centered inside the right panel") | The title is centred over the right panel's whole width, as Display's: the Configuration page's bar is the same `GtkCenterBox`, the back icon at its start and nothing at its end | One bar for both pages; the code that Task 36 added for Display now serves both and the old box bar is gone. The title no longer sits next to the back icon: the back icon and the title are the ends of one bar, 18 px from the panel's edge and the middle |
 | D32 | The space between a page's title and its content, again (Phase 11a Task 38, 2026-11-22, from the owner's list: "Increase the space between Display and Configuration titles and page content") | **24 px**, from 14, on both pages: the page bar has 18 px below it, and the content's own 6 px top margin is kept | The number was not given, so the step is the column's and the rows' own 24 px (the caption to the status items, a row's label to its control), and the title reads as a heading of the page rather than a line of it; the window grows 10 px |
+| D33 | The gap between the Configuration page's cards, again (Phase 11a Task 39, 2026-11-22, from the owner's list: "Reduce the gap between Configuration boards. Only between them, not between them and the page. Only between Theme, Display, Music, Startup") | **6 px**, from 10, between a card and the next; the page's margins, the gap under the page bar and the gap to the left panel don't change | The number was not given: 6 px is the step the rest of the page already uses for what belongs together (a control's parts, under a bar's own box), still more than the 2 px that join a title and its hint and fewer than the 14 px between a card's rows, so a card still reads as one group; the page is 12 px shorter |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -343,9 +344,9 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
   | Header bar | the window's | 48 (about 47) |
   | Preview column | 262 | about 394 (Task 30 added 14 px above the status items), up to 454 while a reason line shows |
   | Display page | about 754: 36 of margin, six Music tiles of about 113 (the caption "GPU temperature", the tile's border and its padding) and five 8 px gaps | about 593: the 62 px page bar (12 above, 32, 18 below: Tasks 32 and 38), then 6, 122, 18, 122, 18, 226 and 18 |
-  | Configuration page | about 588: 36 of margin, 32 of card padding, a 520 px row | about 954 with the GPU row (897 without): the 62 px page bar (Tasks 32 and 38), then 6, the Theme card 175, 10, the Display card 240 (169), 10, the Music card 275, 10, the Startup card 147 and 18 (the gaps between cards were 18 px until Task 28, 24 px more in all) |
+  | Configuration page | about 588: 36 of margin, 32 of card padding, a 520 px row | about 942 with the GPU row (885 without): the 62 px page bar (Tasks 32 and 38), then 6, the Theme card 175, 6, the Display card 240 (169), 6, the Music card 275, 6, the Startup card 147 and 18 (the gaps between cards were 18 px until Task 28 and 10 px until Task 39, 36 px less in all) |
   | Off screen | about 560 | about 430 |
-  | **Window** | **about 1016** (262 + 754; 930 with the mockups' 98 px tiles) | **about 1018** (48 + 970; 961 with one GPU) |
+  | **Window** | **about 1016** (262 + 754; 930 with the mockups' 98 px tiles) | **about 1006** (48 + 958; 949 with one GPU) |
 
   The Configuration page is the tallest by about 385 px, so a Display page full of reason lines can't overtake it. The Theme card ([Theme card](#theme-card): its heading, two rows of one line each and its one line at the foot, about 175 px, an estimate from the other cards' numbers) is in these figures, and raised the window from about 814 to about 1008. The Display page is the widest by about 166 px, so nothing on the Configuration page, a note and the terminal commands included, can widen the window.
 
@@ -359,10 +360,10 @@ Decided under the same delegation, for the owner's decisions of 2026-11-18 on th
 
   | Screen | Cap | Window (estimate) | What scrolls |
   |---|---|---|---|
-  | 2560 × 1440 or 1920 × 1080 | 2512 × 1392, 1872 × 1032 | about 1016 × 1002 (Task 28 took 24 px off the height, the three gaps between cards, Task 32 put 8 back and Task 38 10 more, under the page bar) | nothing on 1440 p; on 1080 p it fits by about 30 px, so a wrapped line or a larger font scrolls the Configuration page a little |
-  | 1440 × 900 | 1392 × 852 | about 1016 × 852 | the Configuration page, about 150 px |
-  | 1280 × 800 | 1232 × 752 | about 1016 × 752 | the Configuration page, about 250 px |
-  | 1366 × 768 | 1318 × 720 | about 1016 × 720 | the Configuration page, about 280 px |
+  | 2560 × 1440 or 1920 × 1080 | 2512 × 1392, 1872 × 1032 | about 1016 × 990 (Task 28 took 24 px off the height, the three gaps between cards, Task 32 put 8 back and Task 38 10 more, under the page bar, and Task 39 took 12 off, the same three gaps) | nothing on 1440 p; on 1080 p it fits by about 42 px, so a wrapped line or a larger font scrolls the Configuration page a little |
+  | 1440 × 900 | 1392 × 852 | about 1016 × 852 | the Configuration page, about 138 px |
+  | 1280 × 800 | 1232 × 752 | about 1016 × 752 | the Configuration page, about 238 px |
+  | 1366 × 768 | 1318 × 720 | about 1016 × 720 | the Configuration page, about 268 px |
   | 1024 × 768 | 976 × 720 | 976 × 720 | the Configuration page down, about 290 px; the Music tiles wrap to five a line |
   | 640 × 480 | 592 × 432 | 592 × 432 | every page down, and the whole content sideways (850 px needed) |
 
@@ -635,7 +636,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
 ### Rows
 
-**What the owner asked** (2026-11-18): the labels sit close to their controls, left-aligned, and no longer fill the space between them with the control pushed to the right edge. Each card is a vertical `GtkBox` (14 px between its children, 14 px above and below and 16 px at the sides: the stylesheet's `.card`), as before. **No rule is drawn between rows**: a title is 2 px from its hint and 14 px from the next row, which groups them by distance alone, and the cards are 10 px apart (18 px until Task 28, 2026-11-19, from the owner's list: "the vertical gap in between the boards", not the page's margins; the mockups drew a hairline between rows until the Task 15 review, which the app never had).
+**What the owner asked** (2026-11-18): the labels sit close to their controls, left-aligned, and no longer fill the space between them with the control pushed to the right edge. Each card is a vertical `GtkBox` (14 px between its children, 14 px above and below and 16 px at the sides: the stylesheet's `.card`), as before. **No rule is drawn between rows**: a title is 2 px from its hint and 14 px from the next row, which groups them by distance alone, and the cards are 6 px apart (18 px until Task 28 and 10 px until Task 39, 2026-11-22, from the owner's lists: "the vertical gap in between the boards", not the page's margins; the mockups drew a hairline between rows until the Task 15 review, which the app never had).
 
 ```
 ┌ card ───────────────────────────────────────────────────────────────────────┐
@@ -1145,7 +1146,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | Short read failure, first second | Nothing disabled; the preview shows the cooler's dashes | (as reading-lost, without the reason line) |
 | A change refused | The control stays on the saved value; the overlay label, at the bottom centre of the right panel, says "Not changed." with the reason | (no mockup: Refresh's label, with a warning icon) |
 | Back from standby | No screen of its own; the preview follows the cooler again when frames come back | — ([Talking to the service](#talking-to-the-service)) |
-| A large screen | The window opens at the natural size of its content (estimated about 1016 × 1002 px after Tasks 28, 32 and 38, 1008 before: the widest page beside the 262 px column, under the tallest page, which has the Theme card since Task 11), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 1007 high) |
+| A large screen | The window opens at the natural size of its content (estimated about 1016 × 990 px after Tasks 28, 32, 38 and 39, 1008 before: the widest page beside the 262 px column, under the tallest page, which has the Theme card since Task 11), with no scrollbar; it doesn't change size when the page changes or the service stops. Empty space stands under the Display page's tiles | every mockup: drawn at the natural size (930 px wide with the mockups' smaller tiles, and about 1007 high) |
 | A small screen | The window is never larger than the smallest monitor less 48 px in each direction. The pages scroll down under their page bars, with the preview column and the banner in place; the whole content scrolls sideways below about 850 px; the column scrolls by itself on a screen under about 540 px high | every mockup: a browser window shorter than the mockup scrolls the page inside it (only the page scrolls sideways there, not the whole content) |
 | Not resizable | `resizable` false: no resizing or maximising by the user, and a compositor that floats fixed-size windows floats it; on one that tiles it anyway, the window is a tile that scrolls inside, and nothing breaks | — |
 | The monitors change while the app runs | The window keeps its size; the cap is read once. On a smaller screen the compositor decides whether to re-fit it; reopening the app fits it | — |
