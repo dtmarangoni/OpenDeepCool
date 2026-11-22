@@ -443,7 +443,7 @@ function themeCard() {
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
       <div class="stack2"><div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
       <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div></div>
-      <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
+      <div class="row"><div class="row-l"><span id="dl-l">Appearance</span></div>
         <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
     </section>`;
 }

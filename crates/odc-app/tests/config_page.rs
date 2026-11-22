@@ -278,7 +278,7 @@ fn card_gaps(app: &gtk::Application) {
 }
 
 // The line that says which theme is used sits directly under the Use system theme row and above
-// Dark or light, in every state of the card (owner, 2026-11-19; it was at the card's foot).
+// Appearance, in every state of the card (owner, 2026-11-19; it was at the card's foot).
 fn theme_line_place(app: &gtk::Application) {
     let (window, _) = shown(app);
     // The page opens once the service has answered.

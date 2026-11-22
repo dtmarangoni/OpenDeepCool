@@ -285,7 +285,7 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(&theme, &labels, "Dark or light", None, &dark_or_light);
+        row(&theme, &labels, "Appearance", None, &dark_or_light);
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
         let rotations: [gtk::ToggleButton; 4] = std::array::from_fn(|r| {

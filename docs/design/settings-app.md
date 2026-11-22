@@ -59,6 +59,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D36 | The room between the preview's caption and the status items, again (Phase 11a Task 42, 2026-11-22, from the owner's list: "In left panel, increase the space between the display label and Cooler Connected label") | The first status item stands **36 px** under the caption, from 24: the status box has 26 px of margin above it | The owner gave no number; the step is 12 px, the same as the first time's, and keeps the column's rhythm (10, 14, 18, 24, 36), still apart from the 8 px between the status items themselves |
 | D37 | How far the Refreshed and refusal label stands from the panel's foot, again (Phase 11a Task 43, 2026-11-22, from the owner's list: "add one more space between Refresh pop up, after you click refresh button, and the bottom of right panel") | **64 px** above the right panel's foot, from 48: one more step of 16 px, the unit Task 40 multiplied by three | "One more space" read as one more of the 16 px the label first stood above the foot; the label is still only on screen for 1.5 s |
 | D38 | The Theme line's place (Phase 11a Task 46, 2026-11-22, from the owner's list: "make the space between \"Use system theme\" and \"Using the Omarchy theme\" the same you used in \"Peak dots\" and \"A dot above each bar...\"") | The line stands **2 px** under the "Use system theme" title, the gap a hint has under its title in a label block: the row and its line are one vertical box with 2 px between them, inside the card (whose own children are 14 px apart) | The line is the title's own note ("Using the Omarchy theme.", or the warning), so it is as close as a hint; it stays one line in every state, spanning the card, so it never widens the label column or changes the card's height |
+| D39 | The label of the Dark and Light row (Phase 11a Task 47, 2026-11-22, from the owner's list: "change the label \"Dark or light\" to \"Appearance\"") | The row is titled **"Appearance"**; its two buttons stay "Dark" and "Light", with the accessible names "Dark theme" and "Light theme" | The owner's word, and the one the Default Theme subcategory of Task 50 keeps for the same row |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -669,7 +670,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
   | Row | Control | `valign` of the control | Width |
   |---|---|---|---|
-  | Dark or light, Rotation, Temperature unit | the linked toggles (`GtkBox`, class `linked`) | start | natural |
+  | Appearance, Rotation, Temperature unit | the linked toggles (`GtkBox`, class `linked`) | start | natural |
   | Use system theme, Peak dots, Start at boot | a `GtkSwitch` ([The switches](#the-switches)) | start | 32 px |
   | GPU | a vertical `GtkBox`: the dropdown, the "Using …" line, the "No reading …" hint | start | 320 px (`width-request`) |
   | Bar fall, Peak fall | a `GtkScale`, marks below | start | 320 px (`width-request`) |
@@ -697,7 +698,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 │ Theme                                                                       │
 │ Use system theme            ( ●  )                                          │
 │ Using the Omarchy theme.        (2 px under the title, as a hint is)        │
-│ Dark or light               [ Dark ][ Light ]    (dimmed while followed)    │
+│ Appearance                  [ Dark ][ Light ]    (dimmed while followed)    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -707,10 +708,10 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   | Row | Title | Control | Accessible name |
   |---|---|---|---|
   | Use system theme | "Use system theme" | a `GtkSwitch`, 32 × 18 ([The switches](#the-switches)), `halign` start, `valign` center, with the delayed state the Peak dots switch has (decisions log D63): its handle moves at the press, its trough shows the state the service confirmed | `Use system theme` |
-  | Dark or light | "Dark or light" | two grouped, linked `GtkToggleButton`s, `Dark` and `Light` (`gtk_toggle_button_set_group`, class `linked` on their box), `valign` center, as Rotation's | `Dark theme`, `Light theme` |
+  | Appearance | "Appearance" | two grouped, linked `GtkToggleButton`s, `Dark` and `Light` (`gtk_toggle_button_set_group`, class `linked` on their box), `valign` center, as Rotation's | `Dark theme`, `Light theme` |
 
   The accessible names contain the visible words (WCAG 2.2 SC 2.5.3). The group of toggles is named by its row's title, as the unit's is.
-- **The line,** directly under the Use system theme row, before Dark or light (owner, 2026-11-19; the design first put it at the card's foot): a `GtkBox` (group `Theme status`) around a `GtkLabel` with the classes `hint`, `small` and `muted`, wrapping at 72 characters (`max-width-chars`), as the Music and Startup cards' lines. It is **one line in every state**, so the card never changes height and the window with it. In the warning state it has the warning icon in front and the `--yellow` colour (`warn-text`), a `GtkImage` of the same height as the text.
+- **The line,** directly under the Use system theme row, before Appearance (owner, 2026-11-19; the design first put it at the card's foot): a `GtkBox` (group `Theme status`) around a `GtkLabel` with the classes `hint`, `small` and `muted`, wrapping at 72 characters (`max-width-chars`), as the Music and Startup cards' lines. It is **one line in every state**, so the card never changes height and the window with it. In the warning state it has the warning icon in front and the `--yellow` colour (`warn-text`), a `GtkImage` of the same height as the text.
 - **The look.** Everything is the stylesheet's, in tokens. Two rules are new, both needed by this card and written for every theme:
   - an insensitive toggle that is pressed shows its value: the selected fill, a `--muted` border, and the text in `--fg`, so it stays readable (the unpressed one keeps the muted text on the normal fill, as every insensitive control, without `opacity`):
 
@@ -726,7 +727,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
   - the knob of an on switch was `--bg`, not `--fg` (an `--fg` knob on an `--accent` trough is about 1.2:1 in OpenDeepCool's own theme, both light in the dark theme and both dark in the light one). **Replaced in Phase 11a Task 35 (2026-11-22):** a rendered page showed that GTK's own gradient image and blue border drew over the app's `background-color`, so the knob was GTK's white, not `--bg`; the knob is now one for every switch state and every scale, `--fg` with a 1 px `--bg` ring, and the ring is the pair of row 5 in [the contrast table](#the-contrast-table) (see [The scales' knobs](#the-scales-knobs), One knob).
 - **States,** from the four inputs of [Which theme is used](#which-theme-is-used):
 
-  | State | Use system theme | Dark or light | The line |
+  | State | Use system theme | Appearance | The line |
   |---|---|---|---|
   | (a) An Omarchy theme is found and followed | on, sensitive | both insensitive; the pressed one is the theme's `mode` (`Dark` when it has none) | "Using the Omarchy theme." |
   | (a) No Omarchy theme; the system prefers dark or light, and is followed | on, sensitive | both insensitive; the pressed one is the preference | "Using OpenDeepCool's dark theme, as your desktop prefers." or "…light theme, as your desktop prefers." |
@@ -1110,7 +1111,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 
 | State | What the app shows | Mockup |
 |---|---|---|
-| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery. The preview column: the picture, the caption ("Temperature · CPU + GPU") and the status items "Cooler connected" and "Service running", with no line between the caption and the status. Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then the Theme card (Use system theme, Dark or light), Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it, each label beside its control and the controls in one column, and the three switches (Use system theme, Peak dots, Start at boot) at 32 × 18 | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
+| Normal, several GPUs | Header: the title in the middle, the gear and the close icon at the right. Display page: its page bar ("Display", the Refresh icon at the right) and the tile gallery. The preview column: the picture, the caption ("Temperature · CPU + GPU") and the status items "Cooler connected" and "Service running", with no line between the caption and the status. Configuration (the gear pressed): its page bar (the back icon, "Configuration"), then the Theme card (Use system theme, Appearance), Rotation, Temperature unit and the GPU on Automatic with "Using Dedicated · Contoso Graphics R870." under it, each label beside its control and the controls in one column, and the three switches (Use system theme, Peak dots, Start at boot) at 32 × 18 | [display.html](mockups/display.html), [configuration.html](mockups/configuration.html) |
 | The Configuration page is open | The gear is pressed; the back icon, Escape or Alt+Left, or the gear again, return to the Display page, and focus goes to the gear | [configuration.html](mockups/configuration.html): click the back icon, the gear, or press Escape |
 | The temperature unit | A row of the Display card after Rotation; the temperature tiles on the Display page follow it | [configuration.html](mockups/configuration.html), [display-scrolling.html](mockups/display-scrolling.html) (the tiles show °F) |
 | GPU list open | Automatic first; a GPU whose kind query failed as "Unknown type · …" with "driver couldn't be asked"; a GPU without a reading rule last, with "no readings"; the line under the dropdown names the integrated GPU, which Automatic reads here | [configuration-gpu-list.html](mockups/configuration-gpu-list.html) |
@@ -1158,7 +1159,7 @@ The D-Bus system bus (settings.md, Status). Only the user of the active local se
 | A banner or a note appears | The window grows by their height, or the page scrolls a little more where the window is at its cap; the width never changes | cooler-disconnected, cooler-no-access, boot-partly |
 | Not available, drawn small | The window is as small as its message (about 440 × 170 px), and grows when the service answers | [not-available.html](mockups/not-available.html) |
 | Live theme switch | Colours change in place, with no restart and the same page and scroll position: an Omarchy theme replaced, the system's preference flipped, or one of the two Theme settings changed | every mockup: the colour buttons above the window preview the palettes; the Theme card's controls on the Configuration pages resolve the theme as the app does |
-| Theme card: an Omarchy theme found and followed (a) | The Theme card first on the Configuration page: "Use system theme" on, "Dark or light" dimmed on the theme's scheme (Dark in the sample), the line "Using the Omarchy theme." | [configuration.html](mockups/configuration.html) and every other mockup of the page |
+| Theme card: an Omarchy theme found and followed (a) | The Theme card first on the Configuration page: "Use system theme" on, "Appearance" dimmed on the theme's scheme (Dark in the sample), the line "Using the Omarchy theme." | [configuration.html](mockups/configuration.html) and every other mockup of the page |
 | Theme card: followed from the system's preference (a) | No Omarchy theme; the switch on, the toggles dimmed on Dark or Light as the system prefers; "Using OpenDeepCool's light theme, as your desktop prefers." (and, with no preference, "Using OpenDeepCool's dark theme. Your desktop has no preference.") | [configuration-theme-system.html](mockups/configuration-theme-system.html) |
 | Theme card: the system theme isn't followed (b) | The switch off and sensitive; Dark and Light sensitive, the pressed one is `DarkTheme`; "Using OpenDeepCool's light theme." | [configuration-theme-own.html](mockups/configuration-theme-own.html) |
 | Theme card: no system theme found (c) | The switch off and dimmed; the warning line "OpenDeepCool can't find the system's theme and is using its own."; Dark and Light sensitive; the theme is OpenDeepCool's own | [configuration-theme-not-found.html](mockups/configuration-theme-not-found.html) |
@@ -1182,7 +1183,7 @@ The theme is one of three sources, resolved from four inputs, by one pure functi
 
 **The derived facts.** `found` = an Omarchy theme is found, or the preference isn't `UNSUPPORTED`. `follow` = `UseSystemTheme` and `found`. The dark or light control is sensitive exactly when `follow` is false; the switch is sensitive exactly when `found` is true and shows `follow`.
 
-| Omarchy theme found | GTK preference | `UseSystemTheme` | `DarkTheme` | The theme | Use system theme | Dark or light shows | The card's line |
+| Omarchy theme found | GTK preference | `UseSystemTheme` | `DarkTheme` | The theme | Use system theme | Appearance shows | The card's line |
 |---|---|---|---|---|---|---|---|
 | yes | any | on | any | the Omarchy theme | on, sensitive | insensitive; its `mode` | "Using the Omarchy theme." |
 | yes | any | off | on | own, dark | off, sensitive | sensitive; Dark | "Using OpenDeepCool's dark theme." |
@@ -1366,7 +1367,7 @@ The card is on the Configuration page, so every mockup that shows that page (con
 
 | File | Title | Data | Shows |
 |---|---|---|---|
-| `configuration-theme-system.html` | Configuration, the system's light preference | `omarchyTheme` false, `colorScheme` "light" | No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, Dark or light is dimmed with Light pressed, and the line says "Using OpenDeepCool's light theme, as your desktop prefers." Turn the switch off in the mockup: the toggles come alive and the theme follows `DarkTheme` |
+| `configuration-theme-system.html` | Configuration, the system's light preference | `omarchyTheme` false, `colorScheme` "light" | No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, Appearance is dimmed with Light pressed, and the line says "Using OpenDeepCool's light theme, as your desktop prefers." Turn the switch off in the mockup: the toggles come alive and the theme follows `DarkTheme` |
 | `configuration-theme-own.html` | Configuration, OpenDeepCool's own theme | `useSystemTheme` false, `darkTheme` false | An Omarchy theme is found but isn't followed: the switch is off and sensitive, Light is pressed and both toggles are sensitive, and the window is in OpenDeepCool's light theme. Click Dark, and the window turns dark |
 | `configuration-theme-not-found.html` | Configuration, no system theme found | `omarchyTheme` false, `colorScheme` "unsupported" | The switch is off and dimmed, the warning line says "OpenDeepCool can't find the system's theme and is using its own.", and Dark is pressed and both toggles are sensitive, in OpenDeepCool's dark theme |
 
