@@ -58,6 +58,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D35 | The Refresh button's tooltip (Phase 11a Task 41, 2026-11-22, from the owner's list: "The tooltip for refresh button should be: \"Refresh the display readings\"") | The tooltip is exactly **"Refresh the display readings"**, with no full stop; the accessible name stays "Refresh display" | The owner's words; the old tooltip explained two effects (fresh readings, and the picture starting again) that the button's name and the notice already carry; a screen reader reads the accessible name, not the tooltip |
 | D36 | The room between the preview's caption and the status items, again (Phase 11a Task 42, 2026-11-22, from the owner's list: "In left panel, increase the space between the display label and Cooler Connected label") | The first status item stands **36 px** under the caption, from 24: the status box has 26 px of margin above it | The owner gave no number; the step is 12 px, the same as the first time's, and keeps the column's rhythm (10, 14, 18, 24, 36), still apart from the 8 px between the status items themselves |
 | D37 | How far the Refreshed and refusal label stands from the panel's foot, again (Phase 11a Task 43, 2026-11-22, from the owner's list: "add one more space between Refresh pop up, after you click refresh button, and the bottom of right panel") | **64 px** above the right panel's foot, from 48: one more step of 16 px, the unit Task 40 multiplied by three | "One more space" read as one more of the 16 px the label first stood above the foot; the label is still only on screen for 1.5 s |
+| D38 | The Theme line's place (Phase 11a Task 46, 2026-11-22, from the owner's list: "make the space between \"Use system theme\" and \"Using the Omarchy theme\" the same you used in \"Peak dots\" and \"A dot above each bar...\"") | The line stands **2 px** under the "Use system theme" title, the gap a hint has under its title in a label block: the row and its line are one vertical box with 2 px between them, inside the card (whose own children are 14 px apart) | The line is the title's own note ("Using the Omarchy theme.", or the warning), so it is as close as a hint; it stays one line in every state, spanning the card, so it never widens the label column or changes the card's height |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -695,7 +696,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 ┌ card ───────────────────────────────────────────────────────────────────────┐
 │ Theme                                                                       │
 │ Use system theme            ( ●  )                                          │
-│ Using the Omarchy theme.                                                    │
+│ Using the Omarchy theme.        (2 px under the title, as a hint is)        │
 │ Dark or light               [ Dark ][ Light ]    (dimmed while followed)    │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```

@@ -249,6 +249,8 @@ button { font: inherit; color: inherit; }
 .toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--surface); color: var(--fg);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius-box); display: none; }
 .toast.show { display: block; }
+/* The Use system theme row and its line under it are 2 px apart, as a hint is from its title (Task 46) */
+.stack2 { display: flex; flex-direction: column; gap: 2px; }
 
 </style>
 </head>
@@ -711,8 +713,8 @@ function themeCard() {
   const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
       aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
-      <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
-      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
+      <div class="stack2"><div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
+      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div></div>
       <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
         <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
     </section>`;

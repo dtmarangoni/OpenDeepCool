@@ -242,3 +242,5 @@ button { font: inherit; color: inherit; }
 .toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--surface); color: var(--fg);
   border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius-box); display: none; }
 .toast.show { display: block; }
+/* The Use system theme row and its line under it are 2 px apart, as a hint is from its title (Task 46) */
+.stack2 { display: flex; flex-direction: column; gap: 2px; }

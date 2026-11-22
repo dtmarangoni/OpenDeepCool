@@ -316,6 +316,39 @@ fn theme_line_place(app: &gtk::Application) {
             switch.1 <= line.0 + 1.0 && line.1 <= dark.0 + 1.0,
             "{what}: the switch {switch:?}, the line {line:?}, the toggles {dark:?}"
         );
+        // The line is as far under its title as a hint is under its title (owner, 2026-11-22):
+        // the label block's 2 px, here and in the Peak dots' row.
+        let gap_under_title = |control: &str, under: &str| {
+            let title = find::<gtk::Widget>(&window, control)
+                .prev_sibling()
+                .and_then(|block| block.first_child())
+                .expect("the row's title");
+            let (title_at, under_at) = (
+                title.compute_bounds(&page).expect("a place"),
+                find::<gtk::Widget>(&window, under)
+                    .compute_bounds(&page)
+                    .expect("a place"),
+            );
+            under_at.y() - (title_at.y() + title_at.height())
+        };
+        let theme_gap = gap_under_title("Use system theme", "Theme status");
+        let hint_gap = {
+            let peaks = find::<gtk::Widget>(&window, "Peak dots");
+            let block = peaks.prev_sibling().expect("the block");
+            let (title, hint) = (
+                block.first_child().expect("the title"),
+                block.last_child().expect("the hint"),
+            );
+            let (t, h) = (
+                title.compute_bounds(&page).expect("a place"),
+                hint.compute_bounds(&page).expect("a place"),
+            );
+            h.y() - (t.y() + t.height())
+        };
+        assert!(
+            (theme_gap - hint_gap).abs() <= 0.5 && (theme_gap - 2.0).abs() <= 0.5,
+            "{what}: {theme_gap} px under the Use system theme title, {hint_gap} under Peak dots'"
+        );
     }
     close(window);
 }

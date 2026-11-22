@@ -223,7 +223,20 @@ impl ConfigPage {
             }
             glib::Propagation::Stop
         });
-        row(&theme, &labels, "Use system theme", None, &use_system);
+        // The row and its line under it are one box, 2 px apart as a hint is from its title in a
+        // label block (owner, 2026-11-22: "the same you used in Peak dots"), not the card's 14 px.
+        let use_system_box = gtk::Box::builder()
+            .orientation(gtk::Orientation::Vertical)
+            .spacing(2)
+            .build();
+        row(
+            &use_system_box,
+            &labels,
+            "Use system theme",
+            None,
+            &use_system,
+        );
+        theme.append(&use_system_box);
         // The line under Use system theme (owner, 2026-11-19; it was at the card's foot): one line
         // in every state, so the card keeps its height.
         let theme_icon = gtk::Image::builder()
@@ -238,7 +251,7 @@ impl ConfigPage {
         names.name(&theme_status, "Theme status");
         theme_status.append(&theme_icon);
         theme_status.append(&theme_line);
-        theme.append(&theme_status);
+        use_system_box.append(&theme_status);
         let dark = gtk::ToggleButton::builder().label("Dark").build();
         let light = gtk::ToggleButton::builder()
             .label("Light")
