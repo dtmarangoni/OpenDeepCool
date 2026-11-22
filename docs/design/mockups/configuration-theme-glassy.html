@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="omarchy">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenDeepCool mockup: Configuration, a glassy window</title>
+<style>
+/* Theme tokens. In the app these come from colors.toml + shell.toml [controls] (Omarchy)
+   or from OpenDeepCool's default theme. Every value below is a labelled sample. */
+:root, :root[data-theme="omarchy"] {
+  /* Sample Omarchy theme: made-up colours, not any real theme */
+  --bg: #1f2120; --surface: #2a2c2a; --fg: #e4dccb; --muted: #9c9585; --accent: #d9a35b;
+  --red: #e07a6e; --yellow: #d9b45b; --green: #98bf7c;
+  /* sample shell.toml [controls] alphas */
+  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 40%; --w-normal-border: 1px;
+  --a-hover-fill: 8%; --a-hover-border: 25%; --a-selected-fill: 18%; --a-pressed-fill: 22%;
+  --radius: 0px; --unlit-alpha: 0.12;
+}
+:root[data-theme="dark"] {
+  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme, Coolant): Lagoon, Tide, Foam, Fog and Flare, a petrol-blue family with one rose accent */
+  --bg: #0f2630; --surface: #183846; --fg: #f1ece2; --muted: #8fb0b8; --accent: #fb7fb0;
+  --red: #ff6b57; --yellow: #f0c94e; --green: #5fd68a;
+  --ctl: var(--fg); --a-normal-fill: 5%; --a-normal-border: 44%; --w-normal-border: 1px;
+  --a-hover-fill: 9%; --a-hover-border: 60%; --a-selected-fill: 16%; --a-pressed-fill: 24%;
+  --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
+}
+:root[data-theme="light"] {
+  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme, Coolant): Frost, Glacier, Deep, Slate and Flare, the same family in daylight */
+  --bg: #d2e0e6; --surface: #f6fafb; --fg: #0e2a35; --muted: #42606a; --accent: #b0145f;
+  --red: #b93a22; --yellow: #7a5200; --green: #1d7a3f;
+  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 56%; --w-normal-border: 1px;
+  --a-hover-fill: 7%; --a-hover-border: 74%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
+  --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
+}
+/* The type scale and the radii (design, OpenDeepCool's own theme, Type, and Window opacity and corners). One base size stands in
+   for the user's system font size, which the app takes from GTK: every size is a multiple of it (83, 100, 120 and 144 per cent),
+   two weights (400 and 600). The sample Omarchy theme has no box radius and no window radius of its own, so boxes and the
+   window stay square there, and the compositor does the window's corners. --radius-pill is a switch's trough and a scale's
+   bar, --radius-knob a knob: round in every theme and square only while Window Corners is Sharp, which app.js sets.
+   --win-pct is the window's opacity as a percentage, which app.js sets from the Window Opacity of the theme on show
+   (design, Window opacity and corners). */
+:root {
+  --fs: 14px;
+  --fs-small: calc(var(--fs) * .83);
+  --fs-page-title: calc(var(--fs) * 1.2);
+  --fs-heading: calc(var(--fs) * 1.44);
+  --radius-box: 0px; --radius-win: 0px; --radius-pill: 9px; --radius-knob: 50%;
+  --win-pct: 100%;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: #8a8f96; font: var(--fs)/1.4 system-ui, "Segoe UI", Cantarell, sans-serif; padding: 16px; color: #111; }
+.mock-bar { max-width: 930px; margin: 0 auto 12px; background: #f2f2f2; color: #111; border-radius: 6px; padding: 10px 14px; font-size: 13px; }
+.mock-bar h1 { font-size: 15px; margin: 0 0 4px; }
+.mock-bar p { margin: 0 0 8px; }
+.mock-bar .row2 { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; }
+.mock-bar button { font: inherit; border: 1px solid #999; background: #fff; border-radius: 4px; padding: 2px 8px; cursor: pointer; }
+.mock-bar button[aria-pressed="true"] { background: #222; color: #fff; border-color: #222; }
+.mock-bar nav a { color: #0645ad; margin-right: 8px; white-space: nowrap; }
+.mock-bar .label { font-weight: 600; }
+
+/* The window's size (design, Window, Size and scrolling): as large as its content, which is the widest page beside the
+   262 px column and the tallest page under the header bar, here 930 x 1140 px (the mockups' tiles are 98 px wide, the
+   app's about 113, so the app's estimate is about 1016 x 1173; the Configuration page is the tallest since the Theme
+   card, and 133 px taller since its Default Theme group, an estimate to check by measuring in a browser); and never
+   larger than the screen less 48 px. A browser window narrower or shorter than that makes the window scroll its page,
+   as the app does on a small monitor (the preview column and the header stay). Drawn only for the page: below about
+   850 px the app scrolls the whole content sideways, the column with it, which the mockups don't draw.
+   The window paints its ground once, --ground, which is --bg at the window's opacity (--win-pct); the header, the column
+   and the pages have no fill of their own. The cards paint --plate, --surface at the same opacity, over it. What carries the
+   picture or stands over text stays opaque: the preview's frame, the open list and the notice. Glassy asks for the blur
+   (design, Window opacity and corners). */
+.window { --ground: color-mix(in srgb, var(--bg) var(--win-pct), transparent);
+  --plate: color-mix(in srgb, var(--surface) var(--win-pct), transparent);
+  width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(1140px, calc(100vh - 48px));
+  margin: 0 auto; background: var(--ground); color: var(--fg); border-radius: var(--radius-win);
+  overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.window.glassy { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+/* A see-through window needs something behind it to show: the mockup draws a striped backdrop, only while the window is
+   not opaque. It is mockup chrome, not part of the app. */
+body.show-backdrop { background: repeating-linear-gradient(135deg, #b8452e 0 36px, #1f6f8b 36px 72px, #e0b341 72px 108px, #2c2c36 108px 144px); }
+/* Not available in this session: the window is as small as its message (design, Window, Size and scrolling). */
+.window.only { width: 440px; min-height: 0; }
+.window.only .page.empty { min-height: 0; padding: 24px; }
+.muted { color: var(--muted); }
+.small { font-size: var(--fs-small); }
+svg { width: 16px; height: 16px; flex: none; }
+button { font: inherit; color: inherit; }
+
+/* controls: shell.toml [controls] mapping */
+.btn, .seg, .dd-btn, .tile {
+  background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent);
+  border: var(--w-normal-border) solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+  border-radius: var(--radius); cursor: pointer;
+}
+/* Hover firms the border up and never weakens it: the hover border alpha is above the normal one in OpenDeepCool's own theme. */
+.btn:hover:not(:disabled), .seg:hover:not(:disabled), .dd-btn:hover:not(:disabled), .tile:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent);
+  border-color: color-mix(in srgb, var(--ctl) var(--a-hover-border), transparent); }
+.btn:active:not(:disabled), .seg:active:not(:disabled), .tile:active:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
+.seg.on, .tile.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
+/* A selected control keeps its fill and its accent border under the pointer (the app's :checked rule comes after :hover). */
+.seg.on:hover:not(:disabled), .tile.on:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+:disabled { cursor: default; opacity: .45; }
+.tile.on:disabled { opacity: 1; }
+/* An unavailable tile is drawn as the app draws it, without opacity (decisions log D43, D56): its caption in --muted, and its
+   picture's lit dots, which app.js paints, in --muted too. With the live tiles that picture is the dashes of the reading
+   the service can't give (design, Display page, Live tiles). */
+.tile:disabled { opacity: 1; color: var(--muted); }
+/* The app draws an insensitive toggle or switch without opacity (decisions log D43): muted text on the normal fill and border.
+   One that is pressed or on and can't be changed still shows its value, as the Theme card does while the system theme is used:
+   the selected fill, a muted border, and the text in --fg so the value stays readable (design, Theme card). */
+.seg:disabled { opacity: 1; color: var(--muted); }
+.seg.on:disabled { color: var(--fg); border-color: var(--muted); }
+.switch:disabled { opacity: 1; }
+
+/* The header (design, Window): nothing at the start, the title in the middle (two equal 1fr columns keep it
+   centred), a gear and a close icon at the end. */
+.hb { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 7px 8px 7px 12px; gap: 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+.app-name { font-weight: 600; }
+.hb-end { justify-self: end; display: flex; gap: 4px; }
+/* Icon buttons (gear, close, back, Refresh): 32 x 32 with a 16 px icon, no frame in any state. The resting fill is
+   none (the app's --none token): the window's ground is see-through in some modes, so a fill of --bg would show as a box;
+   hover, focus, pressed and selected use the control fills over the ground, a disabled one --muted
+   (design, Window, Icon buttons). */
+.ibtn { width: 32px; height: 32px; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
+.ibtn:hover:not(:disabled), .ibtn:focus-visible { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
+.ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
+.ibtn[aria-pressed="true"], .ibtn[aria-pressed="true"]:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); color: var(--accent); }
+.ibtn:disabled { opacity: 1; color: var(--muted); cursor: default; }
+.segs { display: inline-flex; }
+.segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
+.segs .seg:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
+.segs .seg:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
+.btn { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; }
+
+.banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
+.banner svg { margin-top: 2px; }
+/* A banner's tint is the status colour over the ground, at the window's opacity like the ground (--banner-error and --banner-warn in the app). */
+.banner.error { background: color-mix(in srgb, color-mix(in srgb, var(--red) 16%, var(--bg)) var(--win-pct), transparent); } .banner.error > svg { color: var(--red); }
+.banner.warn { background: color-mix(in srgb, color-mix(in srgb, var(--yellow) 14%, var(--bg)) var(--win-pct), transparent); } .banner.warn > svg { color: var(--yellow); }
+.banner-text { flex: 1; }
+.banner code { display: block; margin: 6px 0; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
+
+.body { display: flex; flex: 1; min-height: 0; }
+.side { width: 262px; flex: none; padding: 18px; border-right: 1px solid color-mix(in srgb, var(--fg) 12%, transparent);
+  overflow: auto; /* the column's own scroller: only where the window is shorter than the column */ }
+.preview { width: 226px; height: 226px; padding: 8px; background: var(--surface); border-radius: var(--radius-box); }
+.pv-caption { margin-top: 10px; font-weight: 600; text-align: center; }
+.reason { display: flex; gap: 6px; font-size: var(--fs-small); margin-top: 8px; }
+.status { list-style: none; padding: 0; margin: 36px 0 0; font-size: var(--fs); } /* 36 px from the caption or the reason line: the column's 10 and 26 more (Tasks 30 and 42) */
+.status li { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 2px 0; } /* each item centred on its own (Task 31) */
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.dot.good { background: var(--green); } .dot.warn { background: var(--yellow); } .dot.bad { background: var(--red); }
+.dot.off { background: transparent; border: 1.5px solid var(--muted); }
+.warn-text { color: var(--yellow); display: inline-flex; gap: 4px; align-items: center; }
+:root[data-theme="light"] .warn-text { color: var(--yellow); }
+
+/* A page: its page bar, then its scrolled content (design, Window, The pages). The bar never scrolls away. */
+.content { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden; position: relative; /* the toast is centred over this panel */ }
+.page-bar { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; padding: 12px 18px 18px; } /* 18 px below: 24 px from the title to the content with the page's 6 (Tasks 32 and 38) */
+.page-title { margin: 0; font-size: var(--fs-page-title); font-weight: 600; }
+/* The title centred over the whole bar, the icons at its ends (a GtkCenterBox in the app; Tasks 36 and 37) */
+.page-bar .page-title { text-align: center; }
+.page-bar > :last-child { justify-self: end; }
+/* A page's margins are 18 px (design, Window, Page bar; Spacing), 6 px under the page bar. */
+.page-scroll { flex: 1; overflow: auto; padding: 6px 18px 18px; }
+.group h3, .card h3 { font-size: var(--fs); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
+.group-reason { display: flex; gap: 6px; font-size: var(--fs-small); margin: -2px 0 6px; align-items: center; }
+/* Temperature and Power share a row, 24 px apart, as in the app (design, Display page). The app sizes a tile by the widest
+   caption of its group, so these two groups' tiles are narrower than the Music group's; the mockups draw every tile at
+   98 px, and 90 px here keeps the pair in one row in the 930 px window (632 px of room) instead of wrapping. */
+.pair { display: flex; gap: 0 24px; flex-wrap: wrap; }
+.pair .tile { width: 90px; }
+.tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+.tile { width: 98px; padding: 8px 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.tile canvas { display: block; }
+/* Tile captions and flags stay at the fixed 12 and 11 px that fit the mockups' 98 px tiles. In the app a caption is body text
+   (the type scale's 100 per cent) and the tile is about 113 px wide: the one place the mockup departs from the scale. */
+.tile-cap { font-size: 12px; text-align: center; line-height: 1.2; }
+.tile-flag { font-size: 11px; }
+.tile-flag svg { width: 11px; height: 11px; }
+/* "Reading lost" on the saved mode's tile: the words in --fg, with no warning colour and no icon (the app's flag is a
+   label). Small text in the light theme's bronze on the selected fill is 4.2:1, under the 4.5:1 text needs (design, The
+   contrast table, Pairs outside the table); the warning colour and icon stay on the reason line under the preview. */
+.tile-flag.lost { color: var(--fg); }
+
+/* A card (design, Configuration page, Rows): a vertical box, 14 px between its children (the heading, each row, a note
+   or a hint) and 14 px above and below, 16 px at the sides; 10 px between cards (18 until Task 28), 18 under the last. There is no rule between rows: the
+   app draws none, and a title sits 2 px from its hint and 14 px from the next row. */
+.card { background: var(--plate); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.config .card { margin-bottom: 6px; } /* 6 px between cards: 18, then 10, until Task 39 */
+.config .card:last-child { margin-bottom: 68px; } /* as much under the last card as from the panel's top to the first (Task 48) */
+.card h3 { margin: 0; }
+/* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
+   left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
+   GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
+   from the top (the GPU box, a scale) starts level with the title; a toggle group or a switch centres on the block. */
+.row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; }
+.row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
+.row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+/* Every control hangs from its row's top, level with the label block's top (Task 34); there is no centred variant. */
+/* The Startup card on the off screen is outside the page's size group: its block takes its own width */
+.off-screen .row-l { width: auto; }
+.hint { display: flex; gap: 6px; font-size: var(--fs-small); margin: 0; max-width: 520px; }
+.row-r .hint { max-width: 320px; }
+.dd { position: relative; }
+.dd-btn { display: inline-flex; align-items: center; justify-content: space-between; gap: 10px; width: 320px; padding: 6px 10px; text-align: left; }
+/* The open list is as wide as its longest entry with its note (about 470 px), wider than the 320 px button. GTK's popover
+   opens at the button's left edge and slides back inside the screen when it would leave it; the mockup's window clips, so
+   the list is anchored by its right end, 10 px short of the window's edge (the button's right end is 114 px from it). */
+.dd-pop { position: absolute; left: auto; right: -104px; top: calc(100% + 4px); z-index: 5; min-width: 320px; width: max-content; max-width: 600px; background: var(--surface);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); border-radius: var(--radius-box); padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.3); }
+.dd-item { display: grid; grid-template-columns: 18px 1fr auto; gap: 8px; padding: 6px 8px; cursor: pointer; border-radius: var(--radius); }
+.dd-item:hover { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
+.dd-item.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); }
+.dd-check { color: var(--accent); }
+/* The switches (design, Configuration page, The switches): 32 x 18 (GTK's own is 48 x 24), a 14 px knob, 1 px from the
+   1 px border. The padding box is 30 x 16, so the knob rests at left 1 and, switched on, at left 15. */
+.switch { width: 32px; height: 18px; border-radius: var(--radius-pill); border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+  background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); transition: none; }
+.switch.on { background: var(--accent); border-color: var(--accent); }
+.switch.on span { left: 15px; }
+/* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
+.switch.state-on { background: var(--accent); border-color: var(--accent); }
+.switch.handle-on span { left: 15px; }
+/* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do).
+   Every knob, a switch's or a scale's, is --fg with a 1 px --bg ring (Task 35, the owner: the sliders' button in the toggles' colour). */
+.switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
+/* The Startup card in the window's body while the service is down */
+.empty .boot-card { margin: 18px auto 0; width: 560px; max-width: 100%; text-align: left; }
+.off-screen { width: 560px; max-width: 100%; }
+.scale { width: 320px; }
+/* The scales (design, Configuration page, The scales' knobs): a 4 px bar (1 px border, the fill up to the knob in --accent)
+   and a plain round 16 px knob in --fg with a 1 px --bg ring, --muted when insensitive. --p is the knob's centre along the bar. */
+.scale input { width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; -webkit-appearance: none; appearance: none; }
+.scale input::-webkit-slider-runnable-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
+  border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+  background: linear-gradient(to right, var(--accent) var(--p), color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent) var(--p)); }
+.scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
+.scale input::-moz-range-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
+  border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+  background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); }
+.scale input::-moz-range-progress { height: 2px; border-radius: calc(var(--radius-pill) / 3); background: var(--accent); }
+.scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
+.scale input:disabled::-webkit-slider-thumb { background: var(--muted); }
+.scale input:disabled::-moz-range-thumb { background: var(--muted); }
+.marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
+.marks span.on { color: var(--fg); font-weight: 600; }
+.empty { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 400px; }
+/* The off screen is centred in the whole height of the page, as the design says (Start at boot, The off screen); its scroller
+   is a flex box only for it, so the pages with content are laid out as before. */
+.page-scroll:has(> .page.empty) { display: flex; }
+.page-scroll > .page.empty { flex: 1; min-width: 0; }
+.empty h2 { font-size: var(--fs-heading); font-weight: 600; margin: 0 0 6px; }
+/* Not available in this session: the message alone, centred in the whole window body */
+.content.only { display: flex; }
+.content.only .empty { flex: 1; }
+.toast { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); background: var(--surface); color: var(--fg);
+  border: 1px solid color-mix(in srgb, var(--fg) 25%, transparent); padding: 6px 12px; border-radius: var(--radius-box); display: none; }
+.toast.show { display: block; }
+/* The Use system theme row and its line under it are 2 px apart, as a hint is from its title (Task 46) */
+.stack2 { display: flex; flex-direction: column; gap: 2px; }
+/* The Default Theme subcategory of the Theme card (design, Theme card; Task 50): a child of the card like the Use system theme row,
+   its heading (0.83 em, weight 600, --fg) 24 px under the line above it (the card's 14 plus 10) and 14 px over its first row, then
+   three rows 14 px apart. While the system theme is followed the heading and the three titles are --muted (the app gives them the
+   muted class) and every button is disabled, which the .seg rules above draw without opacity. */
+.subcat { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.sub-heading { margin: 0; font-size: var(--fs-small); font-weight: 600; }
+.subcat.dim .sub-heading, .subcat.dim .row-l span { color: var(--muted); }
+
+</style>
+</head>
+<body>
+<div class="mock-bar" aria-label="Mockup controls">
+  <h1>Mockup: Configuration, a glassy window</h1>
+  <p>OpenDeepCool's own dark theme with Glassy and Sharp chosen: the window is see-through at 0.75 over a striped backdrop (mockup chrome, not part of the app), blurred, with square corners on the window, cards, controls and switches; the preview's frame stays solid. Click Opaque, Transparent or Rounded to see the other settings. Turn Use system theme on: the Default Theme group dims, and the window takes the sample Omarchy theme and Omarchy's window mode, which this page sets to glassy too, so it stays see-through while its corners are the sample's.</p>
+  <div class="row2">
+    <span class="mock-theme"><span class="label">Theme:</span>
+      <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>
+      <button data-t="dark" onclick="setTheme('dark')">Default theme, dark</button>
+      <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
+  </div>
+  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-music-no-sound.html">Display screen, a Music mode without sound</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-glassy.html">Configuration, a glassy window</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1140 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
+</div>
+<div id="win" class="window"></div>
+<script>
+const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": false, "darkTheme": true, "page": "config", "service": true, "cooler": true, "audio": true, "notAvailable": false, "mode": 9, "unit": "C", "rotation": 0, "gpus": [{"kind": "Dedicated", "name": "Contoso Graphics R870", "driver": "exgpu", "pci": "0000:0a:00.0"}, {"kind": "Integrated", "name": "Fabrikam Integrated Graphics 7", "driver": "exgpu", "pci": "0000:00:02.0"}, {"kind": "Unknown type", "name": "", "driver": "othergpu", "pci": "0000:07:00.0", "norule": true}], "gpu": null, "gpuInUse": 0, "unavailable": {}, "live": {"cpu_usage": 23, "gpu_usage": 71, "ram": 47, "cpu_temp": 49, "gpu_temp": 44, "cpu_power": 41, "gpu_power": 156}, "peaks": true, "barFall": 2, "peakFall": 1, "open": null, "windowOpacity": "glassy", "windowCorners": "sharp", "omarchyWindowOpacity": "glassy"};
+"use strict";
+// OpenDeepCool settings app mockup. All readings, chips, GPU names and PCI addresses are made up.
+//
+// CONFIG keys of the 2026-11-06 design pass (docs/design/settings-app.md); every other key reads as before:
+// - coolerState (optional): the service's CoolerState, "connected", "not-found", "no-access" or "write-failed".
+//   Without it, cooler true reads as "connected" and false as "not-found". "write-failed" is drawn as it looks
+//   once it has lasted 2 s (before that the app shows it as "connected"). Any other value, such as the dev
+//   copy's "released", is drawn as "not-found".
+// - gpu: the saved GPU choice, an index into gpus, or null for Automatic (ChooseGpu(""), the default).
+// - gpuInUse: the index into gpus of the GPU the readings come from (GpuInUse); with Automatic, 0.
+// - gpus: in the service's order (Gpus: dedicated, integrated, then unknown, each by PCI address). The list
+//   shows the GPUs without a reading rule last. Each GPU: kind (the word shown: "Dedicated", "Integrated",
+//   "Unknown type"), name (from pci.ids, "" when it has none), driver, pci, and the optional flags
+//   norule (no reading rule for its driver) and queryFailed (its kind query failed: Gpus kind "query-failed",
+//   shown as "Unknown type" with a note).
+// - gpus[i].missing is no longer read: a saved GPU can't be missing since the owner's change of 2026-11-04.
+//
+// CONFIG keys of the Start at boot design (2026-11-11, revised the same day: on means ready to use;
+// docs/design/settings-app.md "Start at boot"); all optional. The switch is on only when all four facts hold:
+// - boot: a preset for the facts below: "on" (the default: both units enabled, the sound running in this session),
+//   "off" (nothing enabled, nothing running), or "unknown" (a read from systemd failed; the facts aren't read).
+// - serviceEnabled, soundEnabled (booleans): opendeepcool.service enabled at boot; opendeepcool-audio.service
+//   enabled for every user (--global). The preset's value when absent.
+// - serviceRun: the display service while the service is down (service false): "stopped" (the default), "failed"
+//   (failed, or waiting to restart after a failure) or "starting". While service is true, it runs.
+// - soundRun (boolean): the sound helper runs in this session. The preset's value when absent.
+// - bootOther (with boot "unknown"): {unit, state} when systemd answered with another unit-file state, such as
+//   "masked"; without it, "unknown" means a read failed.
+// - bootFlip: "on" or "off" while a flip toward that state runs: the polkit dialog is open or the program runs,
+//   or, when only the sound in this session is missing, while the app starts it.
+// - bootFailed: the last flip that didn't happen or didn't finish: {to: "on" or "off", exit: 127 (not authorized,
+//   or no polkit agent), the program's own code (1: a step failed), or "sound"
+//   (the app's own step in this session failed), message: the program's one-line message, for its own codes}.
+//   A dismissed password dialog (pkexec 126) is no state at all: nothing changed, the switch shows the state, and
+//   the app says nothing (Phase 11a Task 18).
+// - The first pass's "partly", bootPartly and bootSound are no longer read.
+//
+// Header and pages (Phase 11a Task 7, 2026-11-19; docs/design/settings-app.md, Window). No new CONFIG key: the
+// header and the page bars read page ("display" or "config"), service and notAvailable, and the Configuration
+// page's unit row reads unit.
+// - Header: the title in the middle; at the right a gear (a toggle, pressed on the Configuration page, visible but
+//   disabled while service is false, hidden when notAvailable) and a close icon. No page switcher.
+// - Display page: its page bar holds the title "Display" and the Refresh icon at the right. Configuration page: its
+//   page bar holds the back icon and the title "Configuration"; its Display card has the unit row after Rotation.
+// - Keys: Escape or Alt+Left go back from the Configuration page (Escape closes an open GPU list first), Ctrl+,
+//   opens it. After a page change focus goes to the back icon, or to the gear.
+//
+// Rows, switches and the preview column (Phase 11a Task 8, 2026-11-19; docs/design/settings-app.md, Rows, The switches,
+// Preview column). No new CONFIG key: the states are the same, drawn differently.
+// - The preview column holds the picture, the caption, the lost reading's reason and the status items; there is no line
+//   under the caption. That the picture isn't on the cooler (not connected, no access, sending fails) is said by the
+//   banner, the status item and the preview's accessible description (here aria-description on the picture).
+// - A Configuration row is a label block (the title, its hint under it) and its control, side by side and left-aligned,
+//   24 px apart; the label blocks share one width (a GtkSizeGroup in the app, 28 characters here) so the controls start
+//   in one column. The Startup card on the off screen keeps its block at its own width.
+// - The three switches (Use system theme, Peak dots, Start at boot) are 32 x 18 with a 14 px knob.
+// - A running Start at boot flip shows no line under the switch (owner, 2026-11-22): the handle, the trough and the
+//   insensitive switch say it, and the desktop's own dialog says what it asks for.
+//
+// The window's size (Phase 11a Task 9, 2026-11-19; docs/design/settings-app.md, Window, Size and scrolling). No new
+// CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
+// widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
+// scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
+// least 1140 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
+// in the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
+// whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
+// (class "only"), as small as its message.
+//
+// The Theme card and OpenDeepCool's own theme (Phase 11a Task 11, 2026-11-19; docs/design/settings-app.md, Theme card,
+// Which theme is used). Four new CONFIG keys, all optional; their defaults give the state of every earlier page (an
+// Omarchy theme found and followed), so those pages look as before:
+// - omarchyTheme (boolean, default true): an Omarchy theme is found. The sample Omarchy theme stands for it, and is a
+//   dark one (its mode is "dark").
+// - colorScheme: GTK's gtk-interface-color-scheme, "unsupported", "default" (no preference), "dark" or "light"
+//   (default "dark"). "unsupported" with no Omarchy theme means no system theme can be found.
+// - useSystemTheme (boolean, default true): the service's UseSystemTheme.
+// - darkTheme (boolean, default true): the service's DarkTheme, used for OpenDeepCool's own theme when the system theme
+//   isn't followed or can't be found.
+// The old "theme" key is no longer read: the theme the window starts in is resolved from these four, as the app does
+// (themeState below, a pure function). The mockup's colour buttons stay as chrome that only preview a palette; the
+// Theme card's controls resolve the theme again and set it, as they do in the app.
+//
+// The live tiles (Phase 11a Task 14, 2026-11-19; docs/design/settings-app.md, Display page, Live tiles). No new CONFIG key.
+// In the app every tile moves, drawn by the service's own code from the service's readings; a static page can show
+// only one moment of that, so each tile here is one moment of what the app draws:
+// - Every tile shows the readings of the CONFIG key "live", in the current unit: the same readings the preview draws, so a
+//   tile and the preview agree. A reading listed in "unavailable" has no value: the tiles that show it draw dashes, as
+//   the cooler does, in --muted on a tile that is disabled (the app's lit dots on an unavailable tile, decisions log D56)
+//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost".
+// - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
+//   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
+//   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
+// - The Music tiles (13 to 22, the emoji tiles' spectrum rows included, and the Dancer) are live only while sound is
+//   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
+//   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
+//   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
+//
+// The Default Theme group and the window's own look (Phase 11a Tasks 44, 45, 50 and 51, 2026-11-22; docs/design/settings-app.md,
+// Theme card, and Window opacity and corners). Three new CONFIG keys, all optional; their defaults give the state of every
+// earlier page, so those pages look as before:
+// - windowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the service's WindowOpacity, the opacity of OpenDeepCool's
+//   own theme's window (1, 0.985 and 0.75, Glassy with the blur).
+// - windowCorners ("sharp" or "rounded", default "rounded"): the service's WindowCorners: sharp gives the window, the cards, the
+//   controls, the switches and the knobs square corners, rounded the radii of the own theme (window 12, boxes 10, controls 4, round
+//   switches and knobs). The dots of the pictures and of the status stay round either way.
+// - omarchyWindowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the mode of Omarchy's Window Opacity, which the
+//   window follows while the sample Omarchy theme is followed (Omarchy's own default is transparent, drawn here as opaque so
+//   that the other pages look as before). The corners are the compositor's then, and the window's radius is the sample's.
+// - The Theme card's Default Theme group (heading, Appearance, Window Opacity, Window Corners) is disabled while the system
+//   theme is followed (themeState().follow) and then shows the saved values, Appearance the scheme in use; it is enabled
+//   otherwise. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
+//   palette on show with the system theme followed is opaque and rounded (neither setting applied); an own palette otherwise
+//   follows windowOpacity and windowCorners. While the window isn't opaque the page draws a striped backdrop behind it, mockup
+//   chrome, so that the see-through ground and the glassy blur show.
+const S = JSON.parse(JSON.stringify(CONFIG));
+if (S.boot === undefined) S.boot = "on";
+
+const METRIC = {
+  cpu_usage: "CPU usage", gpu_usage: "GPU usage", ram: "RAM usage",
+  cpu_temp: "CPU temperature", gpu_temp: "GPU temperature",
+  cpu_power: "CPU power", gpu_power: "GPU power"
+};
+const M = (id, group, caption, metrics, kind) => ({ id, group, caption, metrics, kind });
+const MODES = [
+  M(1, "Load", "CPU", ["cpu_usage"], "value"),
+  M(2, "Load", "GPU", ["gpu_usage"], "value"),
+  M(3, "Load", "RAM", ["ram"], "value"),
+  M(4, "Load", "CPU + GPU", ["cpu_usage", "gpu_usage"], "value"),
+  M(5, "Load", "CPU + RAM", ["cpu_usage", "ram"], "value"),
+  M(6, "Load", "GPU + RAM", ["gpu_usage", "ram"], "value"),
+  M(7, "Temperature", "CPU", ["cpu_temp"], "value"),
+  M(8, "Temperature", "GPU", ["gpu_temp"], "value"),
+  M(9, "Temperature", "CPU + GPU", ["cpu_temp", "gpu_temp"], "value"),
+  M(10, "Power", "CPU", ["cpu_power"], "value"),
+  M(11, "Power", "GPU", ["gpu_power"], "value"),
+  M(12, "Power", "CPU + GPU", ["cpu_power", "gpu_power"], "value"),
+  M(13, "Music", "Spectrum", [], "full"),
+  M(14, "Music", "Emoji 1", [], "emoji"),
+  M(15, "Music", "Emoji 2", [], "emoji"),
+  M(16, "Music", "Emoji 3", [], "emoji"),
+  M(17, "Music", "Emoji 4", [], "emoji"),
+  M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
+  M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
+  M(20, "Music", "CPU usage", ["cpu_usage"], "musicvalue"),
+  M(21, "Music", "GPU usage", ["gpu_usage"], "musicvalue"),
+  M(22, "Music", "RAM usage", ["ram"], "musicvalue"),
+  M(23, "Music", "Dancer", [], "dancer")
+];
+const byId = id => MODES.find(m => m.id === id);
+
+// The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's
+// fixed sample values (42, 63, 51, 57, 38, 65 and 88) live only until its first answer from the service, a few
+// milliseconds, so no page draws them. SAMPLE_SPECTRUM is the Music tiles' still sample (bars and peaks as levels 0 to 1),
+// LIVE_SPECTRUM a moment of levels, which both the preview and the live Music tiles draw.
+const SAMPLE_SPECTRUM = { bars: [.55, .8, .95, .7, .6, .5, .62, .45, .38, .42, .3, .22, .15, .08],
+                          peaks: [.7, .9, 1, .85, .7, .62, .7, .6, .5, .5, .42, .3, .22, .12] };
+const LIVE_SPECTRUM = { bars: [.4, .72, .86, .58, .5, .66, .48, .52, .33, .28, .36, .2, .12, .05],
+                        peaks: [.6, .85, .95, .75, .66, .7, .62, .6, .45, .4, .4, .3, .2, .1] };
+
+const DIG = {
+  "0": ["###", "#.#", "#.#", "#.#", "###"], "1": [".#.", "##.", ".#.", ".#.", "###"],
+  "2": ["###", "..#", "###", "#..", "###"], "3": ["###", "..#", "###", "..#", "###"],
+  "4": ["#.#", "#.#", "###", "..#", "..#"], "5": ["###", "#..", "###", "..#", "###"],
+  "6": ["###", "#..", "###", "#.#", "###"], "7": ["###", "..#", ".#.", ".#.", ".#."],
+  "8": ["###", "#.#", "###", "#.#", "###"], "9": ["###", "#.#", "###", "..#", "###"],
+  "-": ["...", "...", "###", "...", "..."]
+};
+const SYM = {
+  "%": ["##..#", "##.#.", "..#..", ".#.##", "#..##"],
+  "C": ["#...", "..##", ".#..", ".#..", "..##"],
+  "F": ["#.###", "..#..", "..###", "..#..", "..#.."],
+  "W": [".....", "#.#.#", "#.#.#", "#.#.#", ".#.#."]
+};
+const EMOJI = {
+  14: ["..............", "..............", "...###..###...", "..............", "..............", "..............", ".....####....."],
+  15: ["...#......#...", "..#.#....#.#..", ".#...#..#...#.", "..............", "..............", "..............", ".....####....."],
+  16: ["..............", "..###....###..", "..###....###..", "..###....###..", "..............", "....#....#....", ".....####....."],
+  17: ["..............", ".#####..#####.", "...##.....##..", "..............", "..............", ".....####.....", ".............."]
+};
+const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "......#.......", "......#.......",
+  ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
+  ".....#.#......", ".....#.#......", ".....#.#......", ".....#.#......"];
+
+// display.md, Values (owner, 2026-10-26): every measurement rounds to the nearest whole number, halves up
+// (usage, RAM, °C, power); °F is rounded once from the exact °C; every number is capped at 9999; a negative,
+// missing or non-finite reading draws dashes. The service works in whole-number units; the mockups' sample
+// readings are whole numbers, so floating point is fine here.
+const nearest = x => Math.floor(x + 0.5); // halves up: 57.5 → 58, 99.5 → 100
+function numberFor(metric, v, unit) {
+  if (v === null || v === undefined || !isFinite(v) || v < 0) return null;
+  const n = metric.endsWith("temp") && unit === "F" ? nearest(v * 9 / 5 + 32) : nearest(v);
+  return Math.min(n, 9999);
+}
+function symFor(metric, unit) {
+  if (metric.endsWith("usage") || metric === "ram") return "%";
+  if (metric.endsWith("temp")) return unit === "F" ? "F" : "C";
+  return "W";
+}
+function strip(n, sym) {
+  const chars = n === null ? "--" : String(n);
+  const cols = [];
+  for (const ch of chars) {
+    const g = DIG[ch];
+    for (let c = 0; c < 3; c++) cols.push(g.map(r => r[c] === "#"));
+    cols.push([false, false, false, false, false]);
+  }
+  const s = SYM[sym];
+  for (let c = 0; c < s[0].length; c++) cols.push(s.map(r => r[c] === "#"));
+  return cols;
+}
+function blank() { return Array.from({ length: 14 }, () => Array(14).fill(false)); }
+// display.md, Static layout, OpenDeepCool: alignment (Phase 11a Task 12, owner 2026-11-18): one value or two, the picture is
+// placed by its width, the extra spare column of an odd split on the left; two values end at the same column, so a pair is
+// centred as the wider value would be alone and the shorter one's last digit sits under the wider one's. A picture wider
+// than 14 columns has its first digit at column 2 (its home).
+function drawBands(g, strips, topRows) {
+  const widths = strips.map(s => s.length), wmax = Math.max(...widths);
+  const home = wmax > 14 ? 2 : Math.ceil((14 - wmax) / 2) + 1;
+  strips.forEach((s, i) => {
+    const start = home + (wmax - widths[i]);
+    s.forEach((col, k) => {
+      const c = start + k;
+      if (c < 1 || c > 14) return;
+      col.forEach((on, r) => { if (on) g[topRows[i] + r][c - 1] = true; });
+    });
+  });
+}
+function drawSpectrum(g, H, spec, peaksOn) {
+  for (let c = 0; c < 14; c++) {
+    const h = Math.max(1, Math.round(spec.bars[c] * H));
+    for (let k = 0; k < h; k++) g[13 - k][c] = true;
+    if (peaksOn) {
+      const ph = Math.round(spec.peaks[c] * H);
+      if (ph > h && ph <= H) g[14 - ph][c] = true;
+    }
+  }
+}
+function picture(mode, readings, unit, spec, peaksOn) {
+  const g = blank();
+  const m = byId(mode);
+  if (m.kind === "value") {
+    const strips = m.metrics.map(k => strip(numberFor(k, readings[k], unit), symFor(k, unit)));
+    drawBands(g, strips, strips.length === 1 ? [5] : [1, 8]);
+  } else if (m.kind === "musicvalue") {
+    const k = m.metrics[0];
+    drawBands(g, [strip(numberFor(k, readings[k], unit), symFor(k, unit))], [1]);
+    drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "full") {
+    drawSpectrum(g, 12, spec, peaksOn);
+  } else if (m.kind === "emoji") {
+    EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
+    drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "dancer") {
+    DANCER_STILL.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
+  }
+  return g;
+}
+function rotate(g, r) {
+  for (let t = 0; t < r; t++) {
+    const n = blank();
+    for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) n[i][j] = g[13 - j][i];
+    g = n;
+  }
+  return g;
+}
+
+function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
+function hexToRgba(hex, a) {
+  const h = hex.replace("#", "");
+  const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+}
+// The lit dots are --fg, or --muted on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
+function paint(canvas, g, pitch, litVar) {
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const size = pitch * 14;
+  canvas.width = size * dpr; canvas.height = size * dpr;
+  canvas.style.width = size + "px"; canvas.style.height = size + "px";
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const fg = cssVar("--fg");
+  const lit = cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const r = pitch * 0.38;
+  for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
+    ctx.beginPath();
+    ctx.arc(j * pitch + pitch / 2, i * pitch + pitch / 2, r, 0, Math.PI * 2);
+    ctx.fillStyle = g && g[i][j] ? lit : unlit;
+    ctx.fill();
+  }
+}
+
+// ---------- availability ----------
+function reasonFor(m) {
+  for (const k of m.metrics) if (S.unavailable[k]) return { metric: k, reason: S.unavailable[k] };
+  return null;
+}
+function liveReadings() {
+  const r = Object.assign({}, S.live);
+  for (const k of Object.keys(S.unavailable)) r[k] = null;
+  return r;
+}
+
+// ---------- icons ----------
+// The four header and page-bar icons imitate Adwaita's symbolic ones: emblem-system-symbolic (the gear),
+// window-close-symbolic, go-previous-symbolic and view-refresh-symbolic.
+const ICON = {
+  gear: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/><circle cx="8" cy="8" r="1.6" fill="currentColor"/><path d="M8 3V1M8 13v2M3 8H1M13 8h2M4.46 4.46 3.05 3.05M11.54 4.46l1.41-1.41M4.46 11.54l-1.41 1.41M11.54 11.54l1.41 1.41" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="butt"/></svg>',
+  close: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.8 3.8l8.4 8.4M12.2 3.8l-8.4 8.4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  back: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  refresh:'<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="M12.6 1.6v3.2H9.4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  warn: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M8 6v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="12" r=".9" fill="currentColor"/></svg>',
+  info: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M8 7v4.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="8" cy="4.8" r=".9" fill="currentColor"/></svg>',
+  error: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6.3" fill="none" stroke="currentColor" stroke-width="1.4"/><path d="M5.6 5.6l4.8 4.8M10.4 5.6l-4.8 4.8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>',
+  chevron: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 6l4 4 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+  check: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8.5l3 3 6-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+};
+
+// ---------- view ----------
+const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/"/g, "&quot;");
+const canChange = () => S.service;
+const dis = () => (canChange() ? "" : " disabled");
+
+function gpuLabel(g) { return g.name ? `${g.kind} · ${g.name}` : `${g.kind} · ${g.driver} · ${g.pci}`; }
+
+// The cooler's state as the app shows it (design, Banners): one of the four CoolerState values.
+const COOLER_STATES = ["connected", "not-found", "no-access", "write-failed"];
+function coolerState() {
+  const st = S.coolerState === undefined ? (S.cooler ? "connected" : "not-found") : S.coolerState;
+  return COOLER_STATES.includes(st) ? st : "not-found";
+}
+// Per state: the status dot, the status text, and the words the preview's accessible description adds after the
+// caption while the picture isn't on the cooler (design, Preview column). Nothing is drawn under the caption.
+const COOLER = {
+  "connected": ["good", "Cooler connected", ""],
+  "not-found": ["warn", "Cooler not connected", "Not on the cooler: it isn't connected"],
+  "no-access": ["bad", "Cooler: no access", "Not on the cooler: the service can't open it"],
+  "write-failed": ["warn", "Cooler: sending fails", "Not on the cooler: sending it fails"]
+};
+
+// ---------- Start at boot (design, Start at boot) ----------
+// The app has no terminal commands (owner, 2026-11-19): they are in the README.
+// The four facts the switch reads (design, Where its state comes from), or null when they're unknown.
+function bootFacts() {
+  if (S.boot === "unknown") return null;
+  const preset = S.boot !== "off";
+  const or = (k, d) => (S[k] === undefined ? d : S[k]);
+  return {
+    serviceEnabled: or("serviceEnabled", preset),
+    serviceRun: S.service ? "active" : or("serviceRun", "stopped"),
+    soundEnabled: or("soundEnabled", preset),
+    soundRun: or("soundRun", preset)
+  };
+}
+// On means ready to use: all four facts hold (owner, 2026-11-11).
+function bootOn() {
+  const f = bootFacts();
+  return !!f && f.serviceEnabled && f.serviceRun === "active" && f.soundEnabled && f.soundRun;
+}
+function serviceStarting() { const f = bootFacts(); return !!f && f.serviceEnabled && f.serviceRun === "starting"; }
+// Only the sound in this session is missing: a flip on just starts it, without pkexec or a password.
+function onlySoundHere() {
+  const f = bootFacts();
+  return !!f && f.serviceEnabled && f.serviceRun === "active" && f.soundEnabled && !f.soundRun;
+}
+// The off screen's heading: "OpenDeepCool is off" while the display service doesn't start at boot or a flip
+// toward off runs; "OpenDeepCool isn't running" otherwise (set to start, but stopped, failed or starting; or unknown).
+function offHeading() { const f = bootFacts(); return S.bootFlip === "off" || (!!f && !f.serviceEnabled); }
+
+// The note saying what's missing (design, The note): at most one phrase per unit, then one ending.
+function missingNote() {
+  const f = bootFacts();
+  if (!f || bootOn()) return null;
+  const runs = f.serviceRun === "active";
+  if (!f.serviceEnabled && !runs) return null; // OpenDeepCool is off, which the off screen's heading says
+  if (serviceStarting()) return { kind: "info", text: "The display service is starting." };
+  const d = !f.serviceEnabled ? "the display service runs now, but doesn't start at boot"
+    : f.serviceRun === "stopped" ? "the display service is stopped"
+    : f.serviceRun === "failed" ? "the display service failed" : null;
+  const a = !f.soundEnabled && !f.soundRun ? "the sound for Music is off"
+    : !f.soundEnabled ? "the sound for Music runs here, but doesn't start at login"
+    : !f.soundRun ? "the sound for Music isn't running in this session" : null;
+  const end = onlySoundHere() ? "Turn it on to start it, with no password." : "Turn it on to finish.";
+  const journal = d === "the display service failed" ? " The journal says why the service failed." : "";
+  return { kind: "warn", text: `Not fully on: ${[d, a].filter(Boolean).join(", and ")}. ${end}${journal}` };
+}
+function bootFailText(f) {
+  if (f.exit === 127) return "Not changed: the password wasn't accepted, or no password dialog could open in this session.";
+  if (f.exit === "sound") return f.to === "off"
+    ? "Off, but the sound for Music didn't stop in this session. It stops when you log out."
+    : "Didn't finish: the sound for Music didn't start in this session. It starts at your next login; the journal says more.";
+  const m = (f.message || `opendeepcool-boot ended with code ${f.exit}`).replace(/\.$/, "");
+  return `Didn't finish: ${m}. The switch shows what's set now; the journal says more.`;
+}
+// The note under the switch, if any: {kind: "" (foreground) | "warn" | "info", text}.
+// Which shows: none while a flip runs, then a failure's note, then unknown, then starting or what's missing.
+function bootNote() {
+  if (S.bootFlip) return null;
+  if (S.bootFailed) return { kind: "warn", text: bootFailText(S.bootFailed) };
+  if (S.boot === "unknown") {
+    if (S.bootOther) return { kind: "info", text: `Can't change it here: systemd reports ${S.bootOther.unit} as “${S.bootOther.state}”.` };
+    return { kind: "info", text: "Can't tell whether OpenDeepCool is on: reading it from systemd failed." };
+  }
+  return missingNote();
+}
+// The switch: its trough shows systemd's state (GtkSwitch:state, CSS :checked), on only when OpenDeepCool is
+// ready to use; its handle the latest flip (GtkSwitch:active, which is also what assistive technology reads).
+function bootSwitch(note) {
+  const state = bootOn();
+  const handle = S.bootFlip ? S.bootFlip === "on" : state;
+  const insensitive = !!S.bootFlip || S.boot === "unknown" || serviceStarting();
+  return `<button class="switch${state ? " state-on" : ""}${handle ? " handle-on" : ""}" role="switch" aria-checked="${handle}"
+    aria-label="Start at boot"${note ? ` aria-description="${esc(note.text)}"` : ""}${insensitive ? " disabled" : ""} onclick="flipBoot()"><span></span></button>`;
+}
+// The Startup card: "config" on the Configuration page (with its heading), or "off" on the off screen.
+function bootCard(where) {
+  const note = bootNote();
+  const icon = note && note.kind === "warn" ? ICON.warn : note && note.kind === "info" ? ICON.info : "";
+  const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
+  return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
+    <div class="row"><div class="row-l"><span>Start at boot</span></div>
+      <div class="row-r">${bootSwitch(note)}</div></div>
+    ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
+  </section>`;
+}
+
+// ---------- Theme (design, Configuration page, Theme card; Theme, Which theme is used) ----------
+// The theme the app resolves from its four inputs: an Omarchy theme found or not, GTK's colour scheme, and the
+// service's UseSystemTheme and DarkTheme. "found" is an Omarchy theme, or a scheme other than "unsupported"; the system
+// theme is followed when it's used and found; an Omarchy theme found wins over the scheme; "default" (no preference)
+// gives OpenDeepCool's dark theme. Without following, DarkTheme decides.
+function themeState() {
+  const omarchy = S.omarchyTheme !== false;
+  const scheme = S.colorScheme || "dark";
+  const useSystem = S.useSystemTheme !== false;
+  const darkPref = S.darkTheme !== false;
+  const systemFound = omarchy || scheme !== "unsupported";
+  const follow = useSystem && systemFound;
+  let source, dark;
+  if (follow && omarchy) { source = "omarchy"; dark = true; } // the sample Omarchy theme is dark: it is what the control shows
+  else { dark = follow ? scheme !== "light" : darkPref; source = dark ? "dark" : "light"; }
+  return { omarchy, scheme, useSystem, systemFound, follow, source, dark };
+}
+// The card's one line, under Use system theme, in every state (so the card never changes height): what is used, or the warning.
+function themeLine(t) {
+  const own = `OpenDeepCool's ${t.dark ? "dark" : "light"} theme`;
+  if (!t.systemFound) return { warn: true, text: "OpenDeepCool can't find the system's theme and is using its own." };
+  if (t.follow && t.omarchy) return { text: "Using the Omarchy theme." };
+  if (t.follow) return { text: t.scheme === "default" ? "Using OpenDeepCool's dark theme. Your desktop has no preference."
+    : `Using ${own}, as your desktop prefers.` };
+  return { text: `Using ${own}.` };
+}
+// The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
+// (and off) when none can be found. Under its line stands the Default Theme subcategory (a heading and three rows: Appearance,
+// Window Opacity, Window Corners), all of it insensitive while the system theme is followed: the heading and the titles are
+// muted and every button is disabled. Appearance then shows the scheme in use, the other two their saved values.
+function themeCard() {
+  const t = themeState(), line = themeLine(t);
+  const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
+    line.warn ? ` aria-description="${esc(line.text)}"` : ""}${t.systemFound ? "" : " disabled"} onclick="useSystem()"><span></span></button>`;
+  const opacity = S.windowOpacity || "opaque", corners = S.windowCorners || "rounded";
+  const seg = (on, text, name, call) => `<button class="seg${on ? " on" : ""}" role="radio" aria-checked="${on}"
+      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="${call}">${text}</button>`;
+  const dl = (isDark, text, name) => seg(t.dark === isDark, text, name, `darkTo(${isDark})`);
+  const op = (v, text, name) => seg(opacity === v, text, name, `windowOpacityTo('${v}')`);
+  const co = (v, text, name) => seg(corners === v, text, name, `windowCornersTo('${v}')`);
+  const row = (id, title, buttons) => `<div class="row"><div class="row-l"><span id="${id}">${title}</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="${id}">${buttons}</div></div></div>`;
+  return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
+      <div class="stack2"><div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
+      <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div></div>
+      <div class="subcat${t.follow ? " dim" : ""}" role="group" aria-label="Default Theme">
+        <h4 class="sub-heading">Default Theme</h4>
+        ${row("dl-l", "Appearance", dl(true, "Dark", "Dark theme") + dl(false, "Light", "Light theme"))}
+        ${row("wo-l", "Window Opacity", op("opaque", "Opaque", "Opaque window") + op("transparent", "Transparent", "Transparent window") + op("glassy", "Glassy", "Glassy window"))}
+        ${row("wc-l", "Window Corners", co("sharp", "Sharp", "Sharp corners") + co("rounded", "Rounded", "Rounded corners"))}
+      </div>
+    </section>`;
+}
+
+function banners() {
+  let out = "";
+  // No service banner (design, D10): while the service is down the off screen says what's wrong, and its switch
+  // fixes it. No cooler banner either: the cooler's state is unknown then.
+  if (!S.service) return out;
+  // One cooler banner at a time, from CoolerState.
+  const cs = coolerState();
+  if (cs === "not-found") out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
+      <div class="banner-text"><strong>The cooler isn't connected.</strong> Changes are still saved, and the cooler shows them when it's back.</div></div>`;
+  else if (cs === "no-access") out += `<div class="banner error" role="alert" aria-label="Cooler banner">${ICON.error}
+      <div class="banner-text"><strong>The cooler is plugged in, but the service can't open it.</strong>
+      The udev rule that gives the service access is missing or not applied yet.
+      Restart the PC; if that doesn't help, reinstall OpenDeepCool. The journal says more.</div></div>`;
+  else if (cs === "write-failed") out += `<div class="banner warn" role="status" aria-label="Cooler banner">${ICON.warn}
+      <div class="banner-text"><strong>The cooler is connected, but sending it the picture fails.</strong>
+      The service keeps trying by itself, and changes are still saved. The journal says more.</div></div>`;
+  return out;
+}
+
+// The header (design, Window): nothing at the start, the title in the middle, and at the end a gear and a close icon,
+// both frameless. The gear is a toggle: pressed on the Configuration page (a second press goes back), visible but
+// disabled while the service isn't running (the off screen holds Start at boot), hidden when the app isn't
+// available in this session; then only the title and the close icon show.
+function header() {
+  const title = `<span class="app-name">OpenDeepCool</span>`;
+  const close = `<button class="ibtn" id="close" aria-label="Close" title="Close" onclick="closeWin()">${ICON.close}</button>`;
+  if (S.notAvailable) return `<header class="hb"><div></div>${title}<div class="hb-end">${close}</div></header>`;
+  const pressed = S.service && S.page === "config";
+  const gear = `<button class="ibtn" id="gear" aria-pressed="${pressed}" aria-label="Configuration" title="Configuration"${S.service ? "" : " disabled"} onclick="gear()">${ICON.gear}</button>`;
+  return `<header class="hb"><div></div>${title}<div class="hb-end">${gear}${close}</div></header>`;
+}
+// A page's bar, outside its scrolled area (design, Window, Page bar). Display: the title and, at the right, the
+// Refresh icon. Configuration: the back icon, then the title.
+function pageBar(page) {
+  if (page === "display") return `<div class="page-bar"><span></span><h2 class="page-title">Display</h2>
+    <button class="ibtn" id="refresh" aria-label="Refresh display" title="Refresh the display readings" onclick="flash('Refreshed')">${ICON.refresh}</button></div>`;
+  return `<div class="page-bar"><button class="ibtn" id="back" aria-label="Back" title="Back to Display" onclick="go('display')">${ICON.back}</button>
+    <h2 class="page-title">Configuration</h2><span></span></div>`;
+}
+
+function side() {
+  const m = byId(S.mode);
+  const lost = S.service ? reasonFor(m) : null;
+  const dot = (cls, text, name) => `<li aria-label="${name}"><span class="dot ${cls}"></span>${text}</li>`;
+  let status = "";
+  if (!S.service) {
+    status += dot("off", "Cooler: unknown", "Cooler status")
+      + (offHeading() ? dot("off", "Service off", "Service status") : dot("bad", "Service not running", "Service status"));
+  } else {
+    const [cls, text] = COOLER[coolerState()];
+    status += dot(cls, text, "Cooler status");
+    status += dot("good", "Service running", "Service status");
+    if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
+                                               : dot("warn", "No sound: spectrum is silent", "Music sound status");
+  }
+  const caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
+  // The picture's accessible description (design, Preview column): the caption, then, while the cooler isn't showing
+  // the picture, the words of the cooler's state. Nothing is drawn under the caption.
+  const note = S.service ? COOLER[coolerState()][2] : "";
+  const desc = note ? `${caption}. ${note}.` : caption;
+  return `<aside class="side">
+    <div class="preview" role="img" aria-label="Cooler display preview" aria-description="${esc(desc)}" title="Live copy of the cooler's display"><canvas id="pv"></canvas></div>
+    <div class="pv-caption">${esc(caption)}</div>
+    ${lost ? `<div class="reason warn-text" role="status" aria-label="Unavailable reading">${ICON.warn}<span>${METRIC[lost.metric]}: ${esc(lost.reason)}. The cooler shows dashes until it's back.</span></div>` : ""}
+    <ul class="status" aria-label="Status">${status}</ul>
+  </aside>`;
+}
+
+function tile(m) {
+  const sel = m.id === S.mode;
+  const why = reasonFor(m);
+  const disabled = (why && !sel) || !canChange();
+  const desc = why ? `${METRIC[why.metric]}: ${why.reason}` : "";
+  return `<button class="tile${sel ? " on" : ""}${why ? " unavailable" : ""}" role="radio" aria-checked="${sel}"
+      aria-label="${m.group}: ${m.caption}"${desc ? ` aria-description="${esc(desc)}" title="${esc(desc)}"` : ""}
+      ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
+      <canvas data-mode="${m.id}"></canvas>
+      <span class="tile-cap">${m.caption}</span>
+      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+    </button>`;
+}
+function group(name, extraClass) {
+  const ms = MODES.filter(m => m.group === name);
+  const reasons = {};
+  ms.forEach(m => { const r = reasonFor(m); if (r) reasons[`${METRIC[r.metric]}: ${r.reason}`] = 1; });
+  const rl = Object.keys(reasons).map(t => `<div class="group-reason muted">${ICON.info}<span>${esc(t)}</span></div>`).join("");
+  return `<section class="group ${extraClass || ""}" aria-label="${name}">
+    <h3>${name}</h3>${rl}
+    <div class="tiles" role="radiogroup" aria-label="${name} options">${ms.map(tile).join("")}</div></section>`;
+}
+function displayPage() {
+  return pageBar("display") + `<div class="page-scroll"><div class="page">
+    ${group("Load")}
+    <div class="pair">${group("Temperature")}${group("Power")}</div>
+    ${group("Music")}
+  </div></div>`;
+}
+
+function dropdown(id, name, valueHtml, items, opts) {
+  const open = S.open === id;
+  return `<div class="dd${open ? " open" : ""}">
+    <button class="dd-btn" aria-haspopup="listbox" aria-expanded="${open}" aria-label="${name}"${opts && opts.desc ? ` aria-description="${esc(opts.desc)}"` : ""}${dis()} onclick="toggle('${id}')">
+      <span class="dd-val">${valueHtml}</span>${ICON.chevron}</button>
+    ${open ? `<div class="dd-pop" role="listbox" aria-label="${name} choices">${items}</div>` : ""}
+  </div>`;
+}
+function configPage() {
+  const rot = [0, 1, 2, 3].map(r => `<button class="seg${S.rotation === r ? " on" : ""}" role="radio" aria-checked="${S.rotation === r}"
+      aria-label="Rotation ${r * 90}°"${dis()} onclick="rotateTo(${r})">${r * 90}°</button>`).join("");
+  // GPU: only with more than one GPU. Automatic first (the default); while it's chosen, a muted line names the
+  // GPU in use (GpuInUse). Entries' notes show only in the open list: "no readings" for a GPU without a
+  // reading rule, "driver couldn't be asked" for one whose kind query failed (design, Configuration → Display).
+  let gpuRow = "";
+  if (S.gpus.length > 1) {
+    const auto = S.gpu === null;
+    const inUse = S.gpus[S.gpuInUse];
+    const note = g => g.norule ? "no readings" : g.queryFailed ? "driver couldn't be asked" : "";
+    const item = (i, text, n) => {
+      const on = i === S.gpu;
+      return `<div class="dd-item${on ? " on" : ""}" role="option" aria-selected="${on}"${n ? ` aria-description="${esc(n)}"` : ""} onclick="chooseGpu(${i})">
+        <span class="dd-check">${on ? ICON.check : ""}</span><span>${esc(text)}</span><span class="muted">${esc(n)}</span></div>`;
+    };
+    const all = S.gpus.map((_, i) => i);
+    const order = all.filter(i => !S.gpus[i].norule).concat(all.filter(i => S.gpus[i].norule));
+    const items = item(null, "Automatic", "") + order.map(i => item(i, gpuLabel(S.gpus[i]), note(S.gpus[i]))).join("");
+    const val = auto ? "Automatic" : esc(gpuLabel(S.gpus[S.gpu]));
+    const desc = [auto && inUse ? `Using ${gpuLabel(inUse)}` : "", inUse && inUse.norule ? "no readings" : "",
+                  !auto && S.gpus[S.gpu].queryFailed ? "driver couldn't be asked" : ""].filter(Boolean).join("; ");
+    gpuRow = `<div class="row"><div class="row-l"><span>GPU</span><span class="muted small">Where the display's GPU values come from</span></div>
+      <div class="row-r">${dropdown("gpu", "GPU", val, items, { desc })}
+      ${auto && inUse ? `<div class="hint muted" aria-label="GPU in use"><span>Using ${esc(gpuLabel(inUse))}.</span></div>` : ""}
+      ${inUse && inUse.norule ? `<div class="hint muted">${ICON.info}<span>No reading for this GPU's driver: the GPU options are unavailable.</span></div>` : ""}</div></div>`;
+  }
+  const stops = ["Slower", "Slow", "Moderate", "Fast", "Faster"];
+  const slider = (id, name, v) => `<div class="row"><div class="row-l"><span id="${id}-l">${name}</span></div>
+    <div class="row-r"><div class="scale"><input type="range" min="0" max="4" step="1" value="${v}" style="--p: calc(8px + (100% - 16px) * ${v / 4})" aria-labelledby="${id}-l"
+      aria-valuetext="${stops[v]}" aria-label="${name}"${dis()} oninput="setStop('${id}', this.value)">
+      <div class="marks">${stops.map((s, i) => `<span class="${i === v ? "on" : ""}">${s}</span>`).join("")}</div></div></div></div>`;
+  // The temperature unit, the row after Rotation: the same linked toggles (design, Configuration page, Display).
+  const unitBtn = (id, t, name) => `<button class="seg${S.unit === id ? " on" : ""}" role="radio" aria-checked="${S.unit === id}"
+      aria-label="${name}"${dis()} onclick="unit('${id}')">${t}</button>`;
+  return pageBar("config") + `<div class="page-scroll"><div class="page config">
+    ${themeCard()}
+    <section class="card" aria-label="Display settings"><h3>Display</h3>
+      <div class="row"><div class="row-l"><span id="rot-l">Rotation</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+      <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
+      ${gpuRow}
+    </section>
+    <section class="card" aria-label="Music settings"><h3>Music</h3>
+      <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
+        <div class="row-r"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
+      ${slider("bar", "Bar fall", S.barFall)}
+      ${slider("peak", "Peak fall", S.peakFall)}
+    </section>
+    ${bootCard("config")}
+  </div></div>`;
+}
+// While the service isn't running: the off screen, in every case (design, D10). Its heading says whether
+// OpenDeepCool is off or set to start but not running; the card's note says what's missing. It has no page bar.
+function emptyPage() {
+  return `<div class="page-scroll"><div class="page empty"><div class="off-screen">
+    <div role="group" aria-label="Service message"><h2>${offHeading() ? "OpenDeepCool is off" : "OpenDeepCool isn't running"}</h2>
+      <p class="muted">The cooler shows nothing until the display service runs.</p></div>
+    ${bootCard("off")}</div></div></div>`;
+}
+// Remote or inactive session: the service refuses GetState() (NotAuthorized), so the window shows this message
+// and nothing else: no banner, no preview column, no pages, no status, no controls.
+function notAvailablePage() {
+  return `<div class="body"><main class="content only">
+    <div class="page empty" role="status" aria-label="Not available in this session"><div>
+      <h2>OpenDeepCool can be used only from the session at the PC</h2>
+      <p class="muted">This session is remote or not the active one.</p></div></div></main></div>`;
+}
+
+function render() {
+  const win = document.getElementById("win");
+  win.className = S.notAvailable ? "window only" : "window";
+  applyWindowStyle();
+  const toast = `<div id="toast" class="toast" role="status"></div>`;
+  if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
+  win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
+    !S.service ? emptyPage() : S.page === "display" ? displayPage() : configPage()}${toast}</main></div>`;
+  paintAll();
+}
+// One moment of what the app draws (design, Display page, Live tiles): the preview and every tile from the same readings.
+function paintAll() {
+  const pv = document.getElementById("pv");
+  if (!pv) return;
+  const readings = liveReadings();
+  const silent = { bars: Array(14).fill(0), peaks: Array(14).fill(0) };
+  if (S.service) {
+    const g = picture(S.mode, readings, S.unit, S.audio ? LIVE_SPECTRUM : silent, S.peaks);
+    paint(pv, rotate(g, S.rotation), 15);
+  } else paint(pv, null, 15);
+  // The Music tiles are live only while sound is attached and a Music mode is the one shown; otherwise the still sample.
+  const soundLive = S.service && S.audio && byId(S.mode).group === "Music";
+  document.querySelectorAll("canvas[data-mode]").forEach(c => {
+    const id = +c.dataset.mode;
+    const unavailable = c.closest("button").disabled;
+    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--muted" : "--fg");
+  });
+}
+
+// ---------- actions (instant apply: every choice goes to the service at once) ----------
+// A page change (design, Window, The pages): opening the Configuration page puts the focus on its back icon,
+// closing it puts the focus on the gear. No motion.
+function go(p) {
+  if (!S.service) return;
+  S.page = p; S.open = null; render();
+  const el = document.getElementById(p === "config" ? "back" : "gear");
+  if (el) el.focus();
+}
+function gear() { go(S.page === "config" ? "display" : "config"); }
+function closeWin() { flash("Close: the window would close"); }
+function pick(id) { if (!canChange()) return; S.mode = id; render(); }
+function unit(u) { if (!canChange()) return; S.unit = u; render(); }
+function rotateTo(r) { if (!canChange()) return; S.rotation = r; render(); }
+function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
+// The Theme card (design, Theme card): each control sends its call (SetUseSystemTheme, SetDarkTheme) and the window
+// shows what the service confirms; the mockup confirms at once. The theme is resolved again and set, with no motion.
+function useSystem() { const t = themeState(); if (!canChange() || !t.systemFound) return; S.useSystemTheme = !t.follow; render(); applyTheme(); }
+function darkTo(d) { if (!canChange() || themeState().follow) return; S.darkTheme = d; render(); applyTheme(); }
+// Window Opacity and Window Corners (SetWindowOpacity, SetWindowCorners): enabled only while the system theme isn't followed; the
+// window changes in place when the service confirms, which the mockup does at once. render() applies the window's style.
+function windowOpacityTo(v) { if (!canChange() || themeState().follow) return; S.windowOpacity = v; render(); }
+function windowCornersTo(v) { if (!canChange() || themeState().follow) return; S.windowCorners = v; render(); }
+function applyTheme() { setTheme(themeState().source); }
+// The window's own look (design, Window opacity and corners): what the window paints and how its corners are cut. The
+// sample Omarchy palette on show follows Omarchy's Window Opacity and leaves the corners to the compositor; an own palette on
+// show while the system theme is followed applies neither setting (opaque, rounded); an own palette otherwise applies the
+// service's WindowOpacity and WindowCorners. 100, 98.5 and 75 are the opacities of opaque, transparent and glassy.
+const WINDOW_PCT = { opaque: 100, transparent: 98.5, glassy: 75 };
+function windowStyle() {
+  if (document.documentElement.dataset.theme === "omarchy")
+    return { pct: WINDOW_PCT[S.omarchyWindowOpacity] || 100, sharp: false };
+  if (themeState().follow) return { pct: 100, sharp: false };
+  return { pct: WINDOW_PCT[S.windowOpacity] || 100, sharp: S.windowCorners === "sharp" };
+}
+function applyWindowStyle() {
+  const win = document.getElementById("win"), root = document.documentElement, w = windowStyle();
+  win.style.setProperty("--win-pct", w.pct + "%");
+  win.classList.toggle("glassy", w.pct === WINDOW_PCT.glassy);
+  document.body.classList.toggle("show-backdrop", w.pct < 100);
+  // Sharp: no curve in the window's own chrome. The dots of the pictures and of the status are drawn round regardless.
+  ["--radius", "--radius-box", "--radius-win", "--radius-pill", "--radius-knob"].forEach(p =>
+    w.sharp ? root.style.setProperty(p, "0px") : root.style.removeProperty(p));
+}
+function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
+function toggle(id) { S.open = S.open === id ? null : id; render(); }
+function chooseGpu(i) {
+  // Automatic (null) reads the first GPU in the service's order; a GPU chosen by hand is the one in use.
+  S.gpu = i; S.gpuInUse = i === null ? 0 : i;
+  const nr = S.gpus[S.gpuInUse].norule;
+  ["gpu_usage", "gpu_temp", "gpu_power"].forEach(k => {
+    if (nr) S.unavailable[k] = "no reading for this GPU's driver";
+    else if (S.unavailable[k] === "no reading for this GPU's driver") delete S.unavailable[k];
+  });
+  S.open = null; render();
+}
+// Start at boot: from off (whatever is missing) a flip goes to on, and from on to off. In the app the desktop's
+// polkit dialog opens now and the program runs (or, with only the sound here missing, the app just starts it);
+// the mockup skips the dialog and succeeds after a moment. Turned on, everything is set up and running and the
+// normal window appears; turned off, nothing is, and the off screen appears.
+function flipBoot() {
+  if (S.bootFlip || S.boot === "unknown" || serviceStarting()) return;
+  const to = bootOn() ? "off" : "on";
+  S.bootFailed = null; S.bootFlip = to; S.open = null; render();
+  setTimeout(() => {
+    ["serviceEnabled", "serviceRun", "soundEnabled", "soundRun"].forEach(k => delete S[k]);
+    S.bootFlip = null; S.boot = to; S.service = to === "on"; render();
+  }, 1500);
+}
+function flash(t) { const el = document.getElementById("toast"); el.textContent = t; el.classList.add("show"); setTimeout(() => el.classList.remove("show"), 1600); }
+function setTheme(t) {
+  document.documentElement.dataset.theme = t;
+  document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
+  applyWindowStyle();
+  paintAll();
+}
+// The keys (design, Keyboard): Escape or Alt+Left go back from the Configuration page, and only from there (an open
+// GPU list takes Escape first); Ctrl+, opens it. F5 and Ctrl+R are left to the browser.
+document.addEventListener("keydown", e => {
+  if (S.notAvailable || !S.service) return;
+  if (e.key === "Escape") {
+    if (S.open) { S.open = null; render(); } else if (S.page === "config") { e.preventDefault(); go("display"); }
+  } else if (e.altKey && e.key === "ArrowLeft" && S.page === "config") { e.preventDefault(); go("display"); }
+  else if (e.ctrlKey && e.key === "," && S.page !== "config") { e.preventDefault(); go("config"); }
+});
+document.addEventListener("DOMContentLoaded", () => { render(); setTheme(new URLSearchParams(location.search).get("theme") || themeState().source); });
+
+</script>
+</body>
+</html>

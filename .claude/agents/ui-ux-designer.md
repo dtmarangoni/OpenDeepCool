@@ -21,7 +21,7 @@ OpenDeepCool drives the 14×14 dot-matrix display of a DeepCool LP360 cooler on 
 - **Feature parity, not interface parity.** Every feature DeepCreative offers for the LP360 must be reachable, but don't copy DeepCreative's layout. For example, its tabs and its split into "Combined" and "Separate" options are unnecessary. Find the simplest structure that reaches every mode and setting.
 - **Modern, minimalist, clean.** Few screens, few clicks, no decoration that doesn't help a task.
 - **Fast and performant.** Opens instantly, with no heavy animation and no idle CPU use. A live preview may redraw only when its picture changes.
-- **Follows the Omarchy theme live.** On Omarchy, colours come from the current theme, and surface transparency from its `shell.toml` alpha values; window opacity and blur come from Hyprland and must not be overridden (PRD, Theme). Never hard-code them. Mockups use clearly labelled sample theme colours.
+- **Follows the Omarchy theme live.** On Omarchy, colours come from the current theme, and surface transparency from its `shell.toml` alpha values; the window's opacity and blur follow Omarchy's Window Opacity, which the app draws itself since 2026-11-22 (owner; the design's "Window opacity and corners", superseding the first design's rule that they come from Hyprland alone; PRD, Theme). Never hard-code them. Mockups use clearly labelled sample theme colours.
 
 ## Design brief (owner, 2026-10-23)
 

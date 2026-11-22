@@ -61,7 +61,7 @@
 // CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
 // widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
 // scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
-// least 1007 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
+// least 1140 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
 // in the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
@@ -94,6 +94,24 @@
 //   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
 //   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
 //   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
+//
+// The Default Theme group and the window's own look (Phase 11a Tasks 44, 45, 50 and 51, 2026-11-22; docs/design/settings-app.md,
+// Theme card, and Window opacity and corners). Three new CONFIG keys, all optional; their defaults give the state of every
+// earlier page, so those pages look as before:
+// - windowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the service's WindowOpacity, the opacity of OpenDeepCool's
+//   own theme's window (1, 0.985 and 0.75, Glassy with the blur).
+// - windowCorners ("sharp" or "rounded", default "rounded"): the service's WindowCorners: sharp gives the window, the cards, the
+//   controls, the switches and the knobs square corners, rounded the radii of the own theme (window 12, boxes 10, controls 4, round
+//   switches and knobs). The dots of the pictures and of the status stay round either way.
+// - omarchyWindowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the mode of Omarchy's Window Opacity, which the
+//   window follows while the sample Omarchy theme is followed (Omarchy's own default is transparent, drawn here as opaque so
+//   that the other pages look as before). The corners are the compositor's then, and the window's radius is the sample's.
+// - The Theme card's Default Theme group (heading, Appearance, Window Opacity, Window Corners) is disabled while the system
+//   theme is followed (themeState().follow) and then shows the saved values, Appearance the scheme in use; it is enabled
+//   otherwise. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
+//   palette on show with the system theme followed is opaque and rounded (neither setting applied); an own palette otherwise
+//   follows windowOpacity and windowCorners. While the window isn't opaque the page draws a striped backdrop behind it, mockup
+//   chrome, so that the see-through ground and the glassy blur show.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -433,18 +451,30 @@ function themeLine(t) {
   return { text: `Using ${own}.` };
 }
 // The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
-// (and off) when none can be found; Dark and Light are insensitive while it is followed and then show the scheme in use.
+// (and off) when none can be found. Under its line stands the Default Theme subcategory (a heading and three rows: Appearance,
+// Window Opacity, Window Corners), all of it insensitive while the system theme is followed: the heading and the titles are
+// muted and every button is disabled. Appearance then shows the scheme in use, the other two their saved values.
 function themeCard() {
   const t = themeState(), line = themeLine(t);
   const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
     line.warn ? ` aria-description="${esc(line.text)}"` : ""}${t.systemFound ? "" : " disabled"} onclick="useSystem()"><span></span></button>`;
-  const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
-      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
+  const opacity = S.windowOpacity || "opaque", corners = S.windowCorners || "rounded";
+  const seg = (on, text, name, call) => `<button class="seg${on ? " on" : ""}" role="radio" aria-checked="${on}"
+      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="${call}">${text}</button>`;
+  const dl = (isDark, text, name) => seg(t.dark === isDark, text, name, `darkTo(${isDark})`);
+  const op = (v, text, name) => seg(opacity === v, text, name, `windowOpacityTo('${v}')`);
+  const co = (v, text, name) => seg(corners === v, text, name, `windowCornersTo('${v}')`);
+  const row = (id, title, buttons) => `<div class="row"><div class="row-l"><span id="${id}">${title}</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="${id}">${buttons}</div></div></div>`;
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
       <div class="stack2"><div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
       <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div></div>
-      <div class="row"><div class="row-l"><span id="dl-l">Appearance</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
+      <div class="subcat${t.follow ? " dim" : ""}" role="group" aria-label="Default Theme">
+        <h4 class="sub-heading">Default Theme</h4>
+        ${row("dl-l", "Appearance", dl(true, "Dark", "Dark theme") + dl(false, "Light", "Light theme"))}
+        ${row("wo-l", "Window Opacity", op("opaque", "Opaque", "Opaque window") + op("transparent", "Transparent", "Transparent window") + op("glassy", "Glassy", "Glassy window"))}
+        ${row("wc-l", "Window Corners", co("sharp", "Sharp", "Sharp corners") + co("rounded", "Rounded", "Rounded corners"))}
+      </div>
     </section>`;
 }
 
@@ -627,6 +657,7 @@ function notAvailablePage() {
 function render() {
   const win = document.getElementById("win");
   win.className = S.notAvailable ? "window only" : "window";
+  applyWindowStyle();
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
@@ -671,7 +702,31 @@ function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
 // shows what the service confirms; the mockup confirms at once. The theme is resolved again and set, with no motion.
 function useSystem() { const t = themeState(); if (!canChange() || !t.systemFound) return; S.useSystemTheme = !t.follow; render(); applyTheme(); }
 function darkTo(d) { if (!canChange() || themeState().follow) return; S.darkTheme = d; render(); applyTheme(); }
+// Window Opacity and Window Corners (SetWindowOpacity, SetWindowCorners): enabled only while the system theme isn't followed; the
+// window changes in place when the service confirms, which the mockup does at once. render() applies the window's style.
+function windowOpacityTo(v) { if (!canChange() || themeState().follow) return; S.windowOpacity = v; render(); }
+function windowCornersTo(v) { if (!canChange() || themeState().follow) return; S.windowCorners = v; render(); }
 function applyTheme() { setTheme(themeState().source); }
+// The window's own look (design, Window opacity and corners): what the window paints and how its corners are cut. The
+// sample Omarchy palette on show follows Omarchy's Window Opacity and leaves the corners to the compositor; an own palette on
+// show while the system theme is followed applies neither setting (opaque, rounded); an own palette otherwise applies the
+// service's WindowOpacity and WindowCorners. 100, 98.5 and 75 are the opacities of opaque, transparent and glassy.
+const WINDOW_PCT = { opaque: 100, transparent: 98.5, glassy: 75 };
+function windowStyle() {
+  if (document.documentElement.dataset.theme === "omarchy")
+    return { pct: WINDOW_PCT[S.omarchyWindowOpacity] || 100, sharp: false };
+  if (themeState().follow) return { pct: 100, sharp: false };
+  return { pct: WINDOW_PCT[S.windowOpacity] || 100, sharp: S.windowCorners === "sharp" };
+}
+function applyWindowStyle() {
+  const win = document.getElementById("win"), root = document.documentElement, w = windowStyle();
+  win.style.setProperty("--win-pct", w.pct + "%");
+  win.classList.toggle("glassy", w.pct === WINDOW_PCT.glassy);
+  document.body.classList.toggle("show-backdrop", w.pct < 100);
+  // Sharp: no curve in the window's own chrome. The dots of the pictures and of the status are drawn round regardless.
+  ["--radius", "--radius-box", "--radius-win", "--radius-pill", "--radius-knob"].forEach(p =>
+    w.sharp ? root.style.setProperty(p, "0px") : root.style.removeProperty(p));
+}
 function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
 function chooseGpu(i) {
@@ -701,6 +756,7 @@ function flash(t) { const el = document.getElementById("toast"); el.textContent 
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
+  applyWindowStyle();
   paintAll();
 }
 // The keys (design, Keyboard): Escape or Alt+Left go back from the Configuration page, and only from there (an open

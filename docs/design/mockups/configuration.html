@@ -17,30 +17,35 @@
   --radius: 0px; --unlit-alpha: 0.12;
 }
 :root[data-theme="dark"] {
-  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme): Graphite, Panel, Bone, Haze and Lit, with colour only for status */
-  --bg: #202326; --surface: #2a2e33; --fg: #e6e3dc; --muted: #9ca1aa; --accent: #fbf8f0;
-  --red: #ff7a66; --yellow: #e8c14f; --green: #6dd28b;
+  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme, Coolant): Lagoon, Tide, Foam, Fog and Flare, a petrol-blue family with one rose accent */
+  --bg: #0f2630; --surface: #183846; --fg: #f1ece2; --muted: #8fb0b8; --accent: #fb7fb0;
+  --red: #ff6b57; --yellow: #f0c94e; --green: #5fd68a;
   --ctl: var(--fg); --a-normal-fill: 5%; --a-normal-border: 44%; --w-normal-border: 1px;
   --a-hover-fill: 9%; --a-hover-border: 60%; --a-selected-fill: 16%; --a-pressed-fill: 24%;
-  --radius: 4px; --radius-box: 10px; --unlit-alpha: 0.12;
+  --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
 }
 :root[data-theme="light"] {
-  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme): Aluminium, White, Graphite, Slate and Lit, with colour only for status */
-  --bg: #e4e6e9; --surface: #ffffff; --fg: #1b1e22; --muted: #565c66; --accent: #0a0c0f;
+  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme, Coolant): Frost, Glacier, Deep, Slate and Flare, the same family in daylight */
+  --bg: #d2e0e6; --surface: #f6fafb; --fg: #0e2a35; --muted: #42606a; --accent: #b0145f;
   --red: #b93a22; --yellow: #7a5200; --green: #1d7a3f;
-  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 54%; --w-normal-border: 1px;
-  --a-hover-fill: 7%; --a-hover-border: 72%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
-  --radius: 4px; --radius-box: 10px; --unlit-alpha: 0.12;
+  --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 56%; --w-normal-border: 1px;
+  --a-hover-fill: 7%; --a-hover-border: 74%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
+  --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
 }
-/* The type scale and the second radius (design, OpenDeepCool's own theme, Type and Radius). One base size stands in for the
-   user's system font size, which the app takes from GTK: every size is a multiple of it (83, 100, 120 and 144 per cent), two
-   weights (400 and 600). The sample Omarchy theme has no box radius, so boxes stay square there. */
+/* The type scale and the radii (design, OpenDeepCool's own theme, Type, and Window opacity and corners). One base size stands in
+   for the user's system font size, which the app takes from GTK: every size is a multiple of it (83, 100, 120 and 144 per cent),
+   two weights (400 and 600). The sample Omarchy theme has no box radius and no window radius of its own, so boxes and the
+   window stay square there, and the compositor does the window's corners. --radius-pill is a switch's trough and a scale's
+   bar, --radius-knob a knob: round in every theme and square only while Window Corners is Sharp, which app.js sets.
+   --win-pct is the window's opacity as a percentage, which app.js sets from the Window Opacity of the theme on show
+   (design, Window opacity and corners). */
 :root {
   --fs: 14px;
   --fs-small: calc(var(--fs) * .83);
   --fs-page-title: calc(var(--fs) * 1.2);
   --fs-heading: calc(var(--fs) * 1.44);
-  --radius-box: 0px;
+  --radius-box: 0px; --radius-win: 0px; --radius-pill: 9px; --radius-knob: 50%;
+  --win-pct: 100%;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
@@ -55,15 +60,25 @@ body { background: #8a8f96; font: var(--fs)/1.4 system-ui, "Segoe UI", Cantarell
 .mock-bar .label { font-weight: 600; }
 
 /* The window's size (design, Window, Size and scrolling): as large as its content, which is the widest page beside the
-   262 px column and the tallest page under the header bar, here 930 x 1007 px (the mockups' tiles are 98 px wide, the
-   app's about 113, so the app's estimate is about 1016 x 1008; the Configuration page is the tallest since the Theme
-   card, an estimate to check by measuring in a browser); and never larger than the screen less 48 px. A browser
-   window narrower or shorter than that makes the window scroll its page, as the app does on a small monitor (the
-   preview column and the header stay). Drawn only for the page: below about 850 px the app scrolls the whole content
-   sideways, the column with it, which the mockups don't draw. */
-.window { width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(1007px, calc(100vh - 48px));
-  margin: 0 auto; background: var(--bg); color: var(--fg); border-radius: var(--radius);
+   262 px column and the tallest page under the header bar, here 930 x 1140 px (the mockups' tiles are 98 px wide, the
+   app's about 113, so the app's estimate is about 1016 x 1173; the Configuration page is the tallest since the Theme
+   card, and 133 px taller since its Default Theme group, an estimate to check by measuring in a browser); and never
+   larger than the screen less 48 px. A browser window narrower or shorter than that makes the window scroll its page,
+   as the app does on a small monitor (the preview column and the header stay). Drawn only for the page: below about
+   850 px the app scrolls the whole content sideways, the column with it, which the mockups don't draw.
+   The window paints its ground once, --ground, which is --bg at the window's opacity (--win-pct); the header, the column
+   and the pages have no fill of their own. The cards paint --plate, --surface at the same opacity, over it. What carries the
+   picture or stands over text stays opaque: the preview's frame, the open list and the notice. Glassy asks for the blur
+   (design, Window opacity and corners). */
+.window { --ground: color-mix(in srgb, var(--bg) var(--win-pct), transparent);
+  --plate: color-mix(in srgb, var(--surface) var(--win-pct), transparent);
+  width: 930px; max-width: calc(100vw - 32px); max-height: calc(100vh - 48px); min-height: min(1140px, calc(100vh - 48px));
+  margin: 0 auto; background: var(--ground); color: var(--fg); border-radius: var(--radius-win);
   overflow: hidden; position: relative; box-shadow: 0 10px 40px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.window.glassy { backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px); }
+/* A see-through window needs something behind it to show: the mockup draws a striped backdrop, only while the window is
+   not opaque. It is mockup chrome, not part of the app. */
+body.show-backdrop { background: repeating-linear-gradient(135deg, #b8452e 0 36px, #1f6f8b 36px 72px, #e0b341 72px 108px, #2c2c36 108px 144px); }
 /* Not available in this session: the window is as small as its message (design, Window, Size and scrolling). */
 .window.only { width: 440px; min-height: 0; }
 .window.only .page.empty { min-height: 0; padding: 24px; }
@@ -109,14 +124,15 @@ button { font: inherit; color: inherit; }
 .app-name { font-weight: 600; }
 .hb-end { justify-self: end; display: flex; gap: 4px; }
 /* Icon buttons (gear, close, back, Refresh): 32 x 32 with a 16 px icon, no frame in any state. The resting fill is
-   the surface they sit on (--bg); hover, focus, pressed and selected use the control fills, a disabled one --muted
+   none (the app's --none token): the window's ground is see-through in some modes, so a fill of --bg would show as a box;
+   hover, focus, pressed and selected use the control fills over the ground, a disabled one --muted
    (design, Window, Icon buttons). */
 .ibtn { width: 32px; height: 32px; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
-  background: var(--bg); border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
-.ibtn:hover:not(:disabled), .ibtn:focus-visible { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), var(--bg)); }
-.ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), var(--bg)); }
+  background: transparent; border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
+.ibtn:hover:not(:disabled), .ibtn:focus-visible { background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent); }
+.ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
 .ibtn[aria-pressed="true"], .ibtn[aria-pressed="true"]:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), var(--bg)); color: var(--accent); }
+  background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); color: var(--accent); }
 .ibtn:disabled { opacity: 1; color: var(--muted); cursor: default; }
 .segs { display: inline-flex; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
@@ -126,8 +142,9 @@ button { font: inherit; color: inherit; }
 
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .banner svg { margin-top: 2px; }
-.banner.error { background: color-mix(in srgb, var(--red) 16%, var(--bg)); } .banner.error > svg { color: var(--red); }
-.banner.warn { background: color-mix(in srgb, var(--yellow) 14%, var(--bg)); } .banner.warn > svg { color: var(--yellow); }
+/* A banner's tint is the status colour over the ground, at the window's opacity like the ground (--banner-error and --banner-warn in the app). */
+.banner.error { background: color-mix(in srgb, color-mix(in srgb, var(--red) 16%, var(--bg)) var(--win-pct), transparent); } .banner.error > svg { color: var(--red); }
+.banner.warn { background: color-mix(in srgb, color-mix(in srgb, var(--yellow) 14%, var(--bg)) var(--win-pct), transparent); } .banner.warn > svg { color: var(--yellow); }
 .banner-text { flex: 1; }
 .banner code { display: block; margin: 6px 0; font: var(--fs-small) ui-monospace, monospace; padding: 4px 8px; background: color-mix(in srgb, var(--fg) 8%, transparent); width: max-content; }
 
@@ -177,7 +194,7 @@ button { font: inherit; color: inherit; }
 /* A card (design, Configuration page, Rows): a vertical box, 14 px between its children (the heading, each row, a note
    or a hint) and 14 px above and below, 16 px at the sides; 10 px between cards (18 until Task 28), 18 under the last. There is no rule between rows: the
    app draws none, and a title sits 2 px from its hint and 14 px from the next row. */
-.card { background: var(--surface); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.card { background: var(--plate); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .config .card { margin-bottom: 6px; } /* 6 px between cards: 18, then 10, until Task 39 */
 .config .card:last-child { margin-bottom: 68px; } /* as much under the last card as from the panel's top to the first (Task 48) */
 .card h3 { margin: 0; }
@@ -206,9 +223,9 @@ button { font: inherit; color: inherit; }
 .dd-check { color: var(--accent); }
 /* The switches (design, Configuration page, The switches): 32 x 18 (GTK's own is 48 x 24), a 14 px knob, 1 px from the
    1 px border. The padding box is 30 x 16, so the knob rests at left 1 and, switched on, at left 15. */
-.switch { width: 32px; height: 18px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
+.switch { width: 32px; height: 18px; border-radius: var(--radius-pill); border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
 .switch.on span { left: 15px; }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
@@ -224,15 +241,15 @@ button { font: inherit; color: inherit; }
 /* The scales (design, Configuration page, The scales' knobs): a 4 px bar (1 px border, the fill up to the knob in --accent)
    and a plain round 16 px knob in --fg with a 1 px --bg ring, --muted when insensitive. --p is the knob's centre along the bar. */
 .scale input { width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; -webkit-appearance: none; appearance: none; }
-.scale input::-webkit-slider-runnable-track { box-sizing: border-box; height: 4px; border-radius: 3px;
+.scale input::-webkit-slider-runnable-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: linear-gradient(to right, var(--accent) var(--p), color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent) var(--p)); }
-.scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
-.scale input::-moz-range-track { box-sizing: border-box; height: 4px; border-radius: 3px;
+.scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
+.scale input::-moz-range-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); }
-.scale input::-moz-range-progress { height: 2px; border-radius: 3px; background: var(--accent); }
-.scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
+.scale input::-moz-range-progress { height: 2px; border-radius: calc(var(--radius-pill) / 3); background: var(--accent); }
+.scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
 .scale input:disabled::-webkit-slider-thumb { background: var(--muted); }
 .scale input:disabled::-moz-range-thumb { background: var(--muted); }
 .marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
@@ -251,21 +268,28 @@ button { font: inherit; color: inherit; }
 .toast.show { display: block; }
 /* The Use system theme row and its line under it are 2 px apart, as a hint is from its title (Task 46) */
 .stack2 { display: flex; flex-direction: column; gap: 2px; }
+/* The Default Theme subcategory of the Theme card (design, Theme card; Task 50): a child of the card like the Use system theme row,
+   its heading (0.83 em, weight 600, --fg) 24 px under the line above it (the card's 14 plus 10) and 14 px over its first row, then
+   three rows 14 px apart. While the system theme is followed the heading and the three titles are --muted (the app gives them the
+   muted class) and every button is disabled, which the .seg rules above draw without opacity. */
+.subcat { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
+.sub-heading { margin: 0; font-size: var(--fs-small); font-weight: 600; }
+.subcat.dim .sub-heading, .subcat.dim .row-l span { color: var(--muted); }
 
 </style>
 </head>
 <body>
 <div class="mock-bar" aria-label="Mockup controls">
   <h1>Mockup: Configuration screen</h1>
-  <p>Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Appearance is dimmed on the theme's scheme, and the line says "Using the Omarchy theme."), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.</p>
+  <p>Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on and the line says "Using the Omarchy theme."; under it the Default Theme group, with Appearance, Window Opacity and Window Corners, is dimmed: Appearance on the theme's scheme, the other two on their saved values), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.</p>
   <div class="row2">
     <span class="mock-theme"><span class="label">Theme:</span>
       <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>
       <button data-t="dark" onclick="setTheme('dark')">Default theme, dark</button>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
-  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-music-no-sound.html">Display screen, a Music mode without sound</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
+  <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span><a href="display.html">Display screen</a><a href="display-music.html">Display screen, a Music mode</a><a href="display-music-no-sound.html">Display screen, a Music mode without sound</a><a href="display-scrolling.html">Display screen, a value of 100 or more</a><a href="configuration.html">Configuration screen</a><a href="configuration-gpu-list.html">Configuration, GPU list open</a><a href="configuration-theme-system.html">Configuration, the system's light preference</a><a href="configuration-theme-own.html">Configuration, OpenDeepCool's own theme</a><a href="configuration-theme-glassy.html">Configuration, a glassy window</a><a href="configuration-theme-not-found.html">Configuration, no system theme found</a><a href="first-start.html">First start</a><a href="cooler-disconnected.html">Cooler disconnected</a><a href="cooler-no-access.html">Cooler found, no access</a><a href="cooler-write-failed.html">Sending to the cooler fails</a><a href="service-not-running.html">Service not running</a><a href="boot-off.html">OpenDeepCool off, a new install</a><a href="boot-changing.html">Turning on</a><a href="boot-not-changed.html">Not turned on</a><a href="unavailable-metric.html">Unavailable metrics</a><a href="reading-lost.html">The saved mode lost a reading</a><a href="not-available.html">Not available in this session</a><a href="one-gpu.html">One GPU</a><a href="boot-partly.html">Start at boot not fully on</a><a href="boot-unknown.html">Start at boot unknown</a></nav>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1140 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
 </div>
 <div id="win" class="window"></div>
 <script>
@@ -333,7 +357,7 @@ const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": t
 // CONFIG key. The app's window has no default or minimum size and isn't resizable: it is as large as its content (the
 // widest page beside the 262 px column, under the tallest page), never larger than the smallest monitor less 48 px, and
 // scrolls where the content is larger. The mockups draw that at one size, from app.css: the window is 930 px wide and at
-// least 1007 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
+// least 1140 px high (about the height of the Configuration page, the tallest, so Display leaves room under its tiles, as
 // in the app), and a browser window narrower or shorter than that makes the page scroll inside it. The app scrolls the
 // whole content sideways below about 850 px; the mockups don't draw that. "Not available" is drawn as a small window
 // (class "only"), as small as its message.
@@ -366,6 +390,24 @@ const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": t
 //   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
 //   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
 //   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
+//
+// The Default Theme group and the window's own look (Phase 11a Tasks 44, 45, 50 and 51, 2026-11-22; docs/design/settings-app.md,
+// Theme card, and Window opacity and corners). Three new CONFIG keys, all optional; their defaults give the state of every
+// earlier page, so those pages look as before:
+// - windowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the service's WindowOpacity, the opacity of OpenDeepCool's
+//   own theme's window (1, 0.985 and 0.75, Glassy with the blur).
+// - windowCorners ("sharp" or "rounded", default "rounded"): the service's WindowCorners: sharp gives the window, the cards, the
+//   controls, the switches and the knobs square corners, rounded the radii of the own theme (window 12, boxes 10, controls 4, round
+//   switches and knobs). The dots of the pictures and of the status stay round either way.
+// - omarchyWindowOpacity ("opaque", "transparent" or "glassy", default "opaque"): the mode of Omarchy's Window Opacity, which the
+//   window follows while the sample Omarchy theme is followed (Omarchy's own default is transparent, drawn here as opaque so
+//   that the other pages look as before). The corners are the compositor's then, and the window's radius is the sample's.
+// - The Theme card's Default Theme group (heading, Appearance, Window Opacity, Window Corners) is disabled while the system
+//   theme is followed (themeState().follow) and then shows the saved values, Appearance the scheme in use; it is enabled
+//   otherwise. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
+//   palette on show with the system theme followed is opaque and rounded (neither setting applied); an own palette otherwise
+//   follows windowOpacity and windowCorners. While the window isn't opaque the page draws a striped backdrop behind it, mockup
+//   chrome, so that the see-through ground and the glassy blur show.
 const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
@@ -705,18 +747,30 @@ function themeLine(t) {
   return { text: `Using ${own}.` };
 }
 // The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
-// (and off) when none can be found; Dark and Light are insensitive while it is followed and then show the scheme in use.
+// (and off) when none can be found. Under its line stands the Default Theme subcategory (a heading and three rows: Appearance,
+// Window Opacity, Window Corners), all of it insensitive while the system theme is followed: the heading and the titles are
+// muted and every button is disabled. Appearance then shows the scheme in use, the other two their saved values.
 function themeCard() {
   const t = themeState(), line = themeLine(t);
   const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
     line.warn ? ` aria-description="${esc(line.text)}"` : ""}${t.systemFound ? "" : " disabled"} onclick="useSystem()"><span></span></button>`;
-  const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
-      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
+  const opacity = S.windowOpacity || "opaque", corners = S.windowCorners || "rounded";
+  const seg = (on, text, name, call) => `<button class="seg${on ? " on" : ""}" role="radio" aria-checked="${on}"
+      aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="${call}">${text}</button>`;
+  const dl = (isDark, text, name) => seg(t.dark === isDark, text, name, `darkTo(${isDark})`);
+  const op = (v, text, name) => seg(opacity === v, text, name, `windowOpacityTo('${v}')`);
+  const co = (v, text, name) => seg(corners === v, text, name, `windowCornersTo('${v}')`);
+  const row = (id, title, buttons) => `<div class="row"><div class="row-l"><span id="${id}">${title}</span></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="${id}">${buttons}</div></div></div>`;
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
       <div class="stack2"><div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
       <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div></div>
-      <div class="row"><div class="row-l"><span id="dl-l">Appearance</span></div>
-        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
+      <div class="subcat${t.follow ? " dim" : ""}" role="group" aria-label="Default Theme">
+        <h4 class="sub-heading">Default Theme</h4>
+        ${row("dl-l", "Appearance", dl(true, "Dark", "Dark theme") + dl(false, "Light", "Light theme"))}
+        ${row("wo-l", "Window Opacity", op("opaque", "Opaque", "Opaque window") + op("transparent", "Transparent", "Transparent window") + op("glassy", "Glassy", "Glassy window"))}
+        ${row("wc-l", "Window Corners", co("sharp", "Sharp", "Sharp corners") + co("rounded", "Rounded", "Rounded corners"))}
+      </div>
     </section>`;
 }
 
@@ -899,6 +953,7 @@ function notAvailablePage() {
 function render() {
   const win = document.getElementById("win");
   win.className = S.notAvailable ? "window only" : "window";
+  applyWindowStyle();
   const toast = `<div id="toast" class="toast" role="status"></div>`;
   if (S.notAvailable) { win.innerHTML = header() + notAvailablePage() + toast; return; }
   win.innerHTML = header() + banners() + `<div class="body">${side()}<main class="content">${
@@ -943,7 +998,31 @@ function peaks() { if (!canChange()) return; S.peaks = !S.peaks; render(); }
 // shows what the service confirms; the mockup confirms at once. The theme is resolved again and set, with no motion.
 function useSystem() { const t = themeState(); if (!canChange() || !t.systemFound) return; S.useSystemTheme = !t.follow; render(); applyTheme(); }
 function darkTo(d) { if (!canChange() || themeState().follow) return; S.darkTheme = d; render(); applyTheme(); }
+// Window Opacity and Window Corners (SetWindowOpacity, SetWindowCorners): enabled only while the system theme isn't followed; the
+// window changes in place when the service confirms, which the mockup does at once. render() applies the window's style.
+function windowOpacityTo(v) { if (!canChange() || themeState().follow) return; S.windowOpacity = v; render(); }
+function windowCornersTo(v) { if (!canChange() || themeState().follow) return; S.windowCorners = v; render(); }
 function applyTheme() { setTheme(themeState().source); }
+// The window's own look (design, Window opacity and corners): what the window paints and how its corners are cut. The
+// sample Omarchy palette on show follows Omarchy's Window Opacity and leaves the corners to the compositor; an own palette on
+// show while the system theme is followed applies neither setting (opaque, rounded); an own palette otherwise applies the
+// service's WindowOpacity and WindowCorners. 100, 98.5 and 75 are the opacities of opaque, transparent and glassy.
+const WINDOW_PCT = { opaque: 100, transparent: 98.5, glassy: 75 };
+function windowStyle() {
+  if (document.documentElement.dataset.theme === "omarchy")
+    return { pct: WINDOW_PCT[S.omarchyWindowOpacity] || 100, sharp: false };
+  if (themeState().follow) return { pct: 100, sharp: false };
+  return { pct: WINDOW_PCT[S.windowOpacity] || 100, sharp: S.windowCorners === "sharp" };
+}
+function applyWindowStyle() {
+  const win = document.getElementById("win"), root = document.documentElement, w = windowStyle();
+  win.style.setProperty("--win-pct", w.pct + "%");
+  win.classList.toggle("glassy", w.pct === WINDOW_PCT.glassy);
+  document.body.classList.toggle("show-backdrop", w.pct < 100);
+  // Sharp: no curve in the window's own chrome. The dots of the pictures and of the status are drawn round regardless.
+  ["--radius", "--radius-box", "--radius-win", "--radius-pill", "--radius-knob"].forEach(p =>
+    w.sharp ? root.style.setProperty(p, "0px") : root.style.removeProperty(p));
+}
 function setStop(id, v) { if (id === "bar") S.barFall = +v; else S.peakFall = +v; render(); }
 function toggle(id) { S.open = S.open === id ? null : id; render(); }
 function chooseGpu(i) {
@@ -973,6 +1052,7 @@ function flash(t) { const el = document.getElementById("toast"); el.textContent 
 function setTheme(t) {
   document.documentElement.dataset.theme = t;
   document.querySelectorAll(".mock-theme button").forEach(b => b.setAttribute("aria-pressed", b.dataset.t === t));
+  applyWindowStyle();
   paintAll();
 }
 // The keys (design, Keyboard): Escape or Alt+Left go back from the Configuration page, and only from there (an open

@@ -224,7 +224,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Appearance is dimmed on the theme's scheme, and the line says \"Using the Omarchy theme.\"), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.",
+            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on and the line says \"Using the Omarchy theme.\"; under it the Default Theme group, with Appearance, Window Opacity and Window Corners, is dimmed: Appearance on the theme's scheme, the other two on their saved values), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -252,7 +252,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration-theme-system.html",
             "Configuration, the system's light preference",
-            "No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, Appearance is dimmed with Light pressed, and the line says \"Using OpenDeepCool's light theme, as your desktop prefers.\" Turn the switch off in the mockup: the toggles come alive and the theme follows the service's dark theme setting.",
+            "No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, the Default Theme group is dimmed (Appearance with Light pressed, Window Opacity on Opaque and Window Corners on Rounded, their saved values), and the line says \"Using OpenDeepCool's light theme, as your desktop prefers.\" The window is opaque and rounded: while the system theme is followed, neither window setting is applied. Turn the switch off in the mockup: the group comes alive and the theme follows the service's dark theme setting.",
             config()
                 .with("omarchyTheme", Json::Bool(false))
                 .with("colorScheme", s("light")),
@@ -260,15 +260,25 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration-theme-own.html",
             "Configuration, OpenDeepCool's own theme",
-            "An Omarchy theme is found but isn't followed: the switch is off and sensitive, Light is pressed and both toggles are sensitive, and the window is in OpenDeepCool's light theme. Click Dark, and the window turns dark.",
+            "An Omarchy theme is found but isn't followed: the switch is off and sensitive, the whole Default Theme group is sensitive with Light pressed, and the window is in OpenDeepCool's light theme, opaque, with rounded corners. Click Dark, and the window turns dark; click Transparent, Glassy, Sharp or Rounded, and the window changes at once (a striped backdrop shows behind a window that isn't opaque: mockup chrome).",
             config()
                 .with("useSystemTheme", Json::Bool(false))
                 .with("darkTheme", Json::Bool(false)),
         ),
         page(
+            "configuration-theme-glassy.html",
+            "Configuration, a glassy window",
+            "OpenDeepCool's own dark theme with Glassy and Sharp chosen: the window is see-through at 0.75 over a striped backdrop (mockup chrome, not part of the app), blurred, with square corners on the window, cards, controls and switches; the preview's frame stays solid. Click Opaque, Transparent or Rounded to see the other settings. Turn Use system theme on: the Default Theme group dims, and the window takes the sample Omarchy theme and Omarchy's window mode, which this page sets to glassy too, so it stays see-through while its corners are the sample's.",
+            config()
+                .with("useSystemTheme", Json::Bool(false))
+                .with("windowOpacity", s("glassy"))
+                .with("windowCorners", s("sharp"))
+                .with("omarchyWindowOpacity", s("glassy")),
+        ),
+        page(
             "configuration-theme-not-found.html",
             "Configuration, no system theme found",
-            "The switch is off and dimmed, the warning line says \"OpenDeepCool can't find the system's theme and is using its own.\", and Dark is pressed and both toggles are sensitive, in OpenDeepCool's dark theme.",
+            "The switch is off and dimmed, the warning line says \"OpenDeepCool can't find the system's theme and is using its own.\", and the Default Theme group is sensitive, with Dark pressed, in OpenDeepCool's dark theme.",
             config()
                 .with("omarchyTheme", Json::Bool(false))
                 .with("colorScheme", s("unsupported")),
@@ -412,7 +422,7 @@ const TEMPLATE: &str = r#"<!DOCTYPE html>
       <button data-t="light" onclick="setTheme('light')">Default theme, light</button></span>
   </div>
   <nav class="row2" style="margin-top:6px"><span class="label">Mockups:</span>@@NAV@@</nav>
-  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1007 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
+  <p style="margin:6px 0 0;font-size:12px">Everything above the window is mockup chrome, not part of the app. Readings, chips and GPU names are made up. The window is drawn at its natural size (930 × 1140 px here); a browser window narrower or shorter than that scrolls the page inside it, as the app does on a small monitor. The preview and the tiles move in the app; a mockup shows one moment of them, with each strip at its home position and each loop at its first picture.</p>
 </div>
 <div id="win" class="window"></div>
 <script>

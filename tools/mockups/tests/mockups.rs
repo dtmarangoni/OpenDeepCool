@@ -29,7 +29,7 @@ fn writing_in_memory_gives_every_committed_mockup_byte_for_byte() {
         })
         .collect();
     assert_eq!(names, committed, "a page without its state, or the reverse");
-    assert_eq!(names.len(), 23);
+    assert_eq!(names.len(), 24);
 }
 
 #[test]
@@ -76,29 +76,29 @@ struct Palette {
 const PALETTES: [Palette; 3] = [
     Palette {
         name: "default dark",
-        background: "#202326",
-        surface: "#2a2e33",
-        foreground: "#e6e3dc",
-        muted: "#9ca1aa",
-        accent: "#fbf8f0",
-        red: "#ff7a66",
-        yellow: "#e8c14f",
-        green: "#6dd28b",
+        background: "#0f2630",
+        surface: "#183846",
+        foreground: "#f1ece2",
+        muted: "#8fb0b8",
+        accent: "#fb7fb0",
+        red: "#ff6b57",
+        yellow: "#f0c94e",
+        green: "#5fd68a",
         selected: 0.16,
         border: 0.44,
     },
     Palette {
         name: "default light",
-        background: "#e4e6e9",
-        surface: "#ffffff",
-        foreground: "#1b1e22",
-        muted: "#565c66",
-        accent: "#0a0c0f",
+        background: "#d2e0e6",
+        surface: "#f6fafb",
+        foreground: "#0e2a35",
+        muted: "#42606a",
+        accent: "#b0145f",
         red: "#b93a22",
         yellow: "#7a5200",
         green: "#1d7a3f",
         selected: 0.14,
-        border: 0.54,
+        border: 0.56,
     },
     Palette {
         name: "sample Omarchy",
@@ -184,13 +184,13 @@ fn the_default_theme_has_the_contrast_the_design_states() {
         (
             "default dark",
             [
-                12.3, 10.7, 6.1, 5.3, 14.9, 12.9, 9.2, 7.9, 6.2, 8.5, 6.9, 3.5, 8.9, 9.6, 5.6,
+                13.3, 10.5, 6.8, 5.4, 6.5, 5.2, 9.8, 7.8, 5.6, 8.6, 6.7, 3.7, 9.5, 4.1, 8.7,
             ],
         ),
         (
             "default light",
             [
-                13.4, 16.7, 5.4, 6.7, 15.7, 19.6, 5.5, 6.9, 4.5, 4.3, 12.6, 3.4, 10.6, 11.9, 7.7,
+                11.1, 14.3, 5.0, 6.4, 5.0, 6.4, 5.1, 6.6, 4.2, 4.0, 10.9, 3.3, 8.9, 3.9, 7.3,
             ],
         ),
     ];
@@ -223,7 +223,7 @@ fn the_default_theme_has_the_contrast_the_design_states() {
     assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.4).abs() < 1e-9);
     let light = &PALETTES[1];
     let selected = blend(rgb(light.foreground), rgb(light.surface), light.selected);
-    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.1).abs() < 1e-9);
+    assert!((tenths(ratio(rgb(light.muted), selected)) - 4.9).abs() < 1e-9);
     let sample = &PALETTES[2];
     let bg = rgb(sample.background);
     for (colour, want) in [
