@@ -271,14 +271,23 @@ scale > trough > slider {
   min-width: 16px;
   min-height: 16px;
   margin: -7px;
-  border-style: none;
   border-radius: 100%;
-  background-image: none;
-  background-color: var(--fg);
-  box-shadow: none;
 }
 
-scale > trough > slider:disabled {
+/* One knob for the scales and the switches (owner, 2026-11-22: the sliders' button in the colour
+   of the toggles'): --fg with a 1 px --bg ring, so it shows on the --accent bar or trough in every
+   theme, and --muted when insensitive. GTK's own theme paints a gradient image and a coloured
+   border over a knob's background-color, so both are cleared here. */
+scale > trough > slider,
+switch > slider {
+  background-image: none;
+  background-color: var(--fg);
+  border-style: none;
+  box-shadow: 0 0 0 1px var(--bg);
+}
+
+scale > trough > slider:disabled,
+switch:disabled > slider {
   background-color: var(--muted);
 }
 
@@ -307,14 +316,6 @@ switch:checked {
 switch > slider {
   min-width: 14px;
   min-height: 14px;
-  background-color: var(--fg);
-}
-
-/* An --fg knob on an --accent trough would be about 1.2:1 in OpenDeepCool's own theme, where
-   both are light in the dark theme and both dark in the light one: the knob of an on switch is
-   the background's colour (Theme card, The look). */
-switch:checked > slider {
-  background-color: var(--bg);
 }
 
 /* Insensitive: the normal fill and border and a muted slider, without opacity (decisions log
@@ -327,10 +328,6 @@ switch:disabled {
 
 switch:disabled:checked {
   background-color: var(--accent);
-}
-
-switch:disabled > slider {
-  background-color: var(--muted);
 }
 
 .feedback {

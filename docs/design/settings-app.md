@@ -49,6 +49,7 @@ The owner delegated the design choices (2026-10-25). These are final for v1.
 | D26 | The space between a page's title and its content (Phase 11a Task 32, 2026-11-19, from the owner's list: "between 'Display' and its content, 'Configuration' and its content") | **14 px**, from 6, on both pages: the page bar gets 8 px below it, and the content's own 6 px top margin is kept | One change in the shared page bar serves both pages and the tiles' or cards' own margins stay; 14 px is the card's own spacing between its heading and its first row, so the title sits at the distance a heading does from what it heads |
 | D27 | A running Start at boot flip shows no line (Phase 11a Task 33, 2026-11-22, from the owner's list: "when switching on/off the Start at boot, don't show a phrase below saying that is turning on or off ... this is unnecessary") | The three lines "Turning on…", "Turning on… Starting the sound…" and "Turning off…" go, and the card shows **no note at all** while a flip runs; a failure, "Not fully on" and the other notes keep their rules and show after the flip | The moved handle, the trough still at systemd's state and the insensitive switch already show a flip, and the desktop's own dialog names what it asks for; showing the saved state's "Not fully on" note while a flip runs would say "Turn it on to finish" to someone who just did, so none shows until the flip ends |
 | D28 | The switches' place in a row (Phase 11a Task 34, 2026-11-22, from the owner's list: "the toggles should be top aligned with its label. So, Use system theme should be top aligned with its toggle, Peak dots with its toggle, Start at boot as well") | **Every control's top is its label block's top**: the three switches `valign` start, like the dropdown and the scales already; the toggle-button groups, as tall as a row, don't move | One rule for every row replaces two (centred for toggles and switches, top for the rest); only Peak dots, whose title has a hint under it, changed by more than a pixel |
+| D29 | The knobs' colour (Phase 11a Task 35, 2026-11-22, from the owner's list: "Make the color of slider button the same color of toggle button") | **One knob for the scales and the switches in every state: `--fg` with a 1 px `--bg` ring, `--muted` while insensitive**, with the stock gradient and border cleared (`background-image: none`, `border-style: none`, `box-shadow`); a switch's own knob stops being `--bg` when on | A render showed that the switch's knob was GTK's white (its gradient and blue border covered the stylesheet's colour) while the scale's was `--fg`; the owner saw two colours. Matching the scale to the switch's `--bg` knob would put a dark disc on a dark card (about 1.2:1); `--fg` on both, with a ring against the accent, shows in every theme, and the ring is the contrast table's row 5 pair |
 
 Answers to the pass-1 questions, decided under the owner's delegation (2026-10-25):
 
@@ -713,7 +714,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
     ```
 
     It reads more specifically than the plain `button:checked` and `button:disabled` rules and the icon buttons', so its place in the file doesn't matter;
-  - the knob of an on switch is `--bg`, not `--fg`: `switch:checked > slider { background-color: var(--bg); }`, placed after `switch > slider` and before the `switch:disabled` rules, which keep the knob `--muted` while insensitive. An `--fg` knob on an `--accent` trough would be about 1.2:1 in OpenDeepCool's own theme (both are light in the dark theme, both dark in the light one); `--bg` on `--accent` is the pair of row 5 in [the contrast table](#the-contrast-table). Whether the selector reads that way in GTK's CSS is **unverified** ([Unverified points, answered (Phase 11a Task 11)](#unverified-points-answered-phase-11a-task-11-2026-11-19)).
+  - the knob of an on switch was `--bg`, not `--fg` (an `--fg` knob on an `--accent` trough is about 1.2:1 in OpenDeepCool's own theme, both light in the dark theme and both dark in the light one). **Replaced in Phase 11a Task 35 (2026-11-22):** a rendered page showed that GTK's own gradient image and blue border drew over the app's `background-color`, so the knob was GTK's white, not `--bg`; the knob is now one for every switch state and every scale, `--fg` with a 1 px `--bg` ring, and the ring is the pair of row 5 in [the contrast table](#the-contrast-table) (see [The scales' knobs](#the-scales-knobs), One knob).
 - **States,** from the four inputs of [Which theme is used](#which-theme-is-used):
 
   | State | Use system theme | Dark or light | The line |
@@ -778,7 +779,7 @@ The mockups are static, so each shows **one moment** of what the app draws; the 
 
 The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32 × 18 px** (owner, 2026-11-18: "a little bit smaller", made 40 × 22; owner, 2026-11-19: "too big", made 32 × 18; GTK's own is 48 × 24, which Phase 11a Task 1 measured). Only they change: the rotation and unit toggle buttons keep their size, and the scales' knobs are set in [The scales' knobs](#the-scales-knobs).
 
-- **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size changes, and the knob of an on switch becomes `--bg` (Phase 11a Task 11: `switch:checked > slider`, [Theme card](#theme-card), The look), so the knob shows against an `--accent` trough in every theme. The knob is the trough's height less 4 px, 14 px, the relation of Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 14 px.
+- **The look.** A switch keeps its fill, border and states (the trough at the `--accent` fill while `:checked`, a `--muted` slider while insensitive, no `opacity`: decisions log D43). Only its size and its knob change: the knob is the one of [The scales' knobs](#the-scales-knobs) (Phase 11a Task 35), `--fg` with a 1 px `--bg` ring in every state, `--muted` while insensitive; the on switch's `--bg` knob of Task 11 never showed (GTK's own gradient and border drew over it). The knob is the trough's height less 4 px, 14 px, the relation of Task 1's measured recipe (a 14 px slider in an 18 px switch), and the handle travels 14 px.
 - **The stylesheet** gets two sizes in `app.css`, in the rules the switch already has. Colours stay tokens; the test that no colour literal or `opacity` appears outside `:root` still passes, because a length isn't either:
 
   ```css
@@ -790,13 +791,12 @@ The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32
   }
 
   switch > slider {
-    background-color: var(--fg);
     min-width: 14px;
     min-height: 14px;
   }
   ```
 
-  The rules for `switch:checked`, `switch:disabled`, `switch:disabled:checked` and `switch:disabled > slider` stay as they are. One rule is added (Task 26, measured): `switch image { -gtk-icon-size: 1px; }`. With only the four lengths above the switch measured 34 × 18, two pixels wider than they give; with this rule 32 × 18. Not `0px`: GTK then logs a critical, "gtk_icon_theme_lookup_by_gicon: assertion 'size > 0' failed", at every window. The cause is **unverified**: the two `image` nodes of GtkSwitch's CSS node list, the on and off marks this theme never shows, are the likely one, which is why the rule names them.
+  The knob's colour is not here: the one rule of [The scales' knobs](#the-scales-knobs) (One knob) gives the switches' and the scales' knobs their colour. The rules for `switch:checked`, `switch:disabled` and `switch:disabled:checked` stay as they are. One rule is added (Task 26, measured): `switch image { -gtk-icon-size: 1px; }`. With only the four lengths above the switch measured 34 × 18, two pixels wider than they give; with this rule 32 × 18. Not `0px`: GTK then logs a critical, "gtk_icon_theme_lookup_by_gicon: assertion 'size > 0' failed", at every window. The cause is **unverified**: the two `image` nodes of GtkSwitch's CSS node list, the on and off marks this theme never shows, are the likely one, which is why the rule names them.
 - **The size is the design, the numbers are the means.** docs.gtk.org's CSS Properties page lists `min-width` and `min-height` and doesn't say which box they measure, and Task 1 didn't record whether its 34 × 18 had the border of the app's stylesheet (**unverified**). The test pins the outcome: with the app's stylesheet loaded, the switch's minimum and natural size, in both directions, is 32 × 18 (`measure()` of the realised widget), so the implementer adjusts the four lengths until it is (the app's are 30, 16, 14 and 14, the border being outside). Whether GTK lets the slider leave a gap inside the trough, or fills its height as GTK's own theme may do, is also **unverified**: the mockups draw the gap (1 px beside the 1 px border), and the app takes what GTK draws at a 14 px slider.
 - **Why 32 × 18:**
   - GTK's default is 2 : 1. 32 × 18 is 1.8 : 1, the same pill as 40 × 22 was, so it reads as the same control, a third narrower than GTK's and a quarter lower, and a fifth under the 40 × 22 the owner found too big (2026-11-19): smaller at a glance without a switch that looks like a checkbox.
@@ -806,7 +806,7 @@ The three `GtkSwitch`es, Use system theme, Peak dots and Start at boot, are **32
   - Nothing that takes a pointer lies within 3 px of it: the rows are 14 px apart (the card's spacing), a label beside it is no target, and the scale below the Peak dots switch hangs 14 px lower. So the spacing exception applies, and the AA level holds with no change to the hit area.
   - The icon buttons are 32 × 32, the toggle buttons and the dropdown are taller than 24, and a scale is GTK's own, so no other control relies on an exception.
 - **Placement:** `halign` start in its row (Start at boot's was end), `valign` center ([Rows](#rows)).
-- **The mockups** draw the three switches at 32 × 18 with a 14 px knob, in every state: off, on (the knob `--bg` on the `--accent` trough), the handle ahead of the trough while a flip runs, and insensitive (a `--muted` knob, no opacity).
+- **The mockups** draw the three switches at 32 × 18 with a 14 px knob, in every state: off, on (the `--fg` knob and its `--bg` ring on the `--accent` trough), the handle ahead of the trough while a flip runs, and insensitive (a `--muted` knob, no opacity).
 
 ### The scales' knobs
 
@@ -820,22 +820,33 @@ The knobs of the Bar fall and Peak fall scales are **round and 16 px** (owner, 2
     min-width: 16px;
     min-height: 16px;
     margin: -7px;
-    border-style: none;
     border-radius: 100%;
+  }
+  ```
+
+  Its colour is the one knob below.
+
+  **One knob** (Phase 11a Task 35, owner, 2026-11-22: "Make the color of slider button the same color of toggle button"). The knob of a scale and the knob of a switch, on or off, are one rule:
+
+  ```css
+  scale > trough > slider,
+  switch > slider {
     background-image: none;
     background-color: var(--fg);
-    box-shadow: none;
+    border-style: none;
+    box-shadow: 0 0 0 1px var(--bg);
   }
 
-  scale > trough > slider:disabled {
+  scale > trough > slider:disabled,
+  switch:disabled > slider {
     background-color: var(--muted);
   }
   ```
 
-  A knob of `--fg`, the colour of an off switch's knob, and `--muted` while insensitive, no `opacity`. The theme's `:hover` and `:active` knobs are not repeated: the app's rule overrides them all, since a provider at APPLICATION priority beats the theme's whatever the selector, so the knob does not change colour under the pointer. The focus ring is the scale's own (`scale:focus:focus-visible > trough`, the theme's).
+  The knob is `--fg`, `--muted` while insensitive, no `opacity`, with a 1 px `--bg` ring that keeps it apart from an `--accent` bar or trough in every theme (the knob against the card is `--fg` on `--surface`; the ring against the accent is the `--bg`/`--accent` pair of the contrast table's row 5). **Why the rule clears two more properties** (Verified 2026-11-22 from pixels GTK drew in a headless weston, with the app's stylesheet loaded): the stock theme paints a gradient `background-image` and a blue `border` on a switch's knob, which hid the `background-color` of Tasks 8 and 11, so an on switch's knob was GTK's white, not `--bg`, and a scale's knob was the only one in the theme's foreground; the owner saw two colours. The theme's `:hover` and `:active` knobs are not repeated: the app's rule overrides them all, since a provider at APPLICATION priority beats the theme's whatever the selector, so the knob does not change colour under the pointer. The focus ring is the scale's own (`scale:focus:focus-visible > trough`, the theme's). **Found and not changed:** the scale's filled bar (`scale > trough > highlight`) shows GTK's blue in the same render, not `--accent`, for the same reason (a stock gradient image over the `background-color`); the owner asked only for the knob.
 - **The margin is the bar's height.** GTK sizes the trough from its slider: the slider's size less its margins, plus the trough's 1 px borders. The theme's pin leaves 2 px (22 − 20) and the trough 4 px. The knob's 16 px with a margin of −7 px on every side leaves 2 px as well, so the trough, the bar, the scale (34 px with its marks) and the rows keep their sizes. Measured: before and after, the range rectangle is 296 × 4 px and the scale 34 px high. With a margin of −8 px the trough fell to 2 px, and the bar with it.
 - **The test** pins the outcome, not the lengths: for both scales, `slider_range()` spans 16 px and `range_rect()` is 4 px high.
-- **The mockups** draw the two scales with a 4 px bar (1 px border, the fill up to the knob in `--accent`) and a round 16 px knob in `--fg`, `--muted` when insensitive, in WebKit's and Firefox's range pseudo-elements.
+- **The mockups** draw the two scales with a 4 px bar (1 px border, the fill up to the knob in `--accent`) and a round 16 px knob in `--fg` with the 1 px `--bg` ring, `--muted` when insensitive, in WebKit's and Firefox's range pseudo-elements; the switches' knobs have the same ring.
 - **The pointer target.** The knob is 16 × 16 px, under WCAG 2.2 SC 2.5.8's 24 × 24 px. The criterion's **spacing** exception holds as for the switches: no other target lies within 4 px of it (the rows are 14 px apart and the marks are labels), and a click or tap on the bar moves the knob there, so the control has a larger target than the knob. The scale keeps its keyboard operation (arrows, Home and End).
 
 ## Banners
@@ -1315,7 +1326,7 @@ WCAG 2 relative-luminance ratios, **computed on 2026-11-19 by a script from the 
 | 2 | text on surface (4.5) | 10.7 | 16.7 |
 | 3 | muted text on background (4.5) | 6.1 | 5.4 |
 | 4 | muted text on surface (4.5) | 5.3 | 6.7 |
-| 5 | accent on background (4.5, link text, and an on switch's knob `--bg` on its `--accent` trough) | 14.9 | 15.7 |
+| 5 | accent on background (4.5, link text, and the `--bg` ring of a knob on an `--accent` bar or trough) | 14.9 | 15.7 |
 | 6 | accent on surface (4.5) | 12.9 | 19.6 |
 | 7 | warning text (yellow) on background (4.5) | 9.2 | 5.5 |
 | 8 | warning text (yellow) on surface (4.5) | 7.9 | 6.9 |

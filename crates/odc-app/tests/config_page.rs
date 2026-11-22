@@ -15,13 +15,13 @@ use odc_app::ui::window::Window;
 use odc_app::ui::{Reason, Refused, Request};
 use odc_ipc::{FallStop, Gpu, GpuKind, State, TemperatureUnit};
 
-use common::{Check, Renderer, base, close, label_texts, run_for, save_png, shown};
+use common::{Check, Picture, Renderer, base, close, label_texts, near, run_for, save_png, shown};
 
 fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 9] = [
+const CHECKS: [(&str, Check); 10] = [
     ("the_rows_sit_left_with_their_controls_in_one_column", rows),
     ("every_control_asks_for_its_call", calls),
     (
@@ -39,6 +39,7 @@ const CHECKS: [(&str, Check); 9] = [
         theme_line_place,
     ),
     ("the_cards_are_10_px_apart", card_gaps),
+    ("the_scales_and_the_switches_share_one_knob", knob_colours),
     ("the_page_saved_as_a_picture", picture_file),
 ];
 
@@ -502,6 +503,52 @@ fn refused(app: &gtk::Application) {
     // Asking for the same stop again, after the refusal, asks again.
     find::<gtk::Scale>(&window, "Bar fall").set_value(4.0);
     assert_eq!(taken(&asked), [Request::SetMusicBarFall(FallStop::Faster)]);
+    close(window);
+}
+
+// The knob of a scale is the colour of a switch's knob, on and off (owner, 2026-11-22): the
+// theme's foreground, read from the pixels GTK draws, since a stock gradient or border would
+// show nowhere else. The test theme's tokens are `Tokens::default_theme(true)`.
+fn knob_colours(app: &gtk::Application) {
+    let tokens = odc_app::theme::Tokens::default_theme(true);
+    let (window, _) = shown(app);
+    window.state(with(|s| s.music_peaks = Some(true)));
+    WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(300));
+    let root = window.widget().clone();
+    let renderer = Renderer::new();
+    let bounds = |widget: &gtk::Widget| widget.compute_bounds(&root).expect("a place");
+    // A switch is 32 x 18 with a 14 px knob: at the right end when on, the left when off.
+    let peaks = find::<gtk::Switch>(&window, "Peak dots");
+    let place = bounds(peaks.upcast_ref());
+    let picture = Picture::of(&renderer.0, &root);
+    let on = picture.at((place.x() + 24.0) as i32, (place.y() + 9.0) as i32);
+    assert!(near(on, tokens.fg), "the on switch's knob is {on:?}");
+    window.state(with(|s| s.music_peaks = Some(false)));
+    run_for(Duration::from_millis(300));
+    let picture = Picture::of(&renderer.0, &root);
+    let off = picture.at((place.x() + 8.0) as i32, (place.y() + 9.0) as i32);
+    assert!(near(off, tokens.fg), "the off switch's knob is {off:?}");
+    // A scale's knob is a disc of about 200 px in the theme's foreground: that many pixels of the
+    // scale's area have its colour (the bar is the accent, the marks and the ring are not).
+    for name in ["Bar fall", "Peak fall"] {
+        let scale = find::<gtk::Scale>(&window, name);
+        let place = bounds(scale.upcast_ref());
+        let (left, top) = (place.x() as i32, place.y() as i32);
+        let mut count = 0;
+        for y in 0..place.height() as i32 {
+            for x in 0..place.width() as i32 {
+                if near(picture.at(left + x, top + y), tokens.fg) {
+                    count += 1;
+                }
+            }
+        }
+        assert!(
+            (120..=260).contains(&count),
+            "{name}: {count} px of the foreground colour, a 16 px knob has about 200"
+        );
+    }
+    drop(renderer);
     close(window);
 }
 

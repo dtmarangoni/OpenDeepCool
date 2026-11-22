@@ -205,31 +205,31 @@ button { font: inherit; color: inherit; }
    1 px border. The padding box is 30 x 16, so the knob rests at left 1 and, switched on, at left 15. */
 .switch { width: 32px; height: 18px; border-radius: 9px; border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); position: relative; cursor: pointer; padding: 0; }
-.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); transition: none; }
+.switch span { position: absolute; top: 1px; left: 1px; width: 14px; height: 14px; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); transition: none; }
 .switch.on { background: var(--accent); border-color: var(--accent); }
-.switch.on span { left: 15px; background: var(--bg); }
+.switch.on span { left: 15px; }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
-.switch.state-on span { background: var(--bg); }
 .switch.handle-on span { left: 15px; }
-/* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do) */
+/* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do).
+   Every knob, a switch's or a scale's, is --fg with a 1 px --bg ring (Task 35, the owner: the sliders' button in the toggles' colour). */
 .switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
 /* The Startup card in the window's body while the service is down */
 .empty .boot-card { margin: 18px auto 0; width: 560px; max-width: 100%; text-align: left; }
 .off-screen { width: 560px; max-width: 100%; }
 .scale { width: 320px; }
 /* The scales (design, Configuration page, The scales' knobs): a 4 px bar (1 px border, the fill up to the knob in --accent)
-   and a plain round 16 px knob in --fg, --muted when insensitive. --p is the knob's centre along the bar. */
+   and a plain round 16 px knob in --fg with a 1 px --bg ring, --muted when insensitive. --p is the knob's centre along the bar. */
 .scale input { width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; -webkit-appearance: none; appearance: none; }
 .scale input::-webkit-slider-runnable-track { box-sizing: border-box; height: 4px; border-radius: 3px;
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: linear-gradient(to right, var(--accent) var(--p), color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent) var(--p)); }
-.scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: 50%; background: var(--fg); }
+.scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
 .scale input::-moz-range-track { box-sizing: border-box; height: 4px; border-radius: 3px;
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); }
 .scale input::-moz-range-progress { height: 2px; border-radius: 3px; background: var(--accent); }
-.scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--fg); }
+.scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 50%; background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
 .scale input:disabled::-webkit-slider-thumb { background: var(--muted); }
 .scale input:disabled::-moz-range-thumb { background: var(--muted); }
 .marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
@@ -252,7 +252,7 @@ button { font: inherit; color: inherit; }
 <body>
 <div class="mock-bar" aria-label="Mockup controls">
   <h1>Mockup: Configuration screen</h1>
-  <p>Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Dark or light is dimmed on the theme's scheme, and the line says "Using the Omarchy theme."), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px.</p>
+  <p>Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on, Dark or light is dimmed on the theme's scheme, and the line says "Using the Omarchy theme."), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.</p>
   <div class="row2">
     <span class="mock-theme"><span class="label">Theme:</span>
       <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>

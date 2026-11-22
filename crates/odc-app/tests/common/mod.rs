@@ -303,6 +303,37 @@ pub fn dots_of(renderer: &gsk::CairoRenderer, area: &gtk::DrawingArea, pitch: f6
     colours
 }
 
+/// `widget` as GTK last drew it, to read colours from.
+pub struct Picture {
+    bytes: gtk::glib::Bytes,
+    stride: usize,
+}
+
+impl Picture {
+    pub fn of(renderer: &gsk::CairoRenderer, widget: &impl IsA<gtk::Widget>) -> Picture {
+        let widget = widget.as_ref();
+        let paintable = gtk::WidgetPaintable::new(Some(widget));
+        let snapshot = gtk::Snapshot::new();
+        paintable.snapshot(
+            &snapshot,
+            f64::from(widget.width()),
+            f64::from(widget.height()),
+        );
+        let node = snapshot.to_node().expect("the widget draws something");
+        let texture = renderer.render_texture(&node, None);
+        let mut downloader = gdk::TextureDownloader::new(&texture);
+        downloader.set_format(gdk::MemoryFormat::R8g8b8a8);
+        let (bytes, stride) = downloader.download_bytes();
+        Picture { bytes, stride }
+    }
+
+    /// The colour at `(x, y)`.
+    pub fn at(&self, x: i32, y: i32) -> [u8; 3] {
+        let at = y as usize * self.stride + x as usize * 4;
+        [self.bytes[at], self.bytes[at + 1], self.bytes[at + 2]]
+    }
+}
+
 pub fn near(got: [u8; 3], want: Rgb) -> bool {
     got.iter()
         .zip(want.0)
