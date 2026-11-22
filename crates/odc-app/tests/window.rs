@@ -688,8 +688,8 @@ fn feedback(app: &gtk::Application) {
         window.feedback().as_deref(),
         Some("Not changed. This session may not change settings.")
     );
-    // The label is centred over the right panel (the pages), 16 px above its foot, not over the
-    // whole window (owner, 2026-11-19).
+    // The label is centred over the right panel (the pages), 48 px above its foot (owner,
+    // 2026-11-22: 16 px before), not over the whole window (owner, 2026-11-19).
     run_for(Duration::from_millis(100));
     let label = window.names().find("Change feedback").expect("the label");
     let panel = label.parent().expect("the pages' overlay");
@@ -712,8 +712,8 @@ fn feedback(app: &gtk::Application) {
     );
     assert_eq!(
         (panel_at.y() + panel_at.height()) - (label_at.y() + label_at.height()),
-        16.0,
-        "the label stands 16 px above the panel's foot"
+        48.0,
+        "the label stands 48 px above the panel's foot"
     );
     window.refusal(
         Refused::Refresh,

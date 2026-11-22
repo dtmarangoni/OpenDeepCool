@@ -414,7 +414,8 @@ impl Window {
             .css_classes(["feedback"])
             .halign(gtk::Align::Center)
             .valign(gtk::Align::End)
-            .margin_bottom(16)
+            // 48 px above the panel's foot (owner, 2026-11-22: three times the 16 px before).
+            .margin_bottom(48)
             .visible(false)
             .build();
         names.name(&feedback, "Change feedback");
