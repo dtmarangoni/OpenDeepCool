@@ -401,7 +401,7 @@ function bootCard(where) {
   const cls = note && note.kind === "warn" ? "warn-text" : note && note.kind === "info" ? "muted" : "";
   return `<section class="card boot-card" aria-label="Startup settings">${where === "config" ? "<h3>Startup</h3>" : ""}
     <div class="row"><div class="row-l"><span>Start at boot</span></div>
-      <div class="row-r mid">${bootSwitch(note)}</div></div>
+      <div class="row-r">${bootSwitch(note)}</div></div>
     ${note ? `<div class="hint boot-note ${cls}" role="status" aria-label="Start at boot status">${icon}<span>${esc(note.text)}</span></div>` : ""}
   </section>`;
 }
@@ -441,10 +441,10 @@ function themeCard() {
   const dl = (isDark, text, name) => `<button class="seg${t.dark === isDark ? " on" : ""}" role="radio" aria-checked="${t.dark === isDark}"
       aria-label="${name}"${t.follow ? ' aria-description="Set by the system theme." disabled' : ""} onclick="darkTo(${isDark})">${text}</button>`;
   return `<section class="card" aria-label="Theme settings"><h3>Theme</h3>
-      <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r mid">${sys}</div></div>
+      <div class="row"><div class="row-l"><span id="sys-l">Use system theme</span></div><div class="row-r">${sys}</div></div>
       <div class="hint ${line.warn ? "warn-text" : "muted"}" role="status" aria-label="Theme status">${line.warn ? ICON.warn : ""}<span>${esc(line.text)}</span></div>
       <div class="row"><div class="row-l"><span id="dl-l">Dark or light</span></div>
-        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="dl-l">${dl(true, "Dark", "Dark theme")}${dl(false, "Light", "Light theme")}</div></div></div>
     </section>`;
 }
 
@@ -593,14 +593,14 @@ function configPage() {
     ${themeCard()}
     <section class="card" aria-label="Display settings"><h3>Display</h3>
       <div class="row"><div class="row-l"><span id="rot-l">Rotation</span></div>
-        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="rot-l">${rot}</div></div></div>
       <div class="row"><div class="row-l"><span id="unit-l">Temperature unit</span></div>
-        <div class="row-r mid"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
+        <div class="row-r"><div class="segs" role="radiogroup" aria-labelledby="unit-l">${unitBtn("C", "°C", "Celsius")}${unitBtn("F", "°F", "Fahrenheit")}</div></div></div>
       ${gpuRow}
     </section>
     <section class="card" aria-label="Music settings"><h3>Music</h3>
       <div class="row"><div class="row-l"><span id="pk-l">Peak dots</span><span class="muted small">A dot above each bar that falls slowly</span></div>
-        <div class="row-r mid"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
+        <div class="row-r"><button class="switch${S.peaks ? " on" : ""}" role="switch" aria-checked="${S.peaks}" aria-label="Peak dots"${dis()} onclick="peaks()"><span></span></button></div></div>
       ${slider("bar", "Bar fall", S.barFall)}
       ${slider("peak", "Peak fall", S.peakFall)}
     </section>

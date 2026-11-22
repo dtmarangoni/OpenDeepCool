@@ -65,9 +65,10 @@ impl StartupCard {
         let heading = small("Startup", &["card-heading"]);
         card.append(&heading);
 
+        // Level with the top of the title, as every row's control is (owner, 2026-11-22).
         let switch = gtk::Switch::builder()
             .halign(gtk::Align::Start)
-            .valign(gtk::Align::Center)
+            .valign(gtk::Align::Start)
             .build();
         names.name(&switch, boot::TITLE);
         let applying = Rc::new(Cell::new(false));

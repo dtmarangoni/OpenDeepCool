@@ -119,16 +119,15 @@ const HINT_WIDTH_CHARS: i32 = 28;
 
 /// A card's row (`docs/design/settings-app.md`, Rows): the label block, the setting's title with
 /// its hint under it, then the control, 24 px apart and left-aligned, nothing expanding. Every
-/// label block is in `labels`, so the controls of all the cards start at one x. `centred` puts
-/// the control level with the middle of the block (the toggles and the switches), else with its
-/// top (the dropdown and the scales).
+/// label block is in `labels`, so the controls of all the cards start at one x. The control's top
+/// is the block's top, whatever the control (owner, 2026-11-22: the switches level with their
+/// labels, which the Peak dots' hint made a half-hint lower when they were centred).
 fn row(
     card: &gtk::Box,
     labels: &gtk::SizeGroup,
     title: &str,
     hint: Option<&str>,
     control: &impl IsA<gtk::Widget>,
-    centred: bool,
 ) -> gtk::Box {
     let line = gtk::Box::builder().spacing(24).build();
     let block = gtk::Box::builder()
@@ -148,11 +147,7 @@ fn row(
     labels.add_widget(&block);
     control.set_halign(gtk::Align::Start);
     control.set_hexpand(false);
-    control.set_valign(if centred {
-        gtk::Align::Center
-    } else {
-        gtk::Align::Start
-    });
+    control.set_valign(gtk::Align::Start);
     line.append(&block);
     line.append(control);
     card.append(&line);
@@ -228,7 +223,7 @@ impl ConfigPage {
             }
             glib::Propagation::Stop
         });
-        row(&theme, &labels, "Use system theme", None, &use_system, true);
+        row(&theme, &labels, "Use system theme", None, &use_system);
         // The line under Use system theme (owner, 2026-11-19; it was at the card's foot): one line
         // in every state, so the card keeps its height.
         let theme_icon = gtk::Image::builder()
@@ -252,10 +247,7 @@ impl ConfigPage {
         dark.set_active(true);
         names.name(&dark, "Dark theme");
         names.name(&light, "Light theme");
-        let dark_or_light = gtk::Box::builder()
-            .css_classes(["linked"])
-            .valign(gtk::Align::Center)
-            .build();
+        let dark_or_light = gtk::Box::builder().css_classes(["linked"]).build();
         for (button, wanted) in [(&dark, true), (&light, false)] {
             dark_or_light.append(button);
             let (send, confirmed, applying) = (
@@ -280,7 +272,7 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(&theme, &labels, "Dark or light", None, &dark_or_light, true);
+        row(&theme, &labels, "Dark or light", None, &dark_or_light);
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
         let rotations: [gtk::ToggleButton; 4] = std::array::from_fn(|r| {
@@ -288,10 +280,7 @@ impl ConfigPage {
                 .label(format!("{}°", r * 90))
                 .build()
         });
-        let toggles = gtk::Box::builder()
-            .css_classes(["linked"])
-            .valign(gtk::Align::Center)
-            .build();
+        let toggles = gtk::Box::builder().css_classes(["linked"]).build();
         for (r, toggle) in rotations.iter().enumerate() {
             if r > 0 {
                 toggle.set_group(Some(&rotations[0]));
@@ -319,7 +308,7 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(&display, &labels, "Rotation", None, &toggles, true);
+        row(&display, &labels, "Rotation", None, &toggles);
 
         // The temperature unit, after Rotation: the same kind of control.
         let celsius = gtk::ToggleButton::builder().label("°C").build();
@@ -330,10 +319,7 @@ impl ConfigPage {
         celsius.set_active(true);
         names.name(&celsius, "Celsius");
         names.name(&fahrenheit, "Fahrenheit");
-        let unit_toggles = gtk::Box::builder()
-            .css_classes(["linked"])
-            .valign(gtk::Align::Center)
-            .build();
+        let unit_toggles = gtk::Box::builder().css_classes(["linked"]).build();
         for (button, wanted) in [
             (&celsius, TemperatureUnit::Celsius),
             (&fahrenheit, TemperatureUnit::Fahrenheit),
@@ -360,14 +346,7 @@ impl ConfigPage {
                 applying.set(false);
             });
         }
-        row(
-            &display,
-            &labels,
-            "Temperature unit",
-            None,
-            &unit_toggles,
-            true,
-        );
+        row(&display, &labels, "Temperature unit", None, &unit_toggles);
 
         let gpu = Dropdown::new();
         names.name(gpu.widget(), "GPU");
@@ -389,7 +368,6 @@ impl ConfigPage {
             "GPU",
             Some("Where the display's GPU values come from"),
             &gpu_box,
-            false,
         );
         let (s, c) = (Rc::clone(&send), Rc::clone(&confirmed));
         gpu.connect_picked(move |position| {
@@ -417,7 +395,6 @@ impl ConfigPage {
             "Peak dots",
             Some("A dot above each bar that falls slowly"),
             &peaks,
-            true,
         );
         let bar_fall = scale(names, "Bar fall");
         let peak_fall = scale(names, "Peak fall");
@@ -450,8 +427,8 @@ impl ConfigPage {
                 });
             });
         }
-        row(&music, &labels, "Bar fall", None, &bar_fall, false);
-        row(&music, &labels, "Peak fall", None, &peak_fall, false);
+        row(&music, &labels, "Bar fall", None, &bar_fall);
+        row(&music, &labels, "Peak fall", None, &peak_fall);
 
         // The page bar: the back icon, then the title (Window, Page bar).
         let back = gtk::Button::builder().action_name("win.back").build();

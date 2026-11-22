@@ -112,6 +112,25 @@ fn rows(app: &gtk::Application) {
         assert_eq!(end - start, 16, "{name}: the knob");
         assert_eq!(scale.range_rect().height(), 4, "{name}: the bar");
     }
+    // Each switch is level with the top of its label block (owner, 2026-11-22), the Peak dots' one
+    // too, whose block is taller than the switch because of the hint under its title.
+    for name in ["Use system theme", "Peak dots", "Start at boot"] {
+        let switch = find::<gtk::Switch>(&window, name);
+        let block = switch.prev_sibling().expect("a label block");
+        let (switch_box, block_box) = (place(switch.upcast_ref()), place(&block));
+        assert!(
+            (switch_box.y() - block_box.y()).abs() <= 1.0,
+            "{name}: the switch's top {} and the block's {}",
+            switch_box.y(),
+            block_box.y()
+        );
+    }
+    let peaks = find::<gtk::Switch>(&window, "Peak dots");
+    let block = peaks.prev_sibling().expect("the Peak dots' block");
+    assert!(
+        place(&block).height() > place(peaks.upcast_ref()).height() + 8.0,
+        "the hint makes the block taller than the switch, so centring would show"
+    );
     // The switches.
     for name in ["Peak dots", "Start at boot"] {
         let switch = find::<gtk::Switch>(&window, name);

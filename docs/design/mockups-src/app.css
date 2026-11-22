@@ -178,7 +178,7 @@ button { font: inherit; color: inherit; }
 .row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; }
 .row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
 .row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.row-r.mid { align-self: center; }
+/* Every control hangs from its row's top, level with the label block's top (Task 34); there is no centred variant. */
 /* The Startup card on the off screen is outside the page's size group: its block takes its own width */
 .off-screen .row-l { width: auto; }
 .hint { display: flex; gap: 6px; font-size: var(--fs-small); margin: 0; max-width: 520px; }
