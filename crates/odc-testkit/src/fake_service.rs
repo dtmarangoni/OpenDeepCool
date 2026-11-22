@@ -238,6 +238,14 @@ impl Main {
         self.shared.change(format!("SetDarkTheme({dark})"))
     }
 
+    async fn set_window_opacity(&self, opacity: &str) -> Result<(), Error> {
+        self.shared.change(format!("SetWindowOpacity({opacity:?})"))
+    }
+
+    async fn set_window_corners(&self, corners: &str) -> Result<(), Error> {
+        self.shared.change(format!("SetWindowCorners({corners:?})"))
+    }
+
     #[zbus(out_args("state"))]
     async fn get_state(&self) -> Result<Dict, Error> {
         Ok(clone(&self.shared.read("GetState()")?.state))

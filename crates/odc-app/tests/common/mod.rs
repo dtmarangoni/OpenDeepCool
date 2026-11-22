@@ -256,6 +256,8 @@ pub fn base() -> State {
         readings: Some(sample_readings()),
         use_system_theme: Some(true),
         dark_theme: Some(true),
+        window_opacity: Some(odc_ipc::WindowOpacity::Opaque),
+        window_corners: Some(odc_ipc::WindowCorners::Rounded),
         audio_connected: Some(true),
         audio_wanted: Some(false),
     }

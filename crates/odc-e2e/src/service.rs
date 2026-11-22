@@ -14,7 +14,7 @@ use std::sync::atomic::AtomicBool;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use odc_ipc::State;
+use odc_ipc::{State, WindowCorners, WindowOpacity};
 use odc_protocol::{Frame, Message, encode_frame, startup_report};
 use odc_render::{Kind as ModeKind, Marquee, Mode as RenderMode, Unit as RenderUnit, Values};
 use odc_render::{draws, mode_info, picture};
@@ -140,6 +140,16 @@ impl Drop for Restore<'_> {
         {
             said.push(format!("SetDarkTheme: {e}"));
         }
+        if let Some(opacity) = self.state.window_opacity
+            && let Err(e) = zbus::block_on(main.set_window_opacity(opacity.as_str()))
+        {
+            said.push(format!("SetWindowOpacity: {e}"));
+        }
+        if let Some(corners) = self.state.window_corners
+            && let Err(e) = zbus::block_on(main.set_window_corners(corners.as_str()))
+        {
+            said.push(format!("SetWindowCorners: {e}"));
+        }
         for line in said {
             eprintln!("odc-e2e: the owner's settings weren't all set back: {line}");
         }
@@ -182,15 +192,67 @@ fn theme_settings(session: &Session) -> Result<String, String> {
             !dark, two.use_system_theme, two.dark_theme
         ));
     }
+    // The window's two (Phase 11a Task 49): each setter changes its own key only, an unknown
+    // word is refused and changes nothing.
+    let (Some(opacity), Some(corners)) = (before.window_opacity, before.window_corners) else {
+        return Err("GetState has no WindowOpacity or no WindowCorners".to_owned());
+    };
+    let other_opacity = if opacity == WindowOpacity::Glassy {
+        WindowOpacity::Transparent
+    } else {
+        WindowOpacity::Glassy
+    };
+    let other_corners = if corners == WindowCorners::Sharp {
+        WindowCorners::Rounded
+    } else {
+        WindowCorners::Sharp
+    };
+    zbus::block_on(main.set_window_opacity(other_opacity.as_str()))
+        .map_err(|e| format!("SetWindowOpacity: {e}"))?;
+    let three = state(session)?;
+    if (three.window_opacity, three.window_corners) != (Some(other_opacity), Some(corners)) {
+        return Err(format!(
+            "SetWindowOpacity({}) gave {:?} and {:?}",
+            other_opacity.as_str(),
+            three.window_opacity,
+            three.window_corners
+        ));
+    }
+    zbus::block_on(main.set_window_corners(other_corners.as_str()))
+        .map_err(|e| format!("SetWindowCorners: {e}"))?;
+    let four = state(session)?;
+    if (four.window_opacity, four.window_corners) != (Some(other_opacity), Some(other_corners)) {
+        return Err(format!(
+            "SetWindowCorners({}) gave {:?} and {:?}",
+            other_corners.as_str(),
+            four.window_opacity,
+            four.window_corners
+        ));
+    }
+    if zbus::block_on(main.set_window_opacity("frosted")).is_ok()
+        || zbus::block_on(main.set_window_corners("round")).is_ok()
+    {
+        return Err("an unknown window word was accepted".to_owned());
+    }
+    let five = state(session)?;
+    if (five.window_opacity, five.window_corners) != (four.window_opacity, four.window_corners) {
+        return Err("a refused window word changed a setting".to_owned());
+    }
     // Nothing else changed: the display is the owner's, as it was.
-    if (two.mode, two.rotation, two.temperature_unit)
+    if (five.mode, five.rotation, five.temperature_unit)
         != (before.mode, before.rotation, before.temperature_unit)
     {
         return Err("a theme setting changed the mode, the rotation or the unit".to_owned());
     }
     Ok(format!(
-        "system theme {system} to {}, dark {dark} to {}, the rest as it was",
-        !system, !dark
+        "system theme {system} to {}, dark {dark} to {}, window {} to {} and {} to {}, \
+         unknown words refused, the rest as it was",
+        !system,
+        !dark,
+        opacity.as_str(),
+        other_opacity.as_str(),
+        corners.as_str(),
+        other_corners.as_str()
     ))
 }
 

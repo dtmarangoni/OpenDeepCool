@@ -12,6 +12,7 @@ pub use levels::{LEVELS, levels_from};
 
 pub use state::{
     CoolerState, FallStop, Gpu, GpuKind, STATE_KEYS, State, StateError, TemperatureUnit,
+    WindowCorners, WindowOpacity,
 };
 
 use std::collections::HashMap;
@@ -99,6 +100,10 @@ pub trait OpenDeepCool {
     /// dark one: two settings of the whole PC, only stored (Phase 11a).
     async fn set_use_system_theme(&self, system: bool) -> Result<(), Error>;
     async fn set_dark_theme(&self, dark: bool) -> Result<(), Error>;
+    /// OpenDeepCool's own theme's window opacity (`opaque`, `transparent` or `glassy`) and corners
+    /// (`sharp` or `rounded`): two more settings of the whole PC, only stored (Phase 11a Task 49).
+    async fn set_window_opacity(&self, opacity: &str) -> Result<(), Error>;
+    async fn set_window_corners(&self, corners: &str) -> Result<(), Error>;
     /// The whole state, as `a{sv}`; [`State::from_dict`] reads it.
     async fn get_state(&self) -> Result<HashMap<String, OwnedVariant>, Error>;
     /// Sends this caller `StateChanged` while it watches.

@@ -4,7 +4,9 @@
 use std::fs;
 use std::path::PathBuf;
 
-use odc_service::settings::{FILE, Fall, Found, Settings, SettingsStore, TemperatureUnit};
+use odc_service::settings::{
+    FILE, Fall, Found, Settings, SettingsStore, TemperatureUnit, WindowCorners, WindowOpacity,
+};
 
 /// An empty directory of its own under `CARGO_TARGET_TMPDIR`.
 fn dir(name: &str) -> PathBuf {
@@ -44,6 +46,9 @@ fn every_field() -> Settings {
         // Both away from their defaults, so a lost key shows.
         use_system_theme: false,
         dark_theme: false,
+        // And the window's two away from theirs (opaque and rounded).
+        window_opacity: WindowOpacity::Glassy,
+        window_corners: WindowCorners::Sharp,
         ..Settings::default()
     }
 }
@@ -108,6 +113,19 @@ fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
             format!("{base}use_system_theme = \"yes\"\n"),
         ),
         ("dark-theme-type", format!("{base}dark_theme = 1\n")),
+        (
+            "opacity-word",
+            format!("{base}window_opacity = \"frosted\"\n"),
+        ),
+        (
+            "opacity-case",
+            format!("{base}window_opacity = \"Glassy\"\n"),
+        ),
+        (
+            "corners-word",
+            format!("{base}window_corners = \"round\"\n"),
+        ),
+        ("corners-type", format!("{base}window_corners = true\n")),
     ];
     for (name, text) in cases {
         let (settings, found, d) = load_text(name, &text);
@@ -288,6 +306,46 @@ fn a_file_from_before_the_theme_settings_gets_both_on() {
     let written = fs::read_to_string(d.join(FILE)).expect("written");
     for line in ["use_system_theme = true", "dark_theme = true"] {
         assert!(written.contains(line), "{line}: {written}");
+    }
+}
+
+// Phase 11a Task 49: a file written before the window settings loads with opaque and rounded,
+// as the app is without them, and the next store writes them; a word that isn't theirs is
+// invalid (above), and each is known by its name only.
+#[test]
+fn a_file_from_before_the_window_settings_gets_opaque_and_rounded() {
+    let text = "version = 1\nmode = 4\nrotation = 1\ntemperature_unit = \"celsius\"\n";
+    let (settings, found, d) = load_text("before-window", text);
+    assert_eq!(found, Found::Read);
+    assert_eq!(
+        (settings.window_opacity, settings.window_corners),
+        (WindowOpacity::Opaque, WindowCorners::Rounded)
+    );
+    assert_eq!(settings.mode, 4, "the rest as it was");
+    SettingsStore::new(&d).store(&settings).expect("stores");
+    let written = fs::read_to_string(d.join(FILE)).expect("written");
+    for line in [
+        "window_opacity = \"opaque\"",
+        "window_corners = \"rounded\"",
+    ] {
+        assert!(written.contains(line), "{line}: {written}");
+    }
+    for (name, want) in [
+        ("opaque", Some(WindowOpacity::Opaque)),
+        ("transparent", Some(WindowOpacity::Transparent)),
+        ("glassy", Some(WindowOpacity::Glassy)),
+        ("Glassy", None),
+        ("", None),
+    ] {
+        assert_eq!(WindowOpacity::from_name(name), want, "{name:?}");
+    }
+    for (name, want) in [
+        ("sharp", Some(WindowCorners::Sharp)),
+        ("rounded", Some(WindowCorners::Rounded)),
+        ("round", None),
+        ("", None),
+    ] {
+        assert_eq!(WindowCorners::from_name(name), want, "{name:?}");
     }
 }
 

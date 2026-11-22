@@ -113,6 +113,63 @@ fn theme_on() -> bool {
     true
 }
 
+/// How see-through OpenDeepCool's own theme draws the window, in Omarchy's words for its own
+/// Window Opacity (Phase 11a Task 49). A word that isn't one of them makes the file invalid.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WindowOpacity {
+    #[default]
+    Opaque,
+    Transparent,
+    Glassy,
+}
+
+impl WindowOpacity {
+    /// The opacity called `name`, as `docs/spec/dbus.md`'s setter takes it.
+    pub fn from_name(name: &str) -> Option<WindowOpacity> {
+        match name {
+            "opaque" => Some(WindowOpacity::Opaque),
+            "transparent" => Some(WindowOpacity::Transparent),
+            "glassy" => Some(WindowOpacity::Glassy),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            WindowOpacity::Opaque => "opaque",
+            WindowOpacity::Transparent => "transparent",
+            WindowOpacity::Glassy => "glassy",
+        }
+    }
+}
+
+/// Sharp or rounded corners, in Omarchy's words for its own Window Corners (Phase 11a Task 49).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum WindowCorners {
+    Sharp,
+    #[default]
+    Rounded,
+}
+
+impl WindowCorners {
+    pub fn from_name(name: &str) -> Option<WindowCorners> {
+        match name {
+            "sharp" => Some(WindowCorners::Sharp),
+            "rounded" => Some(WindowCorners::Rounded),
+            _ => None,
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            WindowCorners::Sharp => "sharp",
+            WindowCorners::Rounded => "rounded",
+        }
+    }
+}
+
 /// The settings (`docs/spec/settings.md`; the defaults are OpenDeepCool's, the same as
 /// DeepCreative's first start).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -140,6 +197,13 @@ pub struct Settings {
     pub use_system_theme: bool,
     #[serde(default = "theme_on")]
     pub dark_theme: bool,
+    /// OpenDeepCool's own theme's window opacity (default opaque) and corners (default rounded),
+    /// stored for the whole PC and applied by the app (Phase 11a Task 49): a file written before
+    /// them gets the defaults.
+    #[serde(default)]
+    pub window_opacity: WindowOpacity,
+    #[serde(default)]
+    pub window_corners: WindowCorners,
     /// The fields a later build added, as they were.
     #[serde(flatten)]
     pub later: toml::Table,
@@ -158,6 +222,8 @@ impl Default for Settings {
             music_peak_fall: peaks_slow(),
             use_system_theme: theme_on(),
             dark_theme: theme_on(),
+            window_opacity: WindowOpacity::default(),
+            window_corners: WindowCorners::default(),
             later: toml::Table::new(),
         }
     }

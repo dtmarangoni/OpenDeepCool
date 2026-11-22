@@ -9,7 +9,7 @@ use std::fs;
 use odc_ipc::{
     BUS_NAME, CHANGE_SETTINGS_ACTION, CoolerState, DEV_INTERFACE, DEV_PATH, ERROR_PREFIX, Error,
     FEED_AUDIO_ACTION, FallStop, Gpu, GpuKind, INTERFACE, OBJECT_PATH, STATE_KEYS, State,
-    StateError, TemperatureUnit, USE_ACTION,
+    StateError, TemperatureUnit, USE_ACTION, WindowCorners, WindowOpacity,
 };
 use zbus::DBusError;
 use zbus::names::{ErrorName, InterfaceName, WellKnownName};
@@ -118,6 +118,9 @@ fn full() -> State {
         // Both away from the defaults, so a swapped pair shows.
         use_system_theme: Some(false),
         dark_theme: Some(false),
+        // Away from the defaults too (opaque and rounded).
+        window_opacity: Some(WindowOpacity::Glassy),
+        window_corners: Some(WindowCorners::Sharp),
         audio_connected: Some(true),
         audio_wanted: Some(true),
     }
@@ -194,6 +197,44 @@ fn a_known_key_with_another_type_or_a_value_outside_the_contract_is_refused() {
             ),
             "{key}"
         );
+    }
+    // The window settings take their words and no others, and not a number or a boolean.
+    for (key, bad) in [
+        ("WindowOpacity", "frosted"),
+        ("WindowOpacity", "Opaque"),
+        ("WindowCorners", "round"),
+        ("WindowCorners", ""),
+    ] {
+        assert!(
+            matches!(
+                State::from_dict(&one(key, variant(bad))),
+                Err(StateError::BadValue(k, v)) if k == key && v == bad
+            ),
+            "{key} {bad:?}"
+        );
+    }
+    assert_eq!(
+        State::from_dict(&one("WindowOpacity", variant(true))),
+        Err(StateError::WrongType("WindowOpacity"))
+    );
+    assert_eq!(
+        State::from_dict(&one("WindowCorners", variant(1_u32))),
+        Err(StateError::WrongType("WindowCorners"))
+    );
+    for (word, want) in [
+        ("opaque", WindowOpacity::Opaque),
+        ("transparent", WindowOpacity::Transparent),
+        ("glassy", WindowOpacity::Glassy),
+    ] {
+        assert_eq!(WindowOpacity::parse(word), Some(want));
+        assert_eq!(want.as_str(), word);
+    }
+    for (word, want) in [
+        ("sharp", WindowCorners::Sharp),
+        ("rounded", WindowCorners::Rounded),
+    ] {
+        assert_eq!(WindowCorners::parse(word), Some(want));
+        assert_eq!(want.as_str(), word);
     }
     assert_eq!(
         State::from_dict(&one("AudioWanted", variant("yes"))),
@@ -283,6 +324,8 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
         readings: Some(HashMap::from([("CPU Usage".to_owned(), (5, 1))])),
         use_system_theme: Some(true),
         dark_theme: Some(true),
+        window_opacity: Some(WindowOpacity::Transparent),
+        window_corners: Some(WindowCorners::Rounded),
         ..full()
     };
     let changes = newer.changed_since(&older);
@@ -294,6 +337,8 @@ fn the_changes_since_an_older_state_hold_only_the_keys_that_differ() {
             readings: Some(HashMap::from([("CPU Usage".to_owned(), (5, 1))])),
             use_system_theme: Some(true),
             dark_theme: Some(true),
+            window_opacity: Some(WindowOpacity::Transparent),
+            window_corners: Some(WindowCorners::Rounded),
             ..State::default()
         }
     );

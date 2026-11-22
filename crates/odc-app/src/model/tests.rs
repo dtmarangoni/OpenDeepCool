@@ -142,6 +142,8 @@ fn base() -> State {
         readings: Some(HashMap::new()),
         use_system_theme: Some(true),
         dark_theme: Some(true),
+        window_opacity: Some(odc_ipc::WindowOpacity::Opaque),
+        window_corners: Some(odc_ipc::WindowCorners::Rounded),
         audio_connected: Some(false),
         audio_wanted: Some(false),
     }
@@ -1259,6 +1261,8 @@ prop_compose! {
             readings: Some(HashMap::new()),
             use_system_theme: Some(true),
             dark_theme: Some(true),
+            window_opacity: Some(odc_ipc::WindowOpacity::Opaque),
+            window_corners: Some(odc_ipc::WindowCorners::Rounded),
             audio_connected: Some(music.3),
             audio_wanted: Some(music.3),
         }

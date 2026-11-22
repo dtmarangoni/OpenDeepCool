@@ -9,7 +9,7 @@ use std::fmt;
 use zbus::wire::{OwnedVariant, Variant};
 
 /// Every key and its D-Bus signature, as `docs/spec/dbus.md` lists them.
-pub const STATE_KEYS: [(&str, &str); 18] = [
+pub const STATE_KEYS: [(&str, &str); 20] = [
     ("Mode", "u"),
     ("Rotation", "y"),
     ("TemperatureUnit", "s"),
@@ -26,6 +26,8 @@ pub const STATE_KEYS: [(&str, &str); 18] = [
     ("Readings", "a{s(xt)}"),
     ("UseSystemTheme", "b"),
     ("DarkTheme", "b"),
+    ("WindowOpacity", "s"),
+    ("WindowCorners", "s"),
     ("AudioConnected", "b"),
     ("AudioWanted", "b"),
 ];
@@ -71,6 +73,22 @@ text_enum! {
         Fast => "fast",
         Faster => "faster",
     }
+}
+
+text_enum! {
+    /// `WindowOpacity`: how see-through OpenDeepCool's own theme draws the window, in Omarchy's
+    /// words for its own Window Opacity (Phase 11a Task 49).
+    WindowOpacity {
+        Opaque => "opaque",
+        Transparent => "transparent",
+        Glassy => "glassy",
+    }
+}
+
+text_enum! {
+    /// `WindowCorners`: sharp or rounded corners of the window and what is in it, in Omarchy's
+    /// words for its own Window Corners (Phase 11a Task 49).
+    WindowCorners { Sharp => "sharp", Rounded => "rounded" }
 }
 
 text_enum! {
@@ -140,6 +158,10 @@ pub struct State {
     /// two settings of the whole PC the service only stores (Phase 11a).
     pub use_system_theme: Option<bool>,
     pub dark_theme: Option<bool>,
+    /// OpenDeepCool's own theme's window opacity and corners, for the whole PC (Phase 11a
+    /// Task 49): stored only, applied by the app.
+    pub window_opacity: Option<WindowOpacity>,
+    pub window_corners: Option<WindowCorners>,
     /// Whether the session's sound comes in: a helper is attached.
     pub audio_connected: Option<bool>,
     /// Whether the service takes sound: true exactly while a Music mode, 13–23, is shown.
@@ -238,6 +260,12 @@ impl State {
         if let Some(dark) = self.dark_theme {
             put("DarkTheme", owned(dark));
         }
+        if let Some(opacity) = self.window_opacity {
+            put("WindowOpacity", owned(opacity.as_str()));
+        }
+        if let Some(corners) = self.window_corners {
+            put("WindowCorners", owned(corners.as_str()));
+        }
         if let Some(connected) = self.audio_connected {
             put("AudioConnected", owned(connected));
         }
@@ -331,6 +359,8 @@ impl State {
             readings,
             use_system_theme: get(dict, "UseSystemTheme")?,
             dark_theme: get(dict, "DarkTheme")?,
+            window_opacity: text(dict, "WindowOpacity", WindowOpacity::parse)?,
+            window_corners: text(dict, "WindowCorners", WindowCorners::parse)?,
             audio_connected: get(dict, "AudioConnected")?,
             audio_wanted: get(dict, "AudioWanted")?,
         })
@@ -362,6 +392,8 @@ impl State {
             readings,
             use_system_theme,
             dark_theme,
+            window_opacity,
+            window_corners,
             audio_connected,
             audio_wanted
         );
@@ -395,6 +427,8 @@ impl State {
             readings,
             use_system_theme,
             dark_theme,
+            window_opacity,
+            window_corners,
             audio_connected,
             audio_wanted
         );

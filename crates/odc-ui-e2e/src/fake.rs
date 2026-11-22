@@ -80,6 +80,9 @@ pub struct Service {
     /// The theme settings the service keeps: follow the system's, and OpenDeepCool's own is dark.
     pub use_system_theme: bool,
     pub dark_theme: bool,
+    /// OpenDeepCool's own theme's window opacity and corners (Phase 11a Task 49).
+    pub window_opacity: &'static str,
+    pub window_corners: &'static str,
     pub audio_connected: bool,
     /// `Readings`: each metric that has a value, by its spec name, as numerator and denominator.
     pub readings: BTreeMap<&'static str, (i64, u64)>,
@@ -117,6 +120,8 @@ impl Service {
             peak_fall: "slow",
             use_system_theme: true,
             dark_theme: true,
+            window_opacity: "opaque",
+            window_corners: "rounded",
             audio_connected: true,
             readings: sample_readings(),
         }
@@ -190,6 +195,8 @@ impl Service {
         );
         put("UseSystemTheme", Boolean(self.use_system_theme));
         put("DarkTheme", Boolean(self.dark_theme));
+        put("WindowOpacity", text(self.window_opacity));
+        put("WindowCorners", text(self.window_corners));
         put("AudioConnected", Boolean(self.audio_connected));
         put("AudioWanted", Boolean((13..=23).contains(&self.mode)));
         table

@@ -64,6 +64,12 @@ The names start with the project's public address, its GitHub repository, as the
     <method name="SetDarkTheme">
       <arg name="dark" type="b" direction="in"/>
     </method>
+    <method name="SetWindowOpacity">
+      <arg name="opacity" type="s" direction="in"/>
+    </method>
+    <method name="SetWindowCorners">
+      <arg name="corners" type="s" direction="in"/>
+    </method>
     <method name="GetState">
       <arg name="state" type="a{sv}" direction="out"/>
     </method>
@@ -100,6 +106,8 @@ The names start with the project's public address, its GitHub repository, as the
 | `SetMusicBarFall(s)`, `SetMusicPeakFall(s)` | `change-settings` | The bars' or the peaks' fall: `slower`, `slow`, `moderate`, `fast` or `faster` (point 4); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `SetUseSystemTheme(b)` | `change-settings` | Whether the settings app follows the system's theme (an Omarchy theme if there is one, else the system's dark or light preference) or OpenDeepCool's own; a setting of the whole PC (owner, 2026-11-18, UI review D6). The service only stores it, never interprets a theme, and touches neither the cooler nor the picture | `NotAuthorized`, `Failed` |
 | `SetDarkTheme(b)` | `change-settings` | OpenDeepCool's own theme dark (`true`) or light (`false`), used when the system's theme isn't followed or can't be found; stored the same way | `NotAuthorized`, `Failed` |
+| `SetWindowOpacity(s)` | `change-settings` | How see-through OpenDeepCool's own theme draws the window: `opaque`, `transparent` or `glassy`, Omarchy's own words for its Window Opacity (owner, 2026-11-22, Phase 11a Task 49); stored the same way, never interpreted by the service: the app draws it. A word that isn't one of the three, or is over 64 bytes, is refused | `NotAuthorized`, `InvalidArgument`, `Failed` |
+| `SetWindowCorners(s)` | `change-settings` | Sharp (`sharp`) or rounded (`rounded`) corners of OpenDeepCool's own theme's window and what is in it, Omarchy's words for its Window Corners; stored the same way. Any other word, or one over 64 bytes, is refused | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `GetState() → a{sv}` | `use` | The whole state ([State](#state)) | `NotAuthorized` |
 | `Watch()`, `Unwatch()` | `use` | Starts or stops `StateChanged` for this caller; a second `Watch()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
 | `WatchFrames()`, `UnwatchFrames()` | `use` | Starts or stops `Frame`, `Levels` and the `Readings` key of `StateChanged` for this caller (Phase 10; Phase 11a Task 13); a second `WatchFrames()` changes nothing | `NotAuthorized`, `TooManyWatchers` |
@@ -132,6 +140,8 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `Readings` | `a{s(xt)}` | Each metric that has a value now, by the name the spec gives it (`CPU Temperature`, `CPU Usage`, `CPU Power`, `Gpu temperature`, `Gpu usage`, `Gpu power`, `Memory Load`; the order of [sensors.md](sensors.md)'s Metrics, as `Diagnostics` writes them), as the exact fraction the display rounds from: the numerator `x` and the denominator `t`, never a floating-point number ([display.md](display.md#values)). A metric with no value is left out, and the app draws it as dashes, as the cooler does. They are the readings the engine drew its frame from, so with the dev copy's override, the override's. They change at most once a second, so `StateChanged` sends this key **only to a watcher that also watches frames** (`WatchFrames()`), as the settings app does; `GetState()` returns it to any caller. Both calls need `use`, as `WatchFrames()` does, so it gives a caller nothing a frame watcher can't have (Phase 11a Task 13) |
 | `UseSystemTheme` | `b` | Whether the app follows the system's theme (default `true`; Phase 11a Task 10) |
 | `DarkTheme` | `b` | Whether OpenDeepCool's own theme is the dark one (default `true`) |
+| `WindowOpacity` | `s` | `opaque`, `transparent` or `glassy`: how see-through OpenDeepCool's own theme draws the window (default `opaque`; Phase 11a Task 49) |
+| `WindowCorners` | `s` | `sharp` or `rounded`: the corners of OpenDeepCool's own theme's window (default `rounded`) |
 | `AudioConnected` | `b` | Whether the session's sound comes in: a helper's pipe is attached |
 | `AudioWanted` | `b` | Whether the service takes sound: true exactly while a Music mode, 13–23, is shown (owner, 2026-10-26), so the session's helper captures only then |
 

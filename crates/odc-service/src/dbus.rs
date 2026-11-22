@@ -21,6 +21,7 @@ use odc_device::{Link, Reason, RecordingHandle};
 use odc_ipc::{
     BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, OBJECT_PATH, State, frame_pixels, levels_from,
 };
+use odc_ipc::{WindowCorners as WireCorners, WindowOpacity as WireOpacity};
 use odc_protocol::Frame;
 use odc_render::Mode;
 use odc_sensors::{
@@ -39,7 +40,9 @@ use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
 use crate::runtime::{DeviceControl, Durations, LevelTap, SensorRequest, Slot};
-use crate::settings::{Fall, Settings, SettingsStore, TemperatureUnit};
+use crate::settings::{
+    Fall, Settings, SettingsStore, TemperatureUnit, WindowCorners, WindowOpacity,
+};
 use crate::sleep::{SleepWatch, next};
 use crate::status::Status;
 use crate::watchers::{Checked, Watch, Watchers};
@@ -331,6 +334,20 @@ impl Shared {
                 "{stop:?} isn't slower, slow, moderate, fast or faster"
             ))
         })
+    }
+
+    /// A window opacity by its name, as the setter takes it.
+    fn window_opacity(name: &str) -> Result<WindowOpacity, Error> {
+        within("an opacity", name, STRING_LIMIT)?;
+        WindowOpacity::from_name(name)
+            .ok_or_else(|| invalid(format!("{name:?} isn't opaque, transparent or glassy")))
+    }
+
+    /// Window corners by their name, as the setter takes it.
+    fn window_corners(name: &str) -> Result<WindowCorners, Error> {
+        within("corners", name, STRING_LIMIT)?;
+        WindowCorners::from_name(name)
+            .ok_or_else(|| invalid(format!("{name:?} isn't sharp or rounded")))
     }
 
     /// Whether the display takes sound under `settings`: only in a Music mode, 13–23 (owner,
@@ -648,6 +665,14 @@ fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected:
         readings: Some(status.readings()),
         use_system_theme: Some(settings.use_system_theme),
         dark_theme: Some(settings.dark_theme),
+        window_opacity: Some(
+            WireOpacity::parse(settings.window_opacity.name())
+                .expect("the three opacities have the same names"),
+        ),
+        window_corners: Some(
+            WireCorners::parse(settings.window_corners.name())
+                .expect("the two corners have the same names"),
+        ),
         audio_connected: Some(audio_connected),
         audio_wanted: Some(takes_sound(mode)),
     }
@@ -927,6 +952,30 @@ impl Main {
         let sender = self.shared.changer(&header, &call).await?;
         self.shared
             .logged(&call, &sender, self.shared.save(|s| s.dark_theme = dark))
+    }
+
+    async fn set_window_opacity(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        opacity: &str,
+    ) -> Result<(), Error> {
+        let call = "SetWindowOpacity";
+        let sender = self.shared.changer(&header, call).await?;
+        let result = Shared::window_opacity(opacity)
+            .and_then(|opacity| self.shared.save(|s| s.window_opacity = opacity));
+        self.shared.logged(call, &sender, result)
+    }
+
+    async fn set_window_corners(
+        &self,
+        #[zbus(header)] header: Header<'_>,
+        corners: &str,
+    ) -> Result<(), Error> {
+        let call = "SetWindowCorners";
+        let sender = self.shared.changer(&header, call).await?;
+        let result = Shared::window_corners(corners)
+            .and_then(|corners| self.shared.save(|s| s.window_corners = corners));
+        self.shared.logged(call, &sender, result)
     }
 
     #[zbus(out_args("state"))]
