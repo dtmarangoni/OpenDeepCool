@@ -344,7 +344,10 @@ impl ConfigPage {
         dark.set_active(true);
         names.name(&dark, "Dark theme");
         names.name(&light, "Light theme");
-        let dark_or_light = gtk::Box::builder().css_classes(["linked"]).build();
+        let dark_or_light = gtk::Box::builder()
+            .accessible_role(gtk::AccessibleRole::Group)
+            .css_classes(["linked"])
+            .build();
         for (button, wanted) in [(&dark, true), (&light, false)] {
             dark_or_light.append(button);
             let (send, confirmed, applying) = (

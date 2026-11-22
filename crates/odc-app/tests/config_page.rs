@@ -420,16 +420,23 @@ fn page_ends(app: &gtk::Application) {
     WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(300));
     let page = window.config_page().widget().clone();
+    let scroller = window.config_page().scroller();
     let place = |widget: &gtk::Widget| widget.compute_bounds(&page).expect("a place in the page");
-    let (first, last) = (
-        place(&find::<gtk::Widget>(&window, "Theme settings")),
-        place(&find::<gtk::Widget>(&window, "Startup settings")),
-    );
-    let page_foot = f32::from(page.height() as i16);
-    let (above, below) = (first.y(), page_foot - (last.y() + last.height()));
+    // Above: from the page's top to the first card, with the page scrolled to its top.
+    scroller.vadjustment().set_value(0.0);
+    run_for(Duration::from_millis(50));
+    let above = place(&find::<gtk::Widget>(&window, "Theme settings")).y();
+    // Below: from the last card's foot to the scroller's foot, with the page scrolled to its end
+    // (the test's window may be shorter than the page, which scrolls).
+    let adjustment = scroller.vadjustment();
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    run_for(Duration::from_millis(50));
+    let last = place(&find::<gtk::Widget>(&window, "Startup settings"));
+    let foot = place(scroller.upcast_ref());
+    let below = (foot.y() + foot.height()) - (last.y() + last.height());
     assert!(
         (above - 68.0).abs() <= 1.0 && (below - 68.0).abs() <= 1.0,
-        "{above} px above the first card, {below} under the last, the page {page_foot} high"
+        "{above} px above the first card, {below} under the last"
     );
     close(window);
 }
@@ -705,6 +712,11 @@ fn knob_colours(app: &gtk::Application) {
     window.state(with(|s| s.music_peaks = Some(true)));
     WidgetExt::activate_action(window.widget(), "win.configuration", None).expect("the page");
     run_for(Duration::from_millis(300));
+    // The page is taller than the test's window: scroll to its end, where the Music card is, so
+    // the controls are in the picture.
+    let adjustment = window.config_page().scroller().vadjustment();
+    adjustment.set_value(adjustment.upper() - adjustment.page_size());
+    run_for(Duration::from_millis(100));
     let root = window.widget().clone();
     let renderer = Renderer::new();
     let bounds = |widget: &gtk::Widget| widget.compute_bounds(&root).expect("a place");

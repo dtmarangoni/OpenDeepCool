@@ -167,7 +167,8 @@ fn pixel(renderer: &Renderer, widget: &impl IsA<gtk::Widget>, x: i32, y: i32) ->
 fn check_colours(window: &Window, tokens: &Tokens, what: &str) {
     let renderer = Renderer::new();
     let w = window.widget();
-    let corner = pixel(&renderer, w, 3, w.height() - 3);
+    // Inside the 12 px rounded corner the own theme gives the window (Task 51), so 20 px in.
+    let corner = pixel(&renderer, w, 20, w.height() - 20);
     assert!(
         near(corner, tokens.bg),
         "{what}: the background is {corner:?}"

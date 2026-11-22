@@ -31,7 +31,6 @@ window.glassy {
 window.own-corners,
 window.own-corners.csd {
   border-radius: var(--radius-win);
-  overflow: hidden;
 }
 
 headerbar {
