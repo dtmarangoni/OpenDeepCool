@@ -83,7 +83,7 @@ Choices made while Phase 10 ran unattended (owner, 2026-11-06), each in `docs/pr
 
 ## Design brief (owner, 2026-11-18, the UI review; decided, not yet built)
 
-The plan is `docs/prp/plans/phase-11a-settings-app-ui-review.plan.md`: its Scope table lists the owner's items (R1–R4, C1–C35, A1), its decisions D1–D10 are the owner's answers, and Tasks 3, 7 to 11, 14, 15 and 17 to 41 are yours to design (the last twenty-five are the owner's small changes of 2026-11-19 and 2026-11-22, whose wording and sizes the owner or the plan gives; the design and the mockups follow them before the code). These changes **supersede** the briefs above where they disagree, including every place that says the app covers the cooler's fans and pump.
+The plan is `docs/prp/plans/phase-11a-settings-app-ui-review.plan.md`: its Scope table lists the owner's items (R1–R4, C1–C46, A1), its decisions D1–D11 are the owner's answers, and Tasks 3, 7 to 11, 14, 15, 17 to 41 and 42 to 52 are yours to design (the last thirty-six are the owner's small changes of 2026-11-19 and 2026-11-22, the last eleven including the new default themes, the Default Theme card and the emoji gallery, whose wording and sizes the owner or the plan gives; the design and the mockups follow them before the code). These changes **supersede** the briefs above where they disagree, including every place that says the app covers the cooler's fans and pump.
 
 - **No fans or pump** anywhere in the app: no RPM, no pickers, no Cooler card, no "no fan sensors" state. Their facts are kept in a spec file for later.
 - **Removed:** the "Shown on the cooler now" line; the Display tab; the sentence "Each change asks for the administrator's password." in the Start at boot hint.
