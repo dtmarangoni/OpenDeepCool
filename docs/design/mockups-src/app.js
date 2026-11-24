@@ -86,7 +86,8 @@
 // - Every tile shows the readings of the CONFIG key "live", in the current unit: the same readings the preview draws, so a
 //   tile and the preview agree. A reading listed in "unavailable" has no value: the tiles that show it draw dashes, as
 //   the cooler does, in --muted on a tile that is disabled (the app's lit dots on an unavailable tile, decisions log D56)
-//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost".
+//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost". (Since Task 63 the disabled
+//   colour is --disabled, not --muted; the "Unavailable" flag takes the tile's colour.)
 // - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
 //   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
 //   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
@@ -108,7 +109,11 @@
 //   that the other pages look as before). The corners are the compositor's then, and the window's radius is the sample's.
 // - The Theme card's Default Theme group (heading, Appearance, Window Opacity, Window Corners) is disabled while the system
 //   theme is followed (themeState().follow) and then shows the saved values, Appearance the scheme in use; it is enabled
-//   otherwise. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
+//   otherwise. Disabled means the one disabled look of the whole app (Phase 11a Task 63, 2026-11-24, D55; app.css has the
+//   rules): the heading, the titles and every button's text in --disabled (--fg over --surface, 40 per cent in a dark theme
+//   and 55 in a light one), borders the hairline --line, no accent and no selected fill, and a 1 px frame in --disabled round
+//   the saved value. The same look draws the Use system theme switch when no system theme is found, Start at boot's switch
+//   while a flip runs, the unavailable tiles (caption, flag and lit dots) and the gear while the service is down. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
 //   palette on show with the system theme followed is opaque and rounded (neither setting applied); an own palette otherwise
 //   follows windowOpacity and windowCorners. While the window isn't opaque the page draws a striped backdrop behind it, mockup
 //   chrome, so that the see-through ground and the glassy blur show.
@@ -281,7 +286,14 @@ function hexToRgba(hex, a) {
   const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-// The lit dots are --fg, or --muted on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
+// --disabled as the app derives it (design, D55): --fg over --surface, opaque, by --a-disabled (40 per cent in a dark theme, 55 in
+// a light one), each channel rounded. The canvas can't take the CSS color-mix() the style sheet uses for the same token.
+function disabledColour() {
+  const rgb = hex => { const n = parseInt(hex.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const a = parseFloat(cssVar("--a-disabled")) / 100, f = rgb(cssVar("--fg")), s = rgb(cssVar("--surface"));
+  return `rgb(${f.map((v, i) => Math.round(a * v + (1 - a) * s[i])).join(",")})`;
+}
+// The lit dots are --fg, or --disabled on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
 function paint(canvas, g, pitch, litVar) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -291,7 +303,7 @@ function paint(canvas, g, pitch, litVar) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
   const fg = cssVar("--fg");
-  const lit = cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const lit = litVar === "--disabled" ? disabledColour() : cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
   const r = pitch * 0.38;
   for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
     ctx.beginPath();
@@ -464,7 +476,8 @@ function themeLine(t) {
 // The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
 // (and off) when none can be found. Under its line stands the Default Theme subcategory (a heading and three rows: Appearance,
 // Window Opacity, Window Corners), all of it insensitive while the system theme is followed: the heading and the titles are
-// muted and every button is disabled. Appearance then shows the scheme in use, the other two their saved values.
+// --disabled and every button is disabled (the one disabled look, app.css). Appearance then shows the scheme in use, the
+// other two their saved values.
 function themeCard() {
   const t = themeState(), line = themeLine(t);
   const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
@@ -567,7 +580,7 @@ function tile(m) {
       ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
       <canvas data-mode="${m.id}"></canvas>
       <span class="tile-cap">${m.caption}</span>
-      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag">Unavailable</span>` : ""}
     </button>`;
 }
 function group(name, extraClass) {
@@ -690,7 +703,7 @@ function paintAll() {
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
     const unavailable = c.closest("button").disabled;
-    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--muted" : "--fg");
+    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--disabled" : "--fg");
   });
 }
 

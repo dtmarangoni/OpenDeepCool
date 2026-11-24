@@ -13,7 +13,7 @@
   --red: #e07a6e; --yellow: #d9b45b; --green: #98bf7c;
   /* sample shell.toml [controls] alphas */
   --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 40%; --w-normal-border: 1px;
-  --a-hover-fill: 8%; --a-hover-border: 25%; --a-selected-fill: 18%; --a-pressed-fill: 22%;
+  --a-hover-fill: 8%; --a-hover-border: 25%; --a-selected-fill: 18%; --a-pressed-fill: 22%; --a-disabled: 40%;
   --radius: 0px; --unlit-alpha: 0.12;
 }
 :root[data-theme="dark"] {
@@ -21,7 +21,7 @@
   --bg: #2d3039; --surface: #313f51; --fg: #e5ebf2; --muted: #b3b6c2; --accent: #94b7d6;
   --red: #e5776c; --yellow: #e0b65c; --green: #79c89a;
   --ctl: var(--fg); --a-normal-fill: 5%; --a-normal-border: 52%; --w-normal-border: 1px;
-  --a-hover-fill: 9%; --a-hover-border: 68%; --a-selected-fill: 16%; --a-pressed-fill: 24%;
+  --a-hover-fill: 9%; --a-hover-border: 68%; --a-selected-fill: 16%; --a-pressed-fill: 24%; --a-disabled: 40%;
   --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
 }
 :root[data-theme="light"] {
@@ -29,7 +29,7 @@
   --bg: #c4d3e1; --surface: #e6ebf1; --fg: #2d3039; --muted: #4f525b; --accent: #365675;
   --red: #a9322a; --yellow: #704d00; --green: #2f7756;
   --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 62%; --w-normal-border: 1px;
-  --a-hover-fill: 7%; --a-hover-border: 78%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
+  --a-hover-fill: 7%; --a-hover-border: 78%; --a-selected-fill: 14%; --a-pressed-fill: 20%; --a-disabled: 55%;
   --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
 }
 /* The type scale and the radii (design, OpenDeepCool's own theme, Type, and Window opacity and corners). One base size stands in
@@ -38,8 +38,13 @@
    window stay square there, and the compositor does the window's corners. --radius-pill is a switch's trough and a scale's
    bar, --radius-knob a knob: round in every theme and square only while Window Corners is Sharp, which app.js sets.
    --win-pct is the window's opacity as a percentage, which app.js sets from the Window Opacity of the theme on show
-   (design, Window opacity and corners). */
+   (design, Window opacity and corners).
+   --disabled is the app's disabled colour (design, D55, Task 63): --fg over --surface, opaque, by --a-disabled, which each
+   theme block sets (40 per cent in a dark theme, 55 in a light one; an Omarchy theme takes its own foreground, card and mode,
+   so it needs no key of its own). --line is the hairline, --fg at 12 per cent, as the app's token of the same name. */
 :root {
+  --disabled: color-mix(in srgb, var(--fg) var(--a-disabled), var(--surface));
+  --line: color-mix(in srgb, var(--fg) 12%, transparent);
   --fs: 14px;
   --fs-small: calc(var(--fs) * .83);
   --fs-page-title: calc(var(--fs) * 1.44);
@@ -106,18 +111,19 @@ button { font: inherit; color: inherit; }
 .seg.on:hover:not(:disabled), .tile.on:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
 :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-:disabled { cursor: default; opacity: .45; }
-.tile.on:disabled { opacity: 1; }
-/* An unavailable tile is drawn as the app draws it, without opacity (decisions log D43, D56): its caption in --muted, and its
-   picture's lit dots, which app.js paints, in --muted too. With the live tiles that picture is the dashes of the reading
-   the service can't give (design, Display page, Live tiles). */
-.tile:disabled { opacity: 1; color: var(--muted); }
-/* The app draws an insensitive toggle or switch without opacity (decisions log D43): muted text on the normal fill and border.
-   One that is pressed or on and can't be changed still shows its value, as the Theme card does while the system theme is used:
-   the selected fill, a muted border, and the text in --fg so the value stays readable (design, Theme card). */
-.seg:disabled { opacity: 1; color: var(--muted); }
-.seg.on:disabled { color: var(--fg); border-color: var(--muted); }
-.switch:disabled { opacity: 1; }
+/* The disabled look, one for the whole app (design, D55, Task 63; it replaces the muted text on the normal fill and border of
+   decisions log D43, and the "dimmed" look of D44): an insensitive control keeps its shape and loses its signal. Its text, icon,
+   knob and a tile's lit dots (which app.js paints) are --disabled; its border is the hairline --line; its fill is the normal flat
+   one; it has no accent, no selected fill and no opacity. What says "chosen" or "on" keeps a shape and not strength: a chosen
+   toggle a 1 px frame in --disabled (and the normal fill: a tint of the text colour under the label would take the label's
+   contrast from 2.8 to 1.8:1 in the dark theme), an on switch a trough filled --disabled with a --surface knob. An unavailable
+   tile's picture is the dashes of the reading the service can't give (design, Display page, Live tiles). */
+:disabled { cursor: default; }
+.btn:disabled, .seg:disabled, .dd-btn:disabled, .tile:disabled { opacity: 1; color: var(--disabled); border-color: var(--line); }
+/* position and z-index keep the saved value's frame whole: the toggles of a group overlap by 1 px, and the next toggle's hairline would cover its right edge */
+.seg.on:disabled { background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); border-color: var(--disabled); position: relative; z-index: 1; }
+.switch:disabled { opacity: 1; border-color: var(--line); }
+.switch.on:disabled, .switch.state-on:disabled { background: var(--disabled); border-color: var(--disabled); }
 
 /* Snowday's tiles are cards, and what is chosen is framed (design, Answers decided on 2026-11-24, Task 61, D53). In the app these are
    the rules under the window class own-light, set only for OpenDeepCool's own light theme: an Omarchy theme and the dark theme keep the
@@ -145,7 +151,7 @@ button { font: inherit; color: inherit; }
 .hb-end { justify-self: end; display: flex; gap: 4px; }
 /* Icon buttons (gear, close, back, Refresh): 32 x 32 with a 16 px icon, no frame in any state. The resting fill is
    none (the app's --none token): the window's ground is see-through in some modes, so a fill of --bg would show as a box;
-   hover, focus, pressed and selected use the control fills over the ground, a disabled one --muted
+   hover, focus, pressed and selected use the control fills over the ground, a disabled one --disabled
    (design, Window, Icon buttons). */
 .ibtn { width: 32px; height: 32px; padding: 0; flex: none; display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: 0; border-radius: var(--radius); color: var(--fg); cursor: pointer; }
@@ -153,7 +159,7 @@ button { font: inherit; color: inherit; }
 .ibtn:active:not(:disabled) { background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
 .ibtn[aria-pressed="true"], .ibtn[aria-pressed="true"]:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); color: var(--accent); }
-.ibtn:disabled { opacity: 1; color: var(--muted); cursor: default; }
+.ibtn:disabled { opacity: 1; color: var(--disabled); cursor: default; }
 .segs { display: inline-flex; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
 .segs .seg:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
@@ -253,9 +259,10 @@ button { font: inherit; color: inherit; }
 /* Start at boot: the trough shows systemd's state (GtkSwitch:state), the handle the latest flip (GtkSwitch:active) */
 .switch.state-on { background: var(--accent); border-color: var(--accent); }
 .switch.handle-on span { left: 15px; }
-/* The knob on an insensitive switch is --muted, an on trough keeps --accent (as the app's switch:disabled rules do).
-   Every knob, a switch's or a scale's, is --fg with a 1 px --bg ring (Task 35, the owner: the sliders' button in the toggles' colour). */
-.switch:disabled span, .switch.on:disabled span, .switch.state-on:disabled span { background: var(--muted); }
+/* Every knob, a switch's or a scale's, is --fg with a 1 px --bg ring (Task 35, the owner: the sliders' button in the toggles' colour).
+   While insensitive it is --disabled, and on an on trough (filled --disabled) it is --surface, with no ring (the app's rules, Task 63). */
+.switch:disabled span { background: var(--disabled); }
+.switch.on:disabled span, .switch.state-on:disabled span { background: var(--surface); box-shadow: none; }
 /* The Startup card in the window's body while the service is down */
 .empty .boot-card { margin: 18px auto 0; width: 560px; max-width: 100%; text-align: left; }
 .off-screen { width: 560px; max-width: 100%; }
@@ -265,15 +272,18 @@ button { font: inherit; color: inherit; }
 .scale input { width: 100%; height: 16px; margin: 0; padding: 0; background: transparent; -webkit-appearance: none; appearance: none; }
 .scale input::-webkit-slider-runnable-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
-  background: linear-gradient(to right, var(--accent) var(--p), color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent) var(--p)); }
+  background: linear-gradient(to right, var(--fill, var(--accent)) var(--p), color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent) var(--p)); }
 .scale input::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -7px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
 .scale input::-moz-range-track { box-sizing: border-box; height: 4px; border-radius: calc(var(--radius-pill) / 3);
   border: 1px solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); }
-.scale input::-moz-range-progress { height: 2px; border-radius: calc(var(--radius-pill) / 3); background: var(--accent); }
+.scale input::-moz-range-progress { height: 2px; border-radius: calc(var(--radius-pill) / 3); background: var(--fill, var(--accent)); }
 .scale input::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: var(--radius-knob); background: var(--fg); box-shadow: 0 0 0 1px var(--bg); }
-.scale input:disabled::-webkit-slider-thumb { background: var(--muted); }
-.scale input:disabled::-moz-range-thumb { background: var(--muted); }
+/* A scale that is insensitive (not reachable today) is the same look: --disabled knob and fill, hairline border */
+.scale input:disabled { --fill: var(--disabled); }
+.scale input:disabled::-webkit-slider-thumb { background: var(--disabled); }
+.scale input:disabled::-moz-range-thumb { background: var(--disabled); }
+.scale input:disabled::-webkit-slider-runnable-track, .scale input:disabled::-moz-range-track { border-color: var(--line); }
 .marks { display: flex; justify-content: space-between; font-size: var(--fs-small); color: var(--muted); }
 .marks span.on { color: var(--fg); font-weight: 600; }
 .empty { display: flex; align-items: center; justify-content: center; text-align: center; min-height: 400px; }
@@ -291,21 +301,22 @@ button { font: inherit; color: inherit; }
 /* The Use system theme row and its line under it are 2 px apart, as a hint is from its title (Task 46) */
 .stack2 { display: flex; flex-direction: column; gap: 2px; }
 /* The Default Theme subcategory of the Theme card (design, Theme card; Task 50): a child of the card like the Use system theme row,
-   its heading (0.83 em, weight 600, --fg) 24 px under the line above it (the card's 14 plus 10) and 14 px over its first row, then
-   three rows 14 px apart. While the system theme is followed the heading and the three titles are --muted (the app gives them the
-   muted class) and every button is disabled, which the .seg rules above draw without opacity. */
+   its heading (1 em, weight 600, --fg) 24 px under the line above it (the card's 14 plus 10) and 14 px over its first row, then
+   three rows 14 px apart. While the system theme is followed the section is disabled (Task 63, D55): the heading and the three
+   titles are --disabled (the app gives them the disabled class) and every button is disabled, which the .seg rules above draw:
+   grey text, hairline borders, and a 1 px --disabled frame round the saved value. */
 .subcat { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
 .sub-heading { margin: 0; font-size: var(--fs); font-weight: 600; }
 /* The rows of the Default Theme are a level below the heading that holds them: the small size (Task 55) */
 .subcat .row-l span { font-size: var(--fs-small); }
-.subcat.dim .sub-heading, .subcat.dim .row-l span { color: var(--muted); }
+.subcat.dim .sub-heading, .subcat.dim .row-l span { color: var(--disabled); }
 
 </style>
 </head>
 <body>
 <div class="mock-bar" aria-label="Mockup controls">
   <h1>Mockup: Service not running</h1>
-  <p>The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed "OpenDeepCool isn't running", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is dimmed, and there is no Refresh (it belongs to the Display page). A flip on starts it again.</p>
+  <p>The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed "OpenDeepCool isn't running", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is disabled, and there is no Refresh (it belongs to the Display page). A flip on starts it again.</p>
   <div class="row2">
     <span class="mock-theme"><span class="label">Theme:</span>
       <button data-t="omarchy" onclick="setTheme('omarchy')">Sample Omarchy theme (made-up colours)</button>
@@ -406,7 +417,8 @@ const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": t
 // - Every tile shows the readings of the CONFIG key "live", in the current unit: the same readings the preview draws, so a
 //   tile and the preview agree. A reading listed in "unavailable" has no value: the tiles that show it draw dashes, as
 //   the cooler does, in --muted on a tile that is disabled (the app's lit dots on an unavailable tile, decisions log D56)
-//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost".
+//   and in --fg on the saved mode's tile, which stays enabled and flagged "Reading lost". (Since Task 63 the disabled
+//   colour is --disabled, not --muted; the "Unavailable" flag takes the tile's colour.)
 // - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
 //   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
 //   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
@@ -428,7 +440,11 @@ const CONFIG = {"omarchyTheme": true, "colorScheme": "dark", "useSystemTheme": t
 //   that the other pages look as before). The corners are the compositor's then, and the window's radius is the sample's.
 // - The Theme card's Default Theme group (heading, Appearance, Window Opacity, Window Corners) is disabled while the system
 //   theme is followed (themeState().follow) and then shows the saved values, Appearance the scheme in use; it is enabled
-//   otherwise. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
+//   otherwise. Disabled means the one disabled look of the whole app (Phase 11a Task 63, 2026-11-24, D55; app.css has the
+//   rules): the heading, the titles and every button's text in --disabled (--fg over --surface, 40 per cent in a dark theme
+//   and 55 in a light one), borders the hairline --line, no accent and no selected fill, and a 1 px frame in --disabled round
+//   the saved value. The same look draws the Use system theme switch when no system theme is found, Start at boot's switch
+//   while a flip runs, the unavailable tiles (caption, flag and lit dots) and the gear while the service is down. The window style comes from windowStyle(): the sample Omarchy palette on show follows omarchyWindowOpacity; an own
 //   palette on show with the system theme followed is opaque and rounded (neither setting applied); an own palette otherwise
 //   follows windowOpacity and windowCorners. While the window isn't opaque the page draws a striped backdrop behind it, mockup
 //   chrome, so that the see-through ground and the glassy blur show.
@@ -601,7 +617,14 @@ function hexToRgba(hex, a) {
   const n = parseInt(h.length === 3 ? h.split("").map(x => x + x).join("") : h, 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 }
-// The lit dots are --fg, or --muted on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
+// --disabled as the app derives it (design, D55): --fg over --surface, opaque, by --a-disabled (40 per cent in a dark theme, 55 in
+// a light one), each channel rounded. The canvas can't take the CSS color-mix() the style sheet uses for the same token.
+function disabledColour() {
+  const rgb = hex => { const n = parseInt(hex.replace("#", ""), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+  const a = parseFloat(cssVar("--a-disabled")) / 100, f = rgb(cssVar("--fg")), s = rgb(cssVar("--surface"));
+  return `rgb(${f.map((v, i) => Math.round(a * v + (1 - a) * s[i])).join(",")})`;
+}
+// The lit dots are --fg, or --disabled on an unavailable tile (litVar); the unlit ones are always --fg at the unlit alpha.
 function paint(canvas, g, pitch, litVar) {
   const ctx = canvas.getContext("2d");
   const dpr = window.devicePixelRatio || 1;
@@ -611,7 +634,7 @@ function paint(canvas, g, pitch, litVar) {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, size, size);
   const fg = cssVar("--fg");
-  const lit = cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
+  const lit = litVar === "--disabled" ? disabledColour() : cssVar(litVar || "--fg"), unlit = hexToRgba(fg, parseFloat(cssVar("--unlit-alpha")));
   const r = pitch * 0.38;
   for (let i = 0; i < 14; i++) for (let j = 0; j < 14; j++) {
     ctx.beginPath();
@@ -784,7 +807,8 @@ function themeLine(t) {
 // The Theme card, first on the Configuration page: the switch is on while the system theme is followed and insensitive
 // (and off) when none can be found. Under its line stands the Default Theme subcategory (a heading and three rows: Appearance,
 // Window Opacity, Window Corners), all of it insensitive while the system theme is followed: the heading and the titles are
-// muted and every button is disabled. Appearance then shows the scheme in use, the other two their saved values.
+// --disabled and every button is disabled (the one disabled look, app.css). Appearance then shows the scheme in use, the
+// other two their saved values.
 function themeCard() {
   const t = themeState(), line = themeLine(t);
   const sys = `<button class="switch${t.follow ? " on" : ""}" role="switch" aria-checked="${t.follow}" aria-label="Use system theme"${
@@ -887,7 +911,7 @@ function tile(m) {
       ${disabled ? "disabled" : ""} onclick="pick(${m.id})">
       <canvas data-mode="${m.id}"></canvas>
       <span class="tile-cap">${m.caption}</span>
-      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag muted">Unavailable</span>` : ""}
+      ${why && sel ? `<span class="tile-flag lost">Reading lost</span>` : why ? `<span class="tile-flag">Unavailable</span>` : ""}
     </button>`;
 }
 function group(name, extraClass) {
@@ -1010,7 +1034,7 @@ function paintAll() {
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
     const unavailable = c.closest("button").disabled;
-    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--muted" : "--fg");
+    paint(c, picture(id, readings, S.unit, soundLive ? LIVE_SPECTRUM : SAMPLE_SPECTRUM, S.peaks), 4.5, unavailable ? "--disabled" : "--fg");
   });
 }
 

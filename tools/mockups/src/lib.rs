@@ -224,7 +224,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration.html",
             "Configuration screen",
-            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on and the line says \"Using the Omarchy theme.\"; under it the Default Theme group, with Appearance, Window Opacity and Window Corners, is dimmed: Appearance on the theme's scheme, the other two on their saved values), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.",
+            "Opened by the gear, which is pressed; the back icon, the gear again, Escape or Alt+Left return to Display. The Theme card comes first (an Omarchy theme is found and followed: Use system theme is on and the line says \"Using the Omarchy theme.\"; under it the Default Theme group, with Appearance, Window Opacity and Window Corners, is disabled: Appearance on the theme's scheme, the other two on their saved values), then Rotation (90°, and the preview turns with it), Temperature unit (after Rotation), GPU (several GPUs, on Automatic: the line under it names the GPU it reads), the Music settings, and Start at boot, last (on). Each label sits beside its control, left-aligned, with the controls in one column; the three switches (Use system theme, Peak dots, Start at boot) are 32 × 18, and the knobs of the two scales are round and 16 px, and the colour of the switches' knobs.",
             config().with("rotation", Json::Int(1)),
         ),
         page(
@@ -252,7 +252,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration-theme-system.html",
             "Configuration, the system's light preference",
-            "No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, the Default Theme group is dimmed (Appearance with Light pressed, Window Opacity on Opaque and Window Corners on Rounded, their saved values), and the line says \"Using OpenDeepCool's light theme, as your desktop prefers.\" The window is opaque and rounded: while the system theme is followed, neither window setting is applied. Turn the switch off in the mockup: the group comes alive and the theme follows the service's dark theme setting.",
+            "No Omarchy theme, and the system prefers light, so the window opens in OpenDeepCool's light theme. The switch is on, the Default Theme group is disabled (Appearance with Light pressed, Window Opacity on Opaque and Window Corners on Rounded, their saved values), and the line says \"Using OpenDeepCool's light theme, as your desktop prefers.\" The window is opaque and rounded: while the system theme is followed, neither window setting is applied. Turn the switch off in the mockup: the group comes alive and the theme follows the service's dark theme setting.",
             config()
                 .with("omarchyTheme", Json::Bool(false))
                 .with("colorScheme", s("light")),
@@ -278,7 +278,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "configuration-theme-not-found.html",
             "Configuration, no system theme found",
-            "The switch is off and dimmed, the warning line says \"OpenDeepCool can't find the system's theme and is using its own.\", and the Default Theme group is sensitive, with Dark pressed, in OpenDeepCool's dark theme.",
+            "The switch is off and disabled, the warning line says \"OpenDeepCool can't find the system's theme and is using its own.\", and the Default Theme group is sensitive, with Dark pressed, in OpenDeepCool's dark theme.",
             config()
                 .with("omarchyTheme", Json::Bool(false))
                 .with("colorScheme", s("unsupported")),
@@ -316,7 +316,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "service-not-running.html",
             "Service not running",
-            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is dimmed, and there is no Refresh (it belongs to the Display page). A flip on starts it again.",
+            "The display service is set to start at boot, but it failed (a crashing service waits to restart, which systemd shows as activating; both read as failed). No banner: the off screen is headed \"OpenDeepCool isn't running\", the status dot is red, and the switch reads off with a note saying what's missing and pointing to the journal. The gear is disabled, and there is no Refresh (it belongs to the Display page). A flip on starts it again.",
             base()
                 .with("service", Json::Bool(false))
                 .with("serviceRun", s("failed")),
@@ -324,7 +324,7 @@ pub fn pages() -> Vec<Page> {
         page(
             "boot-off.html",
             "OpenDeepCool off, a new install",
-            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch. The gear is dimmed, and there is no Refresh (it belongs to the Display page). Flip the switch: the mockup skips the password dialog, then shows the normal window.",
+            "The package turns nothing on at install, so the display service's unit is disabled and the service isn't running. No error banner: the window says OpenDeepCool is off, with the Start at boot switch. The gear is disabled, and there is no Refresh (it belongs to the Display page). Flip the switch: the mockup skips the password dialog, then shows the normal window.",
             base()
                 .with("service", Json::Bool(false))
                 .with("boot", s("off")),
