@@ -118,15 +118,17 @@ const DARK: Palette = Palette {
     alphas: [0.05, 0.52, 0.09, 0.68, 0.16, 0.24],
 };
 
-/// The same forest in daylight, "Snowday": Hoarfrost, Fresh snow, Charcoal, Ash and Deep slate.
+/// The same forest in daylight, "Snowday": Hoarfrost, Powder snow, Charcoal, Ash and Deep slate
+/// (`docs/design/palette-winter.md`; Phase 11a Task 62 toned the ground and the card down, and
+/// Ash, Holly and Resin with them, after "the light theme is too bright now").
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xd9, 0xe3, 0xec]),
-    surface: Rgb([0xf9, 0xfa, 0xfb]),
+    bg: Rgb([0xc4, 0xd3, 0xe1]),
+    surface: Rgb([0xe6, 0xeb, 0xf1]),
     fg: Rgb([0x2d, 0x30, 0x39]),
-    muted: Rgb([0x55, 0x58, 0x62]),
+    muted: Rgb([0x4f, 0x52, 0x5b]),
     accent: Rgb([0x36, 0x56, 0x75]),
-    red: Rgb([0xb3, 0x3b, 0x32]),
-    yellow: Rgb([0x78, 0x52, 0x00]),
+    red: Rgb([0xa9, 0x32, 0x2a]),
+    yellow: Rgb([0x70, 0x4d, 0x00]),
     green: Rgb([0x2f, 0x77, 0x56]),
     alphas: [0.04, 0.62, 0.07, 0.78, 0.14, 0.20],
 };
@@ -1382,7 +1384,7 @@ scale = 1.0
             (
                 false,
                 [
-                    10.1, 12.6, 5.5, 6.8, 5.9, 7.3, 5.4, 6.7, 4.5, 4.1, 9.8, 3.6, 8.2, 4.6, 7.1,
+                    8.6, 11.0, 5.1, 6.5, 5.0, 6.4, 5.0, 6.4, 4.3, 3.5, 8.6, 3.4, 7.1, 4.0, 6.2,
                 ],
             ),
         ];

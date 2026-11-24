@@ -241,7 +241,7 @@ fn omarchy(app: &gtk::Application) {
 }
 
 /// Snowday's card (`surface`) and accent, from the design's palette table.
-const SNOWDAY_CARD: Rgb = Rgb([0xf9, 0xfa, 0xfb]);
+const SNOWDAY_CARD: Rgb = Rgb([0xe6, 0xeb, 0xf1]);
 const SNOWDAY_ACCENT: Rgb = Rgb([0x36, 0x56, 0x75]);
 
 // The own light theme's tiles are cards with no outline at rest, and the chosen tile has a 2 px
