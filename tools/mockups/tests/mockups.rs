@@ -89,8 +89,8 @@ const PALETTES: [Palette; 3] = [
     },
     Palette {
         name: "default light",
-        background: "#d3dce3",
-        surface: "#f5f7f9",
+        background: "#d9e3ec",
+        surface: "#f9fafb",
         foreground: "#2d3039",
         muted: "#555862",
         accent: "#365675",
@@ -190,7 +190,7 @@ fn the_default_theme_has_the_contrast_the_design_states() {
         (
             "default light",
             [
-                9.5, 12.3, 5.1, 6.6, 5.5, 7.1, 5.0, 6.5, 4.2, 3.9, 9.5, 3.5, 7.7, 4.3, 6.7,
+                10.1, 12.6, 5.5, 6.8, 5.9, 7.3, 5.4, 6.7, 4.5, 4.1, 9.8, 3.6, 8.2, 4.6, 7.1,
             ],
         ),
     ];
@@ -223,7 +223,7 @@ fn the_default_theme_has_the_contrast_the_design_states() {
     assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.4).abs() < 1e-9);
     let light = &PALETTES[1];
     let selected = blend(rgb(light.foreground), rgb(light.surface), light.selected);
-    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.1).abs() < 1e-9);
+    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.3).abs() < 1e-9);
     let sample = &PALETTES[2];
     let bg = rgb(sample.background);
     for (colour, want) in [
