@@ -22,8 +22,8 @@ use std::collections::HashMap;
 use odc_ipc::FallStop;
 use odc_protocol::Frame;
 use odc_render::{
-    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Picture, Pose, Spectrum, Stop,
-    Unit, Values, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    COLUMNS, Content, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Picture, Pose,
+    Spectrum, Stop, Unit, Values, compose, is_sound, mode_info, picture, value_picture,
 };
 use odc_sensors::{Exact, Metric};
 
@@ -127,10 +127,6 @@ pub const SAMPLE_PEAKS: [f64; COLUMNS] = [
     0.7, 0.9, 1.0, 0.85, 0.7, 0.62, 0.7, 0.6, 0.5, 0.5, 0.42, 0.3, 0.22, 0.12,
 ];
 
-/// The Music mode that draws the spectrum alone, and the Dancer's.
-const SPECTRUM_ALONE: u16 = 13;
-const DANCER: u16 = 23;
-
 /// What moves in a tile.
 enum Motion {
     /// A value's strip: the whole grid in modes 1–12, rows 2–6 in modes 18–22.
@@ -172,13 +168,13 @@ fn strip(mode: Mode, values: &Values, unit: Unit) -> Picture {
 }
 
 fn motion_of(mode: Mode, values: &Values, unit: Unit) -> Motion {
-    match mode.number() {
-        SPECTRUM_ALONE => Motion::Nothing,
-        14..=16 | 24..=26 => {
+    match mode_info(mode).content {
+        Content::Spectrum => Motion::Nothing,
+        Content::Emoji => {
             Motion::Emoji(EmojiLoop::of(mode).expect("modes 14–16 and 24–26 have a loop"))
         }
-        DANCER => Motion::Dancer,
-        _ => Motion::Strip(Marquee::new(strip(mode, values, unit))),
+        Content::Dancer => Motion::Dancer,
+        Content::Value => Motion::Strip(Marquee::new(strip(mode, values, unit))),
     }
 }
 
@@ -308,13 +304,8 @@ impl Live {
                 (Motion::Dancer, None) => Pose::STILL.frame(),
                 _ => tile.top,
             };
-            let frame = match spectrum_height(tile.mode) {
-                Some(h) => {
-                    let spectrum = self.sound.as_ref().map_or(&self.still, |(live, _)| live);
-                    with_spectrum(&top, &spectrum.draw(h, self.music.peaks), h)
-                }
-                None => top,
-            };
+            let spectrum = self.sound.as_ref().map_or(&self.still, |(live, _)| live);
+            let frame = compose(tile.mode, &top, spectrum, self.music.peaks);
             if frame != tile.frame {
                 tile.frame = frame;
                 changed.push(tile.mode);

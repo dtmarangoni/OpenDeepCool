@@ -1,7 +1,7 @@
 //! The mode table and what this build draws (Phase 7 plan, Task 2; `docs/spec/display.md` and
 //! `docs/spec/music.md`, Modes).
 
-use odc_render::{Kind, Mode, Unit, Values, mode_info, picture};
+use odc_render::{Content, Kind, Mode, Unit, Values, mode_info, picture, spectrum_height};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 
 #[test]
@@ -94,6 +94,32 @@ fn picture_draws_exactly_the_modes_that_show_values() {
                 "mode {}",
                 mode.number()
             );
+        }
+    }
+}
+
+// What each mode draws (`music.md`): a value exactly where the mode shows metrics, the spectrum
+// alone in 13, an emoji in 14–16 and 24–26, the Dancer in 23; a spectrum area under every mode
+// that has a spectrum, which no whole-grid picture has.
+#[test]
+fn every_mode_has_the_content_the_spec_gives_it() {
+    for mode in Mode::all() {
+        let n = mode.number();
+        let info = mode_info(mode);
+        let want = match n {
+            13 => Content::Spectrum,
+            14..=16 | 24..=26 => Content::Emoji,
+            23 => Content::Dancer,
+            _ => Content::Value,
+        };
+        assert_eq!(info.content, want, "mode {n}");
+        assert_eq!(
+            info.content == Content::Value,
+            !info.metrics.is_empty(),
+            "mode {n}: a value exactly where metrics are shown"
+        );
+        if info.kind != Kind::Music {
+            assert_eq!(spectrum_height(mode), None, "mode {n} has no spectrum");
         }
     }
 }

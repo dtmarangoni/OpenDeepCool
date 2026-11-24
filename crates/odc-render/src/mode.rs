@@ -43,12 +43,28 @@ pub enum Kind {
     Music,
 }
 
-/// A mode's metrics, top first, and its kind. Every Music mode takes sound (owner, 2026-10-26;
-/// the emoji alone too, since they move only while sound plays, owner, 2026-11-23).
+/// What a mode draws above or instead of its spectrum (`docs/spec/music.md`): the one decision
+/// the cooler's engine and the app's tiles both follow.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Content {
+    /// A value's strip: the whole grid in modes 1–12, rows 2–6 in modes 18–22.
+    Value,
+    /// Mode 13: the spectrum alone.
+    Spectrum,
+    /// An emoji's loop: in rows 1–7 over the spectrum (modes 14–16), or on the whole grid
+    /// (modes 24–26).
+    Emoji,
+    /// Mode 23: the Dancer.
+    Dancer,
+}
+
+/// A mode's metrics, top first, its kind and its content. Every Music mode takes sound (owner,
+/// 2026-10-26; the emoji alone too, since they move only while sound plays, owner, 2026-11-23).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModeInfo {
     pub metrics: &'static [Metric],
     pub kind: Kind,
+    pub content: Content,
 }
 
 /// The table, for every mode.
@@ -78,5 +94,15 @@ pub fn mode_info(mode: Mode) -> ModeInfo {
         22 => (&[MemoryLoad], Kind::Music),
         n => unreachable!("mode {n}: a Mode is 1 to 26 but 17"),
     };
-    ModeInfo { metrics, kind }
+    let content = match mode.0 {
+        13 => Content::Spectrum,
+        14..=16 | 24..=26 => Content::Emoji,
+        23 => Content::Dancer,
+        _ => Content::Value,
+    };
+    ModeInfo {
+        metrics,
+        kind,
+        content,
+    }
 }

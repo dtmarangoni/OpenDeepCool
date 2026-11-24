@@ -11,8 +11,8 @@ use std::sync::Arc;
 
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
-    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Values, analyse, is_sound,
-    mode_info, picture, spectrum_height, with_spectrum,
+    COLUMNS, Content, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Values, analyse,
+    compose, is_sound, mode_info, picture, spectrum_height,
 };
 use odc_sensors::{Snapshot, Unavailable};
 
@@ -129,14 +129,14 @@ impl Top {
     /// The top of `mode` from its start: its picture at home, the loop's first picture, or the
     /// Dancer reset (`music.md`: a reset restarts the loop and the Dancer).
     fn of(mode: Mode, picture: Option<Picture>) -> Top {
-        match mode.number() {
-            13 => Top::Nothing,
-            14..=16 | 24..=26 => {
+        match mode_info(mode).content {
+            Content::Spectrum => Top::Nothing,
+            Content::Emoji => {
                 Top::Emoji(EmojiLoop::of(mode).expect("modes 14–16 and 24–26 have a loop"))
             }
-            23 => Top::Dancer(Dancer::new()),
-            n => Top::Strip(Marquee::new(
-                picture.unwrap_or_else(|| panic!("mode {n} shows a value")),
+            Content::Dancer => Top::Dancer(Dancer::new()),
+            Content::Value => Top::Strip(Marquee::new(
+                picture.unwrap_or_else(|| panic!("mode {} shows a value", mode.number())),
             )),
         }
     }
@@ -347,9 +347,9 @@ impl Engine {
                 .tick(levels.as_ref().expect("mode 23 takes sound"))
                 .frame(),
         };
-        let frame = match (spectrum_height(mode), &self.spectrum) {
-            (Some(h), Some(spectrum)) => with_spectrum(&top, &spectrum.draw(h, music.peaks), h),
-            _ => top,
+        let frame = match &self.spectrum {
+            Some(spectrum) => compose(mode, &top, spectrum, music.peaks),
+            None => top,
         };
         (frame, levels)
     }

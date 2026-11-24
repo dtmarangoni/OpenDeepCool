@@ -10,7 +10,7 @@ use odc_sensors::Exact;
 use crate::glyph::{CELSIUS, FAHRENHEIT, Glyph, PERCENT};
 use crate::mode::{Mode, mode_info};
 use crate::picture::{Band, Picture, layout_at};
-use crate::spectrum::Columns;
+use crate::spectrum::{Columns, Spectrum};
 use crate::value::{Shown, fahrenheit, number};
 use crate::{Unit, Values};
 
@@ -46,6 +46,17 @@ pub fn value_picture(mode: Mode, values: &Values, unit: Unit) -> Option<Picture>
         symbol,
     };
     Some(layout_at(&[band], &[VALUE_TOP]))
+}
+
+/// `mode`'s frame from what it draws above its spectrum and the spectrum now, before rotation: the
+/// spectrum in its area when the mode has one ([`spectrum_height`]), `top` alone otherwise (the
+/// emoji and the Dancer drawn alone, modes 23 to 26). The one composition the cooler's engine
+/// and the app's tiles share.
+pub fn compose(mode: Mode, top: &Frame, spectrum: &Spectrum, peaks: bool) -> Frame {
+    match spectrum_height(mode) {
+        Some(h) => with_spectrum(top, &spectrum.draw(h, peaks), h),
+        None => *top,
+    }
 }
 
 /// A frame with a spectrum, before rotation: `top`'s rows above the area, and `columns` drawn in
