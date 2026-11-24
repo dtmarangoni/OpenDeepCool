@@ -12,7 +12,7 @@ use std::sync::Arc;
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Unit, Values, analyse,
-    draws, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    draws, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Snapshot, Unavailable};
 
@@ -184,10 +184,10 @@ pub(crate) fn shown_mode(settings: &Settings, drawn: Drawn) -> Mode {
         .expect("mode 1 exists")
 }
 
-/// Whether `mode` takes sound: the Music modes that draw it, 13–16 and 18–23 (owner, 2026-10-26);
-/// the three emoji alone, 24–26, are Music modes that don't (owner, 2026-11-23).
+/// Whether `mode` takes sound: the Music modes, 13–16 and 18–26 (owner, 2026-10-26). The emoji
+/// among them move only while sound plays (owner, 2026-11-23).
 pub fn takes_sound(mode: Mode) -> bool {
-    mode_info(mode).sound
+    mode_info(mode).kind == Kind::Music
 }
 
 /// The picture of the value `mode` shows, `None` when it shows none: the whole grid in modes 1–12,
@@ -353,7 +353,7 @@ impl Engine {
         let top = match &mut self.top {
             Top::Strip(marquee) => marquee.tick(),
             Top::Nothing => Frame::blank(),
-            Top::Emoji(emoji) => emoji.tick(),
+            Top::Emoji(emoji) => emoji.tick(levels.as_ref().is_some_and(is_sound)),
             Top::Dancer(dancer) => dancer
                 .tick(levels.as_ref().expect("mode 23 takes sound"))
                 .frame(),

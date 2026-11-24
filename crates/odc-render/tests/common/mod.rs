@@ -8,7 +8,8 @@ use std::sync::OnceLock;
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Spectrum, Stop, Unit, Values,
-    WINDOW, analyse, draws, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    WINDOW, analyse, draws, is_sound, mode_info, picture, spectrum_height, value_picture,
+    with_spectrum,
 };
 use odc_sensors::{Exact, Metric};
 use odc_testkit::diff;
@@ -182,7 +183,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
             assert!(tick.frame.is_none());
             continue;
         }
-        let levels = mode_info(mode).sound.then(|| {
+        let levels = (mode_info(mode).kind == Kind::Music).then(|| {
             playing
                 .and_then(|(signal, from)| signal.get(usize::try_from(tick.n - from).ok()?))
                 .unwrap_or(silence())
@@ -193,7 +194,8 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
         let drawn = match top.as_mut().expect("a top") {
             Top::Strip(m) => m.tick(),
             Top::Nothing => Frame::blank(),
-            Top::Emoji(e) => e.tick(),
+            // An emoji runs while sound plays: any level above 0 in the tick's window.
+            Top::Emoji(e) => e.tick(levels.is_some_and(is_sound)),
             Top::Dancer(d) => d.tick(levels.expect("mode 23 takes sound")).frame(),
         };
         let frame = match (spectrum_height(mode), &spectrum) {

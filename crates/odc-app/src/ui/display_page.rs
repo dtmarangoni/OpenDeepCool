@@ -9,7 +9,7 @@
 //! the service's readings and moves as the cooler's picture does. One tick of 100 ms, counted
 //! from the page's frame clock, steps them all together, and it exists only while a tile is on
 //! screen, the window isn't minimised or suspended and the system hasn't asked for reduced
-//! motion. The Music tiles move with the service's `Levels`, once for each, and only while the
+//! motion. The Music tiles, the emoji too, move with the service's `Levels`, once for each, and only while the
 //! sound is live.
 
 use std::cell::{Cell, RefCell};
@@ -17,14 +17,14 @@ use std::rc::{Rc, Weak};
 
 use gtk::glib;
 use gtk::prelude::*;
-use odc_render::{Kind, Mode, MusicSettings, Unit, mode_info};
+use odc_render::{Kind, Mode, MusicSettings, Unit};
 
 use super::Request;
 use super::names::{Names, group};
 use super::page::{icon_button, page, page_bar, scroller_of};
 use super::tiles::TileWidget;
 use crate::live::{Beat, Live, sample_values};
-use crate::model::{self, LiveInput, group_name};
+use crate::model::{self, LiveInput, group_modes, group_name};
 use crate::theme::Tokens;
 
 /// The request a tile's activation sends.
@@ -341,10 +341,7 @@ impl DisplayPage {
                 .valign(gtk::Align::Start)
                 .build();
             names.name(&flowbox, &format!("{name} options"));
-            let modes: Vec<u16> = Mode::all()
-                .filter(|m| mode_info(*m).kind == kind)
-                .map(Mode::number)
-                .collect();
+            let modes: Vec<u16> = group_modes(kind).into_iter().map(Mode::number).collect();
             for &mode in &modes {
                 let tile = TileWidget::new(names, Mode::new(mode).expect("a mode"), tokens);
                 flowbox.append(&tile.child);
@@ -373,6 +370,8 @@ impl DisplayPage {
                 reasons_group,
             });
         }
+        // The tiles are kept in the modes' own order, whatever order they stand in the groups.
+        tiles.sort_by_key(|tile| tile.mode);
         // The page bar: the title centred over the panel, and Refresh at its end (Refresh).
         let refresh = gtk::Button::builder().action_name("win.refresh").build();
         icon_button(

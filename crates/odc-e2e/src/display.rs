@@ -267,7 +267,8 @@ fn draw_music(mode: Mode, case: &Case) -> Result<Example, String> {
                 .ok_or_else(|| format!("{}: mode {} has no loop", case.heading, mode.number()))?;
             let frames = expected
                 .iter()
-                .map(|_| turned(in_silence(mode, emoji.tick())))
+                // The whole loop, as it runs while sound plays.
+                .map(|_| turned(in_silence(mode, emoji.tick(true))))
                 .collect();
             (frames, expected)
         }

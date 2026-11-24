@@ -18,7 +18,7 @@ mod temperature;
 mod value;
 
 pub use dancer::{Dancer, Pose};
-pub use emoji::EmojiLoop;
+pub use emoji::{EmojiLoop, REST_AFTER, is_sound};
 pub use glyph::{CELSIUS, DASH, DIGITS, FAHRENHEIT, Glyph, PERCENT, WATT};
 pub use marquee::Marquee;
 pub use mode::{Kind, Mode, ModeInfo, mode_info};

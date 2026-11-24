@@ -57,14 +57,12 @@ fn the_table_lists_each_mode_s_metrics_top_first() {
     assert_eq!(Mode::all().count(), 25);
 }
 
-// A Music mode takes sound when it draws it: the spectrum, with or without an emoji or a value,
-// and the Dancer; the three emoji alone, 24–26, take none (owner, 2026-11-23). No other mode does.
+// Music is every mode from 13 on (17 is none), the emoji alone included: they move only while
+// sound plays (owner, 2026-11-23), so every Music mode takes sound.
 #[test]
-fn only_the_music_modes_that_draw_the_sound_take_it() {
+fn every_music_mode_is_from_13_on() {
     for mode in Mode::all() {
         let n = mode.number();
-        let wanted = n >= 13 && !(24..=26).contains(&n);
-        assert_eq!(mode_info(mode).sound, wanted, "mode {n}");
         assert_eq!(
             mode_info(mode).kind == Kind::Music,
             n >= 13,

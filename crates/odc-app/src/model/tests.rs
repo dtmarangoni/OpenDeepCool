@@ -45,19 +45,20 @@ const TILES: [(u16, &str, &str); 25] = [
     (10, "Power", "CPU"),
     (11, "Power", "GPU"),
     (12, "Power", "CPU + GPU"),
+    // The Music group stands in three rows of five (owner, 2026-11-23).
     (13, "Music", "Spectrum"),
-    (14, "Music", "Lub-dub + Spectrum"),
-    (15, "Music", "Coffee break + Spectrum"),
-    (16, "Music", "Cat tail + Spectrum"),
-    (18, "Music", "CPU temperature"),
-    (19, "Music", "GPU temperature"),
-    (20, "Music", "CPU usage"),
-    (21, "Music", "GPU usage"),
-    (22, "Music", "RAM usage"),
-    (23, "Music", "Dancer"),
     (24, "Music", "Lub-dub"),
     (25, "Music", "Coffee break"),
     (26, "Music", "Cat tail"),
+    (23, "Music", "Dancer"),
+    (20, "Music", "CPU load"),
+    (21, "Music", "GPU load"),
+    (22, "Music", "RAM load"),
+    (18, "Music", "CPU temperature"),
+    (19, "Music", "GPU temperature"),
+    (14, "Music", "Lub-dub + Spectrum"),
+    (15, "Music", "Coffee break + Spectrum"),
+    (16, "Music", "Cat tail + Spectrum"),
 ];
 
 const GROUPS: [(&str, Kind); 4] = [
@@ -448,9 +449,9 @@ fn the_live_tiles_draw_from_the_states_readings_and_music_settings() {
         (23, true, true),
         (13, false, false),
         (23, false, false),
-        // The three emoji alone are Music modes that take no sound (owner, 2026-11-23).
-        (24, true, false),
-        (26, true, false),
+        // The emoji alone are Music modes like the others: they run while sound plays.
+        (24, true, true),
+        (26, true, true),
     ] {
         let mut state = base();
         state.mode = Some(mode);
@@ -483,12 +484,7 @@ fn a_music_mode() {
             "Music · Dancer",
             ("No sound: spectrum is silent", Dot::Warn),
         ),
-        (
-            21,
-            true,
-            "Music · GPU usage",
-            ("Sound connected", Dot::Good),
-        ),
+        (21, true, "Music · GPU load", ("Sound connected", Dot::Good)),
     ] {
         let mut state = base();
         state.mode = Some(mode);
@@ -504,34 +500,6 @@ fn a_music_mode() {
         want.display.live.restart.0 = mode as u16;
         // The sound can be live when a helper's is attached while a Music mode is shown.
         want.display.live.sound = connected;
-        assert_eq!(view_of(state), want, "mode {mode}");
-    }
-}
-
-// An emoji alone, 24–26 (owner, 2026-11-23): a Music mode that takes no sound, so its status has
-// no sound line and the tiles' sound isn't live even with a helper attached; an emoji over the
-// spectrum, 14–16, has both.
-#[test]
-fn an_emoji_alone_has_no_sound_status_and_one_over_the_spectrum_has() {
-    for (mode, caption, sound) in [
-        (25, "Music · Coffee break", false),
-        (15, "Music · Coffee break + Spectrum", true),
-    ] {
-        let mut state = base();
-        state.mode = Some(mode);
-        state.audio_connected = Some(true);
-        let mut want = base_view();
-        want.column.caption = caption.to_owned();
-        if sound {
-            want.column.status.push(Status {
-                name: "Music sound status",
-                text: "Sound connected",
-                dot: Dot::Good,
-            });
-        }
-        want.display.groups = expected_groups(mode as u16, &[]);
-        want.display.live.restart.0 = mode as u16;
-        want.display.live.sound = sound;
         assert_eq!(view_of(state), want, "mode {mode}");
     }
 }
@@ -915,15 +883,15 @@ fn gpu_reasons(reason: &str) -> HashMap<u32, String> {
 /// The same, as the app shows them.
 fn gpu_reasons_shown(reason: &str) -> Vec<(u16, String)> {
     [
-        (2, "GPU usage"),
-        (4, "GPU usage"),
-        (6, "GPU usage"),
+        (2, "GPU load"),
+        (4, "GPU load"),
+        (6, "GPU load"),
         (8, "GPU temperature"),
         (9, "GPU temperature"),
         (11, "GPU power"),
         (12, "GPU power"),
         (19, "GPU temperature"),
-        (21, "GPU usage"),
+        (21, "GPU load"),
     ]
     .into_iter()
     .map(|(mode, metric)| (mode, format!("{metric}: {reason}")))
@@ -952,14 +920,14 @@ fn a_metric_unavailable() {
     assert_eq!(got, want);
     // Each group lists each of its reasons once.
     let reasons: Vec<&Vec<String>> = got.display.groups.iter().map(|g| &g.reasons).collect();
-    assert_eq!(*reasons[0], ["GPU usage: no device found"]);
+    assert_eq!(*reasons[0], ["GPU load: no device found"]);
     assert_eq!(*reasons[1], ["GPU temperature: no device found"]);
     assert_eq!(*reasons[2], ["GPU power: no device found"]);
     assert_eq!(
         *reasons[3],
         [
-            "GPU temperature: no device found",
-            "GPU usage: no device found"
+            "GPU load: no device found",
+            "GPU temperature: no device found"
         ]
     );
     let tile = &got.display.groups[0].tiles[1];
@@ -968,7 +936,7 @@ fn a_metric_unavailable() {
         (
             false,
             Some(Flag::Unavailable),
-            Some("GPU usage: no device found")
+            Some("GPU load: no device found")
         )
     );
 }
@@ -1329,7 +1297,8 @@ proptest! {
             panic!("not the normal screens");
         };
         let modes: Vec<u16> = normal.display.groups.iter().flat_map(|g| g.tiles.iter().map(|t| t.mode)).collect();
-        prop_assert_eq!(modes, Mode::all().map(Mode::number).collect::<Vec<u16>>());
+        let order: Vec<u16> = GROUPS.iter().flat_map(|&(_, kind)| group_modes(kind)).map(Mode::number).collect();
+        prop_assert_eq!(modes, order);
         let kinds: Vec<Kind> = normal.display.groups.iter().map(|g| g.kind).collect();
         prop_assert_eq!(kinds, GROUPS.map(|(_, k)| k).to_vec());
         let selected: Vec<u16> = normal.display.groups.iter().flat_map(|g| &g.tiles).filter(|t| t.selected).map(|t| t.mode).collect();

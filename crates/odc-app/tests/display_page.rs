@@ -81,9 +81,9 @@ const TILES: [(&str, u16); 25] = [
     ("Music: Cat tail + Spectrum", 16),
     ("Music: CPU temperature", 18),
     ("Music: GPU temperature", 19),
-    ("Music: CPU usage", 20),
-    ("Music: GPU usage", 21),
-    ("Music: RAM usage", 22),
+    ("Music: CPU load", 20),
+    ("Music: GPU load", 21),
+    ("Music: RAM load", 22),
     ("Music: Dancer", 23),
     ("Music: Lub-dub", 24),
     ("Music: Coffee break", 25),
@@ -337,7 +337,7 @@ fn unavailable(app: &gtk::Application) {
     };
     assert_eq!(
         text("Load unavailable reasons").as_deref(),
-        Some("GPU usage: no device found")
+        Some("GPU load: no device found")
     );
     assert_eq!(
         text("Temperature unavailable reasons").as_deref(),
@@ -349,7 +349,7 @@ fn unavailable(app: &gtk::Application) {
     );
     assert_eq!(
         text("Music unavailable reasons").as_deref(),
-        Some("GPU temperature: no device found\nGPU usage: no device found")
+        Some("GPU load: no device found\nGPU temperature: no device found")
     );
     assert_eq!(
         window
@@ -360,7 +360,7 @@ fn unavailable(app: &gtk::Application) {
     );
     assert_eq!(
         window.names().description("Load: GPU").as_deref(),
-        Some("GPU usage: no device found")
+        Some("GPU load: no device found")
     );
     assert_eq!(window.names().description("Load: CPU"), None);
     // An unavailable tile's action asks for nothing (decisions log D67).

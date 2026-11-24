@@ -2046,51 +2046,20 @@ fn leaving_music_closes_the_pipe_and_audio_wanted_follows_the_mode() {
     });
 }
 
-// The three emoji alone, 24–26 (owner, 2026-11-23), are Music modes that take no sound: moving into
-// one from a mode that does closes the pipe and turns AudioWanted off at once, an attach is refused
-// there, and the emoji over a spectrum, 14–16, take sound again.
+// Every Music mode takes sound, the three emoji alone too (they run only while it plays; owner,
+// 2026-11-23): moving between them keeps the pipe and AudioWanted on.
 #[test]
-fn an_emoji_alone_takes_no_sound_and_one_over_the_spectrum_does() {
+fn an_emoji_alone_takes_sound_like_every_music_mode() {
     let h = Harness::drawing("attach-alone", music(14), music_status(), false, every_mode);
     zbus::block_on(async {
-        let (helper, watcher, changer) = (h.client().await, h.client().await, h.client().await);
-        watcher.main.watch().await.expect("watches");
-        let mut changes = watcher
-            .main
-            .receive_state_changed()
-            .await
-            .expect("a stream");
+        let (helper, changer) = (h.client().await, h.client().await);
         let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
-        let connected = within(WAIT, next(&mut changes))
-            .await
-            .flatten()
-            .expect("a signal");
-        assert_eq!(
-            keys(&connected.args().expect("changes").changes),
-            ["AudioConnected"]
-        );
-        changer.main.set_mode(25).await.expect("mode 25");
-        assert_eq!(h.audio.holder(), None, "closed by the time SetMode returns");
-        assert!(soon(|| closed(&mut pipe)).await);
-        let left = within(WAIT, next(&mut changes))
-            .await
-            .flatten()
-            .expect("a signal");
-        let left = left.args().expect("changes").changes;
-        assert_eq!(keys(&left), ["AudioConnected", "AudioWanted", "Mode"]);
-        assert_eq!(state_of(&left).audio_wanted, Some(false));
-        assert!(matches!(
-            helper.main.attach_audio().await,
-            Err(Error::AudioNotWanted(_))
-        ));
-        changer.main.set_mode(16).await.expect("mode 16");
-        let back = within(WAIT, next(&mut changes))
-            .await
-            .flatten()
-            .expect("a signal");
-        let back = back.args().expect("changes").changes;
-        assert_eq!(keys(&back), ["AudioWanted", "Mode"]);
-        assert_eq!(state_of(&back).audio_wanted, Some(true));
+        for mode in [25, 16, 24, 13] {
+            changer.main.set_mode(mode).await.expect("a Music mode");
+            let state = state_of(&helper.main.get_state().await.expect("the state"));
+            assert_eq!(state.audio_wanted, Some(true), "mode {mode}");
+            assert!(!closed(&mut pipe), "the pipe stays open in mode {mode}");
+        }
     });
 }
 

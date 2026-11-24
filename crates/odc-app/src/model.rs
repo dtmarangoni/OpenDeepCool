@@ -425,8 +425,7 @@ pub fn view(
     let cooler = shown(state.cooler_state, ui.sending_failed_long);
     let lost = reasons.get(&mode.number());
     let mut status = vec![cooler.status(), SERVICE_RUNNING];
-    // The sound's status shows in a mode that takes sound, not in the emoji alone.
-    if mode_info(mode).sound {
+    if mode_info(mode).kind == Kind::Music {
         status.push(if state.audio_connected == Some(true) {
             Status {
                 name: "Music sound status",
@@ -459,7 +458,7 @@ pub fn view(
         live: LiveInput {
             values: values_from(state.readings.as_ref()),
             music,
-            sound: state.audio_connected == Some(true) && mode_info(mode).sound,
+            sound: state.audio_connected == Some(true) && mode_info(mode).kind == Kind::Music,
             restart: (
                 u16::try_from(state.mode.unwrap_or(1)).unwrap_or(1),
                 unit,
@@ -597,9 +596,9 @@ pub fn group_name(kind: Kind) -> &'static str {
 /// A metric's name as the display shows it (Text).
 pub fn metric_name(metric: Metric) -> &'static str {
     match metric {
-        Metric::CpuUsage => "CPU usage",
-        Metric::GpuUsage => "GPU usage",
-        Metric::MemoryLoad => "RAM usage",
+        Metric::CpuUsage => "CPU load",
+        Metric::GpuUsage => "GPU load",
+        Metric::MemoryLoad => "RAM load",
         Metric::CpuTemperature => "CPU temperature",
         Metric::GpuTemperature => "GPU temperature",
         Metric::CpuPower => "CPU power",
@@ -616,7 +615,7 @@ fn device(metric: Metric) -> &'static str {
     }
 }
 
-/// A mode's option: `CPU + GPU`, `Spectrum`, `Coffee break + Spectrum`, `Cat tail`, `GPU usage`,
+/// A mode's option: `CPU + GPU`, `Spectrum`, `Coffee break + Spectrum`, `Cat tail`, `GPU load`,
 /// `Dancer`. An emoji over the spectrum is named with it, the same emoji alone by its own name.
 pub fn option(mode: Mode) -> String {
     let info = mode_info(mode);
@@ -657,12 +656,29 @@ pub fn reason_text(reason: &str) -> String {
     }
 }
 
+/// The Music group's tiles, in the order of its three rows of five (owner, 2026-11-23): the
+/// spectrum, the three emoji alone and the Dancer; the three loads, then the two temperatures;
+/// and the three emoji over the spectrum.
+const MUSIC_ORDER: [u16; 13] = [13, 24, 25, 26, 23, 20, 21, 22, 18, 19, 14, 15, 16];
+
+/// The modes of a group, in the order its tiles stand: the modes' own order, but for Music's.
+pub fn group_modes(kind: Kind) -> Vec<Mode> {
+    if kind == Kind::Music {
+        MUSIC_ORDER
+            .iter()
+            .map(|&n| Mode::new(n).expect("a mode"))
+            .collect()
+    } else {
+        Mode::all().filter(|m| mode_info(*m).kind == kind).collect()
+    }
+}
+
 fn groups(saved: Mode, reasons: &HashMap<u16, String>) -> Vec<Group> {
     [Kind::Load, Kind::Temperature, Kind::Power, Kind::Music]
         .into_iter()
         .map(|kind| {
-            let tiles: Vec<Tile> = Mode::all()
-                .filter(|m| mode_info(*m).kind == kind)
+            let tiles: Vec<Tile> = group_modes(kind)
+                .into_iter()
                 .map(|m| tile(m, m == saved, reasons.get(&m.number())))
                 .collect();
             let mut group_reasons: Vec<String> = Vec::new();

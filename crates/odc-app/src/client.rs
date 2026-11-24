@@ -663,7 +663,7 @@ mod tests {
             reason(&Error::ModeUnavailable(
                 "Gpu usage: no device found".to_owned()
             )),
-            Reason::Message("GPU usage: no device found".to_owned())
+            Reason::Message("GPU load: no device found".to_owned())
         );
         assert_eq!(
             reason(&Error::Failed(

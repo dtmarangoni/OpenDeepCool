@@ -90,7 +90,7 @@
 // - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
 //   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
 //   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
-// - The Music tiles (13 to 16, 18 to 22, the emoji tiles' spectrum rows included, and the Dancer; not the three emoji alone) are live only while sound is
+// - The Music tiles (the emoji, the spectrum rows under three of them, and the Dancer included) are live only while sound is
 //   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
 //   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
 //   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
@@ -116,7 +116,7 @@ const S = JSON.parse(JSON.stringify(CONFIG));
 if (S.boot === undefined) S.boot = "on";
 
 const METRIC = {
-  cpu_usage: "CPU usage", gpu_usage: "GPU usage", ram: "RAM usage",
+  cpu_usage: "CPU load", gpu_usage: "GPU load", ram: "RAM load",
   cpu_temp: "CPU temperature", gpu_temp: "GPU temperature",
   cpu_power: "CPU power", gpu_power: "GPU power"
 };
@@ -135,22 +135,23 @@ const MODES = [
   M(11, "Power", "GPU", ["gpu_power"], "value"),
   M(12, "Power", "CPU + GPU", ["cpu_power", "gpu_power"], "value"),
   M(13, "Music", "Spectrum", [], "full"),
-  M(14, "Music", "Lub-dub + Spectrum", [], "emoji"),
-  M(15, "Music", "Coffee break + Spectrum", [], "emoji"),
-  M(16, "Music", "Cat tail + Spectrum", [], "emoji"),
-  M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
-  M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
-  M(20, "Music", "CPU usage", ["cpu_usage"], "musicvalue"),
-  M(21, "Music", "GPU usage", ["gpu_usage"], "musicvalue"),
-  M(22, "Music", "RAM usage", ["ram"], "musicvalue"),
-  M(23, "Music", "Dancer", [], "dancer"),
   M(24, "Music", "Lub-dub", [], "emojialone"),
   M(25, "Music", "Coffee break", [], "emojialone"),
-  M(26, "Music", "Cat tail", [], "emojialone")
+  M(26, "Music", "Cat tail", [], "emojialone"),
+  M(23, "Music", "Dancer", [], "dancer"),
+  M(20, "Music", "CPU load", ["cpu_usage"], "musicvalue"),
+  M(21, "Music", "GPU load", ["gpu_usage"], "musicvalue"),
+  M(22, "Music", "RAM load", ["ram"], "musicvalue"),
+  M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
+  M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
+  M(14, "Music", "Lub-dub + Spectrum", [], "emoji"),
+  M(15, "Music", "Coffee break + Spectrum", [], "emoji"),
+  M(16, "Music", "Cat tail + Spectrum", [], "emoji")
 ];
-// Mode 17 is no mode: DeepCreative's Emoji 4, dropped on 2026-11-23 (the design, Display page). The three emoji alone take no
-// sound, so a Music mode of that kind shows no sound status and its tile is not one of the sound-live ones.
-const takesSound = m => m.group === "Music" && m.kind !== "emojialone";
+// Mode 17 is no mode: DeepCreative's Emoji 4, dropped on 2026-11-23 (the design, Display page). The Music group stands in three
+// rows of five (owner, 2026-11-23), which the order of these entries gives and the group's width keeps. Every Music mode takes
+// sound, the emoji alone too: an emoji moves only while sound plays (design, Live tiles).
+const takesSound = m => m.group === "Music";
 const byId = id => MODES.find(m => m.id === id);
 
 // The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's

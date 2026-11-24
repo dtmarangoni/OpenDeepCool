@@ -123,7 +123,7 @@ fn refreshes_mid_loop(
         let Some(mut emoji) = Mode::new(mode).and_then(EmojiLoop::of) else {
             continue;
         };
-        let pictures: Vec<_> = (0..emoji.ticks()).map(|_| emoji.tick()).collect();
+        let pictures: Vec<_> = (0..emoji.ticks()).map(|_| emoji.tick(true)).collect();
         let tick = (pictures.len() / 2..pictures.len())
             .find(|&t| pictures[t] != pictures[0])
             .ok_or_else(|| format!("mode {mode}: one picture from halfway on"))?;

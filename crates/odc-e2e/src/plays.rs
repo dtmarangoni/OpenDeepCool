@@ -85,10 +85,10 @@ pub struct Plan {
 }
 
 impl Plan {
-    /// A case: its picture, already turned, for a few ticks, its whole scrolling cycle, or an
-    /// emoji's whole loop, a picture a tick for its duration, then the first frame again; in the
-    /// case's unit, and in silence: a Music case's spectrum pixels are off, its floor line on
-    /// (Phase 9 plan, Task 5).
+    /// A case: its picture, already turned, for a few ticks, or its whole scrolling cycle, then
+    /// the first frame again; an emoji's first picture, which stands in silence; in the case's
+    /// unit, and in silence: a Music case's spectrum pixels are off, its floor line on (Phase 9
+    /// plan, Task 5).
     pub fn of_case(mode: u16, case: &Case) -> Result<Plan, String> {
         let pictures: Vec<Picture> = match &case.kind {
             Kind::Static(picture) => vec![picture.in_silence(); 5],
@@ -97,17 +97,15 @@ impl Plan {
                 .chain(cycle.first())
                 .map(Picture::in_silence)
                 .collect(),
+            // An emoji's loop runs only while sound plays, and a case plays in silence: the first
+            // picture stands (music.md, Emoji animations); the loops themselves are in the
+            // scenarios, which play sound.
             Kind::Loop(steps) => {
-                let mut ticks: Vec<Picture> = steps
-                    .iter()
-                    .flat_map(|(duration, picture)| {
-                        let n = usize::try_from(duration.as_millis() / TICK.as_millis())
-                            .expect("a short duration");
-                        std::iter::repeat_n(picture.in_silence(), n)
-                    })
-                    .collect();
-                ticks.extend(ticks.first().cloned());
-                ticks
+                let first = steps
+                    .first()
+                    .map(|(_, picture)| picture.in_silence())
+                    .expect("a loop has a picture");
+                vec![first; 5]
             }
         };
         Ok(Plan {

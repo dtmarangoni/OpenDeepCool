@@ -1,6 +1,6 @@
 //! The modes of `docs/spec/display.md` (Modes, 1–12) and `docs/spec/music.md` (Modes, 13–16 and
-//! 18–26): the metrics each shows, top first, its kind, and whether it takes sound. Availability
-//! and the later phases' renderers read this table.
+//! 18–26): the metrics each shows, top first, and its kind. Availability and the later phases'
+//! renderers read this table.
 
 use odc_sensors::Metric;
 
@@ -43,14 +43,12 @@ pub enum Kind {
     Music,
 }
 
-/// A mode's metrics, top first, its kind, and whether it takes sound.
+/// A mode's metrics, top first, and its kind. Every Music mode takes sound (owner, 2026-10-26;
+/// the emoji alone too, since they move only while sound plays, owner, 2026-11-23).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModeInfo {
     pub metrics: &'static [Metric],
     pub kind: Kind,
-    /// Whether the mode draws the sound: the spectrum, or the Dancer. The three emoji alone are
-    /// Music modes that don't (owner, 2026-11-23), so no sound is taken while one is shown.
-    pub sound: bool,
 }
 
 /// The table, for every mode.
@@ -80,11 +78,5 @@ pub fn mode_info(mode: Mode) -> ModeInfo {
         22 => (&[MemoryLoad], Kind::Music),
         n => unreachable!("mode {n}: a Mode is 1 to 26 but 17"),
     };
-    // The emoji alone, 24–26, draw no spectrum and move to no sound; every other Music mode does.
-    let sound = kind == Kind::Music && !(24..=26).contains(&mode.0);
-    ModeInfo {
-        metrics,
-        kind,
-        sound,
-    }
+    ModeInfo { metrics, kind }
 }

@@ -3,7 +3,7 @@
 //! spec, each loop's order and durations, and the restart at a reset.
 
 use odc_protocol::Frame;
-use odc_render::{EmojiLoop, Mode};
+use odc_render::{COLUMNS, EmojiLoop, Mode, REST_AFTER, is_sound};
 
 /// The modes that have an emoji: 14–16 over the spectrum, 24–26 alone.
 const EMOJI_MODES: [u16; 6] = [14, 15, 16, 24, 25, 26];
@@ -405,7 +405,7 @@ fn each_loop_shows_its_pictures_in_order_for_their_durations() {
         // Three loops in a row, from the start.
         let ticks = per_tick(&steps);
         for (n, expected) in ticks.iter().cycle().take(3 * ticks.len()).enumerate() {
-            assert_eq!(emoji.tick(), *expected, "mode {mode}, tick {n}");
+            assert_eq!(emoji.tick(true), *expected, "mode {mode}, tick {n}");
         }
     }
 }
@@ -417,12 +417,12 @@ fn a_reset_shows_the_first_picture_on_the_next_frame_at_every_position() {
         for position in 0..ticks.len() {
             let mut emoji = EmojiLoop::of(Mode::new(mode).unwrap()).unwrap();
             for _ in 0..position {
-                emoji.tick();
+                emoji.tick(true);
             }
             emoji.reset();
             for (n, expected) in ticks.iter().enumerate() {
                 assert_eq!(
-                    emoji.tick(),
+                    emoji.tick(true),
                     *expected,
                     "mode {mode}, reset at {position}, {n}"
                 );
@@ -439,10 +439,53 @@ fn a_picture_over_the_spectrum_stays_in_rows_1_to_7_and_one_alone_uses_the_rest(
         let mut emoji = EmojiLoop::of(Mode::new(mode).unwrap()).unwrap();
         let mut below = false;
         for _ in 0..emoji.ticks() {
-            let frame = emoji.tick();
+            let frame = emoji.tick(true);
             below |= (8..=14).any(|r| (1..=14).any(|c| frame.get(r, c)));
         }
         assert_eq!(below, mode >= 24, "mode {mode}");
+    }
+}
+
+// An emoji moves only while sound plays (owner, 2026-11-23): in silence it stands on its first
+// picture for ever; with sound it runs from that picture; REST_AFTER quiet ticks after the sound
+// stops it is back on its first picture, and the next sound starts the loop from the top.
+#[test]
+fn an_emoji_stands_still_without_sound_runs_while_it_plays_and_rests_a_second_after() {
+    for mode in EMOJI_MODES {
+        let ticks = per_tick(&expected(mode));
+        let first = ticks[0];
+        let mut emoji = EmojiLoop::of(Mode::new(mode).unwrap()).unwrap();
+        for n in 0..3 * ticks.len() {
+            assert_eq!(emoji.tick(false), first, "mode {mode}, silent tick {n}");
+        }
+        // Sound from here: the loop runs from its first picture.
+        for (n, want) in ticks.iter().cycle().take(ticks.len() + 3).enumerate() {
+            assert_eq!(emoji.tick(true), *want, "mode {mode}, sound tick {n}");
+        }
+        // The sound stops, the loop goes on for REST_AFTER - 1 ticks, then rests on picture 1.
+        let mut at = (ticks.len() + 3) % ticks.len();
+        for n in 1..REST_AFTER {
+            assert_eq!(emoji.tick(false), ticks[at], "mode {mode}, quiet tick {n}");
+            at = (at + 1) % ticks.len();
+        }
+        for n in 0..5 {
+            assert_eq!(emoji.tick(false), first, "mode {mode}, rest tick {n}");
+        }
+        // The next sound starts from the top.
+        assert_eq!(emoji.tick(true), first);
+        assert_eq!(emoji.tick(true), ticks[1 % ticks.len()]);
+    }
+}
+
+// What counts as sound: any of the 14 columns above level 0; digital silence is all 0.
+#[test]
+fn sound_is_any_column_above_level_0() {
+    assert!(!is_sound(&[0.0; COLUMNS]));
+    let mut levels = [0.0; COLUMNS];
+    for column in 0..COLUMNS {
+        levels[column] = 0.001;
+        assert!(is_sound(&levels), "column {column}");
+        levels[column] = 0.0;
     }
 }
 

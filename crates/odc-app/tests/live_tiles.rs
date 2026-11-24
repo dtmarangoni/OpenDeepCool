@@ -212,8 +212,8 @@ fn states(_app: &gtk::Application) {
     }
 }
 
-// With values below 100 and no sound, only the six emoji tiles change their picture, so only
-// they draw; the others draw nothing while the tick runs.
+// With values below 100 and no sound nothing changes any tile's picture (an emoji stands on its
+// first picture until sound plays; owner, 2026-11-23), so no tile draws while the tick runs.
 fn redraws_only_on_change(app: &gtk::Application) {
     animations(true);
     let (window, _) = shown(app);
@@ -229,9 +229,12 @@ fn redraws_only_on_change(app: &gtk::Application) {
         .filter(|(_, (b, a))| a > b)
         .map(|(tile, _)| tile.mode.number())
         .collect();
-    assert_eq!(drew, [14, 15, 16, 24, 25, 26], "the emoji loops alone");
-    // A loop changes its picture on some of its 7 to 12 ticks, so a tile draws less than once a
-    // tick: in 2.2 s, at most 22 times.
+    assert_eq!(
+        drew,
+        Vec::<u16>::new(),
+        "no tile draws without sound or scrolling"
+    );
+    // And at most once a tick, in any case: in 2.2 s, at most 22 times.
     for (n, (b, a)) in before.iter().zip(&after).enumerate() {
         assert!(a - b <= 22, "mode {} drew {} times", n + 1, a - b);
     }

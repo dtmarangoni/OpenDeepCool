@@ -1104,8 +1104,8 @@ fn a_missed_tick_in_music_moves_nothing() {
 fn a_music_tick_carries_the_levels_its_frame_was_drawn_from_and_no_other_does() {
     let mut checked = 0;
     for mode in Mode::all().map(Mode::number) {
-        // The spectrum and the Dancer take the sound, the three emoji alone, 24–26, don't.
-        let music = (13..=23).contains(&mode);
+        // Every Music mode takes the sound, the emoji alone too (they run only while it plays).
+        let music = (13..=26).contains(&mode);
         for signal in signals().iter().filter(|s| !s.is_beat_train()).take(12) {
             let audio = Arc::new(FakeAudio::new());
             let mut engine = Engine::with_audio(

@@ -3,14 +3,15 @@
 //!
 //! One [`Live`] holds a state machine for each of the 25 modes' tiles and steps them all together,
 //! as the service's engine steps the cooler's picture: a value's strip in a [`Marquee`], so a
-//! value of 100 or more scrolls and a changed reading keeps its place; an emoji's [`EmojiLoop`];
-//! the Dancer, stepped by the sound's levels; and, below a value or an emoji, one [`Spectrum`]
+//! value of 100 or more scrolls and a changed reading keeps its place; an emoji's [`EmojiLoop`],
+//! which stands on its first picture and runs only while sound plays (owner, 2026-11-23); the
+//! Dancer, stepped by the sound's levels; and, below a value or an emoji, one [`Spectrum`]
 //! shared by the Music tiles. The pictures are `odc_render`'s own, from the service's `Readings`,
 //! so a tile shows what the cooler would show for the same values, upright.
 //!
-//! The Music tiles are live only while the sound is (`set_sound`): the service sends `Levels`
-//! while a Music mode is shown and a helper's sound is attached. Otherwise they show the fixed
-//! still sample, as the mockups draw it. The spectrum falls once per `Levels`, which is once per
+//! The Music tiles, the emoji among them, are live only while the sound is (`set_sound`): the
+//! service sends `Levels` while a Music mode is shown and a helper's sound is attached. Otherwise
+//! they show the fixed still sample, as the mockups draw it, and the emoji their first picture. The spectrum falls once per `Levels`, which is once per
 //! tick of the service's own, so it falls as fast as on the cooler.
 //!
 //! Each call that can change a picture returns the modes whose frame changed, so the widgets
@@ -22,7 +23,7 @@ use odc_ipc::FallStop;
 use odc_protocol::Frame;
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Picture, Pose, Spectrum, Stop,
-    Unit, Values, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    Unit, Values, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Exact, Metric};
 
@@ -201,6 +202,12 @@ impl Live {
             still: Spectrum::at(SAMPLE_BARS, SAMPLE_PEAKS),
             sound: None,
         };
+        // Each emoji at rest: its first picture, which the loop gives without moving.
+        for tile in &mut live.tiles {
+            if let Motion::Emoji(emoji) = &mut tile.motion {
+                tile.top = emoji.tick(false);
+            }
+        }
         live.tick();
         live
     }
@@ -224,14 +231,13 @@ impl Live {
         self.sound.is_some()
     }
 
-    /// One tick of 100 ms for every tile: a strip moves one column if it scrolls, an emoji loop
-    /// goes on. Returns the modes whose picture changed.
+    /// One tick of 100 ms for every tile: a strip moves one column if it scrolls. An emoji loop
+    /// moves with the sound's `Levels` instead ([`Live::levels`]), as the cooler's does. Returns
+    /// the modes whose picture changed.
     pub fn tick(&mut self) -> Vec<Mode> {
         for tile in &mut self.tiles {
-            match &mut tile.motion {
-                Motion::Strip(marquee) => tile.top = marquee.tick(),
-                Motion::Emoji(emoji) => tile.top = emoji.tick(),
-                Motion::Nothing | Motion::Dancer => {}
+            if let Motion::Strip(marquee) = &mut tile.motion {
+                tile.top = marquee.tick();
             }
         }
         self.recompose()
@@ -264,6 +270,13 @@ impl Live {
             return Vec::new();
         }
         self.sound = live.then(|| (Spectrum::enter(), Dancer::new()));
+        // Going live or stopping, every emoji is at rest, on its first picture.
+        for tile in &mut self.tiles {
+            if let Motion::Emoji(emoji) = &mut tile.motion {
+                emoji.reset();
+                tile.top = emoji.tick(false);
+            }
+        }
         self.recompose()
     }
 
@@ -276,6 +289,12 @@ impl Live {
         };
         spectrum.update(levels, &self.music);
         dancer.tick(levels);
+        let sound = is_sound(levels);
+        for tile in &mut self.tiles {
+            if let Motion::Emoji(emoji) = &mut tile.motion {
+                tile.top = emoji.tick(sound);
+            }
+        }
         self.recompose()
     }
 

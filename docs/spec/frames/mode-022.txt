@@ -1,4 +1,4 @@
-# Mode 22: Music · RAM usage
+# Mode 22: Music · RAM load
 
 ## rotation 0, Memory Load = 8
 

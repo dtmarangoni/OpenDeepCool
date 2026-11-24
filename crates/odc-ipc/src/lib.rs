@@ -62,8 +62,8 @@ pub enum Error {
     TooManyWatchers(String),
     /// The dev copy only: a test session holds the service.
     Busy(String),
-    /// `AttachAudio()` while the display shows no mode that draws sound: sound is taken only in
-    /// modes 13–16 and 18–23 (owner, 2026-10-26; not 24–26, owner, 2026-11-23).
+    /// `AttachAudio()` while the display shows no Music mode: sound is taken only in modes 13–16
+    /// and 18–26 (owner, 2026-10-26).
     AudioNotWanted(String),
     /// A failure inside the service, such as a settings file it can't write; the text says what
     /// failed (owner, 2026-11-04).

@@ -53,9 +53,9 @@ pub const TILES: [(&str, &str); 25] = [
     ("Music", "Cat tail + Spectrum"),
     ("Music", "CPU temperature"),
     ("Music", "GPU temperature"),
-    ("Music", "CPU usage"),
-    ("Music", "GPU usage"),
-    ("Music", "RAM usage"),
+    ("Music", "CPU load"),
+    ("Music", "GPU load"),
+    ("Music", "RAM load"),
     ("Music", "Dancer"),
     ("Music", "Lub-dub"),
     ("Music", "Coffee break"),
@@ -768,7 +768,7 @@ fn tiles(run: &mut Run) -> Result<String> {
                     run.expect_state("grid cell", &before, State::Selected, false)?;
                 }
                 run.expect_description("image", "Cooler display preview", &caption(mode))?;
-                if (13..=23).contains(&mode) {
+                if (13..=26).contains(&mode) {
                     run.expect_texts("group", "Music sound status", &["Sound connected"])
                 } else {
                     run.gone("group", "Music sound status")
@@ -1068,7 +1068,7 @@ fn refused(run: &mut Run) -> Result<String> {
     run.refused(
         |run| run.act("grid cell", "Load: GPU", "tile.activate"),
         "SetMode(2) refused ModeUnavailable",
-        "Not changed. GPU usage: no device found",
+        "Not changed. GPU load: no device found",
     )?;
     thread::sleep(HOLD);
     run.check_state("grid cell", "Load: CPU", State::Selected, true)?;
@@ -1247,12 +1247,12 @@ fn unavailable_metric(run: &mut Run) -> Result<String> {
         }
     }
     for (group, reasons) in [
-        ("Load", "GPU usage: no device found"),
+        ("Load", "GPU load: no device found"),
         ("Temperature", "GPU temperature: no device found"),
         ("Power", "GPU power: no device found"),
         (
             "Music",
-            "GPU temperature: no device found\nGPU usage: no device found",
+            "GPU load: no device found\nGPU temperature: no device found",
         ),
     ] {
         run.expect_texts("group", &format!("{group} unavailable reasons"), &[reasons])?;
@@ -1281,12 +1281,12 @@ fn reading_lost(run: &mut Run) -> Result<String> {
     run.expect_description(
         "grid cell",
         "Load: GPU",
-        "Reading lost: GPU usage: no device found",
+        "Reading lost: GPU load: no device found",
     )?;
     run.expect_texts(
         "group",
         "Unavailable reading",
-        &["GPU usage: no device found. The cooler shows dashes until it's back."],
+        &["GPU load: no device found. The cooler shows dashes until it's back."],
     )?;
     run.expect_state("grid cell", "Load: GPU + RAM", State::Sensitive, false)?;
     run.reset()?;
@@ -2001,7 +2001,7 @@ fn tile_cost(run: &mut Run) -> Result<String> {
         run.reset()?;
         run.fake.service.readings.insert("CPU Usage", (150, 1));
         let used = match state {
-            // Readings once a second, one of them 100 or more: the emoji and the scrolling tiles.
+            // Readings once a second, one of them 100 or more: the scrolling tiles.
             "steady" => {
                 run.fake.write()?;
                 cost(run, pid, |run, tick| {

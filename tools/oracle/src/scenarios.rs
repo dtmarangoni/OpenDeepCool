@@ -234,6 +234,8 @@ pub struct Tick {
     pub placed: Option<Placed>,
     /// Whether the strip was moving when the frame was drawn; never without values.
     pub moving: bool,
+    /// Whether the sound played this tick has any column above level 0: what runs an emoji.
+    pub sound: bool,
     steps: Vec<Step>,
 }
 
@@ -1124,6 +1126,9 @@ fn draw_spectrum(frame: &mut Frame, spectrum: &Spectrum, h: u8, peaks: bool) {
     }
 }
 
+/// The quiet ticks that put an emoji back at rest: one second (music.md, Emoji animations).
+const REST_TICKS: u32 = 10;
+
 /// An emoji loop as the picture of each 100 ms tick (music.md, Emoji animations).
 fn emoji_ticks(mode: u16) -> Vec<usize> {
     emoji_loop(mode)
@@ -1306,7 +1311,11 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
     let mut music = MusicSettings::default();
     let mut audio: Option<(&'static [[f64; COLUMNS]], u32)> = None;
     let mut spectrum: Option<Spectrum> = None;
+    // An emoji's place in its loop, and the ticks since sound last played; it stands at rest, on
+    // its first picture, from the start and after REST_TICKS quiet ticks (music.md, Emoji
+    // animations).
     let mut emoji_at = 0;
+    let mut quiet = REST_TICKS;
     let mut dancer: Option<Dancer> = None;
     let mut ticks = Vec::new();
     let mut stopped = 0;
@@ -1393,9 +1402,24 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
         } else {
             spectrum = None;
         }
-        // A reset restarts the emoji loop and the Dancer (music.md).
+        // A reset restarts the emoji loop, at rest, and the Dancer (music.md).
         if reset {
             emoji_at = 0;
+            quiet = REST_TICKS;
+        }
+        // The loop runs while sound plays, and for REST_TICKS - 1 ticks after it stops. A missed
+        // tick moves nothing.
+        let mut runs = false;
+        if is_emoji(mode) && !missed {
+            if levels.iter().any(|&level| level > 0.0) {
+                quiet = 0;
+            } else if quiet < REST_TICKS {
+                quiet += 1;
+            }
+            runs = quiet < REST_TICKS;
+            if !runs {
+                emoji_at = 0;
+            }
         }
         let pose = if mode == 23 {
             if reset || dancer.is_none() {
@@ -1430,7 +1454,7 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
             draw_spectrum(&mut g, s, h, music.peaks);
             g
         });
-        if is_emoji(mode) && !missed {
+        if runs {
             emoji_at = (emoji_at + 1) % emoji_ticks(mode).len();
         }
         ticks.push(Tick {
@@ -1439,6 +1463,7 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
             reset,
             placed,
             moving,
+            sound: levels.iter().any(|&level| level > 0.0),
             steps,
         });
         match scenario.end {
@@ -1754,21 +1779,35 @@ mod tests {
             .collect()
     }
 
-    // music.md, Emoji animations: a reset shows the loop's first picture on the next frame, and
-    // otherwise the loop goes on, a unit change or a Music setting change included.
+    // music.md, Emoji animations: a reset shows the loop's first picture on the next frame; the loop
+    // runs while sound plays and for nine ticks after it, otherwise it stands on its first
+    // picture; a unit change or a Music setting change moves nothing.
     #[test]
-    fn an_emoji_loop_restarts_at_every_reset_and_only_then() {
-        let mut checked = 0;
+    fn an_emoji_loop_restarts_at_every_reset_and_runs_only_while_sound_plays() {
+        let (mut checked, mut moving, mut resting) = (0, 0, 0);
         for scenario in all() {
             let ticks = run(&scenario);
-            let mut at = 0;
+            let (mut at, mut quiet) = (0, REST_TICKS);
             for (tick, mode) in ticks.iter().zip(modes(&scenario, &ticks)) {
                 if !is_emoji(mode) {
                     continue;
                 }
                 if tick.reset {
                     at = 0;
+                    quiet = REST_TICKS;
                     checked += 1;
+                }
+                if tick.sound {
+                    quiet = 0;
+                } else if quiet < REST_TICKS {
+                    quiet += 1;
+                }
+                let runs = quiet < REST_TICKS;
+                if !runs {
+                    at = 0;
+                    resting += 1;
+                } else if at > 0 {
+                    moving += 1;
                 }
                 let loop_ = emoji_ticks(mode);
                 let picture = emoji(mode)[loop_[at]];
@@ -1787,10 +1826,13 @@ mod tests {
                 if !is_emoji_alone(mode) {
                     assert!(frame[7].iter().all(|&p| p == Pixel::Off));
                 }
-                at = (at + 1) % loop_.len();
+                if runs {
+                    at = (at + 1) % loop_.len();
+                }
             }
         }
-        assert!(checked > 0);
+        // The scenarios cover both: loops that run under the burst train, and loops at rest.
+        assert!(checked > 0 && moving > 0 && resting > 0);
     }
 
     // music.md point 7: a Music setting change resets nothing. Without it, every frame of a mode

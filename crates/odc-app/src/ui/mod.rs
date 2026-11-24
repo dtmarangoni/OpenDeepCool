@@ -100,9 +100,9 @@ mod tests {
         assert_eq!(
             refusal_text(
                 Refused::Change,
-                &Reason::Message("GPU usage: no device found".to_owned())
+                &Reason::Message("GPU load: no device found".to_owned())
             ),
-            "Not changed. GPU usage: no device found"
+            "Not changed. GPU load: no device found"
         );
         assert_eq!(
             refusal_text(Refused::Refresh, &Reason::NotAuthorized),

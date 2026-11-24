@@ -198,7 +198,7 @@ impl Service {
         put("WindowOpacity", text(self.window_opacity));
         put("WindowCorners", text(self.window_corners));
         put("AudioConnected", Boolean(self.audio_connected));
-        put("AudioWanted", Boolean((13..=23).contains(&self.mode)));
+        put("AudioWanted", Boolean((13..=26).contains(&self.mode)));
         table
     }
 }

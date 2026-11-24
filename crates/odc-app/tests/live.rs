@@ -11,7 +11,7 @@ use odc_ipc::FallStop;
 use odc_protocol::Frame;
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Pose, Spectrum, Stop, Unit,
-    Values, analyse, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    Values, analyse, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Exact, Metric};
 use odc_testkit::spectrum::signals;
@@ -104,7 +104,8 @@ fn over_still(mode: Mode, top: Frame, peaks: bool) -> Frame {
 fn first_frame(mode: Mode, values: &Values, unit: Unit, peaks: bool) -> Frame {
     let top = match mode.number() {
         13 => Frame::blank(),
-        14..=16 | 24..=26 => EmojiLoop::of(mode).expect("a loop").tick(),
+        // An emoji at rest, with no sound: its first picture.
+        14..=16 | 24..=26 => EmojiLoop::of(mode).expect("a loop").tick(false),
         23 => return Pose::STILL.frame(),
         _ => {
             let picture = strip(mode, values, unit);
@@ -220,80 +221,117 @@ fn a_scrolling_tile_moves_a_column_each_tick_as_the_cooler_does() {
     }
 }
 
+// With no sound nothing moves but a scrolling strip: an emoji stands on its first picture, so with
+// every value below 100 no tile changes at all, however long the ticks run (owner, 2026-11-23).
 #[test]
-fn a_static_tile_never_changes_and_only_the_emoji_loops_play() {
+fn a_static_tile_never_changes_and_no_emoji_moves_without_sound() {
     let values = distinct(10);
-    let mut live = Live::new(Unit::Celsius, music(true), values.clone());
-    let mut loops: Vec<(Mode, EmojiLoop)> = emoji_modes()
-        .into_iter()
-        .map(|mode| {
-            let mut emoji = EmojiLoop::of(mode).expect("a loop");
-            emoji.tick();
-            (mode, emoji)
-        })
-        .collect();
+    let mut live = Live::new(Unit::Celsius, music(true), values);
     let first = frames(&live);
     for n in 1..=200 {
         let changed = tick(&mut live);
-        for mode in &changed {
-            assert!(
-                EMOJI.contains(&mode.number()),
-                "mode {} moved at tick {n}",
-                mode.number()
-            );
-        }
-        for (mode, emoji) in &mut loops {
-            assert_eq!(
-                *live.frame(*mode),
-                over_still(*mode, emoji.tick(), true),
-                "mode {} at tick {n}",
-                mode.number()
-            );
-        }
+        assert!(changed.is_empty(), "{changed:?} moved at tick {n}");
     }
-    for ((mode, before), (_, after)) in first.iter().zip(frames(&live)) {
-        if !EMOJI.contains(&mode.number()) {
-            assert_eq!(*before, after, "mode {} stayed still", mode.number());
-        }
-    }
+    assert_eq!(frames(&live), first);
 }
 
-// The six loops start together, on their first picture, and run 10, 12, 7, 12, 12 and 12 ticks
-// (design: Live tiles, The tick): after a whole number of cycles a tile shows its first picture
-// again.
+// The six loops start together with the sound, on their first picture, and run 10, 12, 7, 12, 12
+// and 12 ticks (design: Live tiles, The tick): after a whole number of cycles a tile shows its
+// first picture again. Constant levels and no peak dots keep the spectrum under the three over
+// it still after the first `Levels`, so the whole tile can be compared.
 #[test]
-fn the_emoji_loops_start_together_and_run_10_12_7_12_12_and_12_ticks() {
-    let mut live = Live::new(Unit::Celsius, music(true), sample_values());
-    let start = frames(&live);
+fn the_emoji_loops_start_with_the_sound_and_run_10_12_7_12_12_and_12_ticks() {
+    let mut live = Live::new(Unit::Celsius, music(false), sample_values());
+    live.set_sound(true);
     let modes = emoji_modes();
     let lengths: Vec<usize> = modes
         .iter()
         .map(|&mode| EmojiLoop::of(mode).expect("a loop").ticks())
         .collect();
     assert_eq!(lengths, [10, 12, 7, 12, 12, 12]);
+    let loud = [0.5; COLUMNS];
+    // The first `Levels`: every loop shows its first picture.
+    live.levels(&loud);
+    let first: Vec<Frame> = modes.iter().map(|&mode| *live.frame(mode)).collect();
     // Every loop has moved on from its first picture within its cycle, and is back after it.
     let mut moved = [false; 6];
     for n in 1..=420 {
-        tick(&mut live);
+        live.levels(&loud);
         for (i, mode) in modes.iter().enumerate() {
-            let first = start
-                .iter()
-                .find(|(m, _)| m == mode)
-                .map(|(_, frame)| *frame)
-                .expect("a tile for the mode");
             if n % lengths[i] == 0 {
                 assert_eq!(
                     *live.frame(*mode),
-                    first,
+                    first[i],
                     "mode {} at tick {n}",
                     mode.number()
                 );
-            } else if *live.frame(*mode) != first {
+            } else if *live.frame(*mode) != first[i] {
                 moved[i] = true;
             }
         }
     }
     assert_eq!(moved, [true; 6], "each loop moves");
+}
+
+// Without sound an emoji tile stands on its first picture and a silent `Levels` keeps it there;
+// a second after the sound stops it is back on it (owner, 2026-11-23).
+#[test]
+fn an_emoji_tile_rests_without_sound_and_a_second_after_it_stops() {
+    // The picture of the emoji's own rows: rows 1–8 over a spectrum, every row alone.
+    let picture = |mode: Mode, frame: &Frame| {
+        let rows = if spectrum_height(mode).is_some() {
+            8
+        } else {
+            14
+        };
+        let mut top = Frame::blank();
+        for r in 1..=rows {
+            for c in 1..=14 {
+                top.set(r, c, frame.get(r, c));
+            }
+        }
+        top
+    };
+    let mut live = Live::new(Unit::Celsius, music(false), sample_values());
+    let rest: Vec<Frame> = emoji_modes()
+        .iter()
+        .map(|&m| picture(m, live.frame(m)))
+        .collect();
+    live.set_sound(true);
+    let silent = [0.0; COLUMNS];
+    for _ in 0..30 {
+        live.levels(&silent);
+    }
+    for (mode, rest) in emoji_modes().iter().zip(&rest) {
+        assert_eq!(
+            picture(*mode, live.frame(*mode)),
+            *rest,
+            "mode {} stands still in silence",
+            mode.number()
+        );
+    }
+    // Sound plays: the loops run; when it stops they go on for nine ticks, and the tenth silent
+    // tick has every emoji on the first picture again.
+    let loud = [0.5; COLUMNS];
+    let mut moved = [false; 6];
+    for _ in 0..13 {
+        live.levels(&loud);
+        for (i, &mode) in emoji_modes().iter().enumerate() {
+            moved[i] |= picture(mode, live.frame(mode)) != rest[i];
+        }
+    }
+    assert_eq!(moved, [true; 6], "each loop ran with the sound");
+    for _ in 0..odc_render::REST_AFTER {
+        live.levels(&silent);
+    }
+    for (mode, rest) in emoji_modes().iter().zip(&rest) {
+        assert_eq!(
+            picture(*mode, live.frame(*mode)),
+            *rest,
+            "mode {} at rest again",
+            mode.number()
+        );
+    }
 }
 
 #[test]
@@ -414,13 +452,10 @@ fn with_sound_the_spectrum_and_the_dancer_follow_the_levels_as_on_the_cooler() {
             // The cooler's pieces, entered at rest.
             let mut spectrum = Spectrum::enter();
             let mut dancer = Dancer::new();
+            // The emoji run while sound plays, and rest otherwise, as on the cooler.
             let mut loops: Vec<(Mode, EmojiLoop)> = emoji_modes()
                 .into_iter()
-                .map(|mode| {
-                    let mut emoji = EmojiLoop::of(mode).expect("a loop");
-                    emoji.tick();
-                    (mode, emoji)
-                })
+                .map(|mode| (mode, EmojiLoop::of(mode).expect("a loop")))
                 .collect();
             let values = sample_values();
             let mut strips: Vec<(Mode, Marquee)> = (18..=22)
@@ -452,7 +487,7 @@ fn with_sound_the_spectrum_and_the_dancer_follow_the_levels_as_on_the_cooler() {
                 for (mode, emoji) in &mut loops {
                     // Over the spectrum the sound moves the bars under the picture; alone the
                     // picture is the whole tile and the sound moves nothing.
-                    let top = emoji.tick();
+                    let top = emoji.tick(is_sound(levels));
                     let drawn = if spectrum_height(*mode).is_some() {
                         want(*mode, top)
                     } else {

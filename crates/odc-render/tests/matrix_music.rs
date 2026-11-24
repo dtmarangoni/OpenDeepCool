@@ -37,7 +37,8 @@ fn top_of(mode: Mode, case: &Case) -> Box<dyn FnMut() -> Frame> {
         13 => Box::new(Frame::blank),
         14..=16 | 24..=26 => {
             let mut emoji = EmojiLoop::of(mode).expect("an emoji mode");
-            Box::new(move || emoji.tick())
+            // The cases show a loop while sound plays (their `?` rows are the floor line here).
+            Box::new(move || emoji.tick(true))
         }
         23 => {
             let pose = Pose::new(case.pose.expect("a pose")).expect("a pose from 0 to 10");

@@ -173,6 +173,8 @@ button { font: inherit; color: inherit; }
 .pair { display: flex; gap: 0 24px; flex-wrap: wrap; }
 .pair .tile { width: 90px; }
 .tiles { display: flex; flex-wrap: wrap; gap: 8px; }
+/* The Music group stands in rows of five, as the app's flow box does (owner, 2026-11-23): five tiles of 98 px and four gaps */
+.group[aria-label="Music"] .tiles { max-width: 522px; }
 .tile { width: 98px; padding: 8px 6px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
 .tile canvas { display: block; }
 /* Tile captions and flags stay at the fixed 12 and 11 px that fit the mockups' 98 px tiles. In the app a caption is body text

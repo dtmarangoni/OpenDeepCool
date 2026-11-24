@@ -101,7 +101,7 @@ The names start with the project's public address, its GitHub repository, as the
 | `SetTemperatureUnit(s)` | `change-settings` | `celsius` or `fahrenheit`; in a mode without a temperature it's only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `ChooseGpu(s)` | `change-settings` | The GPU at a PCI address listed in `Gpus`, or empty for Automatic, which reads the first in `Gpus` (owner, 2026-11-04) | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `Refresh()` | `change-settings` | Fresh readings at once, and the picture from home; nothing is saved | `NotAuthorized` |
-| `AttachAudio() → h` | `feed-audio` | Only while a Music mode that draws sound (13–16 or 18–23; not the three emoji alone, 24–26) is shown: the write end of a new pipe, which the service reads raw `f32` stereo frames from, 48 000 a second, in the machine's byte order (little-endian on x86_64, the only platform OpenDeepCool supports), as `pw-record --raw --format f32 --channels 2` writes them. It replaces an earlier caller's pipe, which the service closes. The pipe closes as **Sound** above says; the caller sees `EPIPE` | `AudioNotWanted`, `NotAuthorized`, `Failed` |
+| `AttachAudio() → h` | `feed-audio` | Only while a Music mode (13–16 or 18–26) is shown: the write end of a new pipe, which the service reads raw `f32` stereo frames from, 48 000 a second, in the machine's byte order (little-endian on x86_64, the only platform OpenDeepCool supports), as `pw-record --raw --format f32 --channels 2` writes them. It replaces an earlier caller's pipe, which the service closes. The pipe closes as **Sound** above says; the caller sees `EPIPE` | `AudioNotWanted`, `NotAuthorized`, `Failed` |
 | `SetMusicPeaks(b)` | `change-settings` | The peak dots on or off ([music.md](music.md#opendeepcools-spectrum-precisely) point 7); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `Failed` |
 | `SetMusicBarFall(s)`, `SetMusicPeakFall(s)` | `change-settings` | The bars' or the peaks' fall: `slower`, `slow`, `moderate`, `fast` or `faster` (point 4); never a reset, and in a mode without a spectrum only saved | `NotAuthorized`, `InvalidArgument`, `Failed` |
 | `SetUseSystemTheme(b)` | `change-settings` | Whether the settings app follows the system's theme (an Omarchy theme if there is one, else the system's dark or light preference) or OpenDeepCool's own; a setting of the whole PC (owner, 2026-11-18, UI review D6). The service only stores it, never interprets a theme, and touches neither the cooler nor the picture | `NotAuthorized`, `Failed` |
@@ -143,7 +143,7 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 | `WindowOpacity` | `s` | `opaque`, `transparent` or `glassy`: how see-through OpenDeepCool's own theme draws the window (default `opaque`; Phase 11a Task 49) |
 | `WindowCorners` | `s` | `sharp` or `rounded`: the corners of OpenDeepCool's own theme's window (default `rounded`) |
 | `AudioConnected` | `b` | Whether the session's sound comes in: a helper's pipe is attached |
-| `AudioWanted` | `b` | Whether the service takes sound: true exactly while a Music mode that draws sound, 13–16 or 18–23, is shown (owner, 2026-10-26; not the emoji alone, 24–26, owner, 2026-11-23), so the session's helper captures only then |
+| `AudioWanted` | `b` | Whether the service takes sound: true exactly while a Music mode, 13–16 or 18–26, is shown (owner, 2026-10-26), so the session's helper captures only then |
 
 ## Errors
 
