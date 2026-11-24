@@ -97,3 +97,21 @@ pub fn page(bar: &impl IsA<gtk::Widget>, content: &impl IsA<gtk::Widget>) -> gtk
     page.append(&scrolled(content));
     page
 }
+
+/// A left-aligned label that wraps, with `classes`.
+pub fn label(text: &str, classes: &[&str]) -> gtk::Label {
+    gtk::Label::builder()
+        .label(text)
+        .xalign(0.0)
+        .wrap(true)
+        .css_classes(classes)
+        .build()
+}
+
+/// A vertical box `spacing` px between its children.
+pub fn vbox(spacing: i32) -> gtk::Box {
+    gtk::Box::builder()
+        .orientation(gtk::Orientation::Vertical)
+        .spacing(spacing)
+        .build()
+}

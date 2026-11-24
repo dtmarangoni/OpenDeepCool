@@ -16,7 +16,7 @@ use odc_ipc::{FallStop, TemperatureUnit, WindowCorners, WindowOpacity};
 use super::Request;
 use super::dropdowns::{Dropdown, Entry};
 use super::names::{Names, group};
-use super::page::{icon_button, page, page_bar, scroller_of};
+use super::page::{icon_button, label, page, page_bar, scroller_of};
 use crate::model;
 
 /// The request a unit toggle sends.
@@ -183,15 +183,6 @@ fn words_row<T: Copy + 'static>(
     all
 }
 
-fn small(text: &str, classes: &[&str]) -> gtk::Label {
-    gtk::Label::builder()
-        .label(text)
-        .xalign(0.0)
-        .wrap(true)
-        .css_classes(classes)
-        .build()
-}
-
 /// The most characters the Theme card's line asks room for.
 const THEME_LINE_CHARS: i32 = 72;
 
@@ -218,9 +209,9 @@ fn row(
         .halign(gtk::Align::Start)
         .valign(gtk::Align::Start)
         .build();
-    block.append(&small(title, &["row-title"]));
+    block.append(&label(title, &["row-title"]));
     if let Some(hint) = hint {
-        let hint = small(hint, &["muted", "small"]);
+        let hint = label(hint, &["muted", "small"]);
         hint.set_wrap_mode(gtk::pango::WrapMode::Word);
         hint.set_width_chars(HINT_WIDTH_CHARS);
         hint.set_max_width_chars(HINT_WIDTH_CHARS);
@@ -244,7 +235,7 @@ fn card(root: &gtk::Box, heading: &str, name: &str, names: &Names) -> gtk::Box {
         .css_classes(["card"])
         .build();
     names.name(&card, name);
-    card.append(&small(heading, &["card-heading"]));
+    card.append(&label(heading, &["card-heading"]));
     root.append(&card);
     card
 }
@@ -329,7 +320,7 @@ impl ConfigPage {
             .valign(gtk::Align::Start)
             .visible(false)
             .build();
-        let theme_line = small("", &["hint", "small", "muted"]);
+        let theme_line = label("", &["hint", "small", "muted"]);
         theme_line.set_max_width_chars(THEME_LINE_CHARS);
         let theme_status = group().spacing(6).build();
         names.name(&theme_status, "Theme status");
@@ -383,7 +374,7 @@ impl ConfigPage {
             .css_classes(["subcategory"])
             .build();
         names.name(&default_theme, "Default Theme");
-        default_theme.append(&small("Default Theme", &["sub-heading"]));
+        default_theme.append(&label("Default Theme", &["sub-heading"]));
         names.name(&dark_or_light, "Appearance");
         row(&default_theme, &labels, "Appearance", None, &dark_or_light);
         let saved_opacity = Rc::new(Cell::new(0));
@@ -488,11 +479,11 @@ impl ConfigPage {
 
         let gpu = Dropdown::new();
         names.name(gpu.widget(), "GPU");
-        let gpu_in_use = small("", &["muted", "small"]);
+        let gpu_in_use = label("", &["muted", "small"]);
         let gpu_in_use_group = group().visible(false).build();
         names.name(&gpu_in_use_group, "GPU in use");
         gpu_in_use_group.append(&gpu_in_use);
-        let gpu_hint = small("", &["muted", "small"]);
+        let gpu_hint = label("", &["muted", "small"]);
         for line in [&gpu_in_use, &gpu_hint] {
             line.set_max_width_chars(HINT_CHARS);
         }

@@ -12,6 +12,7 @@ use gtk::prelude::*;
 
 use super::Request;
 use super::names::{Names, group};
+use super::page::label;
 use super::pointer;
 use crate::boot::{self, Place, Style, Switch};
 
@@ -31,15 +32,6 @@ pub struct StartupCard {
     note: gtk::Label,
     /// The app sets the switch itself: its `state-set` is ignored meanwhile.
     applying: Rc<Cell<bool>>,
-}
-
-fn small(text: &str, classes: &[&str]) -> gtk::Label {
-    gtk::Label::builder()
-        .label(text)
-        .xalign(0.0)
-        .wrap(true)
-        .css_classes(classes)
-        .build()
 }
 
 /// Moves `widget` into `parent`, at its end, unless it's there already.
@@ -63,7 +55,7 @@ impl StartupCard {
             .css_classes(["card"])
             .build();
         names.name(&card, "Startup settings");
-        let heading = small("Startup", &["card-heading"]);
+        let heading = label("Startup", &["card-heading"]);
         card.append(&heading);
 
         // Level with the top of the title, as every row's control is (owner, 2026-11-22).
@@ -89,7 +81,7 @@ impl StartupCard {
             .halign(gtk::Align::Start)
             .valign(gtk::Align::Start)
             .build();
-        left.append(&small(boot::TITLE, &["row-title"]));
+        left.append(&label(boot::TITLE, &["row-title"]));
         line.append(&left);
         line.append(&switch);
         card.append(&line);
@@ -97,7 +89,7 @@ impl StartupCard {
         let note_box = group().spacing(6).visible(false).build();
         names.name(&note_box, "Start at boot status");
         let note_icon = gtk::Image::builder().valign(gtk::Align::Start).build();
-        let note = small("", &["small"]);
+        let note = label("", &["small"]);
         note.set_hexpand(true);
         note.set_max_width_chars(NOTE_CHARS);
         note_box.append(&note_icon);

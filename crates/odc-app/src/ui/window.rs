@@ -24,7 +24,7 @@ use super::banners::Banners;
 use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::{Names, group};
-use super::page::{icon_button, keep_natural_height, scrolled};
+use super::page::{icon_button, keep_natural_height, label, scrolled, vbox};
 use super::pointer;
 use super::preview::Preview;
 use super::size;
@@ -174,22 +174,6 @@ impl WeakWindow {
     pub fn upgrade(&self) -> Option<Window> {
         self.0.upgrade().map(Window)
     }
-}
-
-fn label(text: &str, classes: &[&str]) -> gtk::Label {
-    gtk::Label::builder()
-        .label(text)
-        .xalign(0.0)
-        .wrap(true)
-        .css_classes(classes)
-        .build()
-}
-
-fn vbox(spacing: i32) -> gtk::Box {
-    gtk::Box::builder()
-        .orientation(gtk::Orientation::Vertical)
-        .spacing(spacing)
-        .build()
 }
 
 impl Window {
