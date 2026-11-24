@@ -776,10 +776,17 @@ fn settings_scenarios(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
         );
         for (start, label) in [(Base, "static"), (High, "scrolling")] {
             // A mode outside the table (owner, 2026-11-05): from Phase 9 every mode is drawn, so
-            // none stays "not yet available".
+            // none stays "not yet available". The two numbers outside it are 17, the retired
+            // Emoji 4, and 27, the one past the last (music.md; owner, 2026-11-23).
             out.push(
                 s("S23", &[label], start)
-                    .at(3, [Step::Refused(24, "not in the mode table")])
+                    .at(
+                        3,
+                        [
+                            Step::Refused(17, "not in the mode table"),
+                            Step::Refused(27, "not in the mode table"),
+                        ],
+                    )
                     .at(6, [Step::Refused(refused_unavailable(mode), "unavailable")])
                     .end(End::Total(10)),
             );

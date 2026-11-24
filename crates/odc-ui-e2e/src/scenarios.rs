@@ -111,9 +111,12 @@ const GPU_MODES: [(u32, &str); 9] = [
     (21, "Gpu usage"),
 ];
 
-/// The display's name for a metric the service names by the spec (decisions log D35).
+/// The display's name for a metric the service names by the spec (decisions log D35): the load
+/// metric is "GPU load" since Task 58 (owner, 2026-11-23).
 fn shown_metric(metric: &str) -> String {
-    metric.replacen("Gpu", "GPU", 1)
+    metric
+        .replacen("Gpu usage", "GPU load", 1)
+        .replacen("Gpu", "GPU", 1)
 }
 
 /// The Start at boot switch's name, the arguments the app gives `pkexec` before `on` or `off`,

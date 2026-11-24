@@ -14658,7 +14658,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 24, not in the mode table → f22
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -14671,7 +14671,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 101; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f1
 1: - → f2
 2: - → f3
-3: refused: mode 24, not in the mode table → f4
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f4
 4: - → f5
 5: - → f6
 6: refused: mode 1, unavailable → f7
@@ -16517,7 +16517,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 24, not in the mode table → f22
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -16530,7 +16530,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 105; CPU Power = 65; Gpu power = 48 → f386
 1: - → f387
 2: - → f388
-3: refused: mode 24, not in the mode table → f389
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f389
 4: - → f390
 5: - → f391
 6: refused: mode 1, unavailable → f392
@@ -18376,7 +18376,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f22
 1: - → f22
 2: - → f22
-3: refused: mode 24, not in the mode table → f22
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f22
 4: - → f22
 5: - → f22
 6: refused: mode 1, unavailable → f22
@@ -18389,7 +18389,7 @@
 0: reset start-up; unit celsius; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 101; Gpu temperature = 105; CPU Power = 65; Gpu power = 48 → f743
 1: - → f744
 2: - → f745
-3: refused: mode 24, not in the mode table → f746
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f746
 4: - → f747
 5: - → f748
 6: refused: mode 1, unavailable → f749
@@ -33979,7 +33979,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f1206
 1: - → f1206
 2: - → f1206
-3: refused: mode 24, not in the mode table → f1206
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1206
 4: - → f1206
 5: - → f1206
 6: refused: mode 1, unavailable → f1206
@@ -33992,7 +33992,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 101; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f1207
 1: - → f1208
 2: - → f1209
-3: refused: mode 24, not in the mode table → f1210
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1210
 4: - → f1211
 5: - → f1263
 6: refused: mode 1, unavailable → f1264
@@ -35838,7 +35838,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f1206
 1: - → f1206
 2: - → f1206
-3: refused: mode 24, not in the mode table → f1206
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1206
 4: - → f1206
 5: - → f1206
 6: refused: mode 1, unavailable → f1206
@@ -35851,7 +35851,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 105; CPU Power = 65; Gpu power = 48 → f1228
 1: - → f1229
 2: - → f1230
-3: refused: mode 24, not in the mode table → f1231
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1231
 4: - → f1232
 5: - → f1605
 6: refused: mode 1, unavailable → f1606
@@ -37697,7 +37697,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 29; Gpu temperature = 34; CPU Power = 65; Gpu power = 48 → f1206
 1: - → f1206
 2: - → f1206
-3: refused: mode 24, not in the mode table → f1206
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1206
 4: - → f1206
 5: - → f1206
 6: refused: mode 1, unavailable → f1206
@@ -37710,7 +37710,7 @@
 0: reset start-up; unit fahrenheit; CPU Usage = 42; Gpu usage = 67; Memory Load = 85; CPU Temperature = 101; Gpu temperature = 105; CPU Power = 65; Gpu power = 48 → f1243
 1: - → f1244
 2: - → f1245
-3: refused: mode 24, not in the mode table → f1246
+3: refused: mode 17, not in the mode table; refused: mode 27, not in the mode table → f1246
 4: - → f1247
 5: - → f1932
 6: refused: mode 1, unavailable → f1933
