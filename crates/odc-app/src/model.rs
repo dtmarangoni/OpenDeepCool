@@ -425,7 +425,8 @@ pub fn view(
     let cooler = shown(state.cooler_state, ui.sending_failed_long);
     let lost = reasons.get(&mode.number());
     let mut status = vec![cooler.status(), SERVICE_RUNNING];
-    if mode_info(mode).kind == Kind::Music {
+    // The sound's status shows in a mode that takes sound, not in the emoji alone.
+    if mode_info(mode).sound {
         status.push(if state.audio_connected == Some(true) {
             Status {
                 name: "Music sound status",
@@ -458,7 +459,7 @@ pub fn view(
         live: LiveInput {
             values: values_from(state.readings.as_ref()),
             music,
-            sound: state.audio_connected == Some(true) && mode_info(mode).kind == Kind::Music,
+            sound: state.audio_connected == Some(true) && mode_info(mode).sound,
             restart: (
                 u16::try_from(state.mode.unwrap_or(1)).unwrap_or(1),
                 unit,
@@ -615,12 +616,18 @@ fn device(metric: Metric) -> &'static str {
     }
 }
 
-/// A mode's option: `CPU + GPU`, `Spectrum`, `Emoji 2`, `GPU usage`, `Dancer`.
+/// A mode's option: `CPU + GPU`, `Spectrum`, `Coffee break + Spectrum`, `Cat tail`, `GPU usage`,
+/// `Dancer`. An emoji over the spectrum is named with it, the same emoji alone by its own name.
 pub fn option(mode: Mode) -> String {
     let info = mode_info(mode);
     match (info.kind, mode.number()) {
         (Kind::Music, 13) => "Spectrum".to_owned(),
-        (Kind::Music, n @ 14..=17) => format!("Emoji {}", n - 13),
+        (Kind::Music, 14) => "Lub-dub + Spectrum".to_owned(),
+        (Kind::Music, 15) => "Coffee break + Spectrum".to_owned(),
+        (Kind::Music, 16) => "Cat tail + Spectrum".to_owned(),
+        (Kind::Music, 24) => "Lub-dub".to_owned(),
+        (Kind::Music, 25) => "Coffee break".to_owned(),
+        (Kind::Music, 26) => "Cat tail".to_owned(),
         (Kind::Music, 23) => "Dancer".to_owned(),
         (Kind::Music, _) => info.metrics.iter().map(|&m| metric_name(m)).collect(),
         _ => info

@@ -21,6 +21,10 @@ use crate::theme::{Rgb, Rgba, Tokens, UNLIT_ALPHA};
 pub const PITCH: f64 = 4.5;
 pub const SIDE: i32 = 63;
 
+/// The most characters a tile's caption asks room for before it wraps: the widest one-line
+/// caption, "CPU temperature", fits.
+const CAPTION_CHARS: i32 = 16;
+
 struct Drawn {
     frame: Frame,
     lit: Rgb,
@@ -68,7 +72,16 @@ impl TileWidget {
             let state = state.borrow();
             dots::draw(cr, Some(&state.frame), PITCH, state.lit, state.unlit);
         });
-        let caption = gtk::Label::builder().label(&caption_text).build();
+        // A caption wraps at the width of the longest one that fits (the Music tiles' "Coffee
+        // break + Spectrum" is two lines), so the tile stays as wide as before and its words are
+        // never cut.
+        let caption = gtk::Label::builder()
+            .label(&caption_text)
+            .wrap(true)
+            .wrap_mode(gtk::pango::WrapMode::Word)
+            .max_width_chars(CAPTION_CHARS)
+            .justify(gtk::Justification::Center)
+            .build();
         let flag = gtk::Label::builder()
             .visible(false)
             .css_classes(["flag", "small"])

@@ -350,15 +350,15 @@ impl Shared {
             .ok_or_else(|| invalid(format!("{name:?} isn't sharp or rounded")))
     }
 
-    /// Whether the display takes sound under `settings`: only in a Music mode, 13–23 (owner,
-    /// 2026-10-26).
+    /// Whether the display takes sound under `settings`: only in a Music mode that draws it, 13–16
+    /// and 18–23 (owner, 2026-10-26; not the emoji alone, 24–26, owner, 2026-11-23).
     fn wants_sound(&self, settings: &Settings) -> Result<(), Error> {
         let mode = shown_mode(settings, self.drawn);
         if takes_sound(mode) {
             Ok(())
         } else {
             Err(Error::AudioNotWanted(format!(
-                "mode {} is shown; sound is taken only in the Music modes, 13 to 23",
+                "mode {} is shown; sound is taken only in the Music modes that draw it, 13 to 16 and 18 to 23",
                 mode.number()
             )))
         }

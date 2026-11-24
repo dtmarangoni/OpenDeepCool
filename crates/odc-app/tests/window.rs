@@ -31,7 +31,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 13] = [
+const CHECKS: [(&str, Check); 14] = [
     ("the_preview_shows_every_expected_frame", preview_pixels),
     ("an_unchanged_frame_draws_nothing", no_redraw),
     ("banners_and_states_follow_the_design", banners_and_states),
@@ -52,6 +52,10 @@ const CHECKS: [(&str, Check); 13] = [
         column_centred,
     ),
     ("the_header_and_the_two_pages", header_and_pages),
+    (
+        "nothing_in_the_window_is_selectable_and_a_click_focuses_nothing",
+        nothing_selectable,
+    ),
     ("the_window_s_requests", requests),
     ("every_name_of_the_design_s_table", names),
 ];
@@ -800,6 +804,54 @@ fn header_and_pages(app: &gtk::Application) {
 
 // Frames are watched once mapped; Refresh and the pages through their actions, and only where
 // they can be used.
+// Nothing in the window can be selected or take a click's focus (Task 56; owner, 2026-11-23):
+// every label is not selectable and not focusable, and every control (button, switch, scale,
+// dropdown, tile) takes no focus from a click, whichever page it is on. The keyboard still
+// reaches the controls: they stay focusable.
+fn nothing_selectable(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    window.state(base());
+    run_for(Duration::from_millis(200));
+    fn walk(widget: &gtk::Widget, seen: &mut (usize, usize), problems: &mut Vec<String>) {
+        if let Some(label) = widget.downcast_ref::<gtk::Label>() {
+            seen.0 += 1;
+            if label.is_selectable() || label.is_focusable() {
+                problems.push(format!(
+                    "the label {:?} can be selected or focused",
+                    label.text()
+                ));
+            }
+        } else if widget.is::<gtk::Button>()
+            || widget.is::<gtk::Switch>()
+            || widget.is::<gtk::Scale>()
+            || widget.is::<gtk::DropDown>()
+            || widget.is::<gtk::FlowBoxChild>()
+        {
+            seen.1 += 1;
+            if widget.gets_focus_on_click() {
+                problems.push(format!(
+                    "{} takes focus from a click",
+                    widget.type_().name()
+                ));
+            }
+        }
+        let mut child = widget.first_child();
+        while let Some(next) = child {
+            walk(&next, seen, problems);
+            child = next.next_sibling();
+        }
+    }
+    let (mut seen, mut problems) = ((0, 0), Vec::new());
+    walk(window.widget().upcast_ref(), &mut seen, &mut problems);
+    assert!(problems.is_empty(), "{problems:#?}");
+    // Both pages were looked at: the labels and the controls of the whole window.
+    assert!(
+        seen.0 > 30 && seen.1 > 30,
+        "labels and controls seen: {seen:?}"
+    );
+    close(window);
+}
+
 fn requests(app: &gtk::Application) {
     let (window, asked) = shown(app);
     assert!(asked.borrow().contains(&Request::WatchFrames(true)));
@@ -847,7 +899,7 @@ fn requests(app: &gtk::Application) {
 }
 
 /// The design's tile names (Accessible names), typed here apart from the app's.
-const TILE_NAMES: [&str; 23] = [
+const TILE_NAMES: [&str; 25] = [
     "Load: CPU",
     "Load: GPU",
     "Load: RAM",
@@ -861,16 +913,18 @@ const TILE_NAMES: [&str; 23] = [
     "Power: GPU",
     "Power: CPU + GPU",
     "Music: Spectrum",
-    "Music: Emoji 1",
-    "Music: Emoji 2",
-    "Music: Emoji 3",
-    "Music: Emoji 4",
+    "Music: Lub-dub + Spectrum",
+    "Music: Coffee break + Spectrum",
+    "Music: Cat tail + Spectrum",
     "Music: CPU temperature",
     "Music: GPU temperature",
     "Music: CPU usage",
     "Music: GPU usage",
     "Music: RAM usage",
     "Music: Dancer",
+    "Music: Lub-dub",
+    "Music: Coffee break",
+    "Music: Cat tail",
 ];
 
 // Every name of the design's table built so far, typed here apart from the window's: each set

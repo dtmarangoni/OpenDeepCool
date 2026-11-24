@@ -6,7 +6,7 @@ Every DeepCreative 1.2.14 setting that affects the LP360: its values, its defaul
 
 | Setting | Where in DeepCreative | Values | First-start default | Restored after a restart | Effect |
 |---|---|---|---|---|---|
-| Mode | LP page: the mode family and its option | modes 1–22; OpenDeepCool adds 23 (Dancer) | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
+| Mode | LP page: the mode family and its option | modes 1–16 and 18–22 (DeepCreative's 14–16 are OpenDeepCool's own emoji since 2026-11-23, and its mode 17 is gone); OpenDeepCool adds 23 (Dancer) and 24–26 (the three emoji alone): 25 modes, 1–26 but 17 | **1** (Load Mode → Separate → CPU) | yes | [display.md](display.md#modes), [music.md](music.md#modes) |
 | Rotate Screen | LP page: one button | 0–3. Each press adds a quarter turn clockwise, and 3 wraps to 0 | **0** | yes | [rotation](display.md#rotation) |
 | Temperature Display | app Settings page, for all devices | Celsius (0), Fahrenheit (1) | **Celsius** | yes | modes 7–9, 18 and 19 ([values](display.md#values)) |
 
@@ -100,6 +100,7 @@ The input for the settings app's design (PRD, Phase 10). The `ui-ux-designer` ag
 
   Details, such as which source each value comes from, and the first readings at each start, exact (`first readings: CPU Temperature 45000/1000, CPU Usage not-yet, …`; owner, 2026-11-04), go to the service's journal, not the app.
 - **Theme** (owner, 2026-10-23; PRD, Theme; the Theme card, owner, 2026-11-18, D6): a card first on the Configuration page, with two settings the service keeps for the whole PC ([dbus.md](dbus.md): `UseSystemTheme`, `DarkTheme`; defaults on, dark; the app writes no file).
+  - **Use the system's theme supports only Omarchy** (owner, 2026-11-23): the colours and the window opacity of a system theme come from Omarchy's themes alone. Where there is none, the switch follows no colour theme: the desktop's dark or light preference picks OpenDeepCool's own Dark or Light, and without one the app uses its own theme (following another desktop's theme comes after v1; AGENTS.md rule 8). The README says it too.
   - **Use the system's theme** (on): the app follows an Omarchy theme live when it finds one (`colors.toml` that parses as TOML), else the system's dark or light preference applied to OpenDeepCool's own theme (no preference shows the dark one). The dark or light control is dimmed and shows what the system gives.
   - **No system theme found** (no Omarchy theme and an unsupported preference): the switch is off and dimmed with a warning that OpenDeepCool can't find the system's theme and is using its own, and the dark or light control is usable.
   - **Off**: the dark or light control picks OpenDeepCool's own theme, dark or light, whatever the system says. Choosing another desktop's theme comes after v1.

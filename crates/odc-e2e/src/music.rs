@@ -414,8 +414,9 @@ fn soon(limit: Duration, mut check: impl FnMut() -> Result<bool, String>) -> Res
     }
 }
 
-/// In mode 1 no capture node exists; mode 13 makes one within a second, and mode 1 again removes
-/// it within a second (owner, 2026-10-26: sound only in the Music modes).
+/// In mode 1 no capture node exists; mode 13 makes one within a second, mode 25 (an emoji alone,
+/// a Music mode that takes no sound) removes it within a second, and mode 1 leaves none (owner,
+/// 2026-10-26: sound only in the Music modes; 2026-11-23: not in the three emoji alone).
 fn only_in_music(tools: &Tools, session: &Session) -> Result<String, String> {
     let node =
         || -> Result<bool, String> { Ok(has_node(&tools.output("pw-dump", &[])?, HELPER_NODE)) };
@@ -429,6 +430,12 @@ fn only_in_music(tools: &Tools, session: &Session) -> Result<String, String> {
             "mode 13 made no {HELPER_NODE} node within a second"
         ));
     }
+    set_mode(session, 25)?;
+    if !soon(WITHIN, || node().map(|n| !n))? {
+        return Err(format!(
+            "in mode 25, an emoji alone, the {HELPER_NODE} node stayed for more than a second"
+        ));
+    }
     set_mode(session, 1)?;
     if !soon(WITHIN, || node().map(|n| !n))? {
         return Err(format!(
@@ -436,7 +443,7 @@ fn only_in_music(tools: &Tools, session: &Session) -> Result<String, String> {
         ));
     }
     Ok(format!(
-        "no {HELPER_NODE} node in mode 1; mode 13 made one and mode 1 removed it, each within a \
+        "no {HELPER_NODE} node in mode 1; mode 13 made one and mode 25 removed it, each within a \
          second"
     ))
 }

@@ -94,7 +94,9 @@ fn a_file_out_of_form_is_moved_aside_and_the_defaults_used() {
     let base = "version = 1\nmode = 4\nrotation = 1\ntemperature_unit = \"celsius\"\n";
     let cases = [
         ("garbage", "this isn't = = toml".to_owned()),
-        ("mode", base.replace("mode = 4", "mode = 24")),
+        ("mode", base.replace("mode = 4", "mode = 27")),
+        // 17 was DeepCreative's Emoji 4, which OpenDeepCool dropped: no mode has its number.
+        ("retired-mode", base.replace("mode = 4", "mode = 17")),
         ("rotation", base.replace("rotation = 1", "rotation = 4")),
         ("unit", base.replace("celsius", "kelvin")),
         ("type", base.replace("mode = 4", "mode = \"four\"")),

@@ -10,8 +10,10 @@ use std::collections::{BTreeMap, HashMap};
 use std::sync::OnceLock;
 
 use crate::dancer::{Dancer, poses};
-use crate::drawing::{BLANK, Frame, Kind, Pixel, SIZE, emoji, is_emoji, row, value_mode};
-use crate::frames::{TITLES, emoji_loop, text};
+use crate::drawing::{
+    BLANK, Frame, Kind, MODES, Pixel, SIZE, emoji, is_emoji, is_emoji_alone, row, value_mode,
+};
+use crate::frames::{emoji_loop, text, title};
 use crate::movement::Movement;
 use crate::rules::{Ratio, strip_of};
 use crate::spectrum::{COLUMNS, STOPS, Spectrum};
@@ -945,12 +947,14 @@ const SWITCH_SETS: [SwitchSet; 3] = [
 /// S14: a switch from `mode` into every other mode, at every k of a scrolling strip, with values
 /// below 100, above it, and mixed. A switch into a mode that shows a temperature runs in both
 /// units, from a mode without one too. Modes 1–12 switch into modes 1–12, whose files stay as
-/// Phase 8 wrote them; a Music mode switches into every mode 1–23, and into a Music mode while
-/// the sound plays, so the spectrum's levels carry on.
+/// Phase 8 wrote them; a Music mode switches into every mode, and into a Music mode while the
+/// sound plays, so the spectrum's levels carry on.
 fn mode_switches(mode: u16, unit: Option<bool>) -> Vec<Scenario> {
-    let last = if mode <= 12 { 12 } else { 23 };
     let mut out = Vec::new();
-    for target in (1..=last).filter(|&t| t != mode) {
+    for target in MODES
+        .into_iter()
+        .filter(|&t| t != mode && (mode > 12 || t <= 12))
+    {
         let into_units: Vec<Option<bool>> = match unit {
             Some(_) => vec![unit],
             None => units(target).to_vec(),
@@ -1044,10 +1048,12 @@ fn switches(
 const BURST: &str = "burst train, column 7, -20 dBFS, 100 ms on, 400 ms off";
 const BEATS: &str = "beat train, bass rising 0.13 a tick from 0.38 to 0.90, then 2 silent";
 
-/// The sound a scenario plays in a Music mode: none elsewhere.
+/// The sound a scenario plays in a Music mode: none elsewhere. The three emoji alone, 24–26, are
+/// Music modes that take no sound, but the PC's sound plays in their scenarios all the same: the
+/// frames of one never change with it, and a switch into a spectrum finds it playing.
 fn music_audio(mode: u16) -> Option<&'static str> {
     match mode {
-        13..=22 => Some(BURST),
+        13..=16 | 18..=22 | 24..=26 => Some(BURST),
         23 => Some(BEATS),
         _ => None,
     }
@@ -1101,9 +1107,9 @@ fn stop(name: &str) -> (f64, f64) {
         .unwrap_or_else(|| panic!("{name} isn't a stop"))
 }
 
-/// Whether a mode draws the spectrum: 13–22.
+/// Whether a mode draws the spectrum: 13–16 and 18–22.
 fn has_spectrum(mode: u16) -> bool {
-    (13..=22).contains(&mode)
+    matches!(mode, 13..=16 | 18..=22)
 }
 
 /// The spectrum *H* rows high above the floor: each column's bar, and its dot (music.md).
@@ -1127,11 +1133,12 @@ fn emoji_ticks(mode: u16) -> Vec<usize> {
 }
 
 /// The ticks at which a change comes in a Music mode without values: every tick of a burst's
-/// period in 13, every loop position in 14–17, the first ten ticks of the beat train in 23.
+/// period in 13, every loop position in 14–16 and 24–26, the first ten ticks of the beat train in
+/// 23.
 fn positions(mode: u16) -> Vec<u32> {
     let cycle = match mode {
         13 => 5,
-        14..=17 => u32::try_from(emoji_ticks(mode).len()).expect("a short loop"),
+        14..=16 | 24..=26 => u32::try_from(emoji_ticks(mode).len()).expect("a short loop"),
         _ => return (1..=10).collect(),
     };
     (0..cycle).map(|p| tick_at(p, cycle)).collect()
@@ -1147,7 +1154,7 @@ fn still_scenarios(mode: u16) -> Vec<Scenario> {
     };
     let at = |t: u32| format!("at tick {t}");
     let mut out = Vec::new();
-    for target in (1..=23).filter(|&t| t != mode) {
+    for target in MODES.into_iter().filter(|&t| t != mode) {
         let audio = if target == 23 { BEATS } else { own };
         let sets: &[SwitchSet] = if value_mode(target).is_some() {
             &SWITCH_SETS
@@ -1260,8 +1267,8 @@ fn music_settings(mode: u16) -> Vec<Scenario> {
         }
         out.push(changes.end(End::Total(40)));
     }
-    if mode == 13 || mode == 23 {
-        let from = if mode == 13 { 1 } else { 23 };
+    if mode == 13 || mode == 23 || is_emoji_alone(mode) {
+        let from = if mode == 13 { 1 } else { mode };
         out.push(
             Script::with(
                 "S15b",
@@ -1375,7 +1382,7 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
         } else {
             movement = None;
         }
-        // The spectrum, in 13–22: entering it from any other mode, 23 included, starts its levels
+        // The spectrum, in 13–16 and 18–22: entering it from any other mode, 23 included, starts its levels
         // at 0, and a switch between them keeps them (music.md point 8). A missed tick, which only
         // comes in silence, leaves it, the emoji loop and the Dancer as they are (point 8).
         if has_spectrum(mode) {
@@ -1404,10 +1411,14 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
             let mut g = BLANK;
             match mode {
                 13 => {}
-                14..=17 => {
+                14..=16 | 24..=26 => {
                     let picture = emoji_ticks(mode)[emoji_at];
                     for (r, line) in emoji(mode)[picture].iter().enumerate() {
                         g[r] = row(line);
+                    }
+                    // The emoji alone fill the grid and draw no spectrum.
+                    if is_emoji_alone(mode) {
+                        return g;
                     }
                 }
                 18..=22 => g[..8].copy_from_slice(&strip_frame.expect("a value's frame")[..8]),
@@ -1449,7 +1460,8 @@ fn run(scenario: &Scenario) -> Vec<Tick> {
 
 /// The scenario files, one per mode: each one's path under `docs/spec/frames/` and its text.
 pub fn files() -> Vec<(String, String)> {
-    (1..=23)
+    MODES
+        .into_iter()
         .map(|mode| (format!("scenarios/mode-{mode:03}.txt"), file(mode)))
         .collect()
 }
@@ -1465,7 +1477,7 @@ fn file(mode: u16) -> String {
     };
     let title = format!(
         "# Mode {mode} scenarios: {}{units}, rotation 0",
-        TITLES[usize::from(mode) - 1]
+        title(mode)
     );
     let mut lines = vec![title, String::new()];
     for scenario in scenarios(mode) {
@@ -1514,9 +1526,9 @@ fn file(mode: u16) -> String {
 mod tests {
     use super::*;
 
-    /// Every scenario of the 23 files.
+    /// Every scenario of the 25 files.
     fn all() -> Vec<Scenario> {
-        (1..=23).flat_map(scenarios).collect()
+        MODES.into_iter().flat_map(scenarios).collect()
     }
 
     /// Every scenario's heading, mode and run, file by file, in file order.
@@ -1584,7 +1596,7 @@ mod tests {
     #[test]
     fn every_scenario_names_a_mode_starts_with_a_reset_and_names_every_metric() {
         for (heading, mode, ticks) in runs() {
-            assert!((1..=23).contains(&mode), "{heading}");
+            assert!(MODES.contains(&mode), "{heading}");
             assert!(ticks[0].reset, "{heading}");
             assert_eq!(ticks[0].n, 0, "{heading}");
             assert!(
@@ -1603,8 +1615,9 @@ mod tests {
         }
     }
 
-    // AC4: all 132 ordered pairs among modes 1–12, and from Phase 9 all 506 among modes 1–23, a
-    // pair with a mode that shows a temperature in both units.
+    // AC4: all 132 ordered pairs among modes 1–12, and from Phase 9 every ordered pair of modes (506
+    // among the 23 of Phase 9, 600 among today's 25), a pair with a mode that shows a temperature in
+    // both units.
     #[test]
     fn every_ordered_pair_of_modes_has_a_switch_in_each_unit_it_needs() {
         let mut switches: Vec<(u16, u16, Option<bool>)> = Vec::new();
@@ -1615,8 +1628,8 @@ mod tests {
                 }
             }
         }
-        for from in 1..=23 {
-            for into in (1..=23).filter(|&t| t != from) {
+        for from in MODES {
+            for into in MODES.into_iter().filter(|&t| t != from) {
                 let units: &[Option<bool>] = if shows_temperature(from) || shows_temperature(into) {
                     &[Some(false), Some(true)]
                 } else {
@@ -1758,10 +1771,22 @@ mod tests {
                     checked += 1;
                 }
                 let loop_ = emoji_ticks(mode);
-                let want = emoji(mode)[loop_[at]].map(row);
+                let picture = emoji(mode)[loop_[at]];
                 let frame = tick.frame.expect("no missed tick in an emoji mode");
-                assert!(frame[..7] == want, "{}, tick {}", scenario.heading, tick.n);
-                assert!(frame[7].iter().all(|&p| p == Pixel::Off));
+                for (r, line) in picture.iter().enumerate() {
+                    assert!(
+                        frame[r] == row(line),
+                        "{}, tick {}, row {}",
+                        scenario.heading,
+                        tick.n,
+                        r + 1
+                    );
+                }
+                // With a spectrum, row 8 is off; alone, the picture has every row.
+                assert_eq!(picture.len(), if is_emoji_alone(mode) { SIZE } else { 7 });
+                if !is_emoji_alone(mode) {
+                    assert!(frame[7].iter().all(|&p| p == Pixel::Off));
+                }
                 at = (at + 1) % loop_.len();
             }
         }
@@ -1793,7 +1818,7 @@ mod tests {
                 let (a, b) = (a.frame.expect("a frame"), b.frame.expect("a frame"));
                 let top = match mode {
                     13 => 2,
-                    14..=22 => 8,
+                    14..=16 | 18..=22 => 8,
                     _ => SIZE,
                 };
                 assert!(a[..top] == b[..top], "{}", scenario.heading);

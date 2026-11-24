@@ -67,6 +67,13 @@ fn tiles(window: &Window) -> &[TileWidget] {
     window.display_page().tiles()
 }
 
+/// Where `mode`'s tile is in the page's tiles and in [`at_home`]: the modes in order, 17 missing.
+fn at(mode: u16) -> usize {
+    Mode::all()
+        .position(|m| m.number() == mode)
+        .expect("a mode")
+}
+
 fn frames(window: &Window) -> Vec<Frame> {
     tiles(window).iter().map(TileWidget::frame).collect()
 }
@@ -205,7 +212,7 @@ fn states(_app: &gtk::Application) {
     }
 }
 
-// With values below 100 and no sound, only the four emoji tiles change their picture, so only
+// With values below 100 and no sound, only the six emoji tiles change their picture, so only
 // they draw; the others draw nothing while the tick runs.
 fn redraws_only_on_change(app: &gtk::Application) {
     animations(true);
@@ -222,8 +229,8 @@ fn redraws_only_on_change(app: &gtk::Application) {
         .filter(|(_, (b, a))| a > b)
         .map(|(tile, _)| tile.mode.number())
         .collect();
-    assert_eq!(drew, [14, 15, 16, 17], "the emoji loops alone");
-    // A loop changes its picture on some of its 9 or 11 ticks, so a tile draws less than once a
+    assert_eq!(drew, [14, 15, 16, 24, 25, 26], "the emoji loops alone");
+    // A loop changes its picture on some of its 7 to 12 ticks, so a tile draws less than once a
     // tick: in 2.2 s, at most 22 times.
     for (n, (b, a)) in before.iter().zip(&after).enumerate() {
         assert!(a - b <= 22, "mode {} drew {} times", n + 1, a - b);
@@ -246,18 +253,18 @@ fn scrolling(app: &gtk::Application) {
     let steps = steps_over(&window, Duration::from_millis(1000));
     let after = draws(&window);
     // CPU usage is shown by modes 1, 4, 5 and 20.
-    for mode in [1_usize, 4, 5, 20] {
-        let n = mode - 1;
+    for mode in [1_u16, 4, 5, 20] {
+        let n = at(mode);
         let drew = after[n] - before[n];
         assert!(
             drew + 2 >= u32::try_from(steps).expect("a few steps"),
             "mode {mode}: {drew} draws in {steps} steps"
         );
     }
-    for mode in [2_usize, 3, 6, 7, 8, 9, 10, 11, 12] {
+    for mode in [2_u16, 3, 6, 7, 8, 9, 10, 11, 12] {
         assert_eq!(
-            after[mode - 1],
-            before[mode - 1],
+            after[at(mode)],
+            before[at(mode)],
             "mode {mode} doesn't move"
         );
     }
@@ -270,7 +277,8 @@ fn rising() -> [f64; COLUMNS] {
 }
 
 // While a Music mode is shown and a helper's sound is attached, each `Levels` steps the shared
-// spectrum and the Dancer once, in the tiles of 13 to 23, as `Live` does; one that comes with no
+// spectrum and the Dancer once, in the tiles of 13 to 16 and 18 to 23, as `Live` does (the three
+// emoji alone, 24–26, move to no sound); one that comes with no
 // sound attached, outside a Music mode, off screen or at rest is dropped.
 fn levels(app: &gtk::Application) {
     animations(true);
@@ -285,9 +293,12 @@ fn levels(app: &gtk::Application) {
     run_until("the tick starts", || window.display_page().moving());
     let still = at_home(sample_values());
     // Until the first `Levels` the Music tiles show the still sample.
-    let music_tiles: Vec<usize> = (12..23).collect();
+    let music_tiles: Vec<usize> = [13_u16, 14, 15, 16, 18, 19, 20, 21, 22, 23]
+        .into_iter()
+        .map(at)
+        .collect();
     for &n in &music_tiles {
-        assert_eq!(tiles(&window)[n].frame(), still[n], "mode {}", n + 1);
+        assert_eq!(tiles(&window)[n].frame(), still[n], "tile {n}");
     }
     // Two `Levels`: the spectrum and the Dancer each stepped twice, from rest.
     window.levels(&rising());
@@ -297,17 +308,15 @@ fn levels(app: &gtk::Application) {
     reference.levels(&rising());
     reference.levels(&rising());
     let moved: Vec<Mode> = Mode::all()
-        .filter(|mode| {
-            tiles(&window)[usize::from(mode.number()) - 1].frame()
-                != still[usize::from(mode.number()) - 1]
-        })
+        .filter(|mode| tiles(&window)[at(mode.number())].frame() != still[at(mode.number())])
         .collect();
+    // The Music tiles moved, and so did the emoji loops among them, the three alone included.
     assert!(
-        moved.iter().all(|m| (13..=23).contains(&m.number())),
+        moved.iter().all(|m| (13..=26).contains(&m.number())),
         "only the Music tiles moved"
     );
     for mode in [13_u16, 18, 19, 20, 21, 22] {
-        let n = usize::from(mode) - 1;
+        let n = at(mode);
         assert_ne!(tiles(&window)[n].frame(), still[n], "mode {mode} is live");
     }
     // The spectrum's rows are the reference's: the tick between moved only the strips and loops,
@@ -436,8 +445,12 @@ fn dashes(app: &gtk::Application) {
     };
     assert_eq!(frames(&window), gap);
     // GPU usage is shown by modes 2, 4 (a pair), 6 (a pair) and 21; no other tile differs.
-    let differ: Vec<usize> = (0..23).filter(|&n| gap[n] != sample[n]).collect();
-    assert_eq!(differ, [1, 3, 5, 20]);
+    let differ: Vec<u16> = Mode::all()
+        .enumerate()
+        .filter(|&(n, _)| gap[n] != sample[n])
+        .map(|(_, mode)| mode.number())
+        .collect();
+    assert_eq!(differ, [2, 4, 6, 21]);
     window.state(base());
     assert_eq!(frames(&window), sample, "the number is back");
     // No Readings at all: every metric dashes, not the sample.

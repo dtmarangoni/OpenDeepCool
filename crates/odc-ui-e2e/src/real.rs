@@ -11,7 +11,7 @@ use std::time::Duration;
 use atspi::State;
 
 use crate::driver::{Driver, Node, Result, wait};
-use crate::scenarios::{TILES, caption, tile};
+use crate::scenarios::{MODES, TILES, caption, tile};
 
 pub type Scenario = fn(&mut Driver) -> Result<String>;
 
@@ -43,7 +43,7 @@ fn texts(driver: &Driver, name: &str) -> Result<Vec<String>> {
 /// The tile shown as chosen: the mode the service has saved.
 fn chosen(driver: &Driver) -> Result<u32> {
     wait("a chosen tile", || {
-        for mode in 1..=23 {
+        for mode in MODES {
             if let Some(node) = driver.find("grid cell", &tile(mode))?
                 && driver.has(&node, State::Selected)?
             {
@@ -95,7 +95,7 @@ fn tiles(driver: &mut Driver) -> Result<String> {
     page(driver, "Display")?;
     let saved = chosen(driver)?;
     let mut skipped = Vec::new();
-    for mode in (1..=23).filter(|&m| m != saved).chain([saved]) {
+    for mode in MODES.into_iter().filter(|&m| m != saved).chain([saved]) {
         let name = tile(mode);
         let node: Node = driver.shown("grid cell", &name)?;
         if !driver.has(&node, State::Sensitive)? {

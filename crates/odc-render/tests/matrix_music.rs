@@ -35,7 +35,7 @@ fn in_silence(mode: Mode, top: Frame) -> Frame {
 fn top_of(mode: Mode, case: &Case) -> Box<dyn FnMut() -> Frame> {
     match mode.number() {
         13 => Box::new(Frame::blank),
-        14..=17 => {
+        14..=16 | 24..=26 => {
             let mut emoji = EmojiLoop::of(mode).expect("an emoji mode");
             Box::new(move || emoji.tick())
         }
@@ -192,7 +192,7 @@ fn every_signal_draws_its_rows_in_mode_13_with_rows_1_and_2_off() {
     assert_eq!(sections, 81 * 30);
 }
 
-// Modes 14–22 (Phase 9 plan, Tasks 7–8): every signal at H 6 with every listed peaks setting and
+// Modes 14–16 and 18–22 (Phase 9 plan, Tasks 7–8): every signal at H 6 with every listed peaks setting and
 // stop, under each upright case of each drawn mode with a top, from its start, on the whole frame:
 // rows 1–8 the emoji's loop or the value as the mode's file draws them, the spectrum's rows
 // `expected.txt`'s. The music drives neither, so they move a picture a tick whatever the sound,

@@ -1,6 +1,6 @@
-//! The modes of `docs/spec/display.md` (Modes, 1–12) and `docs/spec/music.md` (Modes, 13–23):
-//! the metrics each shows, top first, and its kind. Availability and the later phases'
-//! renderers read this table.
+//! The modes of `docs/spec/display.md` (Modes, 1–12) and `docs/spec/music.md` (Modes, 13–16 and
+//! 18–26): the metrics each shows, top first, its kind, and whether it takes sound. Availability
+//! and the later phases' renderers read this table.
 
 use odc_sensors::Metric;
 
@@ -9,17 +9,24 @@ use odc_sensors::Metric;
 pub struct Mode(u16);
 
 impl Mode {
-    /// The highest mode: Dancer, OpenDeepCool's own (`music.md`).
-    pub const LAST: u16 = 23;
+    /// The highest mode: the third emoji alone, OpenDeepCool's own (`music.md`).
+    pub const LAST: u16 = 26;
 
-    /// Mode `number`, 1 to 23.
+    /// The number no mode has: DeepCreative's Emoji 4, which OpenDeepCool dropped when it drew
+    /// its own emoji (owner, 2026-11-23). Its number stays unused, so that no mode changes its
+    /// own.
+    pub const RETIRED: u16 = 17;
+
+    /// Mode `number`, 1 to 26 but 17.
     pub fn new(number: u16) -> Option<Mode> {
-        (1..=Mode::LAST).contains(&number).then_some(Mode(number))
+        ((1..=Mode::LAST).contains(&number) && number != Mode::RETIRED).then_some(Mode(number))
     }
 
     /// Every mode, in order.
     pub fn all() -> impl Iterator<Item = Mode> {
-        (1..=Mode::LAST).map(Mode)
+        (1..=Mode::LAST)
+            .filter(|&number| number != Mode::RETIRED)
+            .map(Mode)
     }
 
     pub fn number(self) -> u16 {
@@ -36,11 +43,14 @@ pub enum Kind {
     Music,
 }
 
-/// A mode's metrics, top first, and its kind.
+/// A mode's metrics, top first, its kind, and whether it takes sound.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ModeInfo {
     pub metrics: &'static [Metric],
     pub kind: Kind,
+    /// Whether the mode draws the sound: the spectrum, or the Dancer. The three emoji alone are
+    /// Music modes that don't (owner, 2026-11-23), so no sound is taken while one is shown.
+    pub sound: bool,
 }
 
 /// The table, for every mode.
@@ -61,14 +71,20 @@ pub fn mode_info(mode: Mode) -> ModeInfo {
         10 => (&[CpuPower], Kind::Power),
         11 => (&[GpuPower], Kind::Power),
         12 => (&[CpuPower, GpuPower], Kind::Power),
-        // Full screen, the four emoji modes, and Dancer show no value.
-        13..=17 | 23 => (&[], Kind::Music),
+        // Full screen, the emoji modes with and without a spectrum, and Dancer show no value.
+        13..=16 | 23..=26 => (&[], Kind::Music),
         18 => (&[CpuTemperature], Kind::Music),
         19 => (&[GpuTemperature], Kind::Music),
         20 => (&[CpuUsage], Kind::Music),
         21 => (&[GpuUsage], Kind::Music),
         22 => (&[MemoryLoad], Kind::Music),
-        n => unreachable!("mode {n}: a Mode is 1 to 23"),
+        n => unreachable!("mode {n}: a Mode is 1 to 26 but 17"),
     };
-    ModeInfo { metrics, kind }
+    // The emoji alone, 24–26, draw no spectrum and move to no sound; every other Music mode does.
+    let sound = kind == Kind::Music && !(24..=26).contains(&mode.0);
+    ModeInfo {
+        metrics,
+        kind,
+        sound,
+    }
 }

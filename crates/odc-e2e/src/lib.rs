@@ -122,6 +122,11 @@ fn parse_modes(list: &str) -> Result<Vec<u16>, String> {
             return Err(format!("{part:?}: a range goes from the lower mode up"));
         }
         for n in first..=last {
+            // A range steps over the retired number: `14-18` is modes 14, 15, 16 and 18. Asking
+            // for 17 on its own is an error.
+            if first != last && n == odc_render::Mode::RETIRED {
+                continue;
+            }
             let mode = odc_render::Mode::new(n)
                 .ok_or_else(|| format!("mode {n} isn't in the mode table"))?;
             if !draws(mode) {

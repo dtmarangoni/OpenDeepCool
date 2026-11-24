@@ -381,15 +381,18 @@ mod tests {
     // loop's first, from its own scenario file; no other mode does.
     #[test]
     fn each_emoji_mode_gets_a_refresh_mid_loop() {
-        let plans = refreshes_mid_loop(&[1, 13, 14, 15, 16, 17, 18, 23], &|_| true).expect("found");
+        let plans =
+            refreshes_mid_loop(&[1, 13, 14, 15, 16, 18, 23, 24, 25, 26], &|_| true).expect("found");
         let names: Vec<&str> = plans.iter().map(|(_, plan)| plan.name.as_str()).collect();
         assert_eq!(
             names,
             [
-                "S26 · mode 14 · at tick 4",
-                "S26 · mode 15 · at tick 4",
-                "S26 · mode 16 · at tick 4",
-                "S26 · mode 17 · at tick 6",
+                "S26 · mode 14 · at tick 6",
+                "S26 · mode 15 · at tick 6",
+                "S26 · mode 16 · at tick 3",
+                "S26 · mode 24 · at tick 7",
+                "S26 · mode 25 · at tick 6",
+                "S26 · mode 26 · at tick 6",
             ]
         );
         assert!(plans.iter().all(|(id, _)| id == "S26"));

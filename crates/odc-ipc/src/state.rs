@@ -164,7 +164,8 @@ pub struct State {
     pub window_corners: Option<WindowCorners>,
     /// Whether the session's sound comes in: a helper is attached.
     pub audio_connected: Option<bool>,
-    /// Whether the service takes sound: true exactly while a Music mode, 13–23, is shown.
+    /// Whether the service takes sound: true exactly while a Music mode that draws it, 13–16 or
+    /// 18–23, is shown.
     pub audio_wanted: Option<bool>,
 }
 

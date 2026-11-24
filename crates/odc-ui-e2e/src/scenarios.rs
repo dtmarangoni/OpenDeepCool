@@ -27,8 +27,14 @@ use crate::fake::{
 /// How long a control must stay on the saved value after its call, without the service's word.
 const HOLD: Duration = Duration::from_millis(250);
 
-/// The design's tiles (Display page, Tiles), mode 1 first: group and option.
-pub const TILES: [(&str, &str); 23] = [
+/// Every mode, in order: 17 is no mode (DeepCreative's Emoji 4, dropped on 2026-11-23). This crate
+/// links no other of the workspace's, so it keeps its own list, which the design's tile table pins.
+pub const MODES: [u32; 25] = [
+    1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+];
+
+/// The design's tiles (Display page, Tiles), in the order of [`MODES`]: group and option.
+pub const TILES: [(&str, &str); 25] = [
     ("Load", "CPU"),
     ("Load", "GPU"),
     ("Load", "RAM"),
@@ -42,27 +48,38 @@ pub const TILES: [(&str, &str); 23] = [
     ("Power", "GPU"),
     ("Power", "CPU + GPU"),
     ("Music", "Spectrum"),
-    ("Music", "Emoji 1"),
-    ("Music", "Emoji 2"),
-    ("Music", "Emoji 3"),
-    ("Music", "Emoji 4"),
+    ("Music", "Lub-dub + Spectrum"),
+    ("Music", "Coffee break + Spectrum"),
+    ("Music", "Cat tail + Spectrum"),
     ("Music", "CPU temperature"),
     ("Music", "GPU temperature"),
     ("Music", "CPU usage"),
     ("Music", "GPU usage"),
     ("Music", "RAM usage"),
     ("Music", "Dancer"),
+    ("Music", "Lub-dub"),
+    ("Music", "Coffee break"),
+    ("Music", "Cat tail"),
 ];
+
+/// A mode's tile: its group and option.
+pub fn entry(mode: u32) -> (&'static str, &'static str) {
+    let at = MODES
+        .iter()
+        .position(|&m| m == mode)
+        .unwrap_or_else(|| panic!("mode {mode} is no mode"));
+    TILES[at]
+}
 
 /// A tile's accessible name, `<group>: <option>`.
 pub fn tile(mode: u32) -> String {
-    let (group, option) = TILES[mode as usize - 1];
+    let (group, option) = entry(mode);
     format!("{group}: {option}")
 }
 
 /// The preview's caption, `<group> · <option>`.
 pub fn caption(mode: u32) -> String {
-    let (group, option) = TILES[mode as usize - 1];
+    let (group, option) = entry(mode);
     format!("{group} · {option}")
 }
 
@@ -641,7 +658,7 @@ fn names(run: &mut Run) -> Result<String> {
         ("grid", "Power options"),
         ("grid", "Music options"),
     ]);
-    for mode in 1..=23 {
+    for mode in MODES {
         // Each tile, and its picture named as its tile (decisions log D57).
         display.push(("grid cell", tile(mode)));
         display.push(("image", tile(mode)));
@@ -725,13 +742,13 @@ fn frame_log(run: &mut Run) -> Result<String> {
     NO_NOTE
 }
 
-/// Each of the 23 tiles asks for its own mode, once, and shows as chosen only once the service
+/// Each of the 25 tiles asks for its own mode, once, and shows as chosen only once the service
 /// confirms it; the preview's caption follows (Display page, Selection; Coverage check, One
 /// choice, one mode). Music modes add the sound's status (Preview column, Status line).
 fn tiles(run: &mut Run) -> Result<String> {
     run.reset()?;
     let mut saved = 1;
-    for mode in (2..=23).chain([1]) {
+    for mode in MODES.into_iter().skip(1).chain([1]) {
         let (name, before) = (tile(mode), tile(saved));
         run.change(
             |run| run.act("grid cell", &name, "tile.activate"),
@@ -900,7 +917,8 @@ fn gpu_notes(run: &mut Run) -> Result<String> {
             service.chosen_gpu = NO_RULE.pci;
             service.gpu_in_use = NO_RULE.pci;
             service.reasons = reasons.iter().cloned().collect();
-            service.available = (1..=23)
+            service.available = MODES
+                .into_iter()
                 .filter(|m| !reasons.iter().any(|(r, _)| r == m))
                 .collect();
         },
@@ -1193,7 +1211,8 @@ fn unavailable_metric(run: &mut Run) -> Result<String> {
         .iter()
         .map(|&(mode, metric)| (mode, format!("{metric}: no device found")))
         .collect();
-    run.fake.service.available = (1..=23)
+    run.fake.service.available = MODES
+        .into_iter()
         .filter(|m| !GPU_MODES.iter().any(|(g, _)| g == m))
         .collect();
     // The readings the reasons are about have no value.
@@ -1202,9 +1221,9 @@ fn unavailable_metric(run: &mut Run) -> Result<String> {
         .readings
         .retain(|metric, _| !metric.starts_with("Gpu"));
     run.fake.write()?;
-    for mode in 1..=23 {
+    for mode in MODES {
         let name = tile(mode);
-        let (_, option) = TILES[mode as usize - 1];
+        let (_, option) = entry(mode);
         match GPU_MODES.iter().find(|(m, _)| *m == mode) {
             Some((_, metric)) => {
                 run.expect_state("grid cell", &name, State::Sensitive, false)?;
@@ -1253,7 +1272,7 @@ fn reading_lost(run: &mut Run) -> Result<String> {
         .iter()
         .map(|&m| (m, "Gpu usage: no device found".to_owned()))
         .collect();
-    run.fake.service.available = (1..=23).filter(|m| !usage.contains(m)).collect();
+    run.fake.service.available = MODES.into_iter().filter(|m| !usage.contains(m)).collect();
     run.fake.service.readings.remove("Gpu usage");
     run.fake.write()?;
     run.expect_state("grid cell", "Load: GPU", State::Selected, true)?;
@@ -1862,9 +1881,9 @@ fn theme(run: &mut Run) -> Result<String> {
 /// "Unavailable", `lost` is the saved mode's, usable and "Reading lost", the rest usable with
 /// their caption alone.
 fn flags(run: &Run, flagged: &[u32], lost: Option<u32>) -> Result<()> {
-    for mode in 1..=23 {
+    for mode in MODES {
         let name = tile(mode);
-        let (_, option) = TILES[mode as usize - 1];
+        let (_, option) = entry(mode);
         if lost == Some(mode) {
             run.expect_state("grid cell", &name, State::Sensitive, true)?;
             run.expect_texts("grid cell", &name, &[option, "Reading lost"])?;
@@ -1900,7 +1919,7 @@ fn tiles_live(run: &mut Run) -> Result<String> {
         .iter()
         .map(|&m| (m, "Gpu usage: no device found".to_owned()))
         .collect();
-    run.fake.service.available = (1..=23).filter(|m| !usage.contains(m)).collect();
+    run.fake.service.available = MODES.into_iter().filter(|m| !usage.contains(m)).collect();
     run.fake.write()?;
     flags(run, &usage, None)?;
     // The saved mode is one of them: its tile stays usable and says what was lost.
@@ -1910,7 +1929,7 @@ fn tiles_live(run: &mut Run) -> Result<String> {
     // The reading comes back, and the reason goes.
     run.fake.service.readings.insert("Gpu usage", (63, 1));
     run.fake.service.reasons.clear();
-    run.fake.service.available = (1..=23).collect();
+    run.fake.service.available = MODES.to_vec();
     run.fake.write()?;
     flags(run, &[], None)?;
     run.check_texts("grid cell", "Load: GPU", &["GPU"])?;

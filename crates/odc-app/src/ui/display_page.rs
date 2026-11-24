@@ -33,10 +33,13 @@ pub fn tile_request(mode: u16) -> Request {
 }
 
 /// The most tiles in a row, per group: Load a full row, Temperature and Power three each, side
-/// by side, Music two rows.
+/// by side, and Music's thirteen in three rows of five, five and the last three, the emoji alone
+/// (owner, 2026-11-23: six emoji options now, three of them alone), so the window stays as wide
+/// as Load's six.
 fn per_line(kind: Kind) -> u32 {
     match kind {
-        Kind::Load | Kind::Music => 6,
+        Kind::Load => 6,
+        Kind::Music => 5,
         Kind::Temperature | Kind::Power => 3,
     }
 }
@@ -208,7 +211,8 @@ impl Motion {
     fn push(&self, modes: &[Mode]) {
         let live = self.live.borrow();
         for mode in modes {
-            if let Some(tile) = self.tiles.get(usize::from(mode.number()) - 1) {
+            // By the tile's own mode: the modes aren't numbered 1 to the tile count (17 is none).
+            if let Some(tile) = self.tiles.iter().find(|tile| tile.mode == *mode) {
                 tile.set_picture(*live.frame(*mode));
             }
         }
@@ -411,7 +415,12 @@ impl DisplayPage {
             widgets.reasons.set_text(&group.reasons.join("\n"));
             widgets.reasons_group.set_visible(!group.reasons.is_empty());
             for tile in &group.tiles {
-                if let Some(widget) = self.motion.tiles.get(usize::from(tile.mode) - 1) {
+                if let Some(widget) = self
+                    .motion
+                    .tiles
+                    .iter()
+                    .find(|w| w.mode.number() == tile.mode)
+                {
                     widget.show(names, tile);
                 }
             }
@@ -466,10 +475,11 @@ impl DisplayPage {
 mod tests {
     use super::*;
 
-    // Each of the 23 tiles asks for its own mode.
+    // Each of the 25 tiles asks for its own mode.
     #[test]
     fn every_tile_asks_for_its_own_mode() {
-        for mode in 1..=23_u16 {
+        for mode in Mode::all() {
+            let mode = mode.number();
             assert_eq!(tile_request(mode), Request::SetMode(u32::from(mode)));
         }
     }

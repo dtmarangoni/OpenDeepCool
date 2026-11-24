@@ -884,9 +884,9 @@ mod tests {
     use super::*;
 
     /// Every file loads into typed cases, as many as it has `##` headings (284 when Phase 5
-    /// ran, 328 with Phase 9's Dancer); cycles have at least 21 pictures, `?` appears only in the
-    /// spectrum's modes 13–22, and mode 23 has each of the Dancer's eleven poses in each
-    /// rotation.
+    /// ran, 328 with Phase 9's Dancer, 336 with the six emoji modes of Phase 11a); cycles have at
+    /// least 21 pictures, `?` appears only in the spectrum's modes 13–16 and 18–22, and mode 23
+    /// has each of the Dancer's eleven poses in each rotation.
     #[test]
     fn every_expected_frame_file_loads() {
         let mut modes: Vec<u16> = fs::read_dir(FRAMES_DIR)
@@ -915,7 +915,7 @@ mod tests {
                 if let Kind::Scrolling(pictures) = &case.kind {
                     assert!(pictures.len() >= 21, "mode {mode}, {}", case.heading);
                 }
-                if !(13..=22).contains(&mode) {
+                if !matches!(mode, 13..=16 | 18..=22) {
                     let spectrum = case.kind.pictures().iter().any(|p| p.has_any());
                     assert!(
                         !spectrum,
@@ -938,7 +938,7 @@ mod tests {
             cases += frames.cases.len();
         }
         assert_eq!(cases, headings);
-        assert_eq!(cases, 328);
+        assert_eq!(cases, 336);
         dancer.sort_unstable();
         dancer.dedup();
         assert_eq!(dancer.len(), 4 * 11, "each pose in each rotation");
@@ -966,7 +966,8 @@ mod tests {
         let signals = fs::read_to_string(Path::new(FRAMES_DIR).join("spectrum/signals.txt"))
             .expect("the signals");
         let signal = |name: &str| signals.lines().any(|l| l.strip_prefix("## ") == Some(name));
-        for mode in 1..=23 {
+        // Every mode but the retired 17: 25 files of scenarios.
+        for mode in (1..=26).filter(|&m| m != 17) {
             let name = format!("mode-{mode:03}.txt");
             let text = fs::read_to_string(Path::new(FRAMES_DIR).join("scenarios").join(&name))
                 .expect("a scenario file");
@@ -1261,7 +1262,7 @@ mod tests {
             panic!("an emoji loop");
         };
         let durations: Vec<u64> = steps.iter().map(|(d, _)| d.as_millis() as u64).collect();
-        assert_eq!(durations, [400, 100, 100, 100, 100, 100]);
+        assert_eq!(durations, [600, 100, 100, 200]);
         assert!(steps[0].1.has_any());
     }
 

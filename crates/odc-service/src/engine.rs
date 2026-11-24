@@ -118,13 +118,13 @@ pub struct Tick {
     pub requests: Requests,
 }
 
-/// What the engine draws above the spectrum, or in mode 23 in its place.
+/// What the engine draws above the spectrum, or in modes 23–26 in its place.
 enum Top {
     /// A value's strip: on the whole grid in modes 1–12, in rows 1–8 in modes 18–22.
     Strip(Marquee),
     /// Mode 13: the spectrum alone.
     Nothing,
-    /// Modes 14–17.
+    /// Modes 14–16, in rows 1–7 over the spectrum, and 24–26, on the whole grid.
     Emoji(EmojiLoop),
     /// Mode 23.
     Dancer(Dancer),
@@ -136,7 +136,9 @@ impl Top {
     fn of(mode: Mode, picture: Option<Picture>) -> Top {
         match mode.number() {
             13 => Top::Nothing,
-            14..=17 => Top::Emoji(EmojiLoop::of(mode).expect("modes 14–17 have a loop")),
+            14..=16 | 24..=26 => {
+                Top::Emoji(EmojiLoop::of(mode).expect("modes 14–16 and 24–26 have a loop"))
+            }
             23 => Top::Dancer(Dancer::new()),
             n => Top::Strip(Marquee::new(
                 picture.unwrap_or_else(|| panic!("mode {n} shows a value")),
@@ -157,7 +159,7 @@ pub struct Engine {
     /// The last override taken: its number and its tick.
     adopted: Option<(u64, u64)>,
     top: Top,
-    /// The bars and peaks, while a mode with a spectrum (13–22) is shown; entering one from any
+    /// The bars and peaks, while a mode with a spectrum (13–16 and 18–22) is shown; entering one from any
     /// other mode starts them at level 0 (`music.md` point 8).
     spectrum: Option<Spectrum>,
     audio: Arc<dyn AudioSource>,
@@ -182,9 +184,10 @@ pub(crate) fn shown_mode(settings: &Settings, drawn: Drawn) -> Mode {
         .expect("mode 1 exists")
 }
 
-/// Whether `mode` takes sound: the Music modes, 13–23 (owner, 2026-10-26).
+/// Whether `mode` takes sound: the Music modes that draw it, 13–16 and 18–23 (owner, 2026-10-26);
+/// the three emoji alone, 24–26, are Music modes that don't (owner, 2026-11-23).
 pub fn takes_sound(mode: Mode) -> bool {
-    mode_info(mode).kind == Kind::Music
+    mode_info(mode).sound
 }
 
 /// The picture of the value `mode` shows, `None` when it shows none: the whole grid in modes 1–12,

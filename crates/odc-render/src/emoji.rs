@@ -1,178 +1,447 @@
-//! The emoji animations of modes 14–17 (`docs/spec/music.md`, Emoji animations), typed from the
-//! spec's pictures: rows 1–7, `#` lit. Each is a fixed loop on the 100 ms tick that the music
-//! doesn't drive, and a reset restarts it (owner, 2026-10-25).
+//! The emoji animations of modes 14–16 and 24–26 (`docs/spec/music.md`, Emoji animations), typed
+//! from the spec's pictures: `#` lit. Modes 14–16 draw a picture in rows 1–7, over the spectrum
+//! in rows 9–14; modes 24–26 draw the same three animations alone, 14 rows tall, with no
+//! spectrum. Each is a fixed loop on the 100 ms tick that the music doesn't drive, and a reset
+//! restarts it (owner, 2026-10-25). The animations are OpenDeepCool's own (owner, 2026-11-23):
+//! DeepCreative's four are gone.
 
 use odc_protocol::Frame;
 
 use crate::mode::Mode;
 
-/// One picture, rows 1–7; the rows below are the spectrum's.
-type Picture = [&'static str; 7];
+/// One picture: its rows from row 1 down, 14 characters each. With a spectrum a picture has 7
+/// rows and the rows below are the spectrum's; alone it has all 14.
+type Picture = &'static [&'static str];
 
-/// One step of a loop: the picture, and how many 100 ms ticks it shows.
-type Step = (&'static Picture, u8);
+/// One step of a loop: the picture's index, and how many 100 ms ticks it shows.
+type Step = (usize, u8);
 
-const EMOJI_1: [Picture; 2] = [
-    [
+/// Mode 14, Lub-dub and the spectrum: the pictures.
+const LUB_DUB_AND_SPECTRUM: [&[&str]; 3] = [
+    &[
         "..............",
+        "....##..##....",
+        "...########...",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+    ],
+    &[
+        "...###..###...",
+        "..##########..",
+        "..##########..",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+    ],
+    &[
+        "...###..###...",
+        "..##########..",
+        "#.##########.#",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+    ],
+];
+
+/// Its loop: each picture's index and its 100 ms ticks, 10 ticks in all.
+const LUB_DUB_AND_SPECTRUM_LOOP: [(usize, u8); 4] = [(0, 6), (1, 1), (0, 1), (2, 2)];
+
+/// Mode 15, Coffee break and the spectrum: the pictures.
+const COFFEE_BREAK_AND_SPECTRUM: [&[&str]; 6] = [
+    &[
+        ".........#....",
+        "........#.....",
+        ".....#........",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".........#....",
+        "......#.......",
+        ".....#........",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".....#........",
+        "......#.......",
+        ".....#........",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".....#........",
+        "......#.......",
+        ".........#....",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".....#........",
+        "........#.....",
+        ".........#....",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".........#....",
+        "........#.....",
+        ".........#....",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+];
+
+/// Its loop: each picture's index and its 100 ms ticks, 12 ticks in all.
+const COFFEE_BREAK_AND_SPECTRUM_LOOP: [(usize, u8); 6] =
+    [(0, 2), (1, 2), (2, 2), (3, 2), (4, 2), (5, 2)];
+
+/// Mode 16, Cat tail and the spectrum: the pictures.
+const CAT_TAIL_AND_SPECTRUM: [&[&str]; 3] = [
+    &[
+        "....#....#....",
+        "....######....",
+        "....######....",
+        ".....####.....",
+        "...########...",
+        "...#########.#",
+        "...########.##",
+    ],
+    &[
+        "....#....#....",
+        "....######....",
+        "....######....",
+        ".....####.....",
+        "...########..#",
+        "...##########.",
+        "...########...",
+    ],
+    &[
+        "....#....#....",
+        "....######....",
+        "....######...#",
+        ".....####...#.",
+        "...########.#.",
+        "...#########..",
+        "...########...",
+    ],
+];
+
+/// Its loop: each picture's index and its 100 ms ticks, 7 ticks in all.
+const CAT_TAIL_AND_SPECTRUM_LOOP: [(usize, u8); 4] = [(0, 3), (1, 1), (2, 2), (1, 1)];
+
+/// Mode 24, Lub-dub alone: the pictures.
+const LUB_DUB_ALONE: [&[&str]; 4] = [
+    &[
+        "..............",
+        "..............",
+        "..............",
+        "....##..##....",
+        "...########...",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+        "..............",
+        "..............",
+        "..............",
+        "##############",
+        "..............",
+    ],
+    &[
         "..............",
         "...###..###...",
-        "..............",
-        "..............",
-        "..............",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "...########...",
+        "....######....",
         ".....####.....",
+        "......##......",
+        "..............",
+        "......#.......",
+        ".....#.#......",
+        "#####...######",
+        "........#.....",
     ],
-    [
+    &[
+        "..####..####..",
+        ".############.",
+        ".############.",
+        ".############.",
+        "#.##########.#",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+        "..............",
+        "........#.....",
+        ".......#.#....",
+        "#######...####",
+        "..............",
+    ],
+    &[
+        "..............",
+        "...###..###...",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "...########...",
+        "....######....",
+        ".....####.....",
+        "......##......",
+        "..............",
+        "..............",
+        "..............",
+        "##############",
+        "..............",
+    ],
+];
+
+/// Its loop: each picture's index and its 100 ms ticks, 12 ticks in all.
+const LUB_DUB_ALONE_LOOP: [(usize, u8); 5] = [(0, 7), (1, 1), (0, 1), (2, 2), (3, 1)];
+
+/// Mode 25, Coffee break alone: the pictures.
+const COFFEE_BREAK_ALONE: [&[&str]; 4] = [
+    &[
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+    &[
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "........#.....",
+        "......#.......",
+        ".....#........",
+        ".........#....",
+        "....######.##.",
+        "....######..#.",
+        ".....####.....",
+        "...########...",
+    ],
+];
+
+/// Its loop: each picture's index and its 100 ms ticks, 12 ticks in all.
+const COFFEE_BREAK_ALONE_LOOP: [(usize, u8); 4] = [(0, 3), (1, 3), (2, 3), (3, 3)];
+
+/// Mode 26, Cat tail alone: the pictures.
+const CAT_TAIL_ALONE: [&[&str]; 5] = [
+    &[
+        "..............",
         "...#......#...",
-        "....#....#....",
-        ".....#..#.....",
-        "....#....#....",
+        "...##....##...",
+        "...########...",
+        "...##.##.##...",
+        "...########...",
+        "....######....",
+        "...########...",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "..###....###.#",
+        "...........###",
+    ],
+    &[
+        "..............",
         "...#......#...",
+        "...##....##...",
+        "...########...",
+        "...##.##.##...",
+        "...########...",
+        "....######....",
+        "...########...",
+        "..##########..",
+        "..##########.#",
+        "..##########.#",
+        "..###########.",
+        "..###....####.",
         "..............",
-        ".....####.....",
     ],
-];
-
-const EMOJI_2: [Picture; 2] = [
-    [
+    &[
+        "..............",
         "...#......#...",
-        "..#.#....#.#..",
-        ".#...#..#...#.",
-        "..............",
-        "..............",
-        "..............",
-        ".....####.....",
-    ],
-    [
-        "..............",
-        "..............",
+        "...##....##...",
+        "...########...",
+        "...##.##.##...",
+        "...########...",
+        "....######....",
+        "...########..#",
+        "..###########.",
+        "..###########.",
+        "..###########.",
+        "..##########..",
         "..###....###..",
         "..............",
-        "..............",
-        "..............",
-        ".....####.....",
     ],
-];
-
-const EMOJI_3: [Picture; 2] = [
-    [
+    &[
         "..............",
-        "..###....###..",
-        "..###....###..",
-        "..###....###..",
-        "..............",
-        "....#....#....",
-        ".....####.....",
-    ],
-    [
-        "..............",
-        "..............",
+        "...#......#...",
+        "...##....##...",
+        "...########...",
+        "...##.##.##...",
+        "...#########..",
+        "....######.#..",
+        "...########.#.",
+        "..###########.",
+        "..###########.",
+        "..###########.",
+        "..##########..",
         "..###....###..",
         "..............",
+    ],
+    &[
         "..............",
-        "....#....#....",
-        ".....####.....",
+        "...#......#...",
+        "...##....##...",
+        "...########...",
+        "...########...",
+        "...########...",
+        "....######....",
+        "...########...",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "..##########..",
+        "..###....###.#",
+        "...........###",
     ],
 ];
 
-const EMOJI_4: [Picture; 4] = [
-    [
-        "..............",
-        ".#####..#####.",
-        "...##.....##..",
-        "..............",
-        "..............",
-        ".....####.....",
-        "..............",
-    ],
-    [
-        "..............",
-        ".#####..#####.",
-        "..##.....##...",
-        "..............",
-        "..............",
-        ".....####.....",
-        "..............",
-    ],
-    [
-        "..............",
-        ".#####..#####.",
-        ".##.....##....",
-        "..............",
-        "..............",
-        ".....####.....",
-        "..............",
-    ],
-    [
-        "..............",
-        ".#####..#####.",
-        "....##.....##.",
-        "..............",
-        "..............",
-        ".....####.....",
-        "..............",
-    ],
+/// Its loop: each picture's index and its 100 ms ticks, 12 ticks in all.
+const CAT_TAIL_ALONE_LOOP: [(usize, u8); 8] = [
+    (0, 3),
+    (4, 1),
+    (0, 2),
+    (1, 1),
+    (2, 1),
+    (3, 2),
+    (2, 1),
+    (1, 1),
 ];
 
-/// Emoji 1: picture 2 for 400 ms, then 1 → 2 → 1 → 2 → 1, 100 ms each.
-const LOOP_1: [Step; 6] = [
-    (&EMOJI_1[1], 4),
-    (&EMOJI_1[0], 1),
-    (&EMOJI_1[1], 1),
-    (&EMOJI_1[0], 1),
-    (&EMOJI_1[1], 1),
-    (&EMOJI_1[0], 1),
-];
+/// One animation: its pictures, and its loop.
+struct Animation {
+    pictures: &'static [Picture],
+    steps: &'static [Step],
+}
 
-/// Emoji 2: picture 1 for 400 ms, then 2 → 1 → 2 → 1 → 2, 100 ms each.
-const LOOP_2: [Step; 6] = [
-    (&EMOJI_2[0], 4),
-    (&EMOJI_2[1], 1),
-    (&EMOJI_2[0], 1),
-    (&EMOJI_2[1], 1),
-    (&EMOJI_2[0], 1),
-    (&EMOJI_2[1], 1),
-];
-
-/// Emoji 3: picture 1 for 400 ms, then 2 → 1 → 2 → 1 → 2, 100 ms each.
-const LOOP_3: [Step; 6] = [
-    (&EMOJI_3[0], 4),
-    (&EMOJI_3[1], 1),
-    (&EMOJI_3[0], 1),
-    (&EMOJI_3[1], 1),
-    (&EMOJI_3[0], 1),
-    (&EMOJI_3[1], 1),
-];
-
-/// Emoji 4: picture 1 (100 ms) → 2 (100) → 3 (100) → 2 (100) → 1 (200) → 4 (500).
-const LOOP_4: [Step; 6] = [
-    (&EMOJI_4[0], 1),
-    (&EMOJI_4[1], 1),
-    (&EMOJI_4[2], 1),
-    (&EMOJI_4[1], 1),
-    (&EMOJI_4[0], 2),
-    (&EMOJI_4[3], 5),
-];
+const LUB_DUB: Animation = Animation {
+    pictures: &LUB_DUB_AND_SPECTRUM,
+    steps: &LUB_DUB_AND_SPECTRUM_LOOP,
+};
+const COFFEE_BREAK: Animation = Animation {
+    pictures: &COFFEE_BREAK_AND_SPECTRUM,
+    steps: &COFFEE_BREAK_AND_SPECTRUM_LOOP,
+};
+const CAT_TAIL: Animation = Animation {
+    pictures: &CAT_TAIL_AND_SPECTRUM,
+    steps: &CAT_TAIL_AND_SPECTRUM_LOOP,
+};
+const LUB_DUB_BIG: Animation = Animation {
+    pictures: &LUB_DUB_ALONE,
+    steps: &LUB_DUB_ALONE_LOOP,
+};
+const COFFEE_BREAK_BIG: Animation = Animation {
+    pictures: &COFFEE_BREAK_ALONE,
+    steps: &COFFEE_BREAK_ALONE_LOOP,
+};
+const CAT_TAIL_BIG: Animation = Animation {
+    pictures: &CAT_TAIL_ALONE,
+    steps: &CAT_TAIL_ALONE_LOOP,
+};
 
 /// One emoji's loop and where it is.
 #[derive(Clone, Debug)]
 pub struct EmojiLoop {
+    pictures: &'static [Picture],
     steps: &'static [Step],
     /// The tick of the loop the next frame shows, from 0.
     tick: usize,
 }
 
 impl EmojiLoop {
-    /// The loop of `mode`, 14 to 17, at its start; `None` for any other mode.
+    /// The loop of `mode`, 14–16 (with a spectrum) or 24–26 (alone), at its start; `None` for any
+    /// other mode.
     pub fn of(mode: Mode) -> Option<EmojiLoop> {
-        let steps: &'static [Step] = match mode.number() {
-            14 => &LOOP_1,
-            15 => &LOOP_2,
-            16 => &LOOP_3,
-            17 => &LOOP_4,
+        let animation = match mode.number() {
+            14 => &LUB_DUB,
+            15 => &COFFEE_BREAK,
+            16 => &CAT_TAIL,
+            24 => &LUB_DUB_BIG,
+            25 => &COFFEE_BREAK_BIG,
+            26 => &CAT_TAIL_BIG,
             _ => return None,
         };
-        Some(EmojiLoop { steps, tick: 0 })
+        Some(EmojiLoop {
+            pictures: animation.pictures,
+            steps: animation.steps,
+            tick: 0,
+        })
     }
 
     /// A reset: the next frame shows the loop's first picture.
@@ -185,7 +454,7 @@ impl EmojiLoop {
         self.steps.iter().map(|&(_, n)| usize::from(n)).sum()
     }
 
-    /// This tick's picture, in rows 1–7 of an otherwise blank frame; the loop then moves on one
+    /// This tick's picture, from row 1 of an otherwise blank frame; the loop then moves on one
     /// tick.
     pub fn tick(&mut self) -> Frame {
         let mut left = self.tick;
@@ -197,7 +466,7 @@ impl EmojiLoop {
                     left = rest;
                     None
                 }
-                None => Some(picture),
+                None => Some(self.pictures[picture]),
             })
             .expect("the tick is within the loop");
         self.tick = (self.tick + 1) % self.ticks();

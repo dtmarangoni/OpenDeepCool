@@ -62,7 +62,7 @@ const CHECKS: [(&str, Check); 7] = [
 ];
 
 /// The design's tile table, typed apart from the app's: each tile's name and mode.
-const TILES: [(&str, u16); 23] = [
+const TILES: [(&str, u16); 25] = [
     ("Load: CPU", 1),
     ("Load: GPU", 2),
     ("Load: RAM", 3),
@@ -76,16 +76,18 @@ const TILES: [(&str, u16); 23] = [
     ("Power: GPU", 11),
     ("Power: CPU + GPU", 12),
     ("Music: Spectrum", 13),
-    ("Music: Emoji 1", 14),
-    ("Music: Emoji 2", 15),
-    ("Music: Emoji 3", 16),
-    ("Music: Emoji 4", 17),
+    ("Music: Lub-dub + Spectrum", 14),
+    ("Music: Coffee break + Spectrum", 15),
+    ("Music: Cat tail + Spectrum", 16),
     ("Music: CPU temperature", 18),
     ("Music: GPU temperature", 19),
     ("Music: CPU usage", 20),
     ("Music: GPU usage", 21),
     ("Music: RAM usage", 22),
     ("Music: Dancer", 23),
+    ("Music: Lub-dub", 24),
+    ("Music: Coffee break", 25),
+    ("Music: Cat tail", 26),
 ];
 
 fn tiles_of(window: &Window) -> &[TileWidget] {
@@ -305,7 +307,12 @@ fn unavailable(app: &gtk::Application) {
     window.state(with(|s| {
         s.mode = Some(9);
         s.unavailable_reasons = Some(reasons.clone());
-        s.available_modes = Some((1..=23).filter(|m| !reasons.contains_key(m)).collect());
+        s.available_modes = Some(
+            Mode::all()
+                .map(|m| u32::from(m.number()))
+                .filter(|m| !reasons.contains_key(m))
+                .collect(),
+        );
     }));
     for tile in tiles_of(&window) {
         let mode = u32::from(tile.mode.number());

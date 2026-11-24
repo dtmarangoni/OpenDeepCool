@@ -32,7 +32,7 @@ const STARTUP_ON: boot::Switch = boot::Switch {
 };
 
 /// The design's tile table (Display page), typed here apart from the model's own.
-const TILES: [(u16, &str, &str); 23] = [
+const TILES: [(u16, &str, &str); 25] = [
     (1, "Load", "CPU"),
     (2, "Load", "GPU"),
     (3, "Load", "RAM"),
@@ -46,16 +46,18 @@ const TILES: [(u16, &str, &str); 23] = [
     (11, "Power", "GPU"),
     (12, "Power", "CPU + GPU"),
     (13, "Music", "Spectrum"),
-    (14, "Music", "Emoji 1"),
-    (15, "Music", "Emoji 2"),
-    (16, "Music", "Emoji 3"),
-    (17, "Music", "Emoji 4"),
+    (14, "Music", "Lub-dub + Spectrum"),
+    (15, "Music", "Coffee break + Spectrum"),
+    (16, "Music", "Cat tail + Spectrum"),
     (18, "Music", "CPU temperature"),
     (19, "Music", "GPU temperature"),
     (20, "Music", "CPU usage"),
     (21, "Music", "GPU usage"),
     (22, "Music", "RAM usage"),
     (23, "Music", "Dancer"),
+    (24, "Music", "Lub-dub"),
+    (25, "Music", "Coffee break"),
+    (26, "Music", "Cat tail"),
 ];
 
 const GROUPS: [(&str, Kind); 4] = [
@@ -131,7 +133,7 @@ fn base() -> State {
         temperature_unit: Some(TemperatureUnit::Celsius),
         cooler_connected: Some(true),
         cooler_state: Some(CoolerState::Connected),
-        available_modes: Some((1..=23).collect()),
+        available_modes: Some(Mode::all().map(|m| u32::from(m.number())).collect()),
         unavailable_reasons: Some(HashMap::new()),
         gpus: Some(gpus()),
         chosen_gpu: Some(String::new()),
@@ -442,9 +444,13 @@ fn the_live_tiles_draw_from_the_states_readings_and_music_settings() {
         (1, true, false),
         (12, true, false),
         (13, true, true),
+        (14, true, true),
         (23, true, true),
         (13, false, false),
         (23, false, false),
+        // The three emoji alone are Music modes that take no sound (owner, 2026-11-23).
+        (24, true, false),
+        (26, true, false),
     ] {
         let mut state = base();
         state.mode = Some(mode);
@@ -498,6 +504,34 @@ fn a_music_mode() {
         want.display.live.restart.0 = mode as u16;
         // The sound can be live when a helper's is attached while a Music mode is shown.
         want.display.live.sound = connected;
+        assert_eq!(view_of(state), want, "mode {mode}");
+    }
+}
+
+// An emoji alone, 24–26 (owner, 2026-11-23): a Music mode that takes no sound, so its status has
+// no sound line and the tiles' sound isn't live even with a helper attached; an emoji over the
+// spectrum, 14–16, has both.
+#[test]
+fn an_emoji_alone_has_no_sound_status_and_one_over_the_spectrum_has() {
+    for (mode, caption, sound) in [
+        (25, "Music · Coffee break", false),
+        (15, "Music · Coffee break + Spectrum", true),
+    ] {
+        let mut state = base();
+        state.mode = Some(mode);
+        state.audio_connected = Some(true);
+        let mut want = base_view();
+        want.column.caption = caption.to_owned();
+        if sound {
+            want.column.status.push(Status {
+                name: "Music sound status",
+                text: "Sound connected",
+                dot: Dot::Good,
+            });
+        }
+        want.display.groups = expected_groups(mode as u16, &[]);
+        want.display.live.restart.0 = mode as u16;
+        want.display.live.sound = sound;
         assert_eq!(view_of(state), want, "mode {mode}");
     }
 }
@@ -905,7 +939,9 @@ fn borrowed(reasons: &[(u16, String)]) -> Vec<(u16, &str)> {
 fn a_metric_unavailable() {
     let mut state = base();
     state.mode = Some(7);
-    state.available_modes = Some(vec![1, 3, 5, 7, 10, 13, 14, 15, 16, 17, 18, 20, 22, 23]);
+    state.available_modes = Some(vec![
+        1, 3, 5, 7, 10, 13, 14, 15, 16, 18, 20, 22, 23, 24, 25, 26,
+    ]);
     state.unavailable_reasons = Some(gpu_reasons("no device found"));
     let shown = gpu_reasons_shown("no device found");
     let mut want = base_view();
@@ -942,7 +978,9 @@ fn a_metric_unavailable() {
 #[test]
 fn the_saved_mode_lost_a_reading() {
     let mut state = base();
-    state.available_modes = Some(vec![1, 3, 5, 7, 10, 13, 14, 15, 16, 17, 18, 20, 22, 23]);
+    state.available_modes = Some(vec![
+        1, 3, 5, 7, 10, 13, 14, 15, 16, 18, 20, 22, 23, 24, 25, 26,
+    ]);
     state.unavailable_reasons = Some(gpu_reasons("reading it failed"));
     let shown = gpu_reasons_shown("reading it failed");
     let mut want = base_view();
@@ -1222,11 +1260,11 @@ prop_compose! {
     /// Any state the service could send: the reasons only for modes with metrics, each naming
     /// one of its mode's metrics, as the service's `availability` does.
     fn any_state()(
-        mode in 1u32..=23,
+        mode in prop::sample::select(Mode::all().map(|m| u32::from(m.number())).collect::<Vec<_>>()),
         rotation in 0u8..=3,
         fahrenheit: bool,
         cooler in cooler_state(),
-        reasons in prop::collection::btree_map(1u16..=23, (0usize..2, 0usize..4), 0..12),
+        reasons in prop::collection::btree_map(prop::sample::select(Mode::all().map(Mode::number).collect::<Vec<_>>()), (0usize..2, 0usize..4), 0..12),
         gpu_list in prop::collection::vec((gpu_kind(), any::<bool>(), 0usize..3), 0..4),
         choice in (prop::option::of(0usize..4), prop::option::of(0usize..4)),
         music in (any::<bool>(), 0usize..5, 0usize..5, any::<bool>()),
@@ -1255,7 +1293,7 @@ prop_compose! {
             temperature_unit: Some(if fahrenheit { TemperatureUnit::Fahrenheit } else { TemperatureUnit::Celsius }),
             cooler_connected: Some(cooler == Some(CoolerState::Connected)),
             cooler_state: cooler,
-            available_modes: Some((1..=23).filter(|m| !unavailable.contains_key(m)).collect()),
+            available_modes: Some(Mode::all().map(|m| u32::from(m.number())).filter(|m| !unavailable.contains_key(m)).collect()),
             unavailable_reasons: Some(unavailable),
             chosen_gpu: Some(pci(choice.0)),
             gpu_in_use: Some(pci(choice.1)),
@@ -1283,7 +1321,7 @@ fn devices(text: &str) -> Vec<&'static str> {
 }
 
 proptest! {
-    // Exactly one tile per mode 1–23, in four groups, in order; and exactly one selected.
+    // Exactly one tile per mode (1–26 but 17), in four groups, in order; and exactly one selected.
     #[test]
     fn one_tile_per_mode(state in any_state(), long: bool) {
         let ui = Ui { sending_failed_long: long, ..Ui::default() };
@@ -1291,7 +1329,7 @@ proptest! {
             panic!("not the normal screens");
         };
         let modes: Vec<u16> = normal.display.groups.iter().flat_map(|g| g.tiles.iter().map(|t| t.mode)).collect();
-        prop_assert_eq!(modes, (1..=23).collect::<Vec<u16>>());
+        prop_assert_eq!(modes, Mode::all().map(Mode::number).collect::<Vec<u16>>());
         let kinds: Vec<Kind> = normal.display.groups.iter().map(|g| g.kind).collect();
         prop_assert_eq!(kinds, GROUPS.map(|(_, k)| k).to_vec());
         let selected: Vec<u16> = normal.display.groups.iter().flat_map(|g| &g.tiles).filter(|t| t.selected).map(|t| t.mode).collect();

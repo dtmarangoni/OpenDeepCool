@@ -148,6 +148,8 @@ fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
     let modes = |list: &str| parse_args(&args(&["--modes", list])).map(|o| o.and_then(|o| o.modes));
     assert_eq!(modes("1"), Ok(Some(vec![1])));
     assert_eq!(modes("4-6,1,5"), Ok(Some(vec![1, 4, 5, 6])));
+    // A range steps over the retired 17 (DeepCreative's Emoji 4); 17 alone is refused below.
+    assert_eq!(modes("14-18"), Ok(Some(vec![14, 15, 16, 18])));
     let drawn = |n: u16| odc_render::Mode::new(n).is_some_and(odc_render::draws);
     // Modes 7–12 come one by one in Phase 8; each is accepted once drawn.
     assert_eq!(modes("7").is_ok(), drawn(7));
@@ -157,7 +159,8 @@ fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
     );
     for (bad, reason) in [
         ("0", "isn't in the mode table"),
-        ("24", "isn't in the mode table"),
+        ("17", "isn't in the mode table"),
+        ("27", "isn't in the mode table"),
         ("9-7", "a range goes from the lower mode up"),
         ("x", "isn't a mode or a range of modes"),
         ("1,", "isn't a mode or a range of modes"),
@@ -367,7 +370,7 @@ fn every_mode(_: odc_render::Mode) -> bool {
 // they come with Task 8.
 #[test]
 fn music_examples_draw_their_expected_frames_in_silence() {
-    for n in [13, 14, 15, 16, 17, 23] {
+    for n in [13, 14, 15, 16, 23, 24, 25, 26] {
         let mode = odc_render::Mode::new(n).expect("a mode");
         let frames = odc_e2e::display::examples_match(mode).unwrap_or_else(|e| panic!("{e}"));
         assert!(frames >= 6, "mode {n}: {frames} frames");
@@ -384,7 +387,7 @@ fn music_plans_play_out_through_the_engine() {
     let play =
         |plan: &Plan| play_engine_drawing(plan, every_mode).unwrap_or_else(|e| panic!("{e}"));
     play(&Plan::of_signal("column 7 centre, -20 dBFS").expect("a plan"));
-    for n in 13..=23 {
+    for n in (13..=26).filter(|&n| n != 17) {
         let file = load_mode(n);
         for rotation in [0, 1] {
             let case = file

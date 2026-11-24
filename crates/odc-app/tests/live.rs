@@ -18,6 +18,17 @@ use odc_testkit::spectrum::signals;
 
 const UNITS: [Unit; 2] = [Unit::Celsius, Unit::Fahrenheit];
 
+/// The modes with an emoji: 14–16 over the spectrum, 24–26 alone (owner, 2026-11-23).
+const EMOJI: [u16; 6] = [14, 15, 16, 24, 25, 26];
+
+/// The emoji's modes, as modes.
+fn emoji_modes() -> Vec<Mode> {
+    EMOJI
+        .iter()
+        .map(|&n| Mode::new(n).expect("a mode"))
+        .collect()
+}
+
 fn music(peaks: bool) -> MusicSettings {
     MusicSettings {
         peaks,
@@ -93,7 +104,7 @@ fn over_still(mode: Mode, top: Frame, peaks: bool) -> Frame {
 fn first_frame(mode: Mode, values: &Values, unit: Unit, peaks: bool) -> Frame {
     let top = match mode.number() {
         13 => Frame::blank(),
-        14..=17 => EmojiLoop::of(mode).expect("a loop").tick(),
+        14..=16 | 24..=26 => EmojiLoop::of(mode).expect("a loop").tick(),
         23 => return Pose::STILL.frame(),
         _ => {
             let picture = strip(mode, values, unit);
@@ -148,7 +159,7 @@ fn a_fresh_tile_is_the_picture_odc_render_draws_at_home_in_every_combination() {
             }
         }
     }
-    assert_eq!(checked, value_sets().len() * 2 * 2 * 23);
+    assert_eq!(checked, value_sets().len() * 2 * 2 * Mode::all().count());
 }
 
 #[test]
@@ -176,7 +187,7 @@ fn a_scrolling_tile_moves_a_column_each_tick_as_the_cooler_does() {
         let values = distinct(100);
         let mut live = Live::new(unit, music(true), values.clone());
         let mut marquees: Vec<(Mode, Marquee)> = Mode::all()
-            .filter(|mode| !matches!(mode.number(), 13..=17 | 23))
+            .filter(|mode| !matches!(mode.number(), 13..=16 | 23..=26))
             .map(|mode| (mode, Marquee::new(strip(mode, &values, unit))))
             .collect();
         let mut moved = 0;
@@ -213,8 +224,8 @@ fn a_scrolling_tile_moves_a_column_each_tick_as_the_cooler_does() {
 fn a_static_tile_never_changes_and_only_the_emoji_loops_play() {
     let values = distinct(10);
     let mut live = Live::new(Unit::Celsius, music(true), values.clone());
-    let mut loops: Vec<(Mode, EmojiLoop)> = (14..=17)
-        .map(|n| Mode::new(n).expect("a mode"))
+    let mut loops: Vec<(Mode, EmojiLoop)> = emoji_modes()
+        .into_iter()
         .map(|mode| {
             let mut emoji = EmojiLoop::of(mode).expect("a loop");
             emoji.tick();
@@ -226,7 +237,7 @@ fn a_static_tile_never_changes_and_only_the_emoji_loops_play() {
         let changed = tick(&mut live);
         for mode in &changed {
             assert!(
-                (14..=17).contains(&mode.number()),
+                EMOJI.contains(&mode.number()),
                 "mode {} moved at tick {n}",
                 mode.number()
             );
@@ -241,30 +252,35 @@ fn a_static_tile_never_changes_and_only_the_emoji_loops_play() {
         }
     }
     for ((mode, before), (_, after)) in first.iter().zip(frames(&live)) {
-        if !(14..=17).contains(&mode.number()) {
+        if !EMOJI.contains(&mode.number()) {
             assert_eq!(*before, after, "mode {} stayed still", mode.number());
         }
     }
 }
 
-// The four loops start together, on their first picture, and run 9, 9, 9 and 11 ticks (design:
-// Live tiles, The tick): after a whole number of cycles a tile shows its first picture again.
+// The six loops start together, on their first picture, and run 10, 12, 7, 12, 12 and 12 ticks
+// (design: Live tiles, The tick): after a whole number of cycles a tile shows its first picture
+// again.
 #[test]
-fn the_emoji_loops_start_together_and_run_9_9_9_and_11_ticks() {
+fn the_emoji_loops_start_together_and_run_10_12_7_12_12_and_12_ticks() {
     let mut live = Live::new(Unit::Celsius, music(true), sample_values());
     let start = frames(&live);
-    let modes: Vec<Mode> = (14..=17).map(|n| Mode::new(n).expect("a mode")).collect();
+    let modes = emoji_modes();
     let lengths: Vec<usize> = modes
         .iter()
         .map(|&mode| EmojiLoop::of(mode).expect("a loop").ticks())
         .collect();
-    assert_eq!(lengths, [9, 9, 9, 11]);
+    assert_eq!(lengths, [10, 12, 7, 12, 12, 12]);
     // Every loop has moved on from its first picture within its cycle, and is back after it.
-    let mut moved = [false; 4];
-    for n in 1..=99 {
+    let mut moved = [false; 6];
+    for n in 1..=420 {
         tick(&mut live);
         for (i, mode) in modes.iter().enumerate() {
-            let first = start[usize::from(mode.number()) - 1].1;
+            let first = start
+                .iter()
+                .find(|(m, _)| m == mode)
+                .map(|(_, frame)| *frame)
+                .expect("a tile for the mode");
             if n % lengths[i] == 0 {
                 assert_eq!(
                     *live.frame(*mode),
@@ -277,7 +293,7 @@ fn the_emoji_loops_start_together_and_run_9_9_9_and_11_ticks() {
             }
         }
     }
-    assert_eq!(moved, [true; 4], "each loop moves");
+    assert_eq!(moved, [true; 6], "each loop moves");
 }
 
 #[test]
@@ -398,8 +414,8 @@ fn with_sound_the_spectrum_and_the_dancer_follow_the_levels_as_on_the_cooler() {
             // The cooler's pieces, entered at rest.
             let mut spectrum = Spectrum::enter();
             let mut dancer = Dancer::new();
-            let mut loops: Vec<(Mode, EmojiLoop)> = (14..=17)
-                .map(|n| Mode::new(n).expect("a mode"))
+            let mut loops: Vec<(Mode, EmojiLoop)> = emoji_modes()
+                .into_iter()
                 .map(|mode| {
                     let mut emoji = EmojiLoop::of(mode).expect("a loop");
                     emoji.tick();
@@ -434,9 +450,17 @@ fn with_sound_the_spectrum_and_the_dancer_follow_the_levels_as_on_the_cooler() {
                     signal.name
                 );
                 for (mode, emoji) in &mut loops {
+                    // Over the spectrum the sound moves the bars under the picture; alone the
+                    // picture is the whole tile and the sound moves nothing.
+                    let top = emoji.tick();
+                    let drawn = if spectrum_height(*mode).is_some() {
+                        want(*mode, top)
+                    } else {
+                        top
+                    };
                     assert_eq!(
                         *live.frame(*mode),
-                        want(*mode, emoji.tick()),
+                        drawn,
                         "{}, mode {}, tick {n}",
                         signal.name,
                         mode.number()

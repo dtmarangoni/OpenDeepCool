@@ -1,8 +1,9 @@
-//! Music, modes 13–23 (`docs/spec/music.md`, Modes): what each draws above its spectrum, and the
-//! frame they make together. Mode 13 draws the spectrum alone in rows 3–14; 14–17 an emoji in
-//! rows 1–7 ([`crate::EmojiLoop`]) and 18–22 a value in rows 2–6, over the spectrum in rows 9–14;
-//! 23 the Dancer's pose ([`crate::Pose`]) on the whole grid. Each mode joins `DRAWN` in its own
-//! commit, with all its tests (Phase 9 plan, Tasks 6–9; AGENTS.md rule 4).
+//! Music, modes 13–16 and 18–26 (`docs/spec/music.md`, Modes): what each draws above its
+//! spectrum, and the frame they make together. Mode 13 draws the spectrum alone in rows 3–14; 14–16
+//! an emoji in rows 1–7 ([`crate::EmojiLoop`]) and 18–22 a value in rows 2–6, over the spectrum in
+//! rows 9–14; 23 the Dancer's pose ([`crate::Pose`]) on the whole grid, and 24–26 an emoji on the
+//! whole grid with no spectrum. Each mode joined `DRAWN` in its own commit, with all its tests
+//! (Phase 9 plan, Tasks 6–9; AGENTS.md rule 4).
 
 use odc_protocol::Frame;
 use odc_sensors::Exact;
@@ -15,7 +16,7 @@ use crate::value::{Shown, fahrenheit, number};
 use crate::{Unit, Values};
 
 /// The Music modes this build draws.
-const DRAWN: [u16; 11] = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
+const DRAWN: [u16; 13] = [13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26];
 
 /// The value's top row in modes 18–22.
 const VALUE_TOP: usize = 2;
@@ -33,12 +34,12 @@ pub(crate) fn picture(mode: Mode, values: &Values, unit: Unit) -> Option<Picture
     }
 }
 
-/// *H*, the spectrum area's height: 12 rows in mode 13, 6 in modes 14–22, and `None` in a mode
-/// without a spectrum (point "OpenDeepCool's spectrum, precisely").
+/// *H*, the spectrum area's height: 12 rows in mode 13, 6 in modes 14–16 and 18–22, and `None` in
+/// a mode without a spectrum (point "OpenDeepCool's spectrum, precisely").
 pub fn spectrum_height(mode: Mode) -> Option<u8> {
     match mode.number() {
         13 => Some(12),
-        14..=22 => Some(6),
+        14..=16 | 18..=22 => Some(6),
         _ => None,
     }
 }

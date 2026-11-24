@@ -1,7 +1,7 @@
 //! The live tiles' pictures (Phase 11a Task 14; `docs/design/settings-app.md`, Display page,
 //! Tile content). Pure: no clock, no GTK and no D-Bus, so every case is a unit test.
 //!
-//! One [`Live`] holds a state machine for each of the 23 modes' tiles and steps them all together,
+//! One [`Live`] holds a state machine for each of the 25 modes' tiles and steps them all together,
 //! as the service's engine steps the cooler's picture: a value's strip in a [`Marquee`], so a
 //! value of 100 or more scrolls and a changed reading keeps its place; an emoji's [`EmojiLoop`];
 //! the Dancer, stepped by the sound's levels; and, below a value or an emoji, one [`Spectrum`]
@@ -136,7 +136,7 @@ enum Motion {
     Strip(Marquee),
     /// Mode 13: the spectrum alone.
     Nothing,
-    /// Modes 14–17.
+    /// Modes 14–16, over the spectrum, and 24–26, alone.
     Emoji(EmojiLoop),
     /// Mode 23: the shared Dancer, or the still pose.
     Dancer,
@@ -150,7 +150,7 @@ struct Tile {
     frame: Frame,
 }
 
-/// The pictures of all 23 tiles, and what moves them.
+/// The pictures of all 25 tiles, and what moves them.
 pub struct Live {
     unit: Unit,
     music: MusicSettings,
@@ -173,7 +173,9 @@ fn strip(mode: Mode, values: &Values, unit: Unit) -> Picture {
 fn motion_of(mode: Mode, values: &Values, unit: Unit) -> Motion {
     match mode.number() {
         SPECTRUM_ALONE => Motion::Nothing,
-        14..=17 => Motion::Emoji(EmojiLoop::of(mode).expect("modes 14–17 have a loop")),
+        14..=16 | 24..=26 => {
+            Motion::Emoji(EmojiLoop::of(mode).expect("modes 14–16 and 24–26 have a loop"))
+        }
         DANCER => Motion::Dancer,
         _ => Motion::Strip(Marquee::new(strip(mode, values, unit))),
     }
@@ -207,7 +209,7 @@ impl Live {
     ///
     /// # Panics
     ///
-    /// When `mode` isn't one of the 23.
+    /// When `mode` isn't one of the 25.
     pub fn frame(&self, mode: Mode) -> &Frame {
         &self
             .tiles

@@ -4,8 +4,9 @@
 //! compared with ours: each of its frames must keep the area above the spectrum off in mode 13,
 //! and draw each column as a solid bar from the lit floor, at most *H* rows high, with no dot
 //! (DeepCreative draws none; OpenDeepCool's with its dots off draw the same way). In an emoji mode
-//! (14–17) the rows above the spectrum, 1–8, are the loop's pictures, frame for frame and in order
-//! (`cycle_match`), from wherever DeepCreative's loop was. In a value mode (18–22) the rows above
+//! (14–16) only that layout is compared: the pictures are OpenDeepCool's own since 2026-11-23
+//! (DeepCreative's four are gone), so none is compared with a capture, and the three emoji alone
+//! (24–26) have no spectrum and no capture at all. In a value mode (18–22) the rows above
 //! the spectrum show the value where both sets of rules draw it alike: a still value frame for
 //! frame, a scrolling one in order over the window's second half, since DeepCreative first
 //! finishes the cycle it was on; every other step is listed with its reason (`music.md`, Value
@@ -21,8 +22,7 @@ use std::collections::BTreeMap;
 use common::{drawn_modes, values};
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
-    EmojiLoop, Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, spectrum_height,
-    value_picture,
+    Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, spectrum_height, value_picture,
 };
 use odc_sensors::Exact;
 use odc_testkit::diff::cycle_match;
@@ -68,12 +68,6 @@ fn every_captured_music_frame_keeps_the_layout_both_draw() {
         };
         // Mode 13's rows above the spectrum: 1–2.
         let top_rows = 14 - h;
-        // An emoji mode's loop, a picture a tick.
-        let emoji: Option<Vec<Frame>> = EmojiLoop::of(mode).map(|mut emoji| {
-            (0..emoji.ticks())
-                .map(|_| above(&emoji.tick(), h))
-                .collect()
-        });
         let (mut checked, mut frames) = (0, 0);
         let mut quirk = Vec::new();
         let mine = steps
@@ -107,17 +101,6 @@ fn every_captured_music_frame_keeps_the_layout_both_draw() {
                 }
                 if let Some(why) = layout(frame, h) {
                     failures.push(format!("{}: {}: {why}", step.file, step.label));
-                }
-            }
-            if let Some(cycle) = &emoji {
-                let tops: Vec<Frame> = upright.iter().map(|f| above(f, h)).collect();
-                if let Err(mismatch) = cycle_match(&tops, cycle) {
-                    failures.push(format!(
-                        "{}: {}, rotation {}: the emoji's loop: {mismatch:?}",
-                        step.file,
-                        step.label,
-                        step.rotation.setting()
-                    ));
                 }
             }
             checked += 1;

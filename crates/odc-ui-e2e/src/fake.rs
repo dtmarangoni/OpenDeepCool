@@ -110,7 +110,7 @@ impl Service {
             rotation: 0,
             unit: "celsius",
             cooler: "connected",
-            available: (1..=23).collect(),
+            available: crate::scenarios::MODES.to_vec(),
             reasons: BTreeMap::new(),
             gpus: vec![DEDICATED, INTEGRATED],
             chosen_gpu: "",

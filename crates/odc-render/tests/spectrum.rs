@@ -237,11 +237,11 @@ fn a_fall_change_keeps_every_level_and_a_falling_peak_falls_on_from_rest() {
 }
 
 #[test]
-fn the_spectrum_area_is_12_rows_in_mode_13_and_6_in_14_to_22() {
+fn the_spectrum_area_is_12_rows_in_mode_13_and_6_in_14_to_16_and_18_to_22() {
     for mode in Mode::all() {
         let h = match mode.number() {
             13 => Some(12),
-            14..=22 => Some(6),
+            14..=16 | 18..=22 => Some(6),
             _ => None,
         };
         assert_eq!(spectrum_height(mode), h, "mode {}", mode.number());

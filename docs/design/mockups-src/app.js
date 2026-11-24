@@ -90,7 +90,7 @@
 // - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
 //   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
 //   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
-// - The Music tiles (13 to 22, the emoji tiles' spectrum rows included, and the Dancer) are live only while sound is
+// - The Music tiles (13 to 16, 18 to 22, the emoji tiles' spectrum rows included, and the Dancer; not the three emoji alone) are live only while sound is
 //   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
 //   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
 //   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
@@ -135,17 +135,22 @@ const MODES = [
   M(11, "Power", "GPU", ["gpu_power"], "value"),
   M(12, "Power", "CPU + GPU", ["cpu_power", "gpu_power"], "value"),
   M(13, "Music", "Spectrum", [], "full"),
-  M(14, "Music", "Emoji 1", [], "emoji"),
-  M(15, "Music", "Emoji 2", [], "emoji"),
-  M(16, "Music", "Emoji 3", [], "emoji"),
-  M(17, "Music", "Emoji 4", [], "emoji"),
+  M(14, "Music", "Lub-dub + Spectrum", [], "emoji"),
+  M(15, "Music", "Coffee break + Spectrum", [], "emoji"),
+  M(16, "Music", "Cat tail + Spectrum", [], "emoji"),
   M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
   M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
   M(20, "Music", "CPU usage", ["cpu_usage"], "musicvalue"),
   M(21, "Music", "GPU usage", ["gpu_usage"], "musicvalue"),
   M(22, "Music", "RAM usage", ["ram"], "musicvalue"),
-  M(23, "Music", "Dancer", [], "dancer")
+  M(23, "Music", "Dancer", [], "dancer"),
+  M(24, "Music", "Lub-dub", [], "emojialone"),
+  M(25, "Music", "Coffee break", [], "emojialone"),
+  M(26, "Music", "Cat tail", [], "emojialone")
 ];
+// Mode 17 is no mode: DeepCreative's Emoji 4, dropped on 2026-11-23 (the design, Display page). The three emoji alone take no
+// sound, so a Music mode of that kind shows no sound status and its tile is not one of the sound-live ones.
+const takesSound = m => m.group === "Music" && m.kind !== "emojialone";
 const byId = id => MODES.find(m => m.id === id);
 
 // The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's
@@ -171,11 +176,14 @@ const SYM = {
   "F": ["#.###", "..#..", "..###", "..#..", "..#.."],
   "W": [".....", "#.#.#", "#.#.#", "#.#.#", ".#.#."]
 };
+// The first picture of each emoji's loop: rows 1-7 over the spectrum (14-16), all 14 rows alone (24-26).
 const EMOJI = {
-  14: ["..............", "..............", "...###..###...", "..............", "..............", "..............", ".....####....."],
-  15: ["...#......#...", "..#.#....#.#..", ".#...#..#...#.", "..............", "..............", "..............", ".....####....."],
-  16: ["..............", "..###....###..", "..###....###..", "..###....###..", "..............", "....#....#....", ".....####....."],
-  17: ["..............", ".#####..#####.", "...##.....##..", "..............", "..............", ".....####.....", ".............."]
+  14: ["..............", "....##..##....", "...########...", "...########...", "....######....", ".....####.....", "......##......"],
+  15: [".........#....", "........#.....", ".....#........", "....######.##.", "....######..#.", ".....####.....", "...########..."],
+  16: ["....#....#....", "....######....", "....######....", ".....####.....", "...########...", "...#########.#", "...########.##"],
+  24: ["..............", "..............", "..............", "....##..##....", "...########...", "...########...", "....######....", ".....####.....", "......##......", "..............", "..............", "..............", "##############", ".............."],
+  25: ["......#.......", ".....#........", ".........#....", "........#.....", "......#.......", ".....#........", ".........#....", "........#.....", "......#.......", ".....#........", "....######.##.", "....######..#.", ".....####.....", "...########..."],
+  26: ["..............", "...#......#...", "...##....##...", "...########...", "...##.##.##...", "...########...", "....######....", "...########...", "..##########..", "..##########..", "..##########..", "..##########..", "..###....###.#", "...........###"]
 };
 const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "......#.......", "......#.......",
   ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
@@ -250,6 +258,8 @@ function picture(mode, readings, unit, spec, peaksOn) {
   } else if (m.kind === "emoji") {
     EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
     drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "emojialone") {
+    EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
   } else if (m.kind === "dancer") {
     DANCER_STILL.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
   }
@@ -530,7 +540,7 @@ function side() {
     const [cls, text] = COOLER[coolerState()];
     status += dot(cls, text, "Cooler status");
     status += dot("good", "Service running", "Service status");
-    if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
+    if (takesSound(m)) status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
   }
   const caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
@@ -675,7 +685,7 @@ function paintAll() {
     paint(pv, rotate(g, S.rotation), 15);
   } else paint(pv, null, 15);
   // The Music tiles are live only while sound is attached and a Music mode is the one shown; otherwise the still sample.
-  const soundLive = S.service && S.audio && byId(S.mode).group === "Music";
+  const soundLive = S.service && S.audio && takesSound(byId(S.mode));
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
     const unavailable = c.closest("button").disabled;

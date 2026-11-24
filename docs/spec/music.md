@@ -1,6 +1,6 @@
 # Music Mode
 
-What DeepCreative 1.2.14 shows in Music Mode (modes 13–22), what OpenDeepCool does differently, and OpenDeepCool's own Dancer (mode 23). Grid, glyphs, value rules, scrolling and [rotation](display.md#rotation) are as in [display.md](display.md); evidence labels are defined in [README.md](README.md).
+What DeepCreative 1.2.14 shows in Music Mode (modes 13–22), what OpenDeepCool does differently, OpenDeepCool's own Dancer (mode 23), and its own emoji animations (modes 14–16, and 24–26 alone; from 2026-11-23 they replace DeepCreative's four). Grid, glyphs, value rules, scrolling and [rotation](display.md#rotation) are as in [display.md](display.md); evidence labels are defined in [README.md](README.md).
 
 **Proof.** A script that applies only the rules below checks 104 matrix sweep steps: modes 13–22 in all four rotations, modes 18 and 19 in both temperature units, and three value sets for the value modes, with tones playing. After undoing the rotation, the value area and the emoji pictures match pixel for pixel, and every spectrum frame follows the layout rules below. In every step the bars rose above the floor. Evidence: capture: matrix sweep of 2026-10-22 (`research/hook/render-check.py`, local). The expected frame of every case is in [frames/](frames/), with `?` marking spectrum pixels.
 
@@ -11,13 +11,20 @@ What DeepCreative 1.2.14 shows in Music Mode (modes 13–22), what OpenDeepCool 
 | Mode | Page and option | Top area (rows 1–8) | Spectrum area |
 |---|---|---|---|
 | 13 | Music Mode → Full Screen | — | rows 3–14 |
-| 14–17 | Music Mode → Split → Emoji Animation + Spectrum, emojis 1–4 | the emoji animation | rows 9–14 |
+| 14 | OpenDeepCool's own: Lub-dub + Spectrum (DeepCreative's Split → Emoji Animation + Spectrum, whose four emojis are dropped) | the Lub-dub animation, rows 1–7 | rows 9–14 |
+| 15 | OpenDeepCool's own: Coffee break + Spectrum | the Coffee break animation, rows 1–7 | rows 9–14 |
+| 16 | OpenDeepCool's own: Cat tail + Spectrum | the Cat tail animation, rows 1–7 | rows 9–14 |
 | 18 | Split → Temperature + Spectrum → CPU | CPU Temperature | rows 9–14 |
 | 19 | Split → Temperature + Spectrum → GPU | Gpu temperature | rows 9–14 |
 | 20 | Split → Usage + Spectrum → CPU | CPU Usage | rows 9–14 |
 | 21 | Split → Usage + Spectrum → GPU | Gpu usage | rows 9–14 |
 | 22 | Split → Usage + Spectrum → RAM | Memory Load | rows 9–14 |
 | 23 | OpenDeepCool's own: Dancer | the whole grid: a dancing figure ([Dancer](#dancer-mode-23-opendeepcools-own)) | — |
+| 24 | OpenDeepCool's own: Lub-dub | the whole grid: the Lub-dub animation, drawn again for the room | — |
+| 25 | OpenDeepCool's own: Coffee break | the whole grid: the Coffee break animation, drawn again for the room | — |
+| 26 | OpenDeepCool's own: Cat tail | the whole grid: the Cat tail animation, drawn again for the room | — |
+
+**Mode 17 is no mode** (owner, 2026-11-23): it was DeepCreative's Emoji 4, which OpenDeepCool dropped with the other three, and its number stays unused so that no mode changes its own. A mode switch into 17 is refused as a mode outside the table, and a settings file that names it is invalid. There are 25 modes.
 
 Evidence: code: LP page modes (Phase 1 report); capture: Music Mode passes of 2026-10-22, in silence and with a loud bass chord.
 
@@ -37,7 +44,7 @@ Evidence: capture: 2026-10-22, the loud-chord pass reached rows 3 and 9 but neve
 DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; see the PRD).
 - **What DeepCreative does under Wine:** its 14 columns each cover one band about 10.8 Hz wide, so the whole display spans only about 5–160 Hz. Alternate frames also show a weaker copy at half the frequency, which may be a Wine artefact. Capture: test tones and a sweep, 2026-10-22.
 - **What OpenDeepCool does instead:** imitate Winamp's classic analyser, with bands spread across the whole audible range over the 14 columns. The rules below were chosen by the owner on 2026-10-25, after watching them on a preview page that drew the 14 × 14 grid at the cooler's 100 ms tick.
-- **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one. Sound is taken only while a Music mode (13–23) is shown. In every other mode nothing is captured (owner, 2026-10-26).
+- **Source:** the monitor of the default audio output, as the PRD says, at 48 000 samples per second, the channels averaged into one. Sound is taken only while a Music mode that draws it (13–16 and 18–23) is shown. In every other mode, the three emoji alone (24–26) included, nothing is captured (owner, 2026-10-26 and 2026-11-23).
   - **Not only the sound tagged as music** (owner, 2026-11-05, after Phase 9's research, `docs/research/phase9-music-tags.md`): of six common players only Spotify tags its sound as music (PipeWire `media.role` Music), so a music-only capture would show nothing for music played in a browser. The owner had wanted to try it (2026-10-26).
   - DeepCreative does the same on Windows: its .NET helper captures the default playback device for multimedia in loopback mode (NAudio's `WasapiLoopbackCapture`), everything played, with no filter, and on a timer restarts the capture on the new device when the default output changes (static analysis, 2026-11-05). On Linux, WirePlumber moves the monitor's capture to a new default output by itself.
 - **Samples out of range** (OpenDeepCool, owner, 2026-10-27; solution review P4-08, P9-03): a sample that is NaN or infinite counts as 0, and one beyond ±1 is clipped to ±1, so a broken stream draws silence or full bars, never a stuck bar. For normal music the clip changes nothing visible: the bars reach the top at −25 dB, far below full scale.
@@ -45,7 +52,7 @@ DeepCreative's own analysis is **not reproduced** (owner decision, 2026-10-22; s
 
 ### OpenDeepCool's spectrum, precisely
 
-Every Music mode (13–22) draws its spectrum this way, the emoji modes included (owner, 2026-10-25). *H* is the spectrum area's height: 12 rows in mode 13, 6 rows in modes 14–22.
+Every Music mode with a spectrum (13–16 and 18–22) draws it this way, the emoji modes over it included (owner, 2026-10-25). *H* is the spectrum area's height: 12 rows in mode 13, 6 rows in modes 14–16 and 18–22. Modes 23–26 draw no spectrum.
 
 1. **Analysis, at every tick:** the latest 2048 samples, windowed and transformed as the W3C Web Audio API's `AnalyserNode` defines it: a Blackman window with α = 0.16, then X[k] = (1/N) Σ x̂[n] e^(−2πikn/N), with N = 2048 and no smoothing over time. Each bin's level is 20 log₁₀ |X[k]| dB. Evidence: W3C Web Audio API 1.1, AnalyserNode, "FFT windowing and smoothing over time" (read 2026-10-25). The preview page used the browser's own `AnalyserNode` with 4096 samples; OpenDeepCool uses 2048 to keep the delay target below.
 2. **Columns:** 14 bands, their edges spaced evenly on a log scale from 40 Hz to 16 kHz: edge *i* = 40 × 400^(*i*/14) Hz, *i* = 0 … 14. Column *c* (1 = left) takes the highest level of the bins whose frequency is at least edge *c* − 1 and below edge *c*, and at least the one bin nearest edge *c* − 1.
@@ -169,74 +176,128 @@ A stick figure dances to the music on the whole 14 × 14 grid, in place of the b
 - The pose is drawn on the whole grid, then rotated.
 - **Checked 2026-11-18** (owner; [Phase 11a plan](../prp/plans/phase-11a-settings-app-ui-review.plan.md), D3): the owner asked that the Dancer stay as it is, its rows and its pictures, and be centred horizontally. By the odd-column rule it already is. The standing figure's head is on columns 7–9, with 6 columns to its left and 5 to its right (the extra spare column on the left), and its body is on column 8. Measured on the pictures above by each pose's widest columns, seven of the eleven poses are centred by that rule (0, 3, 4, 5, 6, 9 and 10). The two sways and the two points (1, 2, 7 and 8) lean to one side on purpose. Nothing changes.
 
-## Emoji animations (modes 14–17)
+## Emoji animations (modes 14–16 and 24–26)
+
+OpenDeepCool's own (owner, 2026-11-23). DeepCreative's four emoji animations, their pictures and their timings, are dropped: the owner asked for pictures of OpenDeepCool's own instead of copying them, was shown twenty ([the options](../design/emoji-options/index.html)) and chose three: **Lub-dub** (a heart beating twice, option 1), **Coffee break** (a cup and its steam, option 6) and **Cat tail** (a sitting cat and its tail, option 11). Each is two modes: **over the spectrum** (modes 14–16: the picture in rows 1–7, the spectrum in rows 9–14, as DeepCreative's emoji modes were laid out) and **alone** (modes 24–26: the same animation drawn again on the whole 14 × 14 grid, so it has the room to move more, with no spectrum).
 
 - **Timing:** each animation is a fixed loop on a 100 ms tick. It plays the same in silence and with sound, so the music doesn't drive it.
-- **OpenDeepCool: a reset restarts the loop** (owner, 2026-10-25). A reset (start-up, a switch into the mode, a rotation change, another GPU, Refresh; [display.md](display.md#mode-switches)) shows the loop's first picture on the next frame, as a value's picture restarts from home.
-- **Area:** the pictures occupy rows 1–7; rows 8–14 are the spectrum area.
+- **A reset restarts the loop** (owner, 2026-10-25). A reset (start-up, a switch into the mode, a rotation change, another GPU, Refresh; [display.md](display.md#mode-switches)) shows the loop's first picture on the next frame, as a value's picture restarts from home.
+- **Sound:** the modes over the spectrum take sound, for the spectrum. The three alone draw no spectrum and move to nothing in the sound, so they take none: no sound is captured while one is shown, and the service's `AudioWanted` is false ([dbus.md](dbus.md)). They are still Music modes: the settings app shows them in its Music group, without a sound status line.
+- **Area:** the pictures of modes 14–16 occupy rows 1–7, row 8 is off, and rows 9–14 are the spectrum area. Those of modes 24–26 occupy all 14 rows.
+- **A missed tick** moves no loop (point 8 above).
+- **Test status:** the pictures are OpenDeepCool's own, so no capture of DeepCreative's compares with them; the expected frames in [frames/](frames/) follow the pictures below, drawn by the oracle from these rules, and the layout of the spectrum under them is still the one the DeepCreative captures confirm.
 
-Evidence: capture: 2026-10-22, the silent and loud passes give the same pictures and loop.
+A page that plays all six on the 100 ms tick, for looking at them without the cooler: [chosen.html](../design/emoji-options/chosen.html).
 
-Every picture is shown in full for rows 1–7. Rows not listed are all off.
+Pictures are in rows from 1; `#` is lit. Every picture is shown in full; rows not listed are all off.
 
-### Emoji 1 (mode 14)
+### Mode 14: Lub-dub + Spectrum
 
-Loop: picture 2 for 400 ms, then picture 1 → 2 → 1 → 2 → 1, 100 ms each. That's 900 ms in all.
-
-```
-picture 1        picture 2
-..............   ...#......#...   row 1
-..............   ....#....#....   row 2
-...###..###...   .....#..#.....   row 3
-..............   ....#....#....   row 4
-..............   ...#......#...   row 5
-..............   ..............   row 6
-.....####.....   .....####.....   row 7
-```
-
-### Emoji 2 (mode 15)
-
-Loop: picture 1 for 400 ms, then picture 2 → 1 → 2 → 1 → 2, 100 ms each. That's 900 ms in all.
+Loop: picture 1 (600 ms) → picture 2 (100 ms) → picture 1 (100 ms) → picture 3 (200 ms). That's 1000 ms in all.
 
 ```
-picture 1        picture 2
-...#......#...   ..............   row 1
-..#.#....#.#..   ..............   row 2
-.#...#..#...#.   ..###....###..   row 3
-..............   ..............   row 4
-..............   ..............   row 5
-..............   ..............   row 6
-.....####.....   .....####.....   row 7
+picture 1        picture 2        picture 3
+..............   ...###..###...   ...###..###...   row 1
+....##..##....   ..##########..   ..##########..   row 2
+...########...   ..##########..   #.##########.#   row 3
+...########...   ...########...   ...########...   row 4
+....######....   ....######....   ....######....   row 5
+.....####.....   .....####.....   .....####.....   row 6
+......##......   ......##......   ......##......   row 7
 ```
 
-### Emoji 3 (mode 16)
+### Mode 15: Coffee break + Spectrum
 
-Loop: picture 1 for 400 ms, then picture 2 → 1 → 2 → 1 → 2, 100 ms each. That's 900 ms in all.
+Loop: picture 1 (200 ms) → picture 2 (200 ms) → picture 3 (200 ms) → picture 4 (200 ms) → picture 5 (200 ms) → picture 6 (200 ms). That's 1200 ms in all.
 
 ```
-picture 1        picture 2
-..............   ..............   row 1
-..###....###..   ..............   row 2
-..###....###..   ..###....###..   row 3
-..###....###..   ..............   row 4
-..............   ..............   row 5
-....#....#....   ....#....#....   row 6
-.....####.....   .....####.....   row 7
+picture 1        picture 2        picture 3        picture 4        picture 5        picture 6
+.........#....   .........#....   .....#........   .....#........   .....#........   .........#....   row 1
+........#.....   ......#.......   ......#.......   ......#.......   ........#.....   ........#.....   row 2
+.....#........   .....#........   .....#........   .........#....   .........#....   .........#....   row 3
+....######.##.   ....######.##.   ....######.##.   ....######.##.   ....######.##.   ....######.##.   row 4
+....######..#.   ....######..#.   ....######..#.   ....######..#.   ....######..#.   ....######..#.   row 5
+.....####.....   .....####.....   .....####.....   .....####.....   .....####.....   .....####.....   row 6
+...########...   ...########...   ...########...   ...########...   ...########...   ...########...   row 7
 ```
 
-### Emoji 4 (mode 17)
+### Mode 16: Cat tail + Spectrum
 
-Loop: picture 1 (100 ms) → 2 (100) → 3 (100) → 2 (100) → 1 (200) → 4 (500). That's 1100 ms in all.
+Loop: picture 1 (300 ms) → picture 2 (100 ms) → picture 3 (200 ms) → picture 2 (100 ms). That's 700 ms in all.
+
+```
+picture 1        picture 2        picture 3
+....#....#....   ....#....#....   ....#....#....   row 1
+....######....   ....######....   ....######....   row 2
+....######....   ....######....   ....######...#   row 3
+.....####.....   .....####.....   .....####...#.   row 4
+...########...   ...########..#   ...########.#.   row 5
+...#########.#   ...##########.   ...#########..   row 6
+...########.##   ...########...   ...########...   row 7
+```
+
+### Mode 24: Lub-dub alone
+
+Loop: picture 1 (700 ms) → picture 2 (100 ms) → picture 1 (100 ms) → picture 3 (200 ms) → picture 4 (100 ms). That's 1200 ms in all.
 
 ```
 picture 1        picture 2        picture 3        picture 4
-..............   ..............   ..............   ..............   row 1
-.#####..#####.   .#####..#####.   .#####..#####.   .#####..#####.   row 2
-...##.....##..   ..##.....##...   .##.....##....   ....##.....##.   row 3
-..............   ..............   ..............   ..............   row 4
-..............   ..............   ..............   ..............   row 5
-.....####.....   .....####.....   .....####.....   .....####.....   row 6
-..............   ..............   ..............   ..............   row 7
+..............   ..............   ..####..####..   ..............   row 1
+..............   ...###..###...   .############.   ...###..###...   row 2
+..............   ..##########..   .############.   ..##########..   row 3
+....##..##....   ..##########..   .############.   ..##########..   row 4
+...########...   ..##########..   #.##########.#   ..##########..   row 5
+...########...   ...########...   ...########...   ...########...   row 6
+....######....   ....######....   ....######....   ....######....   row 7
+.....####.....   .....####.....   .....####.....   .....####.....   row 8
+......##......   ......##......   ......##......   ......##......   row 9
+..............   ..............   ..............   ..............   row 10
+..............   ......#.......   ........#.....   ..............   row 11
+..............   .....#.#......   .......#.#....   ..............   row 12
+##############   #####...######   #######...####   ##############   row 13
+..............   ........#.....   ..............   ..............   row 14
 ```
 
-Timings are DeepCreative's 100 ms tick, measured from the frames it sent: each duration within the send jitter of 88–104 ms per tick.
+### Mode 25: Coffee break alone
+
+Loop: picture 1 (300 ms) → picture 2 (300 ms) → picture 3 (300 ms) → picture 4 (300 ms). That's 1200 ms in all.
+
+```
+picture 1        picture 2        picture 3        picture 4
+......#.......   ........#.....   .........#....   .....#........   row 1
+.....#........   ......#.......   ........#.....   .........#....   row 2
+.........#....   .....#........   ......#.......   ........#.....   row 3
+........#.....   .........#....   .....#........   ......#.......   row 4
+......#.......   ........#.....   .........#....   .....#........   row 5
+.....#........   ......#.......   ........#.....   .........#....   row 6
+.........#....   .....#........   ......#.......   ........#.....   row 7
+........#.....   .........#....   .....#........   ......#.......   row 8
+......#.......   ........#.....   .........#....   .....#........   row 9
+.....#........   ......#.......   ........#.....   .........#....   row 10
+....######.##.   ....######.##.   ....######.##.   ....######.##.   row 11
+....######..#.   ....######..#.   ....######..#.   ....######..#.   row 12
+.....####.....   .....####.....   .....####.....   .....####.....   row 13
+...########...   ...########...   ...########...   ...########...   row 14
+```
+
+### Mode 26: Cat tail alone
+
+Loop: picture 1 (300 ms) → picture 5 (100 ms) → picture 1 (200 ms) → picture 2 (100 ms) → picture 3 (100 ms) → picture 4 (200 ms) → picture 3 (100 ms) → picture 2 (100 ms). That's 1200 ms in all.
+
+```
+picture 1        picture 2        picture 3        picture 4        picture 5
+..............   ..............   ..............   ..............   ..............   row 1
+...#......#...   ...#......#...   ...#......#...   ...#......#...   ...#......#...   row 2
+...##....##...   ...##....##...   ...##....##...   ...##....##...   ...##....##...   row 3
+...########...   ...########...   ...########...   ...########...   ...########...   row 4
+...##.##.##...   ...##.##.##...   ...##.##.##...   ...##.##.##...   ...########...   row 5
+...########...   ...########...   ...########...   ...#########..   ...########...   row 6
+....######....   ....######....   ....######....   ....######.#..   ....######....   row 7
+...########...   ...########...   ...########..#   ...########.#.   ...########...   row 8
+..##########..   ..##########..   ..###########.   ..###########.   ..##########..   row 9
+..##########..   ..##########.#   ..###########.   ..###########.   ..##########..   row 10
+..##########..   ..##########.#   ..###########.   ..###########.   ..##########..   row 11
+..##########..   ..###########.   ..##########..   ..##########..   ..##########..   row 12
+..###....###.#   ..###....####.   ..###....###..   ..###....###..   ..###....###.#   row 13
+...........###   ..............   ..............   ..............   ...........###   row 14
+```

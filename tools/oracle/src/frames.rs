@@ -2,7 +2,7 @@
 //! `docs/spec/frames/README.md`: every mode × the four rotations × °C and °F where a temperature
 //! is shown, with three value sets for the modes with values.
 
-use crate::drawing::{self, Frame, Pixel, SIZE};
+use crate::drawing::{self, BLANK, Frame, Pixel, SIZE};
 use crate::rules::{self, Picture, Ratio};
 
 type Profile = [(&'static str, i64); 7];
@@ -40,38 +40,55 @@ const PROFILES: [Profile; 3] = [
 
 /// Each file's title: the mode's name in the settings app, `<group> · <option>`
 /// (docs/design/settings-app.md, the tile gallery; owner, 2026-10-28).
-pub(crate) const TITLES: [&str; 23] = [
-    "Load · CPU",
-    "Load · GPU",
-    "Load · RAM",
-    "Load · CPU + GPU",
-    "Load · CPU + RAM",
-    "Load · GPU + RAM",
-    "Temperature · CPU",
-    "Temperature · GPU",
-    "Temperature · CPU + GPU",
-    "Power · CPU",
-    "Power · GPU",
-    "Power · CPU + GPU",
-    "Music · Spectrum",
-    "Music · Emoji 1",
-    "Music · Emoji 2",
-    "Music · Emoji 3",
-    "Music · Emoji 4",
-    "Music · CPU temperature",
-    "Music · GPU temperature",
-    "Music · CPU usage",
-    "Music · GPU usage",
-    "Music · RAM usage",
-    "Music · Dancer",
-];
+pub(crate) fn title(mode: u16) -> &'static str {
+    match mode {
+        1 => "Load · CPU",
+        2 => "Load · GPU",
+        3 => "Load · RAM",
+        4 => "Load · CPU + GPU",
+        5 => "Load · CPU + RAM",
+        6 => "Load · GPU + RAM",
+        7 => "Temperature · CPU",
+        8 => "Temperature · GPU",
+        9 => "Temperature · CPU + GPU",
+        10 => "Power · CPU",
+        11 => "Power · GPU",
+        12 => "Power · CPU + GPU",
+        13 => "Music · Spectrum",
+        14 => "Music · Lub-dub + Spectrum",
+        15 => "Music · Coffee break + Spectrum",
+        16 => "Music · Cat tail + Spectrum",
+        18 => "Music · CPU temperature",
+        19 => "Music · GPU temperature",
+        20 => "Music · CPU usage",
+        21 => "Music · GPU usage",
+        22 => "Music · RAM usage",
+        23 => "Music · Dancer",
+        24 => "Music · Lub-dub",
+        25 => "Music · Coffee break",
+        26 => "Music · Cat tail",
+        _ => panic!("mode {mode} doesn't exist"),
+    }
+}
 
 /// Each emoji loop: picture and duration in ms, in order (music.md).
 pub(crate) fn emoji_loop(mode: u16) -> &'static [(usize, u32)] {
     match mode {
-        14 => &[(1, 400), (0, 100), (1, 100), (0, 100), (1, 100), (0, 100)],
-        15 | 16 => &[(0, 400), (1, 100), (0, 100), (1, 100), (0, 100), (1, 100)],
-        17 => &[(0, 100), (1, 100), (2, 100), (1, 100), (0, 200), (3, 500)],
+        14 => &[(0, 600), (1, 100), (0, 100), (2, 200)],
+        15 => &[(0, 200), (1, 200), (2, 200), (3, 200), (4, 200), (5, 200)],
+        16 => &[(0, 300), (1, 100), (2, 200), (1, 100)],
+        24 => &[(0, 700), (1, 100), (0, 100), (2, 200), (3, 100)],
+        25 => &[(0, 300), (1, 300), (2, 300), (3, 300)],
+        26 => &[
+            (0, 300),
+            (4, 100),
+            (0, 200),
+            (1, 100),
+            (2, 100),
+            (3, 200),
+            (2, 100),
+            (1, 100),
+        ],
         _ => &[],
     }
 }
@@ -86,8 +103,9 @@ fn reading(profile: &Profile, name: &str) -> i64 {
 
 /// Every file: its path under `docs/spec/frames/` and its contents.
 pub fn files() -> Vec<(String, String)> {
-    let mut files: Vec<(String, String)> = (1..=23)
-        .map(|mode| (format!("mode-{mode:03}.txt"), file(mode)))
+    let mut files: Vec<(String, String)> = drawing::MODES
+        .iter()
+        .map(|&mode| (format!("mode-{mode:03}.txt"), file(mode)))
         .collect();
     files.push(("unavailable.txt".to_owned(), unavailable_file()));
     files.extend(crate::scenarios::files());
@@ -189,10 +207,7 @@ fn unavailable_file() -> String {
 }
 
 fn file(mode: u16) -> String {
-    let mut lines = vec![
-        format!("# Mode {mode}: {}", TITLES[usize::from(mode) - 1]),
-        String::new(),
-    ];
+    let mut lines = vec![format!("# Mode {mode}: {}", title(mode)), String::new()];
     if mode == 23 {
         // Every pose of the Dancer in each rotation; in silence he stands still, pose 0
         // (music.md, Dancer; owner, 2026-11-05).
@@ -272,11 +287,18 @@ fn case(
         let frames = steps
             .iter()
             .map(|&(i, _)| {
-                let mut top = [[Pixel::Off; SIZE]; 8];
+                // Modes 14–16: the picture in rows 1–7 and the spectrum below row 8; modes 24–26:
+                // the picture on the whole grid.
+                let mut top = BLANK;
                 for (row, line) in top.iter_mut().zip(pictures[i]) {
                     *row = drawing::row(line);
                 }
-                drawing::rotate_cw(&drawing::with_spectrum(&top, 8), rotation)
+                let frame = if drawing::is_emoji_alone(mode) {
+                    top
+                } else {
+                    drawing::with_spectrum(&top[..8], 8)
+                };
+                drawing::rotate_cw(&frame, rotation)
             })
             .collect();
         let durations = steps
@@ -392,6 +414,6 @@ mod tests {
             .filter(|(name, _)| name.starts_with("mode-"))
             .map(|(_, text)| text.lines().filter(|l| l.starts_with("## ")).count())
             .sum();
-        assert_eq!(cases, 328);
+        assert_eq!(cases, 336);
     }
 }

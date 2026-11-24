@@ -243,7 +243,8 @@ fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
 #[test]
 fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_rotations() {
     let counts: Vec<(usize, usize)> = std::thread::scope(|scope| {
-        let threads: Vec<_> = (1..=23)
+        let threads: Vec<_> = Mode::all()
+            .map(Mode::number)
             .map(|mode| {
                 scope.spawn(move || {
                     let scenarios = mode_scenarios(mode);
@@ -273,8 +274,8 @@ fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_ro
     println!("{replayed} scenarios replayed, {skipped} showing a mode not drawn yet skipped");
     assert_eq!(
         replayed + skipped,
-        10_403 + 15_054,
-        "the scenarios of modes 1–12 and 13–23"
+        10_403 + 18_194,
+        "the scenarios of modes 1–12 and of the Music modes 13–16 and 18–26"
     );
     assert!(replayed >= 10_403, "Phase 8's modes 1–12 at least");
     if Mode::all().all(draws) {
@@ -630,7 +631,7 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     let modes = engine.availability().modes;
     assert_eq!(
         modes,
-        drawn_among(&[1, 3, 5, 7, 10, 13, 14, 15, 16, 17, 18, 20, 22, 23])
+        drawn_among(&[1, 3, 5, 7, 10, 13, 14, 15, 16, 18, 20, 22, 23, 24, 25, 26])
     );
     // A reading the PC may not give at all counts at once, settled or not.
     let denied = with(
@@ -643,7 +644,7 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     assert_eq!(
         early.modes,
         drawn_among(&[
-            2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 23
+            2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25, 26
         ])
     );
 }
@@ -654,7 +655,7 @@ fn only_modes_this_build_draws_are_available() {
     let all = with(value(42), value(67));
     for settled in [false, true] {
         let a = availability(&all, settled);
-        let every: Vec<u32> = (1..=23).collect();
+        let every: Vec<u32> = Mode::all().map(|m| u32::from(m.number())).collect();
         assert_eq!(a.modes, drawn_among(&every));
         assert!(a.modes.starts_with(&[1, 2, 3, 4, 5, 6, 7]));
         // The first mode a later commit draws, while there is one.
@@ -868,7 +869,7 @@ fn not_yet_draws_dashes_then_digits() {
     let mut engine = Engine::new(Settings::default(), first);
     let dashes = engine.tick(None, None, false).frame;
     assert_eq!(dashes, Some(home(1, &readings(&[("CPU Usage", None)]))));
-    let every: Vec<u32> = (1..=23).collect();
+    let every: Vec<u32> = Mode::all().map(|m| u32::from(m.number())).collect();
     assert_eq!(
         engine.availability().modes,
         drawn_among(&every),
@@ -922,13 +923,15 @@ music_scenarios! {
     every_scenario_of_mode_14_plays_out_through_the_engine_with_the_test_switch: 14,
     every_scenario_of_mode_15_plays_out_through_the_engine_with_the_test_switch: 15,
     every_scenario_of_mode_16_plays_out_through_the_engine_with_the_test_switch: 16,
-    every_scenario_of_mode_17_plays_out_through_the_engine_with_the_test_switch: 17,
     every_scenario_of_mode_18_plays_out_through_the_engine_with_the_test_switch: 18,
     every_scenario_of_mode_19_plays_out_through_the_engine_with_the_test_switch: 19,
     every_scenario_of_mode_20_plays_out_through_the_engine_with_the_test_switch: 20,
     every_scenario_of_mode_21_plays_out_through_the_engine_with_the_test_switch: 21,
     every_scenario_of_mode_22_plays_out_through_the_engine_with_the_test_switch: 22,
     every_scenario_of_mode_23_plays_out_through_the_engine_with_the_test_switch: 23,
+    every_scenario_of_mode_24_plays_out_through_the_engine_with_the_test_switch: 24,
+    every_scenario_of_mode_25_plays_out_through_the_engine_with_the_test_switch: 25,
+    every_scenario_of_mode_26_plays_out_through_the_engine_with_the_test_switch: 26,
 }
 
 /// The lit heights of each column in a frame's bottom `h` rows, from the floor, checked against
@@ -1057,7 +1060,7 @@ fn a_missed_tick_in_music_moves_nothing() {
     let sound: Vec<[f32; WINDOW]> = std::iter::once(tone)
         .chain(std::iter::repeat_n([0.0; WINDOW], 7))
         .collect();
-    for mode in [13, 14, 17, 18, 23] {
+    for mode in [13, 14, 16, 18, 23, 25] {
         let settings = Settings {
             mode,
             ..Settings::default()
@@ -1100,7 +1103,8 @@ fn a_missed_tick_in_music_moves_nothing() {
 #[test]
 fn a_music_tick_carries_the_levels_its_frame_was_drawn_from_and_no_other_does() {
     let mut checked = 0;
-    for mode in 1..=23_u16 {
+    for mode in Mode::all().map(Mode::number) {
+        // The spectrum and the Dancer take the sound, the three emoji alone, 24–26, don't.
         let music = (13..=23).contains(&mode);
         for signal in signals().iter().filter(|s| !s.is_beat_train()).take(12) {
             let audio = Arc::new(FakeAudio::new());

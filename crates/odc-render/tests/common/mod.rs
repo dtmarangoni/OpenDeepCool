@@ -49,7 +49,7 @@ pub fn unit(unit: expected::Unit) -> Unit {
     }
 }
 
-/// What a mode draws above its spectrum, or in mode 23 in its place.
+/// What a mode draws above its spectrum, or in modes 23–26 in its place.
 enum Top {
     Strip(Marquee),
     Nothing,
@@ -63,7 +63,7 @@ impl Top {
     fn of(mode: Mode, values: &Values, unit: Unit) -> Top {
         match mode.number() {
             13 => Top::Nothing,
-            14..=17 => Top::Emoji(EmojiLoop::of(mode).expect("an emoji")),
+            14..=16 | 24..=26 => Top::Emoji(EmojiLoop::of(mode).expect("an emoji")),
             23 => Top::Dancer(Dancer::new()),
             _ => Top::Strip(Marquee::new(strip(mode, values, unit))),
         }
@@ -107,7 +107,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
         .map(|t| t.changes.as_slice())
         .unwrap_or_default();
     let mut v = values(&readings(start));
-    let mut mode = Mode::new(scenario.mode).expect("a mode from 1 to 23");
+    let mut mode = Mode::new(scenario.mode).expect("a mode");
     if !draws(mode) {
         return false;
     }
@@ -127,7 +127,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
                     changed = true;
                 }
                 Change::Reset(Reset::Mode(n)) => {
-                    mode = Mode::new(*n).expect("a mode from 1 to 23");
+                    mode = Mode::new(*n).expect("a mode");
                     if !draws(mode) {
                         return false;
                     }
@@ -182,7 +182,7 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
             assert!(tick.frame.is_none());
             continue;
         }
-        let levels = (mode_info(mode).kind == Kind::Music).then(|| {
+        let levels = mode_info(mode).sound.then(|| {
             playing
                 .and_then(|(signal, from)| signal.get(usize::try_from(tick.n - from).ok()?))
                 .unwrap_or(silence())

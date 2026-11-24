@@ -1,5 +1,5 @@
 //! `odc-oracle` writes the expected frame of every test case, `docs/spec/frames/mode-001.txt` to
-//! `mode-023.txt`, the dash cases `unavailable.txt` and the scenarios of modes 1–12,
+//! `mode-026.txt` (there is no mode 17), the dash cases `unavailable.txt` and the scenarios of modes 1–12,
 //! `scenarios/mode-001.txt` to `mode-012.txt`, the spectrum's test signals and expected rows,
 //! `spectrum/signals.txt` and `expected.txt`, and the Dancer's poses, `spectrum/dancer.txt`, from
 //! the spec's rules alone. It's a dev-only tool, never shipped, and it shares no code with
@@ -19,8 +19,8 @@ use std::{env, fs, io};
 
 const USAGE: &str = "usage: odc-oracle <out-dir>
 
-Writes the expected frames, mode-001.txt to mode-023.txt, unavailable.txt and
-the scenarios, scenarios/mode-001.txt to mode-012.txt, and the spectrum's
+Writes the expected frames, mode-001.txt to mode-026.txt (there is no mode 17),
+unavailable.txt and the scenarios, scenarios/mode-001.txt to mode-026.txt, and the spectrum's
 spectrum/signals.txt, spectrum/expected.txt and spectrum/dancer.txt, into
 <out-dir>.
 The committed copies live in docs/spec/frames/.";
