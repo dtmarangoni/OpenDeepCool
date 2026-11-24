@@ -32,7 +32,7 @@ use crate::session::Session;
 const SINK: &str = "odc-e2e";
 
 /// The session's helper, its unit and its dev build (Phase 9 plan, Task 4).
-pub const HELPER_UNIT: &str = "opendeepcool-audio.service";
+pub const HELPER_UNIT: &str = odc_boot::HELPER;
 const HELPER_NODE: &str = "opendeepcool-audio";
 const DEV_HELPER: &str = "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio";
 /// The package's helper, where the dev copy isn't installed (Phase 11 plan, Task 9).

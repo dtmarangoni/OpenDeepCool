@@ -12,7 +12,7 @@ use std::process::Command;
 use odc_device::HidrawConnector;
 use odc_sensors::{NvmlSource, RealNvml, display_devices, rapl_package_zones};
 
-use crate::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
+use crate::sysfs::lp360_usb;
 
 /// What a check needs from the PC. Phases 6–11 add theirs.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -189,7 +189,7 @@ pub fn probe(capability: Capability, roots: &Roots) -> Probe {
             };
             writable(&node.dev)
         }
-        Capability::Lp360Reconnect => match usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT) {
+        Capability::Lp360Reconnect => match lp360_usb(&roots.sysfs) {
             Some(usb) => writable(&usb.join("authorized")),
             None => absent("no LP360 USB device (3633:000c) is attached"),
         },

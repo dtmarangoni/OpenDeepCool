@@ -1969,7 +1969,26 @@ const COST_FOR: Duration = Duration::from_secs(10);
 /// build, in a headless weston with the Cairo renderer: steady 6.3 %, busy 12 % and still 0.0 %
 /// of a core, so the first two reach the cap, where the check only catches a runaway and the
 /// counts of steps and draws in `tests/live_tiles.rs` carry the proof, and the last the floor.
-const COST_CEILING: [(&str, f64); 3] = [("steady", 1.0), ("busy", 1.0), ("still", 0.01)];
+const COST_CEILING: [(Cost, f64); 3] =
+    [(Cost::Steady, 1.0), (Cost::Busy, 1.0), (Cost::Still, 0.01)];
+
+/// The three states of the tiles' cost check.
+#[derive(Clone, Copy)]
+enum Cost {
+    Steady,
+    Busy,
+    Still,
+}
+
+impl Cost {
+    fn name(self) -> &'static str {
+        match self {
+            Cost::Steady => "steady",
+            Cost::Busy => "busy",
+            Cost::Still => "still",
+        }
+    }
+}
 
 /// The tiles' cost (Phase 11a Task 14): the app's CPU over ten seconds in three states, each
 /// under its ceiling. `pace` is called every 100 ms with the tick's number.
@@ -2005,7 +2024,7 @@ fn tile_cost(run: &mut Run) -> Result<String> {
         run.fake.service.readings.insert("CPU Usage", (150, 1));
         let used = match state {
             // Readings once a second, one of them 100 or more: the scrolling tiles.
-            "steady" => {
+            Cost::Steady => {
                 run.fake.write()?;
                 cost(run, pid, |run, tick| {
                     if tick % 10 == 0 {
@@ -2020,7 +2039,7 @@ fn tile_cost(run: &mut Run) -> Result<String> {
             }
             // A Music mode with sound, ten `Levels` a second that change each time: every tile
             // that moves, at its busiest.
-            "busy" => {
+            Cost::Busy => {
                 run.fake.service.mode = 13;
                 run.fake.write()?;
                 cost(run, pid, |run, tick| {
@@ -2029,7 +2048,7 @@ fn tile_cost(run: &mut Run) -> Result<String> {
                 })?
             }
             // The Configuration page: no tile is on screen, so nothing moves.
-            _ => {
+            Cost::Still => {
                 run.fake.write()?;
                 run.page("Configuration")?;
                 let used = cost(run, pid, |_, _| Ok(()))?;
@@ -2039,13 +2058,14 @@ fn tile_cost(run: &mut Run) -> Result<String> {
         };
         run.fake.levels = None;
         measured.push((state, used, ceiling));
-        notes.push(format!("{state} {:.2} % of a core", used * 100.0));
+        notes.push(format!("{} {:.2} % of a core", state.name(), used * 100.0));
     }
     run.reset()?;
     for (state, used, ceiling) in &measured {
         if used > ceiling {
             return Err(format!(
-                "{state}: {:.1} % of a core, over its ceiling of {:.0} % ({})",
+                "{}: {:.1} % of a core, over its ceiling of {:.0} % ({})",
+                state.name(),
                 used * 100.0,
                 ceiling * 100.0,
                 notes.join(", ")

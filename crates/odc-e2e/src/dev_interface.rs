@@ -29,7 +29,7 @@ use std::process::{Child, ChildStdin, ChildStdout, Command, ExitStatus, Stdio};
 pub const ROOT_STEP: &str = "dev-interface-root";
 
 /// The service's unit.
-pub const UNIT: &str = "opendeepcool.service";
+pub const UNIT: &str = odc_boot::SERVICE;
 
 /// The drop-in's file name.
 pub const DROP_IN: &str = "odc-e2e.conf";

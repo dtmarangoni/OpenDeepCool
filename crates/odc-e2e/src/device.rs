@@ -19,7 +19,7 @@ use odc_testkit::diff;
 use odc_testkit::expected::{Kind, Picture, load_mode};
 use odc_testkit::fake_tree::{FakeTree, LP360_HID_ID};
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
-use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
+use odc_testkit::sysfs::lp360_usb;
 
 use crate::session::{handed_back, release_for_direct};
 
@@ -27,7 +27,7 @@ use crate::session::{handed_back, release_for_direct};
 /// check skips its guard, and the cooler would stay switched off and probe as absent. Switch it
 /// on again, with a note.
 pub fn restore_switch(roots: &Roots) -> Result<Option<String>, String> {
-    let Some(usb) = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT) else {
+    let Some(usb) = lp360_usb(&roots.sysfs) else {
         return Ok(None);
     };
     let switch = usb.join("authorized");
@@ -324,8 +324,7 @@ fn reconnect(
 }
 
 fn reconnect_real(roots: &Roots, out_dir: &Path, tick: Duration) -> Result<String, String> {
-    let usb = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT)
-        .ok_or("the LP360's USB device is gone")?;
+    let usb = lp360_usb(&roots.sysfs).ok_or("the LP360's USB device is gone")?;
     let switch = usb.join("authorized");
     let _switch_on = SwitchOn(switch.clone());
     let path = recording_path(out_dir, "reconnect")?;
@@ -334,7 +333,7 @@ fn reconnect_real(roots: &Roots, out_dir: &Path, tick: Duration) -> Result<Strin
     let set =
         |state: &str| fs::write(&switch, state).map_err(|e| format!("{}: {e}", switch.display()));
     let still_listed = || {
-        let listed = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT);
+        let listed = lp360_usb(&roots.sysfs);
         if listed.as_deref() == Some(usb.as_path()) {
             Ok(())
         } else {

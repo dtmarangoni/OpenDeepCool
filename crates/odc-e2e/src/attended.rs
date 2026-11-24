@@ -23,7 +23,7 @@ use odc_testkit::expected::{
     Case, Kind, Picture, Unit, load_mode, load_unavailable, mode_scenarios,
 };
 use odc_testkit::hardware::{Capability, Probe, Roots, probe};
-use odc_testkit::sysfs::{LP360_PRODUCT, LP360_VENDOR, usb_device};
+use odc_testkit::sysfs::lp360_usb;
 
 use crate::plays::{Current, Plan, message, play_real, recording_lines};
 use crate::service::{Restore, gpu_addresses, real_or_why, scenario_plans, state};
@@ -217,7 +217,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
         session: &session,
         state: found,
     };
-    let switch = usb_device(&roots.sysfs, LP360_VENDOR, LP360_PRODUCT)
+    let switch = lp360_usb(&roots.sysfs)
         .map(|usb| usb.join("authorized"))
         .filter(|_| probe(Capability::Lp360Reconnect, roots) == Probe::Real);
     let stdin = io::stdin();

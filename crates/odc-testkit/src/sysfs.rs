@@ -8,6 +8,11 @@ use std::path::{Path, PathBuf};
 pub const LP360_VENDOR: &str = "3633";
 pub const LP360_PRODUCT: &str = "000c";
 
+/// The LP360's USB device folder under `<sysfs>`, if one is attached.
+pub fn lp360_usb(sysfs: &Path) -> Option<PathBuf> {
+    usb_device(sysfs, LP360_VENDOR, LP360_PRODUCT)
+}
+
 /// The USB device folder under `<sysfs>/bus/usb/devices` whose `idVendor` and `idProduct` match,
 /// the lowest name first if there are several. Interfaces and folders without IDs are passed
 /// over.

@@ -30,3 +30,10 @@ fn the_lp360_is_found_by_its_ids_among_other_devices() {
         Some(devices.join("1-6"))
     );
 }
+
+// The fixtures' IDs, as sysfs writes them, are the ones the device crate matches.
+#[test]
+fn the_fixtures_ids_are_the_devices() {
+    assert_eq!(LP360_VENDOR, format!("{:04x}", odc_device::LP360_VENDOR));
+    assert_eq!(LP360_PRODUCT, format!("{:04x}", odc_device::LP360_PRODUCT));
+}

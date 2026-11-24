@@ -12,8 +12,9 @@ use crate::lp360::{Connector, OpenError, Transport};
 
 /// The bus, vendor and product the kernel writes in `HID_ID=%04X:%08X:%08X`: USB, `3633:000c`.
 const BUS_USB: u32 = 0x0003;
-const VENDOR: u32 = 0x3633;
-const PRODUCT: u32 = 0x000c;
+/// The LP360's USB vendor and product IDs (`docs/spec/protocol.md`).
+pub const LP360_VENDOR: u32 = 0x3633;
+pub const LP360_PRODUCT: u32 = 0x000c;
 
 /// Finds the LP360 by scanning `<sysfs>/class/hidraw/*/device/uevent` and opens `<dev>/<name>`.
 /// Both roots are parameters, so the tests run the real code against fake trees.
@@ -58,7 +59,7 @@ impl HidrawConnector {
             let Ok(uevent) = fs::read_to_string(entry.path().join("device/uevent")) else {
                 continue;
             };
-            if hid_id(&uevent) == Some((BUS_USB, VENDOR, PRODUCT)) {
+            if hid_id(&uevent) == Some((BUS_USB, LP360_VENDOR, LP360_PRODUCT)) {
                 numbers.push(number);
             }
         }

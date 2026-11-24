@@ -12,10 +12,10 @@ use std::process::{Command, Stdio};
 const ISSUES: &str = "https://github.com/dtmarangoni/OpenDeepCool/issues";
 
 /// The system units the report asks about and takes the journal of.
-const SYSTEM_UNITS: [&str; 2] = ["opendeepcool.service", "opendeepcool-gpu-rank.service"];
+const SYSTEM_UNITS: [&str; 2] = [odc_boot::SERVICE, "opendeepcool-gpu-rank.service"];
 
 /// The sound helper's user unit.
-const USER_UNIT: &str = "opendeepcool-audio.service";
+const USER_UNIT: &str = odc_boot::HELPER;
 
 /// What `systemctl show` is asked for, in the order the report prints it.
 const PROPERTIES: [&str; 7] = [

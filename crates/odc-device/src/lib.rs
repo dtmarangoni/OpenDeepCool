@@ -8,7 +8,7 @@ mod lp360;
 mod port;
 mod record;
 
-pub use hidraw::{HidrawConnector, HidrawNode, HidrawTransport};
+pub use hidraw::{HidrawConnector, HidrawNode, HidrawTransport, LP360_PRODUCT, LP360_VENDOR};
 pub use lp360::{Connector, Lp360, OpenError, Transport};
 pub use port::{DisplayPort, Link, Reason};
 pub use record::{Keep, ROTATE_AT, Recording, RecordingHandle, RecordingTransport, monotonic_ns};
