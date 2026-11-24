@@ -39,6 +39,17 @@ pub enum TemperatureUnit {
     Fahrenheit,
 }
 
+/// The state's own word for each, which the file's and the wire's agree on; a match, so a new
+/// variant fails to compile here and never at run time.
+impl From<TemperatureUnit> for odc_ipc::TemperatureUnit {
+    fn from(unit: TemperatureUnit) -> odc_ipc::TemperatureUnit {
+        match unit {
+            TemperatureUnit::Celsius => odc_ipc::TemperatureUnit::Celsius,
+            TemperatureUnit::Fahrenheit => odc_ipc::TemperatureUnit::Fahrenheit,
+        }
+    }
+}
+
 impl From<TemperatureUnit> for Unit {
     fn from(unit: TemperatureUnit) -> Unit {
         match unit {
@@ -79,6 +90,18 @@ impl From<Fall> for Stop {
             Fall::Moderate => Stop::Moderate,
             Fall::Fast => Stop::Fast,
             Fall::Faster => Stop::Faster,
+        }
+    }
+}
+
+impl From<Fall> for odc_ipc::FallStop {
+    fn from(fall: Fall) -> odc_ipc::FallStop {
+        match fall {
+            Fall::Slower => odc_ipc::FallStop::Slower,
+            Fall::Slow => odc_ipc::FallStop::Slow,
+            Fall::Moderate => odc_ipc::FallStop::Moderate,
+            Fall::Fast => odc_ipc::FallStop::Fast,
+            Fall::Faster => odc_ipc::FallStop::Faster,
         }
     }
 }
@@ -144,6 +167,16 @@ impl WindowOpacity {
     }
 }
 
+impl From<WindowOpacity> for odc_ipc::WindowOpacity {
+    fn from(opacity: WindowOpacity) -> odc_ipc::WindowOpacity {
+        match opacity {
+            WindowOpacity::Opaque => odc_ipc::WindowOpacity::Opaque,
+            WindowOpacity::Transparent => odc_ipc::WindowOpacity::Transparent,
+            WindowOpacity::Glassy => odc_ipc::WindowOpacity::Glassy,
+        }
+    }
+}
+
 /// Sharp or rounded corners, in Omarchy's words for its own Window Corners (Phase 11a Task 49).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -166,6 +199,15 @@ impl WindowCorners {
         match self {
             WindowCorners::Sharp => "sharp",
             WindowCorners::Rounded => "rounded",
+        }
+    }
+}
+
+impl From<WindowCorners> for odc_ipc::WindowCorners {
+    fn from(corners: WindowCorners) -> odc_ipc::WindowCorners {
+        match corners {
+            WindowCorners::Sharp => odc_ipc::WindowCorners::Sharp,
+            WindowCorners::Rounded => odc_ipc::WindowCorners::Rounded,
         }
     }
 }

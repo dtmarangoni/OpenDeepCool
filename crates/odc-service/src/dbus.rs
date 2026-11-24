@@ -18,9 +18,8 @@ use std::time::{Duration, Instant};
 
 use odc_device::{Link, Reason, RecordingHandle};
 use odc_ipc::{
-    BUS_NAME, CoolerState, DEV_PATH, Error, FallStop, OBJECT_PATH, State, frame_pixels, levels_from,
+    BUS_NAME, CoolerState, DEV_PATH, Error, OBJECT_PATH, State, frame_pixels, levels_from,
 };
-use odc_ipc::{WindowCorners as WireCorners, WindowOpacity as WireOpacity};
 use odc_protocol::Frame;
 use odc_render::Mode;
 use odc_sensors::{
@@ -597,16 +596,11 @@ impl Shared {
 /// helper's pipe is attached.
 fn state_of(settings: &Settings, status: &Status, audio_connected: bool) -> State {
     let (connected, cooler) = cooler_state(status);
-    let fall =
-        |fall: Fall| FallStop::parse(fall.name()).expect("the five stops have the same names");
     let mode = shown_mode(settings);
     State {
         mode: Some(u32::from(mode.number())),
         rotation: Some(settings.rotation),
-        temperature_unit: Some(match settings.temperature_unit {
-            TemperatureUnit::Celsius => odc_ipc::TemperatureUnit::Celsius,
-            TemperatureUnit::Fahrenheit => odc_ipc::TemperatureUnit::Fahrenheit,
-        }),
+        temperature_unit: Some(settings.temperature_unit.into()),
         cooler_connected: Some(connected),
         cooler_state: Some(cooler),
         available_modes: Some(status.availability.modes.clone()),
@@ -652,19 +646,13 @@ fn state_of(settings: &Settings, status: &Status, audio_connected: bool) -> Stat
             .unwrap_or_default(),
         ),
         music_peaks: Some(settings.music_peaks),
-        music_bar_fall: Some(fall(settings.music_bar_fall)),
-        music_peak_fall: Some(fall(settings.music_peak_fall)),
+        music_bar_fall: Some(settings.music_bar_fall.into()),
+        music_peak_fall: Some(settings.music_peak_fall.into()),
         readings: Some(status.readings()),
         use_system_theme: Some(settings.use_system_theme),
         dark_theme: Some(settings.dark_theme),
-        window_opacity: Some(
-            WireOpacity::parse(settings.window_opacity.name())
-                .expect("the three opacities have the same names"),
-        ),
-        window_corners: Some(
-            WireCorners::parse(settings.window_corners.name())
-                .expect("the two corners have the same names"),
-        ),
+        window_opacity: Some(settings.window_opacity.into()),
+        window_corners: Some(settings.window_corners.into()),
         audio_connected: Some(audio_connected),
         audio_wanted: Some(takes_sound(mode)),
     }
