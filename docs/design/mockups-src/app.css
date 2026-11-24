@@ -88,16 +88,16 @@ svg { width: 16px; height: 16px; flex: none; }
 button { font: inherit; color: inherit; }
 
 /* controls: shell.toml [controls] mapping */
-.btn, .seg, .dd-btn, .tile {
+.seg, .dd-btn, .tile {
   background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent);
   border: var(--w-normal-border) solid color-mix(in srgb, var(--ctl) var(--a-normal-border), transparent);
   border-radius: var(--radius); cursor: pointer;
 }
 /* Hover firms the border up and never weakens it: the hover border alpha is above the normal one in OpenDeepCool's own theme. */
-.btn:hover:not(:disabled), .seg:hover:not(:disabled), .dd-btn:hover:not(:disabled), .tile:hover:not(:disabled) {
+.seg:hover:not(:disabled), .dd-btn:hover:not(:disabled), .tile:hover:not(:disabled) {
   background: color-mix(in srgb, var(--ctl) var(--a-hover-fill), transparent);
   border-color: color-mix(in srgb, var(--ctl) var(--a-hover-border), transparent); }
-.btn:active:not(:disabled), .seg:active:not(:disabled), .tile:active:not(:disabled) {
+.seg:active:not(:disabled), .tile:active:not(:disabled) {
   background: color-mix(in srgb, var(--ctl) var(--a-pressed-fill), transparent); }
 .seg.on, .tile.on { background: color-mix(in srgb, var(--ctl) var(--a-selected-fill), transparent); border-color: var(--accent); }
 /* A selected control keeps its fill and its accent border under the pointer (the app's :checked rule comes after :hover). */
@@ -112,7 +112,7 @@ button { font: inherit; color: inherit; }
    contrast from 2.8 to 1.8:1 in the dark theme), an on switch a trough filled --disabled with a --surface knob. An unavailable
    tile's picture is the dashes of the reading the service can't give (design, Display page, Live tiles). */
 :disabled { cursor: default; }
-.btn:disabled, .seg:disabled, .dd-btn:disabled, .tile:disabled { opacity: 1; color: var(--disabled); border-color: var(--line); }
+.seg:disabled, .dd-btn:disabled, .tile:disabled { opacity: 1; color: var(--disabled); border-color: var(--line); }
 /* position and z-index keep the saved value's frame whole: the toggles of a group overlap by 1 px, and the next toggle's hairline would cover its right edge */
 .seg.on:disabled { background: color-mix(in srgb, var(--ctl) var(--a-normal-fill), transparent); border-color: var(--disabled); position: relative; z-index: 1; }
 .switch:disabled { opacity: 1; border-color: var(--line); }
@@ -157,7 +157,6 @@ button { font: inherit; color: inherit; }
 .segs .seg { padding: 5px 14px; border-radius: 0; margin-left: -1px; }
 .segs .seg:first-child { border-radius: var(--radius) 0 0 var(--radius); margin-left: 0; }
 .segs .seg:last-child { border-radius: 0 var(--radius) var(--radius) 0; }
-.btn { display: inline-flex; gap: 6px; align-items: center; padding: 5px 12px; }
 
 .banner { display: flex; gap: 10px; align-items: flex-start; padding: 10px 14px; border-bottom: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); }
 .banner svg { margin-top: 2px; }
@@ -213,7 +212,7 @@ button { font: inherit; color: inherit; }
 .tile-flag.lost { color: var(--fg); }
 
 /* A card (design, Configuration page, Rows): a vertical box, 14 px between its children (the heading, each row, a note
-   or a hint) and 14 px above and below, 16 px at the sides; 10 px between cards (18 until Task 28), 18 under the last. There is no rule between rows: the
+   or a hint) and 14 px above and below, 16 px at the sides; 6 px between cards (18, then 10, until Task 39), 68 px under the last (Task 48). There is no rule between rows: the
    app draws none, and a title sits 2 px from its hint and 14 px from the next row. */
 .card { background: var(--plate); border-radius: var(--radius-box); padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
 .config .card { margin-bottom: 6px; } /* 6 px between cards: 18, then 10, until Task 39 */
@@ -221,8 +220,8 @@ button { font: inherit; color: inherit; }
 .card h3 { margin: 0; }
 /* Rows (design, Configuration page, Rows): the label block (the title, its hint under it) and the control side by side,
    left-aligned, 24 px apart, nothing expanding. The label blocks of the page share one width, which the app gets from a
-   GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. A control that hangs
-   from the top (the GPU box, a scale) starts level with the title; a toggle group or a switch centres on the block. */
+   GtkSizeGroup (28 characters of hint, about 176 px here), so the controls start in one column. Every control hangs
+   from the row's top, level with the title (Task 34). */
 .row { display: flex; justify-content: flex-start; align-items: flex-start; gap: 24px; }
 .row-l { display: flex; flex-direction: column; flex: none; width: 176px; }
 .row-r { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
