@@ -6,9 +6,9 @@
 mod common;
 
 use common::{unit, values};
+use odc_metrics::Exact;
 use odc_protocol::Frame;
 use odc_render::{COLUMNS, Column, Marquee, Mode, Unit, mode_info, value_picture, with_spectrum};
-use odc_sensors::Exact;
 use odc_testkit::diff;
 use odc_testkit::expected::{self, load_mode};
 use proptest::prelude::*;

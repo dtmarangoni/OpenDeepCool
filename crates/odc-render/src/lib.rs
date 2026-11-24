@@ -27,7 +27,7 @@ pub use picture::{Band, Picture, layout};
 pub use spectrum::{COLUMNS, Column, Columns, MusicSettings, Spectrum, Stop, WINDOW, analyse};
 pub use value::{CAP, Shown, fahrenheit, number};
 
-use odc_sensors::{Exact, Metric, Reading, Snapshot};
+use odc_metrics::{Exact, Metric, Reading, Snapshot};
 
 /// The temperature unit, for the modes that show a temperature (`docs/spec/settings.md`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

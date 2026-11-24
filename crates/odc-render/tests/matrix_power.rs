@@ -6,9 +6,9 @@
 mod common;
 
 use common::{band_rows, modes_of, values};
+use odc_metrics::Exact;
 use odc_render::{Band, Kind as ModeKind, Marquee, Mode, Unit, Values, WATT, layout, mode_info};
 use odc_render::{number, picture};
-use odc_sensors::Exact;
 use odc_testkit::diff;
 use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable};
 use proptest::prelude::*;
@@ -116,7 +116,7 @@ proptest! {
                 v.set(metric, w);
             }
             let mut with_other = v.clone();
-            for metric in odc_sensors::Metric::ALL.into_iter().filter(|m| !metrics.contains(m)) {
+            for metric in odc_metrics::Metric::ALL.into_iter().filter(|m| !metrics.contains(m)) {
                 with_other.set(metric, other);
             }
             let bands: Vec<Band> = metrics.iter().map(|_| Band { shown: number(w), symbol: &WATT }).collect();

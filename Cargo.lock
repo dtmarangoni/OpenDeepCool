@@ -1073,9 +1073,9 @@ dependencies = [
  "gtk4",
  "odc-boot",
  "odc-ipc",
+ "odc-metrics",
  "odc-protocol",
  "odc-render",
- "odc-sensors",
  "odc-testkit",
  "proptest",
  "rustix",
@@ -1169,6 +1169,10 @@ name = "odc-manifest"
 version = "0.0.0"
 
 [[package]]
+name = "odc-metrics"
+version = "0.0.0"
+
+[[package]]
 name = "odc-mockups"
 version = "0.0.0"
 
@@ -1195,8 +1199,8 @@ dependencies = [
 name = "odc-render"
 version = "0.0.0"
 dependencies = [
+ "odc-metrics",
  "odc-protocol",
- "odc-sensors",
  "odc-testkit",
  "proptest",
  "realfft",
@@ -1207,6 +1211,7 @@ name = "odc-sensors"
 version = "0.0.0"
 dependencies = [
  "nvml-wrapper",
+ "odc-metrics",
  "odc-testkit",
  "proptest",
 ]

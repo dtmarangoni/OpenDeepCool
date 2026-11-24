@@ -4,8 +4,8 @@
 //! rows 9–14; 23 the Dancer's pose ([`crate::Pose`]) on the whole grid, and 24–26 an emoji on the
 //! whole grid with no spectrum.
 
+use odc_metrics::Exact;
 use odc_protocol::Frame;
-use odc_sensors::Exact;
 
 use crate::glyph::{CELSIUS, FAHRENHEIT, Glyph, PERCENT};
 use crate::mode::{Mode, mode_info};

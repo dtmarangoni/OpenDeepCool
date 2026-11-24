@@ -1,7 +1,7 @@
 //! Temperature, modes 7–9 (`docs/spec/display.md`, Modes): the CPU's, the GPU's, or the CPU's over
 //! the GPU's, each followed by `°C` or `°F` in the saved unit.
 
-use odc_sensors::Exact;
+use odc_metrics::Exact;
 
 use crate::glyph::{CELSIUS, FAHRENHEIT, Glyph};
 use crate::mode::{Mode, mode_info};

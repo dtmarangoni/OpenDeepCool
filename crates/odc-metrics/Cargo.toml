@@ -1,0 +1,10 @@
+[package]
+name = "odc-metrics"
+description = "The display's seven metrics, their exact values, the reasons they have none and a snapshot of them: plain types, shared by the renderer, the sensors and the settings app"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lints]
+workspace = true

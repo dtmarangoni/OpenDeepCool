@@ -20,12 +20,12 @@
 use std::collections::HashMap;
 
 use odc_ipc::FallStop;
+use odc_metrics::{Exact, Metric};
 use odc_protocol::Frame;
 use odc_render::{
     COLUMNS, Content, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Picture, Pose,
     Spectrum, Stop, Unit, Values, compose, is_sound, mode_info, picture, value_picture,
 };
-use odc_sensors::{Exact, Metric};
 
 /// The cooler's tick, in microseconds on the frame clock: 100 ms.
 pub const TICK_US: i64 = 100_000;

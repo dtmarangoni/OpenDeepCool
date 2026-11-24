@@ -2,7 +2,7 @@
 //! 18–26): the metrics each shows, top first, and its kind. Availability and the renderers read this
 //! table.
 
-use odc_sensors::Metric;
+use odc_metrics::Metric;
 
 /// A mode, by the spec's number.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]

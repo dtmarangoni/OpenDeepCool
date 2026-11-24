@@ -16,9 +16,9 @@ use odc_app::live::{Live, sample_values, values_from};
 use odc_app::ui::tiles::TileWidget;
 use odc_app::ui::window::{Window, away, reduced_motion};
 use odc_ipc::State;
+use odc_metrics::Metric;
 use odc_protocol::Frame;
 use odc_render::{COLUMNS, Mode, MusicSettings, Unit, Values};
-use odc_sensors::Metric;
 
 use common::{Check, animations, base, close, run_for, run_until, sample_readings, shown};
 

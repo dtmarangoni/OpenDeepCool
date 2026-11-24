@@ -218,7 +218,7 @@ pub fn label_texts(widget: &gtk::Widget, out: &mut Vec<String>) {
 /// The design's sample values as the service's `Readings` would give them.
 pub fn sample_readings() -> HashMap<String, (i64, u64)> {
     let values = odc_app::live::sample_values();
-    odc_sensors::Metric::ALL
+    odc_metrics::Metric::ALL
         .into_iter()
         .filter_map(|metric| {
             let value = values.get(metric)?;

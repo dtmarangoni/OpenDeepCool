@@ -112,9 +112,9 @@ fn the_live_tiles_draw_from_the_states_readings_and_music_settings() {
     let values = view_of(state).display.live.values;
     assert_eq!(
         values.get(Metric::CpuUsage),
-        odc_sensors::Exact::new(42_500, 1000)
+        odc_metrics::Exact::new(42_500, 1000)
     );
-    assert_eq!(values.get(Metric::GpuPower), odc_sensors::Exact::new(88, 1));
+    assert_eq!(values.get(Metric::GpuPower), odc_metrics::Exact::new(88, 1));
     assert_eq!(values.get(Metric::MemoryLoad), None);
     // The Music settings.
     let mut state = base();

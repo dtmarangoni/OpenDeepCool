@@ -1,10 +1,10 @@
 //! The glyphs and the value rules (Phase 7 plan, Task 2; Phase 8 plan, Task 2;
 //! `docs/spec/display.md`, Glyphs, Values and Unavailable values).
 
+use odc_metrics::Exact;
 use odc_render::{
     CAP, CELSIUS, DASH, DIGITS, FAHRENHEIT, Glyph, PERCENT, Shown, WATT, fahrenheit, number,
 };
-use odc_sensors::Exact;
 use proptest::prelude::*;
 
 /// The digits as `display.md` prints them, side by side, typed here apart from the crate's own

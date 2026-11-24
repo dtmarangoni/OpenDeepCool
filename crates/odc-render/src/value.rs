@@ -4,7 +4,7 @@
 //! number is capped at 9999 (owner, 2026-10-25); a negative reading draws dashes, like one that
 //! can't be read (owner, 2026-10-24). °F is rounded once, from the exact °C reading.
 
-use odc_sensors::Exact;
+use odc_metrics::Exact;
 
 /// The largest number drawn, everywhere in OpenDeepCool.
 pub const CAP: u16 = 9999;

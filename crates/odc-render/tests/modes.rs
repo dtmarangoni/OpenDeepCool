@@ -1,8 +1,8 @@
 //! The mode table and what this build draws (Phase 7 plan, Task 2; `docs/spec/display.md` and
 //! `docs/spec/music.md`, Modes).
 
+use odc_metrics::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_render::{Content, Kind, Mode, Unit, Values, mode_info, picture, spectrum_height};
-use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 
 #[test]
 fn the_table_lists_each_mode_s_metrics_top_first() {

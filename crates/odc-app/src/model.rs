@@ -9,8 +9,8 @@ use std::time::{Duration, Instant};
 use odc_ipc::{
     CoolerState, FallStop, Gpu, GpuKind, State, TemperatureUnit, WindowCorners, WindowOpacity,
 };
+use odc_metrics::Metric;
 use odc_render::{Kind, Mode, MusicSettings, Values, mode_info};
-use odc_sensors::Metric;
 
 use crate::boot::{self, Boot};
 use crate::live::{music_settings, values_from};

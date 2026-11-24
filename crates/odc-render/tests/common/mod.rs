@@ -5,12 +5,12 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
+use odc_metrics::{Exact, Metric};
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Spectrum, Stop, Unit, Values,
     WINDOW, analyse, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
-use odc_sensors::{Exact, Metric};
 use odc_testkit::diff;
 use odc_testkit::expected::{
     self, Change, Picture, Reset, Scenario, every_metric, mode_scenarios, reading,
@@ -241,7 +241,7 @@ fn fall(name: &str) -> Stop {
 }
 
 /// The readings a tick names.
-fn readings(changes: &[Change]) -> Vec<(String, Option<odc_sensors::Exact>)> {
+fn readings(changes: &[Change]) -> Vec<(String, Option<odc_metrics::Exact>)> {
     changes
         .iter()
         .filter_map(|c| match c {

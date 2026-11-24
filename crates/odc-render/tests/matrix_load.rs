@@ -6,8 +6,8 @@
 mod common;
 
 use common::{band_rows, modes_of, values};
+use odc_metrics::Exact;
 use odc_render::{Marquee, Mode, Unit, Values, mode_info, picture};
-use odc_sensors::Exact;
 use odc_testkit::diff;
 use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable};
 use proptest::prelude::*;

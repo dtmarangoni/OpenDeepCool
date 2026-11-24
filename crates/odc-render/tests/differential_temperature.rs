@@ -15,9 +15,9 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::{modes_of, step_readings, values};
+use odc_metrics::Exact;
 use odc_protocol::Frame;
 use odc_render::{Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, picture};
-use odc_sensors::Exact;
 use odc_testkit::diff::cycle_match;
 use odc_testkit::sweep::{self, Step};
 

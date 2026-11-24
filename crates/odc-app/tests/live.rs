@@ -8,12 +8,12 @@ use odc_app::live::{
     Beat, Live, SAMPLE_BARS, SAMPLE_PEAKS, TICK_US, music_settings, sample_values, values_from,
 };
 use odc_ipc::FallStop;
+use odc_metrics::{Exact, Metric};
 use odc_protocol::Frame;
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Pose, Spectrum, Stop, Unit,
     Values, analyse, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
-use odc_sensors::{Exact, Metric};
 use odc_testkit::spectrum::signals;
 
 const UNITS: [Unit; 2] = [Unit::Celsius, Unit::Fahrenheit];

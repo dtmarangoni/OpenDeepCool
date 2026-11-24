@@ -12,8 +12,8 @@ mod common;
 use std::collections::BTreeMap;
 
 use common::{modes_of, step_readings, values};
+use odc_metrics::Exact;
 use odc_render::{Marquee, Mode, Unit, mode_info, picture};
-use odc_sensors::Exact;
 use odc_testkit::sweep::{self};
 
 /// Why a step can't be compared, or `None` when both sets of rules draw it the same way: whole
