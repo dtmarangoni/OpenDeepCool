@@ -51,7 +51,7 @@
 
 ### The owner's decisions of 2026-11-18
 
-D1–D4 answer four questions about the owner's draft review, D5–D8 the solution review's four. Each is in the PRD's Decisions Log or the Phase 11a details, and in a "decided, not yet built" note in the spec where the spec is affected.
+D1–D4 answer four questions about the owner's draft review, D5–D8 the solution review's four. Each is in the PRD's Decisions Log or the Phase 11a details, and in a note in the spec where the spec is affected (a "decided, not yet built" note until each was built, none now).
 
 | # | Decision | Choice |
 |---|---|---|
