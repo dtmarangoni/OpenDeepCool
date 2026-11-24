@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{drawn_modes, unit, values};
+use common::{band_rows, drawn_modes, unit, values};
 use odc_render::{Band, CELSIUS, FAHRENHEIT, layout, number, picture};
 use odc_render::{Kind as ModeKind, Marquee, Mode, Shown, Unit, Values, fahrenheit, mode_info};
 use odc_sensors::Exact;
@@ -79,15 +79,6 @@ fn the_dash_cases_of_each_drawn_temperature_mode_match() {
             _ => 0,
         };
         assert_eq!(cases.len(), want, "mode {}", mode.number());
-    }
-}
-
-/// The rows of each band: one value in rows 6–10; two values in rows 2–6 and 9–13.
-fn band_rows(values: usize) -> Vec<usize> {
-    if values == 1 {
-        (6..=10).collect()
-    } else {
-        (2..=6).chain(9..=13).collect()
     }
 }
 

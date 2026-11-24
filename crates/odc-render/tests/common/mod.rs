@@ -13,8 +13,11 @@ use odc_render::{
 };
 use odc_sensors::{Exact, Metric};
 use odc_testkit::diff;
-use odc_testkit::expected::{self, Change, Picture, Reset, Scenario, every_metric, mode_scenarios};
+use odc_testkit::expected::{
+    self, Change, Picture, Reset, Scenario, every_metric, mode_scenarios, reading,
+};
 use odc_testkit::spectrum::signals;
+use odc_testkit::sweep::Step;
 
 /// The modes of `kind` this build draws (Phase 7 plan, Task 3; Phase 8 plan, Tasks 4–8: one per
 /// commit).
@@ -43,6 +46,28 @@ pub fn turned(picture: &Picture, rotation: Rotation) -> Frame {
 }
 
 /// The renderer's unit for a unit of the expected files.
+/// A sweep step's readings by name, each as the decimal the capture gives.
+pub fn step_readings(step: &Step) -> Vec<(String, Option<Exact>)> {
+    step.readings
+        .iter()
+        .map(|(name, text)| {
+            let value = reading(text).unwrap_or_else(|| {
+                panic!("{}: {}: {text:?} isn't a decimal", step.file, step.label)
+            });
+            (name.clone(), value)
+        })
+        .collect()
+}
+
+/// The rows of each band: one value in rows 6–10; two values in rows 2–6 and 9–13.
+pub fn band_rows(values: usize) -> Vec<usize> {
+    if values == 1 {
+        (6..=10).collect()
+    } else {
+        (2..=6).chain(9..=13).collect()
+    }
+}
+
 pub fn unit(unit: expected::Unit) -> Unit {
     match unit {
         expected::Unit::Celsius => Unit::Celsius,

@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{drawn_modes, values};
+use common::{band_rows, drawn_modes, values};
 use odc_render::{Band, Kind as ModeKind, Marquee, Mode, Unit, Values, WATT, layout, mode_info};
 use odc_render::{number, picture};
 use odc_sensors::Exact;
@@ -72,15 +72,6 @@ fn the_dash_cases_of_each_drawn_power_mode_match() {
         }
         // unavailable.txt: one case of each Power mode, in rotations 0–3.
         assert_eq!(cases.len(), 4, "mode {}", mode.number());
-    }
-}
-
-/// The rows of each band: one value in rows 6–10; two values in rows 2–6 and 9–13.
-fn band_rows(values: usize) -> Vec<usize> {
-    if values == 1 {
-        (6..=10).collect()
-    } else {
-        (2..=6).chain(9..=13).collect()
     }
 }
 

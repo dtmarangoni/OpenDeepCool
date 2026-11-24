@@ -19,14 +19,13 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_modes, values};
+use common::{drawn_modes, step_readings, values};
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, spectrum_height, value_picture,
 };
 use odc_sensors::Exact;
 use odc_testkit::diff::cycle_match;
-use odc_testkit::expected::reading;
 use odc_testkit::sweep::{self, Step};
 
 /// `frame`'s rows above a spectrum area `h` rows high, the rows below off.
@@ -193,18 +192,6 @@ fn compare(
 }
 
 /// The step's readings, exact, by their names.
-fn step_readings(step: &Step) -> Vec<(String, Option<Exact>)> {
-    step.readings
-        .iter()
-        .map(|(name, text)| {
-            let value = reading(text).unwrap_or_else(|| {
-                panic!("{}: {}: {text:?} isn't a decimal", step.file, step.label)
-            });
-            (name.clone(), value)
-        })
-        .collect()
-}
-
 /// OpenDeepCool's rows above the spectrum for the step, upright, from home: one cycle, or the
 /// still picture once.
 fn tops_of(mode: Mode, named: &[(String, Option<Exact>)], step: &Step) -> Vec<Frame> {

@@ -11,11 +11,10 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_modes, values};
+use common::{drawn_modes, step_readings, values};
 use odc_render::{Marquee, Mode, Unit, mode_info, picture};
 use odc_sensors::Exact;
-use odc_testkit::expected::reading;
-use odc_testkit::sweep::{self, Step};
+use odc_testkit::sweep::{self};
 
 /// Why a step can't be compared, or `None` when both sets of rules draw it the same way: whole
 /// readings from 0 to 99, and in one-value modes two digits.
@@ -118,18 +117,6 @@ fn every_captured_step_where_both_rules_agree_matches_pixel_for_pixel() {
 }
 
 /// The step's readings, exact, by their names.
-fn step_readings(step: &Step) -> Vec<(String, Option<Exact>)> {
-    step.readings
-        .iter()
-        .map(|(name, text)| {
-            let value = reading(text).unwrap_or_else(|| {
-                panic!("{}: {}: {text:?} isn't a decimal", step.file, step.label)
-            });
-            (name.clone(), value)
-        })
-        .collect()
-}
-
 /// The picture at home, unrotated.
 fn home(mode: Mode, named: &[(String, Option<Exact>)]) -> odc_protocol::Frame {
     let p = picture(mode, &values(named), Unit::Celsius).expect("a drawn mode");

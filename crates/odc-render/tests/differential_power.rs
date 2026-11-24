@@ -13,12 +13,11 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_modes, values};
+use common::{drawn_modes, step_readings, values};
 use odc_protocol::Frame;
 use odc_render::{Kind, Marquee, Mode, Shown, Unit, mode_info, number, picture};
 use odc_sensors::Exact;
 use odc_testkit::diff::cycle_match;
-use odc_testkit::expected::reading;
 use odc_testkit::sweep::{self, Step};
 
 /// Why both sets of rules draw the step differently, or `None` when both scroll the same strip.
@@ -105,18 +104,6 @@ fn every_captured_step_where_both_rules_agree_matches_pixel_for_pixel() {
 }
 
 /// The step's readings, exact, by their names.
-fn step_readings(step: &Step) -> Vec<(String, Option<Exact>)> {
-    step.readings
-        .iter()
-        .map(|(name, text)| {
-            let value = reading(text).unwrap_or_else(|| {
-                panic!("{}: {}: {text:?} isn't a decimal", step.file, step.label)
-            });
-            (name.clone(), value)
-        })
-        .collect()
-}
-
 /// OpenDeepCool's cycle for the step from home, turned.
 fn cycle_of(mode: Mode, named: &[(String, Option<Exact>)], step: &Step) -> Vec<Frame> {
     let p = picture(mode, &values(named), Unit::Celsius).expect("a drawn mode");

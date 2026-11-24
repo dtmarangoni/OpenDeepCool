@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{drawn_modes, values};
+use common::{band_rows, drawn_modes, values};
 use odc_render::{Marquee, Mode, Unit, Values, mode_info, picture};
 use odc_sensors::Exact;
 use odc_testkit::diff;
@@ -69,15 +69,6 @@ fn the_dash_cases_of_each_drawn_load_mode_match() {
             _ => 0,
         };
         assert_eq!(cases.len(), want, "mode {}", mode.number());
-    }
-}
-
-/// The rows of each band: one value in rows 6–10; two values in rows 2–6 and 9–13.
-fn band_rows(values: usize) -> Vec<usize> {
-    if values == 1 {
-        (6..=10).collect()
-    } else {
-        (2..=6).chain(9..=13).collect()
     }
 }
 
