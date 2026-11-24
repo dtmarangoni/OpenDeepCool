@@ -2,7 +2,7 @@
 
 **Plan:** [phase-11a-settings-app-ui-review.plan.md](../plans/phase-11a-settings-app-ui-review.plan.md)
 **Review:** [phase-11a-settings-app-ui-review.review.md](../solution-reviews/phase-11a-settings-app-ui-review.review.md)
-**Status:** in progress (branch `phase-11a-settings-app-ui-review`)
+**Status:** complete (branch `phase-11a-settings-app-ui-review`, signed off by the owner 2026-11-24)
 
 ## Tasks
 
@@ -184,7 +184,6 @@ On the package built from the final tree (`00fa11e`: `odc-pkg-test` 27 of 27, th
 - **The baseline** (`--dev-interface --only baseline`, a third password), mode 4, 600 s: mean CPU 0.17 % of one core (Phase 11's sign-off: 0.57 %), peak RSS 5.9 MiB (6.1), 6001 writes p50 4.21 ms, p99 8.12, max 8.26, 599 snapshots p50 0.68 ms, p99 1.90 ms; by thread sensors 0.072 %, device 0.037 %, engine 0.033 %, dbus 0.030 %.
 - **CI's pinned actions:** `actions/checkout` v7.0.1 is the newest; `jdx/mise-action` moved from v5.2.9 to v5.3.0 (a new optional input, unused here), pinned by its commit (`44faad2`).
 
-## Still to do
+## Sign-off
 
-1. The owner's go-ahead to push: the branch over HTTPS, CI, then `main` fast-forwarded to it (AGENTS.md, How to work).
-2. After it, the PRD row for Phase 11a becomes `complete` and the README's Status says so.
+The owner signed the phase off on 2026-11-24, after the housekeeping and the sign-off runs above. The branch is pushed, CI's run on it passes, `main` is fast-forwarded to it, and the PRD row is `complete`. Phase 12 (the releases) is next.

@@ -365,7 +365,7 @@ This project spans many sessions and possibly several coding agents, so the way 
 | 9 | Music | Audio capture, spectrum, the three Music variants and the Dancer | complete | - | 7, 8 | [plan](../plans/phase-9-music.plan.md) | [report](../reports/phase-9-music.report.md) | - |
 | 10 | Settings app | GTK4 app, Omarchy theme and default theme, all settings screens, preview | complete | - | 7, 8, 9 | [plan](../plans/phase-10-settings-app.plan.md) | [report](../reports/phase-10-settings-app.report.md) | - |
 | 11 | Packaging & final validation | Install/uninstall that removes everything, footprint docs, release build, full unattended parity run | complete | - | 8, 9, 10 | [plan](../plans/phase-11-packaging-final-validation.plan.md) | [report](../reports/phase-11-packaging-final-validation.report.md) | - |
-| 11a | Settings app UI review | The owner's review of the app: fans and pump leave the product, the app's header, pages, window and theme, live tiles, and pairs of values centred on the cooler | in-progress | - | 10, 11 | [plan](../plans/phase-11a-settings-app-ui-review.plan.md) | [report](../reports/phase-11a-settings-app-ui-review.report.md) | - |
+| 11a | Settings app UI review | The owner's review of the app: fans and pump leave the product, the app's header, pages, window and theme, live tiles, and pairs of values centred on the cooler | complete | - | 10, 11 | [plan](../plans/phase-11a-settings-app-ui-review.plan.md) | [report](../reports/phase-11a-settings-app-ui-review.report.md) | - |
 | 12 | Releases | Alpha and beta as GitHub pre-releases, a month each; `v1.0.0` on GitHub and the AUR; DeepCreative deleted | pending | - | 11, 11a | - | - | - |
 
 ### Phase Details
