@@ -752,14 +752,15 @@ impl ConfigPage {
         } else {
             self.light.set_active(true);
         }
-        // The Default Theme is dimmed together while the system's theme is followed: the heading
-        // and the three titles take the class `muted`, and each button is insensitive and says
-        // why (each control, never only its box).
+        // The Default Theme is disabled together while the system's theme is followed (design,
+        // D55, Task 63): the heading and the three titles take the class `disabled` (the disabled
+        // colour, never `muted`, the hints'), and each button is insensitive and says why (each
+        // control, never only its box).
         for label in self.default_theme_labels() {
             if card.toggles_sensitive {
-                label.remove_css_class("muted");
+                label.remove_css_class("disabled");
             } else {
-                label.add_css_class("muted");
+                label.add_css_class("disabled");
             }
         }
         let opacity = OPACITIES

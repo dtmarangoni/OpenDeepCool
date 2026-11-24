@@ -374,11 +374,15 @@ fn default_theme(app: &gtk::Application) {
             Some(WindowCorners::Sharp)
         )
     );
-    // The heading and the three titles are muted, with the buttons insensitive; each control, and
-    // not only the box (the design's D70), and the group itself still takes no insensitivity.
-    let muted = |widget: &gtk::Widget| widget.has_css_class("muted");
+    // The heading and the three titles are disabled (the disabled colour, never `muted`, the
+    // hints'), with the buttons insensitive; each control, and not only the box (the design's
+    // D70), and the group itself still takes no insensitivity.
+    let disabled = |widget: &gtk::Widget| {
+        assert!(!widget.has_css_class("muted"), "never the hints' colour");
+        widget.has_css_class("disabled")
+    };
     let heading = group.first_child().expect("the heading");
-    assert!(muted(&heading), "the heading is dimmed");
+    assert!(disabled(&heading), "the heading is disabled");
     assert!(group.is_sensitive());
     for name in ["Appearance", "Window Opacity", "Window Corners"] {
         let title = find::<gtk::Widget>(&window, name)
@@ -386,7 +390,7 @@ fn default_theme(app: &gtk::Application) {
             .and_then(|line| line.first_child())
             .and_then(|block| block.first_child())
             .expect("a title");
-        assert!(muted(&title), "{name}'s title is dimmed");
+        assert!(disabled(&title), "{name}'s title is disabled");
     }
     for name in [
         "Dark theme",
@@ -403,11 +407,11 @@ fn default_theme(app: &gtk::Application) {
             "{name}"
         );
     }
-    // Turned off, they are enabled again, and the heading is no longer muted.
+    // Turned off, they are enabled again, and the heading is no longer disabled.
     window.state(with(|s| s.use_system_theme = Some(false)));
     run_for(Duration::from_millis(250));
     assert!(window.config_page().default_theme_shown().0);
-    assert!(!muted(&heading));
+    assert!(!disabled(&heading));
     close(window);
 }
 

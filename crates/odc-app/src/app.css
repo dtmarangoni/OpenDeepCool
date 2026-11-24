@@ -53,6 +53,14 @@ label.muted,
   color: var(--muted);
 }
 
+/* The disabled colour (design, D55, Task 63): a disabled control's text, and the heading and
+   titles of a section that is off (the Default Theme while the system theme is followed). It is
+   derived from --fg over --surface, so it is weaker than any theme's --muted. */
+label.disabled,
+.disabled {
+  color: var(--disabled);
+}
+
 .num {
   font-variant-numeric: tabular-nums;
 }
@@ -96,20 +104,24 @@ flowboxchild.tile.selected {
   color: var(--fg);
 }
 
+/* One disabled look for the whole app (design, D55, Task 63): a disabled control keeps its shape
+   and loses its signal. Its text is --disabled, its border the hairline --line, its fill the
+   normal flat one, with no accent, no selected fill and no ring. */
 button:disabled,
 dropdown > button:disabled,
 flowboxchild.tile:disabled {
   background-color: var(--ctl-normal-fill);
-  border-color: var(--ctl-normal-border);
-  color: var(--muted);
+  border-color: var(--line);
+  color: var(--disabled);
 }
 
-/* A toggle that is pressed and insensitive shows its value: the selected fill, a muted border and
-   the text in --fg, so it stays readable (Theme card, The look). */
+/* A toggle that is pressed and insensitive keeps a shape, not strength: a 1 px frame in
+   --disabled round the normal fill, so the saved value can still be found without a tint under
+   the label (which would take the label's contrast from 2.8 to 1.8:1 in the dark theme). */
 .linked button:checked:disabled {
-  background-color: var(--ctl-selected-fill);
-  border-color: var(--muted);
-  color: var(--fg);
+  background-color: var(--ctl-normal-fill);
+  border-color: var(--disabled);
+  color: var(--disabled);
 }
 
 /* OpenDeepCool's own light theme draws its tiles as cards and frames what is chosen (design,
@@ -200,7 +212,7 @@ button.icon-button:checked {
 
 button.icon-button:disabled {
   background-color: var(--none);
-  color: var(--muted);
+  color: var(--disabled);
 }
 
 /* The type scale (Theme, Type): the system font, every size a multiple of the user's own, in
@@ -355,7 +367,7 @@ scale > trough > slider {
 
 /* One knob for the scales and the switches (owner, 2026-11-22: the sliders' button in the colour
    of the toggles'): --fg with a 1 px --bg ring, so it shows on the --accent bar or trough in every
-   theme, and --muted when insensitive. GTK's own theme paints a gradient image and a coloured
+   theme, and --disabled when insensitive. GTK's own theme paints a gradient image and a coloured
    border over a knob's background-color, so both are cleared here. */
 scale > trough > slider,
 switch > slider {
@@ -367,8 +379,9 @@ switch > slider {
 }
 
 scale > trough > slider:disabled,
+scale:disabled > trough > slider,
 switch:disabled > slider {
-  background-color: var(--muted);
+  background-color: var(--disabled);
 }
 
 /* The switches are 32 x 18 outside, well under GTK's 48 x 24 (Window, The switches; owner,
@@ -399,16 +412,33 @@ switch > slider {
   min-height: 14px;
 }
 
-/* Insensitive: the normal fill and border and a muted slider, without opacity (decisions log
-   D43); the trough keeps systemd's state, so a running flip's "off / on" still shows (Start at
-   boot, The switch). */
+/* Insensitive (design, D55, Task 63), without opacity: the normal fill, the hairline border and
+   a --disabled knob; an insensitive switch that is on keeps its state as a trough filled
+   --disabled with a --surface knob and no ring (Start at boot, The switch: a running flip's
+   "off / on" still shows, in grey). */
 switch:disabled {
   background-color: var(--ctl-normal-fill);
-  border-color: var(--ctl-normal-border);
+  border-color: var(--line);
 }
 
 switch:disabled:checked {
-  background-color: var(--accent);
+  background-color: var(--disabled);
+  border-color: var(--disabled);
+}
+
+switch:disabled:checked > slider {
+  background-color: var(--surface);
+  box-shadow: none;
+}
+
+/* A scale that is insensitive (none is today): the same look, a hairline trough and a
+   --disabled bar. */
+scale:disabled > trough {
+  border-color: var(--line);
+}
+
+scale:disabled > trough > highlight {
+  background-color: var(--disabled);
 }
 
 .feedback {

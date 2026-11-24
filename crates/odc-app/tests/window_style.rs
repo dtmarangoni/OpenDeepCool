@@ -3,7 +3,8 @@
 //! with no CSS problem (`backdrop-filter` included), the window's ground has the alpha of its mode
 //! and a card a denser one while the preview's frame stays solid, the window's corners follow
 //! the own theme's choice, and the own light theme draws its tiles as cards and frames the chosen
-//! one (Task 61). Behind the `weston-tests` feature.
+//! one (Task 61), and the Default Theme section is drawn disabled, in the disabled colour, while
+//! the system theme is followed (Task 63). Behind the `weston-tests` feature.
 
 mod common;
 
@@ -23,7 +24,7 @@ fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 5] = [
+const CHECKS: [(&str, Check); 6] = [
     (
         "no_style_gives_a_css_problem_and_the_glass_rule_is_accepted",
         css_clean,
@@ -37,6 +38,10 @@ const CHECKS: [(&str, Check); 5] = [
     (
         "the_own_light_theme_draws_its_tiles_as_cards_and_frames_the_chosen_one",
         own_light_tiles,
+    ),
+    (
+        "the_default_theme_is_drawn_disabled_while_the_system_theme_is_followed",
+        default_theme_disabled,
     ),
 ];
 
@@ -330,4 +335,183 @@ fn own_light_tiles(app: &gtk::Application) {
     run_for(Duration::from_millis(300));
     assert!(!w.has_css_class("own-light"), "a light Omarchy theme");
     close(window);
+}
+
+/// The sum of the channel differences between a pixel and a colour.
+fn distance(px: [u8; 3], to: Rgb) -> i32 {
+    px.iter()
+        .zip(to.0)
+        .map(|(a, b)| (i32::from(*a) - i32::from(b)).abs())
+        .sum()
+}
+
+/// The pixel of `widget`'s box, inset by `inset` on every side, that is furthest from `ground`:
+/// the strongest pixel of a text, which anti-aliasing can only weaken, never strengthen.
+fn strongest(
+    picture: &Picture,
+    widget: &gtk::Widget,
+    root: &gtk::Widget,
+    inset: i32,
+    ground: Rgb,
+) -> [u8; 3] {
+    let b = widget.compute_bounds(root).expect("a place");
+    let (x0, y0) = (b.x() as i32 + inset, b.y() as i32 + inset);
+    let (x1, y1) = (
+        (b.x() + b.width()) as i32 - inset,
+        (b.y() + b.height()) as i32 - inset,
+    );
+    let mut best = (picture.at(x0, y0), 0);
+    for y in y0..y1 {
+        for x in x0..x1 {
+            let px = picture.at(x, y);
+            let d = distance(px, ground);
+            if d > best.1 {
+                best = (px, d);
+            }
+        }
+    }
+    best.0
+}
+
+/// Which of `options` a pixel is nearest to.
+fn nearest<'a>(px: [u8; 3], options: &[(&'a str, Rgb)]) -> &'a str {
+    options
+        .iter()
+        .min_by_key(|(_, rgb)| distance(px, *rgb))
+        .map(|(name, _)| *name)
+        .expect("an option")
+}
+
+// While the system theme is followed, the Default Theme section is drawn disabled (design, D55,
+// Task 63): its heading, titles and button text are in the disabled colour (never the hints'
+// muted, never the foreground), an unpressed button has only a hairline border, the saved value
+// has a 1 px frame in the disabled colour, and no accent is drawn anywhere in the section. With
+// the system theme off the same widgets are live: the foreground, and the accent on the pressed
+// ones. Both own themes' colours, as an Omarchy theme's.
+fn default_theme_disabled(app: &gtk::Application) {
+    for dark in [true, false] {
+        let tokens = Tokens {
+            corners: None,
+            radius: 0,
+            radius_box: 0,
+            ..Tokens::default_theme(dark)
+        };
+        let (card, disabled, accent) = (tokens.surface, tokens.disabled(), tokens.accent);
+        let texts = [
+            ("fg", tokens.fg),
+            ("muted", tokens.muted),
+            ("disabled", disabled),
+        ];
+        let (window, _) = shown(app);
+        let w = window.widget();
+        for followed in [true, false] {
+            window.omarchy_theme(Some(tokens));
+            window.state(State {
+                use_system_theme: Some(followed),
+                dark_theme: Some(dark),
+                ..base()
+            });
+            WidgetExt::activate_action(w, "win.configuration", None).expect("the page");
+            run_for(Duration::from_millis(400));
+            let renderer = Renderer::new();
+            let picture = Picture::of(&renderer.0, w);
+            let what = format!("dark {dark}, followed {followed}");
+            let find = |name: &str| window.names().find(name).expect(name);
+            // The heading and the three titles.
+            let appearance = find("Appearance");
+            let line = appearance.parent().expect("the row");
+            let section = line.parent().expect("the section");
+            let mut labels = vec![section.first_child().expect("the heading")];
+            for name in ["Appearance", "Window Opacity", "Window Corners"] {
+                let row = find(name).parent().expect("a row");
+                labels.push(
+                    row.first_child()
+                        .and_then(|b| b.first_child())
+                        .expect("a title"),
+                );
+            }
+            for label in &labels {
+                let px = strongest(&picture, label, w.upcast_ref(), 0, card);
+                let want = if followed { "disabled" } else { "fg" };
+                assert_eq!(nearest(px, &texts), want, "{what}: a title is {px:?}");
+            }
+            // The buttons: Appearance takes the theme's scheme, Opaque and Rounded are the saved
+            // words, so those three are the pressed ones.
+            let top = |button: &gtk::Widget| {
+                let b = button.compute_bounds(w).expect("a place");
+                picture.at((b.x() + b.width() / 2.0) as i32, b.y() as i32)
+            };
+            let (now, other) = if dark {
+                ("Dark theme", "Light theme")
+            } else {
+                ("Light theme", "Dark theme")
+            };
+            let pressed = [now, "Opaque window", "Rounded corners"];
+            let unpressed = [other, "Transparent window", "Sharp corners"];
+            for name in pressed {
+                let button = find(name);
+                let (frame, text) = (
+                    top(&button),
+                    strongest(&picture, &button, w.upcast_ref(), 3, card),
+                );
+                if followed {
+                    assert!(
+                        distance(frame, disabled) <= 6,
+                        "{what}: {name}'s frame is {frame:?}"
+                    );
+                    assert_eq!(
+                        nearest(text, &texts),
+                        "disabled",
+                        "{what}: {name}'s text {text:?}"
+                    );
+                } else {
+                    assert!(
+                        distance(frame, accent) <= 6,
+                        "{what}: {name}'s border is {frame:?}"
+                    );
+                }
+            }
+            for name in unpressed {
+                let edge = top(&find(name));
+                if followed {
+                    // A hairline: weaker than the saved value's frame, and not the accent.
+                    assert!(
+                        distance(edge, card) < distance(disabled.0, card),
+                        "{what}: {name}'s border is {edge:?}"
+                    );
+                    assert!(distance(edge, accent) > 30, "{what}: {name} has the accent");
+                } else {
+                    assert!(
+                        distance(edge, card) >= distance(disabled.0, card) / 2,
+                        "{what}: {name}'s live border is {edge:?}"
+                    );
+                }
+            }
+            // No accent anywhere in the section while it is disabled.
+            if followed {
+                let b = section.compute_bounds(w).expect("a place");
+                for y in (b.y() as i32)..((b.y() + b.height()) as i32) {
+                    for x in (b.x() as i32)..((b.x() + b.width()) as i32) {
+                        assert!(
+                            distance(picture.at(x, y), accent) > 12,
+                            "{what}: the accent at {x},{y}"
+                        );
+                    }
+                }
+            }
+            if followed {
+                save_png(
+                    &renderer.0,
+                    w,
+                    if dark {
+                        "disabled-dark"
+                    } else {
+                        "disabled-light"
+                    },
+                );
+            }
+            drop(renderer);
+        }
+        close(window);
+    }
 }

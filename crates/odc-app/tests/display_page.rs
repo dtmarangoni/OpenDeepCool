@@ -287,7 +287,7 @@ fn selection(app: &gtk::Application) {
 
 // The GPU's metrics unavailable while mode 9, which shows the GPU temperature, is saved: its tile
 // stays sensitive, flagged "Reading lost"; every other GPU tile is insensitive and "Unavailable",
-// drawn muted; each group lists its reasons once.
+// drawn in the disabled colour; each group lists its reasons once.
 fn unavailable(app: &gtk::Application) {
     let (window, asked) = shown_at_rest(app);
     let reasons: HashMap<u32, String> = [
@@ -368,12 +368,12 @@ fn unavailable(app: &gtk::Application) {
     let _ = WidgetExt::activate_action(&name("Load: GPU"), "tile.activate", None);
     run_for(Duration::from_millis(5));
     assert_eq!(*asked.borrow(), [], "an unavailable tile's action");
-    // An unavailable tile draws its lit dots muted.
+    // An unavailable tile draws its lit dots in the disabled colour.
     run_until("the tiles draw", || draws(&window).iter().all(|d| *d > 0));
     run_for(Duration::from_millis(150));
     let renderer = Renderer::new();
     let tile = &tiles_of(&window)[1];
-    let muted = Tokens::default_theme(true).muted;
+    let disabled = Tokens::default_theme(true).disabled();
     let colours = dots_of(&renderer.0, tile.picture_widget(), tiles::PITCH);
     let lit = tile.frame();
     let mut lit_dots = 0;
@@ -381,7 +381,7 @@ fn unavailable(app: &gtk::Application) {
         for col in 0..Frame::SIZE {
             if lit.get(row + 1, col + 1) {
                 let [r, g, b, _] = colours[row * Frame::SIZE + col];
-                assert!(near([r, g, b], muted), "dot {row},{col}: {r},{g},{b}");
+                assert!(near([r, g, b], disabled), "dot {row},{col}: {r},{g},{b}");
                 lit_dots += 1;
             }
         }

@@ -39,9 +39,9 @@ pub struct TileWidget {
     flag: gtk::Label,
     drawn: Rc<RefCell<Drawn>>,
     draws: Rc<Cell<u32>>,
-    /// The colours: the theme's foreground, or muted on an insensitive tile.
+    /// The colours: the theme's foreground, or the disabled colour on an insensitive tile.
     fg: Cell<Rgb>,
-    muted: Cell<Rgb>,
+    disabled: Cell<Rgb>,
 }
 
 impl TileWidget {
@@ -121,7 +121,7 @@ impl TileWidget {
             drawn,
             draws,
             fg: Cell::new(tokens.fg),
-            muted: Cell::new(tokens.muted),
+            disabled: Cell::new(tokens.disabled()),
         }
     }
 
@@ -164,7 +164,7 @@ impl TileWidget {
 
     pub fn set_theme(&self, tokens: &Tokens) {
         self.fg.set(tokens.fg);
-        self.muted.set(tokens.muted);
+        self.disabled.set(tokens.disabled());
         self.recolour();
     }
 
@@ -175,7 +175,7 @@ impl TileWidget {
         drawn.lit = if self.child.is_sensitive() {
             fg
         } else {
-            self.muted.get()
+            self.disabled.get()
         };
         drawn.unlit = Rgba {
             rgb: fg,

@@ -599,6 +599,14 @@ fn decimal(n: f64) -> String {
 /// The unlit preview dot's alpha over the background (Preview column).
 pub const UNLIT_ALPHA: f64 = 0.12;
 
+/// The share of the foreground in the disabled colour, over the card: 0.40 in a dark theme and
+/// 0.55 in a light one, which puts it at about the middle of the theme's own lightness range, so
+/// it is weaker than any `muted` and still text (`docs/design/settings-app.md`, Answers decided
+/// on 2026-11-24, Task 63, D55).
+pub const DISABLED_ALPHA_DARK: f64 = 0.40;
+/// See [`DISABLED_ALPHA_DARK`].
+pub const DISABLED_ALPHA_LIGHT: f64 = 0.55;
+
 impl Tokens {
     /// The `:root` block.
     pub fn root(&self) -> String {
@@ -622,13 +630,14 @@ impl Tokens {
         let alpha = window_style::alpha(self.opacity);
         let at = |rgb, alpha| Rgba { rgb, alpha }.css();
         let sharp = self.corners == Some(WindowCorners::Sharp);
-        let tokens: [(&str, String); 32] = [
+        let tokens: [(&str, String); 33] = [
             ("bg", self.bg.css()),
             ("surface", self.surface.css()),
             ("ground", at(self.bg, alpha)),
             ("plate", at(self.surface, alpha)),
             ("fg", self.fg.css()),
             ("muted", self.muted.css()),
+            ("disabled", self.disabled().css()),
             ("accent", self.accent.css()),
             ("red", self.red.css()),
             ("yellow", self.yellow.css()),
@@ -677,6 +686,18 @@ impl Tokens {
     /// The unlit preview dot, opaque over the preview frame's surface.
     pub fn unlit(&self) -> Rgb {
         blend(self.fg, self.surface, UNLIT_ALPHA)
+    }
+
+    /// The disabled colour: the foreground over the card, opaque. A disabled control's text, icon,
+    /// knob and lit dots, and the frame of a chosen one. An Omarchy theme has no key for it, so
+    /// it is derived from its own foreground and card, and never read or logged.
+    pub fn disabled(&self) -> Rgb {
+        let alpha = if self.dark {
+            DISABLED_ALPHA_DARK
+        } else {
+            DISABLED_ALPHA_LIGHT
+        };
+        blend(self.fg, self.surface, alpha)
     }
 }
 
@@ -737,6 +758,7 @@ scale = 1.0
   --plate: rgba(42, 44, 42, 1);
   --fg: #e4dccb;
   --muted: #9c9585;
+  --disabled: #74726a;
   --accent: #d9a35b;
   --red: #e07a6e;
   --yellow: #d9b45b;
@@ -1372,6 +1394,30 @@ scale = 1.0
 
     // The app's default palettes have the contrast of the design's table (Default theme), to
     // one decimal, and keep text at 4.5:1 and borders at 3:1.
+    // The disabled colour (design, D55, Task 63): the foreground over the card, opaque, by 0.40
+    // in a dark theme and 0.55 in a light one; the same derivation gives an Omarchy theme its
+    // own, from its foreground and card. It is weaker than the theme's muted and still text.
+    #[test]
+    fn the_disabled_colour_is_the_foreground_over_the_card() {
+        for (dark, want) in [(true, [0x79, 0x84, 0x91]), (false, [0x80, 0x84, 0x8c])] {
+            let t = Tokens::default_theme(dark);
+            assert_eq!(t.disabled(), Rgb(want), "dark {dark}");
+            let on_card = ratio(t.disabled(), t.surface);
+            assert!(
+                (2.5..=3.5).contains(&on_card),
+                "dark {dark}: {on_card:.3} on the card"
+            );
+            assert!(
+                on_card < ratio(t.muted, t.surface),
+                "dark {dark}: below muted"
+            );
+            assert!(
+                t.root()
+                    .contains(&format!("--disabled: {};", t.disabled().css()))
+            );
+        }
+    }
+
     #[test]
     fn the_default_theme_has_the_contrast_the_design_states() {
         let table: [(bool, [f64; 15]); 2] = [
