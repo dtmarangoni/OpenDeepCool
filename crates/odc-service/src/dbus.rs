@@ -8,7 +8,6 @@
 
 use std::collections::{HashMap, HashSet};
 use std::future::{Future, poll_fn};
-use std::path::PathBuf;
 use std::pin::Pin;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Sender};
@@ -710,49 +709,6 @@ fn diagnostics(status: &Status) -> Vec<(String, String, String)> {
         .collect()
 }
 
-/// The reason kinds `OverrideReadings` takes (owner, 2026-10-29), each with the reason it stands
-/// for.
-pub fn reason_of(kind: &str) -> Option<Unavailable> {
-    let placeholder = || "override".to_owned();
-    Some(match kind {
-        "no-rule" => Unavailable::NoRule {
-            driver: placeholder(),
-        },
-        "no-device" => Unavailable::NoDevice,
-        "permission-denied" => Unavailable::PermissionDenied {
-            path: PathBuf::new(),
-        },
-        "read-failed" => Unavailable::ReadFailed {
-            path: PathBuf::new(),
-        },
-        "not-yet" => Unavailable::NotYet,
-        "integrated-gpu-power" => Unavailable::IntegratedGpuPower,
-        "unknown-gpu-kind" => Unavailable::UnknownGpuKind,
-        "driver-updated" => Unavailable::DriverUpdated,
-        "library-failed" => Unavailable::LibraryFailed {
-            library: placeholder(),
-            error: String::new(),
-        },
-        _ => return None,
-    })
-}
-
-/// A reason's kind; every reason has one, so a reason Phase 6 adds fails to compile here until
-/// it gets its kind.
-pub fn kind_of(reason: &Unavailable) -> &'static str {
-    match reason {
-        Unavailable::NoRule { .. } => "no-rule",
-        Unavailable::NoDevice => "no-device",
-        Unavailable::PermissionDenied { .. } => "permission-denied",
-        Unavailable::ReadFailed { .. } => "read-failed",
-        Unavailable::NotYet => "not-yet",
-        Unavailable::IntegratedGpuPower => "integrated-gpu-power",
-        Unavailable::UnknownGpuKind => "unknown-gpu-kind",
-        Unavailable::DriverUpdated => "driver-updated",
-        Unavailable::LibraryFailed { .. } => "library-failed",
-    }
-}
-
 /// `OverrideReadings`' arguments as readings: all seven metrics, each in exactly one map, by the
 /// spec's names (owner, 2026-10-29).
 fn overridden(
@@ -771,8 +727,8 @@ fn overridden(
     }
     for (name, kind) in unavailable {
         within("a reason", kind, STRING_LIMIT)?;
-        let reason =
-            reason_of(kind).ok_or_else(|| invalid(format!("{name}: no reason kind {kind:?}")))?;
+        let reason = Unavailable::from_kind(kind)
+            .ok_or_else(|| invalid(format!("{name}: no reason kind {kind:?}")))?;
         if readings
             .insert(metric(name)?, Reading::Unavailable(reason))
             .is_some()

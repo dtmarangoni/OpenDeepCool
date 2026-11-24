@@ -138,6 +138,51 @@ pub enum Unavailable {
     LibraryFailed { library: String, error: String },
 }
 
+impl Unavailable {
+    /// The reason's kind, the word `OverrideReadings` takes and the journal writes (owner,
+    /// 2026-10-29). Every reason has one, so a reason added later fails to compile here until it
+    /// gets its kind.
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Unavailable::NoRule { .. } => "no-rule",
+            Unavailable::NoDevice => "no-device",
+            Unavailable::PermissionDenied { .. } => "permission-denied",
+            Unavailable::ReadFailed { .. } => "read-failed",
+            Unavailable::NotYet => "not-yet",
+            Unavailable::IntegratedGpuPower => "integrated-gpu-power",
+            Unavailable::UnknownGpuKind => "unknown-gpu-kind",
+            Unavailable::DriverUpdated => "driver-updated",
+            Unavailable::LibraryFailed { .. } => "library-failed",
+        }
+    }
+
+    /// The reason a kind stands for, its details a placeholder: the reverse of [`Self::kind`].
+    pub fn from_kind(kind: &str) -> Option<Unavailable> {
+        let placeholder = || "override".to_owned();
+        Some(match kind {
+            "no-rule" => Unavailable::NoRule {
+                driver: placeholder(),
+            },
+            "no-device" => Unavailable::NoDevice,
+            "permission-denied" => Unavailable::PermissionDenied {
+                path: PathBuf::new(),
+            },
+            "read-failed" => Unavailable::ReadFailed {
+                path: PathBuf::new(),
+            },
+            "not-yet" => Unavailable::NotYet,
+            "integrated-gpu-power" => Unavailable::IntegratedGpuPower,
+            "unknown-gpu-kind" => Unavailable::UnknownGpuKind,
+            "driver-updated" => Unavailable::DriverUpdated,
+            "library-failed" => Unavailable::LibraryFailed {
+                library: placeholder(),
+                error: String::new(),
+            },
+            _ => return None,
+        })
+    }
+}
+
 impl fmt::Display for Unavailable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {

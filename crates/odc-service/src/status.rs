@@ -9,10 +9,10 @@ use std::path::Path;
 
 use odc_device::Link;
 use odc_sensors::{
-    Binding, Exact, Gpu, Metric, RANK_FILE, Reading, Snapshot, delete_stale, gpus, review_ranking,
+    Binding, Exact, Gpu, Metric, RANK_FILE, Reading, Snapshot, Unavailable, delete_stale, gpus,
+    review_ranking,
 };
 
-use crate::dbus::{kind_of, reason_of};
 use crate::engine::{Availability, Engine};
 use crate::log::Priority;
 use crate::settings::{Settings, SettingsStore};
@@ -29,7 +29,7 @@ pub fn first_readings(snapshot: &Snapshot) -> String {
         .map(|&metric| {
             let reading = match snapshot.get(metric) {
                 Reading::Value(exact) => format!("{}/{}", exact.num(), exact.den()),
-                Reading::Unavailable(reason) => kind_of(reason).to_owned(),
+                Reading::Unavailable(reason) => reason.kind().to_owned(),
             };
             format!("{} {reading}", metric.spec_name())
         })
@@ -50,7 +50,7 @@ pub fn parse_first_readings(line: &str) -> Option<Vec<(Metric, Reading)>> {
                 Some((num, den)) => {
                     Reading::Value(Exact::new(num.parse().ok()?, den.parse().ok()?)?)
                 }
-                None => Reading::Unavailable(reason_of(reading)?),
+                None => Reading::Unavailable(Unavailable::from_kind(reading)?),
             };
             Some((metric, reading))
         })
@@ -200,7 +200,7 @@ mod tests {
                     );
                 }
                 (Reading::Unavailable(a), Reading::Unavailable(b)) => {
-                    assert_eq!(kind_of(&a), kind_of(b));
+                    assert_eq!(a.kind(), b.kind());
                 }
                 other => panic!("{metric:?}: {other:?}"),
             }

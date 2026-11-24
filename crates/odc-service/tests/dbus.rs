@@ -32,7 +32,7 @@ use odc_protocol::{Frame, Message, decode};
 use odc_render::{Mode, WINDOW};
 use odc_sensors::{Binding, Exact, Gpu, GpuKind, Metric, PciAddr, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, PipeAudio};
-use odc_service::dbus::{Bus, Checks, Parts, Side, kind_of, reason_of};
+use odc_service::dbus::{Bus, Checks, Parts, Side};
 use odc_service::engine::{Apply, Choices, Engine, availability};
 use odc_service::log::{Journal, Recorded};
 use odc_service::polkit::{
@@ -1550,13 +1550,13 @@ fn every_reason_has_its_kind_and_back() {
             error: "y".into(),
         },
     ];
-    let kinds: HashSet<&str> = reasons.iter().map(kind_of).collect();
+    let kinds: HashSet<&str> = reasons.iter().map(Unavailable::kind).collect();
     assert_eq!(kinds.len(), reasons.len(), "one kind each");
     for reason in &reasons {
-        let back = reason_of(kind_of(reason)).expect("its kind is taken");
-        assert_eq!(kind_of(&back), kind_of(reason));
+        let back = Unavailable::from_kind(reason.kind()).expect("its kind is taken");
+        assert_eq!(back.kind(), reason.kind());
     }
-    assert_eq!(reason_of("gone"), None);
+    assert_eq!(Unavailable::from_kind("gone"), None);
 }
 
 /// Fixed readings for the whole service, every metric bound.
