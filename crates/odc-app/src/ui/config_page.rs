@@ -19,11 +19,6 @@ use super::names::{Names, group};
 use super::page::{icon_button, label, page, page_bar, scroller_of};
 use crate::model;
 
-/// The request a unit toggle sends.
-fn unit_request(unit: TemperatureUnit) -> Request {
-    Request::SetTemperatureUnit(unit)
-}
-
 /// The five fall stops, slowest first, as the scales hold them: 0 to 4.
 pub const STOPS: [FallStop; 5] = [
     FallStop::Slower,
@@ -77,9 +72,9 @@ pub struct ConfigPage {
     use_system: gtk::Switch,
     dark: gtk::ToggleButton,
     light: gtk::ToggleButton,
-    /// The Default Theme subcategory: its heading and rows, insensitive together while the
-    /// system's theme is followed.
-    default_theme: gtk::Box,
+    /// The Default Theme subcategory's heading and its three rows' titles, which take the class
+    /// `disabled` together with its buttons while the system's theme is followed.
+    default_theme_labels: Vec<gtk::Label>,
     /// Window Opacity's and Window Corners' buttons, in the order of [`OPACITIES`] and
     /// [`CORNERS`], and the index each was last confirmed at.
     opacity: Vec<gtk::ToggleButton>,
@@ -128,26 +123,52 @@ const CORNERS: [(&str, &str, WindowCorners); 2] = [
     ("Rounded", "Rounded corners", WindowCorners::Rounded),
 ];
 
-/// A row of linked toggle buttons, one word each (Window Opacity, Window Corners): a press asks
-/// `ask(value)` and the pressed button goes back to the one last confirmed, `saved`, until the
-/// service confirms the change, as every control of the page does.
-#[allow(clippy::too_many_arguments)]
-fn words_row<T: Copy + 'static>(
-    parent: &gtk::Box,
-    labels: &gtk::SizeGroup,
+/// One button of a [`toggle_group`]: its words, its accessible name and what it asks for.
+type Word<T> = (&'static str, &'static str, T);
+
+/// Rotation's four buttons.
+const ROTATIONS: [Word<u8>; 4] = [
+    ("0°", "Rotation 0°", 0),
+    ("90°", "Rotation 90°", 1),
+    ("180°", "Rotation 180°", 2),
+    ("270°", "Rotation 270°", 3),
+];
+
+/// The temperature unit's two buttons.
+const UNITS: [Word<TemperatureUnit>; 2] = [
+    ("°C", "Celsius", TemperatureUnit::Celsius),
+    ("°F", "Fahrenheit", TemperatureUnit::Fahrenheit),
+];
+
+/// The Default Theme's Appearance: Dark and Light.
+const APPEARANCES: [Word<bool>; 2] = [
+    ("Dark", "Dark theme", true),
+    ("Light", "Light theme", false),
+];
+
+/// A row of linked toggle buttons, one word each, of which one is pressed (Rotation, the unit,
+/// Appearance, Window Opacity, Window Corners). A press asks `ask(value)`, and the pressed button
+/// goes back to the one last confirmed, `saved` (its index; the first when the service hasn't
+/// said), until the service confirms the change, as every control of the page does. `group_name`
+/// makes the box a named group for assistive technology.
+fn toggle_group<T: Copy + 'static>(
     names: &Names,
-    title: &str,
-    words: &[(&str, &str, T)],
+    group_name: Option<&str>,
+    words: &[Word<T>],
     send: &Rc<dyn Fn(Request)>,
     applying: &Rc<Cell<bool>>,
-    saved: &Rc<Cell<usize>>,
+    saved: Rc<dyn Fn() -> Option<usize>>,
     ask: fn(T) -> Request,
-) -> Vec<gtk::ToggleButton> {
-    let box_ = gtk::Box::builder()
-        .accessible_role(gtk::AccessibleRole::Group)
-        .css_classes(["linked"])
-        .build();
-    names.name(&box_, title);
+) -> (gtk::Box, Vec<gtk::ToggleButton>) {
+    // The role is set at construction: GTK refuses to change it later.
+    let mut builder = gtk::Box::builder().css_classes(["linked"]);
+    if group_name.is_some() {
+        builder = builder.accessible_role(gtk::AccessibleRole::Group);
+    }
+    let box_ = builder.build();
+    if let Some(name) = group_name {
+        names.name(&box_, name);
+    }
     let buttons: Rc<RefCell<Vec<gtk::ToggleButton>>> = Rc::new(RefCell::new(Vec::new()));
     for (i, (label, name, value)) in words.iter().enumerate() {
         let button = gtk::ToggleButton::builder().label(*label).build();
@@ -159,28 +180,27 @@ fn words_row<T: Copy + 'static>(
         let (send, applying, saved, others, value) = (
             Rc::clone(send),
             Rc::clone(applying),
-            Rc::clone(saved),
+            Rc::clone(&saved),
             Rc::clone(&buttons),
             *value,
         );
         button.connect_toggled(move |button| {
-            if applying.get() || !button.is_active() || saved.get() == i {
+            let saved = saved();
+            if applying.get() || !button.is_active() || saved == Some(i) {
                 return;
             }
             send(ask(value));
             // Back to the saved button until the service confirms the change.
             applying.set(true);
-            if let Some(back) = others.borrow().get(saved.get()) {
+            if let Some(back) = others.borrow().get(saved.unwrap_or(0)) {
                 back.set_active(true);
             }
             applying.set(false);
         });
         buttons.borrow_mut().push(button);
     }
-    row(parent, labels, title, None, &box_);
     let all = buttons.borrow().to_vec();
-    #[allow(clippy::let_and_return)]
-    all
+    (box_, all)
 }
 
 /// The most characters the Theme card's line asks room for.
@@ -201,7 +221,7 @@ fn row(
     title: &str,
     hint: Option<&str>,
     control: &impl IsA<gtk::Widget>,
-) -> gtk::Box {
+) -> (gtk::Box, gtk::Label) {
     let line = gtk::Box::builder().spacing(24).build();
     let block = gtk::Box::builder()
         .orientation(gtk::Orientation::Vertical)
@@ -209,7 +229,8 @@ fn row(
         .halign(gtk::Align::Start)
         .valign(gtk::Align::Start)
         .build();
-    block.append(&label(title, &["row-title"]));
+    let title = label(title, &["row-title"]);
+    block.append(&title);
     if let Some(hint) = hint {
         let hint = label(hint, &["muted", "small"]);
         hint.set_wrap_mode(gtk::pango::WrapMode::Word);
@@ -224,7 +245,7 @@ fn row(
     line.append(&block);
     line.append(control);
     card.append(&line);
-    line
+    (line, title)
 }
 
 fn card(root: &gtk::Box, heading: &str, name: &str, names: &Names) -> gtk::Box {
@@ -327,42 +348,18 @@ impl ConfigPage {
         theme_status.append(&theme_icon);
         theme_status.append(&theme_line);
         use_system_box.append(&theme_status);
-        let dark = gtk::ToggleButton::builder().label("Dark").build();
-        let light = gtk::ToggleButton::builder()
-            .label("Light")
-            .group(&dark)
-            .build();
+        let dark_saved = Rc::clone(&confirmed);
+        let (dark_or_light, appearance) = toggle_group(
+            names,
+            Some("Appearance"),
+            &APPEARANCES,
+            &send,
+            &applying,
+            Rc::new(move || dark_saved.borrow().dark.map(|dark| usize::from(!dark))),
+            Request::SetDarkTheme,
+        );
+        let [dark, light]: [gtk::ToggleButton; 2] = appearance.try_into().expect("Dark and Light");
         dark.set_active(true);
-        names.name(&dark, "Dark theme");
-        names.name(&light, "Light theme");
-        let dark_or_light = gtk::Box::builder()
-            .accessible_role(gtk::AccessibleRole::Group)
-            .css_classes(["linked"])
-            .build();
-        for (button, wanted) in [(&dark, true), (&light, false)] {
-            dark_or_light.append(button);
-            let (send, confirmed, applying) = (
-                Rc::clone(&send),
-                Rc::clone(&confirmed),
-                Rc::clone(&applying),
-            );
-            let (d, l) = (dark.clone(), light.clone());
-            button.connect_toggled(move |button| {
-                let saved = confirmed.borrow().dark;
-                if applying.get() || !button.is_active() || saved == Some(wanted) {
-                    return;
-                }
-                send(Request::SetDarkTheme(wanted));
-                // Back to the saved button until the service confirms the change.
-                applying.set(true);
-                if saved == Some(false) {
-                    l.set_active(true);
-                } else {
-                    d.set_active(true);
-                }
-                applying.set(false);
-            });
-        }
         // The Default Theme, a child of the Theme card as Use system theme is: its heading and
         // three rows, insensitive together while the system's theme is followed.
         // 14 px between its rows and 10 more above it, so it stands 24 px under the line above.
@@ -374,107 +371,94 @@ impl ConfigPage {
             .css_classes(["subcategory"])
             .build();
         names.name(&default_theme, "Default Theme");
-        default_theme.append(&label("Default Theme", &["sub-heading"]));
-        names.name(&dark_or_light, "Appearance");
-        row(&default_theme, &labels, "Appearance", None, &dark_or_light);
+        let heading = label("Default Theme", &["sub-heading"]);
+        default_theme.append(&heading);
+        let mut default_theme_labels = vec![heading];
+        default_theme_labels
+            .push(row(&default_theme, &labels, "Appearance", None, &dark_or_light).1);
         let saved_opacity = Rc::new(Cell::new(0));
         let saved_corners = Rc::new(Cell::new(0));
-        let opacity = words_row(
-            &default_theme,
-            &labels,
+        let (opacity_box, opacity) = toggle_group(
             names,
-            "Window Opacity",
+            Some("Window Opacity"),
             &OPACITIES,
             &send,
             &applying,
-            &saved_opacity,
+            {
+                let saved = Rc::clone(&saved_opacity);
+                Rc::new(move || Some(saved.get()))
+            },
             Request::SetWindowOpacity,
         );
-        let corners = words_row(
-            &default_theme,
-            &labels,
+        default_theme_labels.push(
+            row(
+                &default_theme,
+                &labels,
+                "Window Opacity",
+                None,
+                &opacity_box,
+            )
+            .1,
+        );
+        let (corners_box, corners) = toggle_group(
             names,
-            "Window Corners",
+            Some("Window Corners"),
             &CORNERS,
             &send,
             &applying,
-            &saved_corners,
+            {
+                let saved = Rc::clone(&saved_corners);
+                Rc::new(move || Some(saved.get()))
+            },
             Request::SetWindowCorners,
+        );
+        default_theme_labels.push(
+            row(
+                &default_theme,
+                &labels,
+                "Window Corners",
+                None,
+                &corners_box,
+            )
+            .1,
         );
         theme.append(&default_theme);
         // Display: the rotation, then the GPU.
         let display = card(&root, "Display", "Display settings", names);
-        let rotations: [gtk::ToggleButton; 4] = std::array::from_fn(|r| {
-            gtk::ToggleButton::builder()
-                .label(format!("{}°", r * 90))
-                .build()
-        });
-        let toggles = gtk::Box::builder().css_classes(["linked"]).build();
-        for (r, toggle) in rotations.iter().enumerate() {
-            if r > 0 {
-                toggle.set_group(Some(&rotations[0]));
-            }
-            names.name(toggle, &format!("Rotation {}°", r * 90));
-            toggles.append(toggle);
-        }
+        let rotation_saved = Rc::clone(&confirmed);
+        let (toggles, rotation_buttons) = toggle_group(
+            names,
+            None,
+            &ROTATIONS,
+            &send,
+            &applying,
+            Rc::new(move || Some(usize::from(rotation_saved.borrow().rotation))),
+            Request::SetRotation,
+        );
+        let rotations: [gtk::ToggleButton; 4] =
+            rotation_buttons.try_into().expect("four rotations");
         rotations[0].set_active(true);
-        for (r, toggle) in rotations.iter().enumerate() {
-            let rotation = u8::try_from(r).unwrap_or(0);
-            let (send, confirmed, applying) = (
-                Rc::clone(&send),
-                Rc::clone(&confirmed),
-                Rc::clone(&applying),
-            );
-            let all = rotations.clone();
-            toggle.connect_toggled(move |toggle| {
-                let saved = confirmed.borrow().rotation;
-                if applying.get() || !toggle.is_active() || rotation == saved {
-                    return;
-                }
-                send(Request::SetRotation(rotation));
-                applying.set(true);
-                all[usize::from(saved)].set_active(true);
-                applying.set(false);
-            });
-        }
         row(&display, &labels, "Rotation", None, &toggles);
 
         // The temperature unit, after Rotation: the same kind of control.
-        let celsius = gtk::ToggleButton::builder().label("°C").build();
-        let fahrenheit = gtk::ToggleButton::builder()
-            .label("°F")
-            .group(&celsius)
-            .build();
+        let unit_saved = Rc::clone(&confirmed);
+        let (unit_toggles, unit_buttons) = toggle_group(
+            names,
+            None,
+            &UNITS,
+            &send,
+            &applying,
+            Rc::new(move || {
+                unit_saved.borrow().unit.map(|unit| match unit {
+                    TemperatureUnit::Celsius => 0,
+                    TemperatureUnit::Fahrenheit => 1,
+                })
+            }),
+            Request::SetTemperatureUnit,
+        );
+        let [celsius, fahrenheit]: [gtk::ToggleButton; 2] =
+            unit_buttons.try_into().expect("Celsius and Fahrenheit");
         celsius.set_active(true);
-        names.name(&celsius, "Celsius");
-        names.name(&fahrenheit, "Fahrenheit");
-        let unit_toggles = gtk::Box::builder().css_classes(["linked"]).build();
-        for (button, wanted) in [
-            (&celsius, TemperatureUnit::Celsius),
-            (&fahrenheit, TemperatureUnit::Fahrenheit),
-        ] {
-            unit_toggles.append(button);
-            let (send, confirmed, applying) = (
-                Rc::clone(&send),
-                Rc::clone(&confirmed),
-                Rc::clone(&applying),
-            );
-            let (c, f) = (celsius.clone(), fahrenheit.clone());
-            button.connect_toggled(move |button| {
-                let saved = confirmed.borrow().unit;
-                if applying.get() || !button.is_active() || saved == Some(wanted) {
-                    return;
-                }
-                send(unit_request(wanted));
-                // Back to the saved unit until the service confirms the change.
-                applying.set(true);
-                match saved {
-                    Some(TemperatureUnit::Fahrenheit) => f.set_active(true),
-                    _ => c.set_active(true),
-                }
-                applying.set(false);
-            });
-        }
         row(&display, &labels, "Temperature unit", None, &unit_toggles);
 
         let gpu = Dropdown::new();
@@ -491,7 +475,7 @@ impl ConfigPage {
         gpu_box.append(gpu.widget());
         gpu_box.append(&gpu_in_use_group);
         gpu_box.append(&gpu_hint);
-        let gpu_row = row(
+        let (gpu_row, _) = row(
             &display,
             &labels,
             "GPU",
@@ -580,7 +564,7 @@ impl ConfigPage {
             use_system,
             dark,
             light,
-            default_theme,
+            default_theme_labels,
             opacity,
             corners,
             saved_opacity,
@@ -747,7 +731,7 @@ impl ConfigPage {
         // D55, Task 63): the heading and the three titles take the class `disabled` (the disabled
         // colour, never `muted`, the hints'), and each button is insensitive and says why (each
         // control, never only its box).
-        for label in self.default_theme_labels() {
+        for label in &self.default_theme_labels {
             if card.toggles_sensitive {
                 label.remove_css_class("disabled");
             } else {
@@ -797,23 +781,6 @@ impl ConfigPage {
             self.dark.is_sensitive() && self.light.is_sensitive(),
             self.theme_line.text().to_string(),
         )
-    }
-
-    /// The Default Theme's heading and the three rows' titles, in order.
-    fn default_theme_labels(&self) -> Vec<gtk::Widget> {
-        let mut labels = Vec::new();
-        let mut child = self.default_theme.first_child();
-        while let Some(widget) = child {
-            child = widget.next_sibling();
-            // The heading is a label; each row is a box of its label block and its control.
-            match widget.downcast_ref::<gtk::Box>() {
-                Some(line) => {
-                    labels.extend(line.first_child().and_then(|block| block.first_child()))
-                }
-                None => labels.push(widget),
-            }
-        }
-        labels
     }
 
     /// The Default Theme as shown, for the tests: whether its buttons can be used, and the
@@ -868,19 +835,6 @@ impl ConfigPage {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    // Each unit toggle asks for its unit.
-    #[test]
-    fn each_unit_toggle_asks_for_its_unit() {
-        assert_eq!(
-            unit_request(TemperatureUnit::Celsius),
-            Request::SetTemperatureUnit(TemperatureUnit::Celsius)
-        );
-        assert_eq!(
-            unit_request(TemperatureUnit::Fahrenheit),
-            Request::SetTemperatureUnit(TemperatureUnit::Fahrenheit)
-        );
-    }
 
     // The five stops map to the scale's five values and back, named as the marks show them.
     #[test]
