@@ -82,26 +82,15 @@ fn index(metric: Metric) -> usize {
         .expect("Metric::ALL holds every metric")
 }
 
-/// A mode this build doesn't draw yet: each Temperature and Power mode comes in its own commit of
-/// Phase 8, Music in Phase 9.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct NotYetImplemented(pub Mode);
-
-/// Whether [`picture`] draws `mode`. It's the one source for both the service's refusal and its
-/// `AvailableModes` (owner, 2026-10-27; solution review P8-03).
-pub fn draws(mode: Mode) -> bool {
-    load::draws(mode) || temperature::draws(mode) || power::draws(mode) || music::draws(mode)
-}
-
 /// The picture of `mode` for `values`: its strip, its home and whether it must scroll. The
 /// movement ([`Marquee`]) and the rotation (`Frame::rotated`) come after. Only the modes that show
-/// a temperature read `unit`.
-pub fn picture(mode: Mode, values: &Values, unit: Unit) -> Result<Picture, NotYetImplemented> {
+/// a temperature read `unit`. `None` for a Music mode that shows no value (13 to 16 and 23 to 26:
+/// the spectrum, the emoji and the Dancer are drawn by their own state machines).
+pub fn picture(mode: Mode, values: &Values, unit: Unit) -> Option<Picture> {
     match mode_info(mode).kind {
-        Kind::Load => load::picture(mode, values),
-        Kind::Temperature => temperature::picture(mode, values, unit),
-        Kind::Power => power::picture(mode, values),
-        Kind::Music => music::picture(mode, values, unit),
+        Kind::Load => Some(load::picture(mode, values)),
+        Kind::Temperature => Some(temperature::picture(mode, values, unit)),
+        Kind::Power => Some(power::picture(mode, values)),
+        Kind::Music => music::value_picture(mode, values, unit),
     }
-    .ok_or(NotYetImplemented(mode))
 }

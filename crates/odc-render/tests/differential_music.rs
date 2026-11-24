@@ -19,7 +19,7 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_modes, step_readings, values};
+use common::{modes_of, step_readings, values};
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, spectrum_height, value_picture,
@@ -61,7 +61,7 @@ fn every_captured_music_frame_keeps_the_layout_both_draw() {
     let steps = sweep::steps().unwrap_or_else(|e| panic!("{e}; this test needs the local sweeps"));
     let sent = sweep::sent().unwrap_or_else(|e| panic!("{e}; this test needs the local captures"));
     let mut failures: Vec<String> = Vec::new();
-    for mode in drawn_modes(Kind::Music) {
+    for mode in modes_of(Kind::Music) {
         let Some(h) = spectrum_height(mode).map(usize::from) else {
             continue;
         };
@@ -216,7 +216,7 @@ fn every_captured_value_step_where_both_rules_agree_shows_the_value_above_the_sp
     let steps = sweep::steps().unwrap_or_else(|e| panic!("{e}; this test needs the local sweeps"));
     let sent = sweep::sent().unwrap_or_else(|e| panic!("{e}; this test needs the local captures"));
     let mut failures: Vec<String> = Vec::new();
-    let modes = drawn_modes(Kind::Music)
+    let modes = modes_of(Kind::Music)
         .into_iter()
         .filter(|&mode| !mode_info(mode).metrics.is_empty());
     for mode in modes {

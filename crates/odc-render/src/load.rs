@@ -8,25 +8,16 @@ use crate::mode::{Mode, mode_info};
 use crate::picture::{Band, Picture, layout};
 use crate::value::number;
 
-/// The Load modes this build draws.
-const DRAWN: [u16; 6] = [1, 2, 3, 4, 5, 6];
-
-pub(crate) fn draws(mode: Mode) -> bool {
-    DRAWN.contains(&mode.number())
-}
-
-/// The picture of a Load mode this build draws: each metric the mode shows, top first, from its
+/// The picture of a Load mode: each metric the mode shows, top first, from its
 /// own reading only (AGENTS.md rule 11).
-pub(crate) fn picture(mode: Mode, values: &Values) -> Option<Picture> {
-    draws(mode).then(|| {
-        let bands: Vec<Band> = mode_info(mode)
-            .metrics
-            .iter()
-            .map(|&metric| Band {
-                shown: number(values.get(metric)),
-                symbol: &PERCENT,
-            })
-            .collect();
-        layout(&bands)
-    })
+pub(crate) fn picture(mode: Mode, values: &Values) -> Picture {
+    let bands: Vec<Band> = mode_info(mode)
+        .metrics
+        .iter()
+        .map(|&metric| Band {
+            shown: number(values.get(metric)),
+            symbol: &PERCENT,
+        })
+        .collect();
+    layout(&bands)
 }

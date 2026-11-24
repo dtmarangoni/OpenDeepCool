@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{band_rows, drawn_modes, unit, values};
+use common::{band_rows, modes_of, unit, values};
 use odc_render::{Band, CELSIUS, FAHRENHEIT, layout, number, picture};
 use odc_render::{Kind as ModeKind, Marquee, Mode, Shown, Unit, Values, fahrenheit, mode_info};
 use odc_sensors::Exact;
@@ -14,7 +14,7 @@ use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable};
 use proptest::prelude::*;
 
 fn temperature_modes() -> Vec<Mode> {
-    drawn_modes(ModeKind::Temperature)
+    modes_of(ModeKind::Temperature)
 }
 
 /// Draws `case` in `mode`, in the case's unit, and compares every frame with the expected one,

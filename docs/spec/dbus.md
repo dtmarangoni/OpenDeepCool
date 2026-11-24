@@ -151,7 +151,7 @@ Choosing what is already set succeeds and changes nothing: nothing is saved, sen
 |---|---|
 | `…Error.NotAuthorized` | polkit refused the caller |
 | `…Error.ModeUnavailable` | The mode's metrics can't be read on this PC; the text gives the reason |
-| `…Error.NotYetAvailable` | A mode a later phase draws |
+| `…Error.NotYetAvailable` | A mode this version of the service does not draw yet. Every mode is drawn since Phase 9, so the service never gives it now; the name stays in the contract for a client that talks to another version |
 | `…Error.InvalidArgument` | An argument outside what the service found or allows, or over its length limit |
 | `…Error.TooManyWatchers` | The caller's user already has 8 watchers, or there are 32 in all |
 | `…Error.Busy` | The dev copy only: a test session holds the service ("a test is running on this dev copy") |

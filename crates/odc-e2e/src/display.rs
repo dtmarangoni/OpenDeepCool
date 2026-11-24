@@ -185,8 +185,8 @@ fn scrolling(mode: Mode) -> Result<Example, String> {
     for (metric, value) in every_metric(&start) {
         values.set(metric, value);
     }
-    let p =
-        picture(mode, &values, unit(Some(s1.unit))).map_err(|_| format!("mode {n} isn't drawn"))?;
+    let p = picture(mode, &values, unit(Some(s1.unit)))
+        .ok_or_else(|| format!("mode {n} has no picture of values"))?;
     let mut marquee = Marquee::new(p);
     let (mut frames, mut expected) = (Vec::new(), Vec::new());
     for tick in &s1.ticks {
@@ -213,7 +213,7 @@ fn draw(mode: Mode, case: &Case) -> Result<Example, String> {
         values.set(metric, value);
     }
     let p = picture(mode, &values, unit(case.unit))
-        .map_err(|_| format!("mode {} isn't drawn", mode.number()))?;
+        .ok_or_else(|| format!("mode {} has no picture of values", mode.number()))?;
     let mut marquee = Marquee::new(p);
     let expected: Vec<Picture> = match &case.kind {
         Kind::Static(picture) => vec![picture.in_silence(); 3],

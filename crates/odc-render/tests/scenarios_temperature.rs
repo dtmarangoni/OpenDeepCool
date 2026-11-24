@@ -9,5 +9,5 @@ use odc_render::Kind;
 
 #[test]
 fn every_scenario_of_each_drawn_temperature_mode_matches_in_every_rotation() {
-    common::every_scenario_of_each_drawn_mode(Kind::Temperature);
+    common::every_scenario_of_each_mode(Kind::Temperature);
 }

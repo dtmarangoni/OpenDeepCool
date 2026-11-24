@@ -17,7 +17,7 @@ use std::time::{Duration, Instant};
 use odc_ipc::{State, WindowCorners, WindowOpacity};
 use odc_protocol::{Frame, Message, encode_frame, startup_report};
 use odc_render::{Kind as ModeKind, Marquee, Mode as RenderMode, Unit as RenderUnit, Values};
-use odc_render::{draws, mode_info, picture};
+use odc_render::{mode_info, picture};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::engine::{Apply, Engine, Published, Requests};
 use odc_service::runtime::{Outputs, Progress, Slot, SystemTicker, run_engine};
@@ -289,7 +289,7 @@ fn readings_frame(mode: u16, readings: &HashMap<String, (i64, u64)>) -> Result<F
     }
     let shown = RenderMode::new(mode).ok_or_else(|| format!("{mode} isn't a mode"))?;
     let picture = picture(shown, &values, RenderUnit::Celsius)
-        .map_err(|e| format!("mode {mode} isn't drawn: {e:?}"))?;
+        .ok_or_else(|| format!("mode {mode} has no picture of values"))?;
     Ok(picture.frame_at(picture.home()))
 }
 
@@ -412,9 +412,9 @@ fn real(roots: &Roots, modes: &[u16], summary: &mut Summary) {
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
         gpus: gpu_addresses(&found),
     };
-    // A scenario runs when this build draws every mode it shows and the service offers them.
+    // A scenario runs when the service offers every mode it shows.
     let offered = found.available_modes.clone().unwrap_or_default();
-    let accepted = |mode: u16| drawn(mode) && offered.contains(&u32::from(mode));
+    let accepted = |mode: u16| offered.contains(&u32::from(mode));
     let plans = scenario_plans(modes, &accepted);
     let _restore = Restore {
         session: &session,
@@ -455,13 +455,9 @@ fn fake(tick: Duration, modes: &[u16], summary: &mut Summary) {
         let result = plan.and_then(|plan| play_engine(&plan));
         summary.check(&name, result);
     }
-    for (_, name, plan) in scenario_plans(modes, &drawn) {
+    for (_, name, plan) in scenario_plans(modes, &|_| true) {
         summary.check(&name, play_engine(&plan));
     }
-}
-
-fn drawn(mode: u16) -> bool {
-    RenderMode::new(mode).is_some_and(draws)
 }
 
 /// The beat train of `service_mode_23_signal`: its big moves take the Dancer through poses 3 to
@@ -536,9 +532,8 @@ fn examples(modes: &[u16]) -> Vec<(String, Result<Plan, String>)> {
     examples
 }
 
-/// The modes a scenario needs drawn: the one it starts in, each it switches into, and each it
-/// asks the service to refuse as unavailable, which a mode not drawn yet is refused as not yet
-/// available instead (S23).
+/// The modes a scenario needs the service to offer: the one it starts in, each it switches into,
+/// and each it asks the service to refuse as unavailable (S23).
 fn shown_modes(scenario: &Scenario) -> impl Iterator<Item = u16> + '_ {
     let others = scenario
         .ticks
@@ -875,7 +870,8 @@ fn check_start(
         RenderUnit::Celsius
     };
     let render = RenderMode::new(mode).ok_or_else(|| format!("no mode {mode}"))?;
-    let p = picture(render, &values, unit).map_err(|_| format!("mode {mode} isn't drawn"))?;
+    let p = picture(render, &values, unit)
+        .ok_or_else(|| format!("mode {mode} has no picture of values"))?;
     let want = Marquee::new(p)
         .tick()
         .rotated(odc_protocol::Rotation::from_setting(rotation).ok_or("a rotation over 3")?);

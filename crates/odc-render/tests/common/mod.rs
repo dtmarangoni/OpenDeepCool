@@ -8,8 +8,7 @@ use std::sync::OnceLock;
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Spectrum, Stop, Unit, Values,
-    WINDOW, analyse, draws, is_sound, mode_info, picture, spectrum_height, value_picture,
-    with_spectrum,
+    WINDOW, analyse, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
 };
 use odc_sensors::{Exact, Metric};
 use odc_testkit::diff;
@@ -19,11 +18,10 @@ use odc_testkit::expected::{
 use odc_testkit::spectrum::signals;
 use odc_testkit::sweep::Step;
 
-/// The modes of `kind` this build draws (Phase 7 plan, Task 3; Phase 8 plan, Tasks 4–8: one per
-/// commit).
-pub fn drawn_modes(kind: Kind) -> Vec<Mode> {
+/// The modes of `kind`.
+pub fn modes_of(kind: Kind) -> Vec<Mode> {
     Mode::all()
-        .filter(|&mode| mode_info(mode).kind == kind && draws(mode))
+        .filter(|&mode| mode_info(mode).kind == kind)
         .collect()
 }
 
@@ -122,11 +120,10 @@ fn silence() -> &'static [f64; COLUMNS] {
     SILENCE.get_or_init(|| analyse(&[0.0; WINDOW]))
 }
 
-/// Replays `scenario` from `base`; `false` when it switches into a mode this build doesn't draw
-/// yet. A Music mode plays the scenario's sound from the tick that names it, a window a tick, and
+/// Replays `scenario` from `base`. A Music mode plays the scenario's sound from the tick that names it, a window a tick, and
 /// keeps its spectrum across the Music modes with one (`music.md` point 8), as the engine does
 /// (Phase 9 plan, Task 6).
-fn replay(scenario: &Scenario, base: Rotation) -> bool {
+fn replay(scenario: &Scenario, base: Rotation) {
     let start = scenario
         .ticks
         .first()
@@ -134,9 +131,6 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
         .unwrap_or_default();
     let mut v = values(&readings(start));
     let mut mode = Mode::new(scenario.mode).expect("a mode");
-    if !draws(mode) {
-        return false;
-    }
     let mut rotation = base;
     let mut shown_unit = unit(scenario.unit);
     let mut top: Option<Top> = None;
@@ -154,9 +148,6 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
                 }
                 Change::Reset(Reset::Mode(n)) => {
                     mode = Mode::new(*n).expect("a mode");
-                    if !draws(mode) {
-                        return false;
-                    }
                     reset = true;
                 }
                 Change::Reset(Reset::Rotation(turns)) => {
@@ -242,7 +233,6 @@ fn replay(scenario: &Scenario, base: Rotation) -> bool {
             panic!("{}: the turned frames differ", scenario.heading);
         }
     }
-    true
 }
 
 /// A falloff stop of the scenario files, by its name.
@@ -261,33 +251,19 @@ fn readings(changes: &[Change]) -> Vec<(String, Option<odc_sensors::Exact>)> {
         .collect()
 }
 
-/// Layer 1, the scenarios: every scenario of each drawn mode of `kind`, in all four rotations,
-/// each tick's frame compared. A scenario that switches into a mode not drawn yet is skipped,
-/// until every mode from 1 to 12 is.
-pub fn every_scenario_of_each_drawn_mode(kind: Kind) {
-    let modes = drawn_modes(kind);
-    assert!(!modes.is_empty(), "no {kind:?} mode drawn yet");
-    let mut skipped = 0;
+/// Layer 1, the scenarios: every scenario of each mode of `kind`, in all four rotations, each
+/// tick's frame compared.
+pub fn every_scenario_of_each_mode(kind: Kind) {
+    let modes = modes_of(kind);
+    assert!(!modes.is_empty(), "no {kind:?} mode");
     for mode in modes {
         let mine: Vec<Scenario> = mode_scenarios(mode.number());
         assert!(!mine.is_empty(), "mode {}: no scenario", mode.number());
-        let mut replayed = 0;
         for scenario in &mine {
-            let mut done = true;
             for base in Rotation::ALL {
-                done &= replay(scenario, base);
-            }
-            if done {
-                replayed += 1;
-            } else {
-                skipped += 1;
+                replay(scenario, base);
             }
         }
-        println!("mode {}: {replayed} scenarios replayed", mode.number());
-    }
-    // Phase 8 plan, Task 1, and Phase 9's: the switches into a mode wait for that mode.
-    println!("{skipped} switching into a mode not drawn yet, skipped");
-    if Mode::all().all(draws) {
-        assert_eq!(skipped, 0);
+        println!("mode {}: {} scenarios replayed", mode.number(), mine.len());
     }
 }

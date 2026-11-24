@@ -10,5 +10,5 @@ use odc_render::Kind;
 
 #[test]
 fn every_scenario_of_each_drawn_music_mode_matches_in_every_rotation() {
-    common::every_scenario_of_each_drawn_mode(Kind::Music);
+    common::every_scenario_of_each_mode(Kind::Music);
 }

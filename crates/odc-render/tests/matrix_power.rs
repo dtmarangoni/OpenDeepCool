@@ -5,7 +5,7 @@
 
 mod common;
 
-use common::{band_rows, drawn_modes, values};
+use common::{band_rows, modes_of, values};
 use odc_render::{Band, Kind as ModeKind, Marquee, Mode, Unit, Values, WATT, layout, mode_info};
 use odc_render::{number, picture};
 use odc_sensors::Exact;
@@ -14,7 +14,7 @@ use odc_testkit::expected::{Case, Kind, load_mode, load_unavailable};
 use proptest::prelude::*;
 
 fn power_modes() -> Vec<Mode> {
-    drawn_modes(ModeKind::Power)
+    modes_of(ModeKind::Power)
 }
 
 /// Draws `case` in `mode`, in each unit, and compares every frame with the expected one, turned

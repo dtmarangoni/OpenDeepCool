@@ -29,11 +29,11 @@ use odc_ipc::{
     frame_from_pixels,
 };
 use odc_protocol::{Frame, Message, decode};
-use odc_render::{Mode, WINDOW, draws};
+use odc_render::{Mode, WINDOW};
 use odc_sensors::{Binding, Exact, Gpu, GpuKind, Metric, PciAddr, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, PipeAudio};
 use odc_service::dbus::{Bus, Checks, Parts, Side, kind_of, reason_of};
-use odc_service::engine::{Apply, Choices, Drawn, Engine, availability, availability_of};
+use odc_service::engine::{Apply, Choices, Engine, availability};
 use odc_service::log::{Journal, Recorded};
 use odc_service::polkit::{
     Action, Answer, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer,
@@ -295,12 +295,6 @@ struct Harness {
 
 impl Harness {
     fn start(name: &str, settings: Settings, status: Status, dev: bool) -> Harness {
-        Harness::drawing(name, settings, status, dev, draws)
-    }
-
-    /// [`Harness::start`], drawing the modes `drawn` lets it: the test-only switch (Phase 9 plan,
-    /// Task 3).
-    fn drawing(name: &str, settings: Settings, status: Status, dev: bool, drawn: Drawn) -> Harness {
         let dir = dir(name);
         let bus = PrivateBus::start(&dir.join("bus")).expect("a private bus");
         let state = dir.join("state");
@@ -343,7 +337,6 @@ impl Harness {
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then(|| (GROUP, recording.handle(), Arc::clone(&durations))),
             audio: Arc::clone(&audio),
-            drawn,
         })
         .expect("the D-Bus side starts");
         Harness {
@@ -528,8 +521,8 @@ fn modes_are_checked_against_the_table_this_build_and_the_readings() {
         assert_eq!(h.saved_settings().mode, 7, "stored");
         let applied = h.apply.take().expect("handed to the engine");
         assert_eq!(applied.settings.map(|s| s.mode), Some(7));
-        // Phase 9 plan, Task 9: the Dancer is drawn last, so every mode in the table is drawn and
-        // none is refused as not yet available; only a reading can still refuse one.
+        // No mode is refused as not yet available (the error stays in the contract); only a
+        // reading can refuse one.
         caller.main.set_mode(23).await.expect("mode 23");
         for mode in Mode::all() {
             let answer = caller.main.set_mode(u32::from(mode.number())).await;
@@ -1592,18 +1585,11 @@ struct Service {
 
 impl Service {
     fn start(name: &str, script: Vec<Presence>, dev: bool) -> Service {
-        Service::drawing(name, script, dev, &Settings::default(), draws)
+        Service::start_on(name, script, dev, &Settings::default())
     }
 
-    /// [`Service::start`] on `saved`, drawing the modes `drawn` lets it: the test-only switch
-    /// (Phase 9 plan, Task 3).
-    fn drawing(
-        name: &str,
-        script: Vec<Presence>,
-        dev: bool,
-        saved: &Settings,
-        drawn: Drawn,
-    ) -> Service {
+    /// [`Service::start`] on `saved`.
+    fn start_on(name: &str, script: Vec<Presence>, dev: bool, saved: &Settings) -> Service {
         let dir = dir(name);
         let bus = PrivateBus::start(&dir.join("bus")).expect("a private bus");
         let state = dir.join("state");
@@ -1630,7 +1616,6 @@ impl Service {
             },
             journal: Arc::clone(&journal) as Arc<dyn Journal>,
             dev: dev.then_some((GROUP, handle)),
-            drawn,
         })
         .expect("the service starts");
         Service {
@@ -1815,16 +1800,11 @@ fn cooler_state_follows_the_cooler_once_per_change() {
     );
 }
 
-/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included.
-fn every_mode(_: Mode) -> bool {
-    true
-}
-
-/// The status of [`status`], with the modes the test-only switch draws available.
+/// The status of [`status`], with every mode available.
 fn music_status() -> Status {
     let snapshot = readings(value(51));
     Status {
-        availability: availability_of(&snapshot, true, every_mode),
+        availability: availability(&snapshot, true),
         ..status(snapshot)
     }
 }
@@ -1874,7 +1854,7 @@ fn state_of(changes: &HashMap<String, OwnedVariant>) -> State {
 // any sound; AudioConnected tells the watchers.
 #[test]
 fn an_allowed_attach_gets_a_pipe_whose_samples_reach_the_window() {
-    let h = Harness::drawing("attach", music(13), music_status(), false, every_mode);
+    let h = Harness::start("attach", music(13), music_status(), false);
     zbus::block_on(async {
         let (helper, watcher) = (h.client().await, h.client().await);
         watcher.main.watch().await.expect("watches");
@@ -1910,13 +1890,7 @@ fn an_allowed_attach_gets_a_pipe_whose_samples_reach_the_window() {
 
 #[test]
 fn a_refused_or_unwanted_attach_gets_no_pipe() {
-    let h = Harness::drawing(
-        "attach-refused",
-        music(13),
-        music_status(),
-        false,
-        every_mode,
-    );
+    let h = Harness::start("attach-refused", music(13), music_status(), false);
     zbus::block_on(async {
         let helper = h.client().await;
         h.polkit.refuse(&helper.name());
@@ -1951,13 +1925,7 @@ fn a_refused_or_unwanted_attach_gets_no_pipe() {
 // feed-audio has its pipe closed, which its writer sees as EPIPE, and the journal says why.
 #[test]
 fn an_attached_caller_that_stops_passing_polkit_loses_its_pipe() {
-    let h = Harness::drawing(
-        "attach-recheck",
-        music(14),
-        music_status(),
-        false,
-        every_mode,
-    );
+    let h = Harness::start("attach-recheck", music(14), music_status(), false);
     zbus::block_on(async {
         let helper = h.client().await;
         let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
@@ -1975,13 +1943,7 @@ fn an_attached_caller_that_stops_passing_polkit_loses_its_pipe() {
 // The latest authorized attach wins; a caller that leaves the bus loses its pipe.
 #[test]
 fn a_newer_attach_replaces_the_older_and_leaving_the_bus_closes_the_pipe() {
-    let h = Harness::drawing(
-        "attach-replace",
-        music(23),
-        music_status(),
-        false,
-        every_mode,
-    );
+    let h = Harness::start("attach-replace", music(23), music_status(), false);
     zbus::block_on(async {
         let (first, second) = (h.client().await, h.client().await);
         let mut older = writer(first.main.attach_audio().await.expect("a pipe"));
@@ -2002,7 +1964,7 @@ fn a_newer_attach_replaces_the_older_and_leaving_the_bus_closes_the_pipe() {
 // AudioWanted off; coming back turns it on, and the watchers hear both.
 #[test]
 fn leaving_music_closes_the_pipe_and_audio_wanted_follows_the_mode() {
-    let h = Harness::drawing("attach-leave", music(13), music_status(), false, every_mode);
+    let h = Harness::start("attach-leave", music(13), music_status(), false);
     zbus::block_on(async {
         let (helper, watcher, changer) = (h.client().await, h.client().await, h.client().await);
         watcher.main.watch().await.expect("watches");
@@ -2050,7 +2012,7 @@ fn leaving_music_closes_the_pipe_and_audio_wanted_follows_the_mode() {
 // 2026-11-23): moving between them keeps the pipe and AudioWanted on.
 #[test]
 fn an_emoji_alone_takes_sound_like_every_music_mode() {
-    let h = Harness::drawing("attach-alone", music(14), music_status(), false, every_mode);
+    let h = Harness::start("attach-alone", music(14), music_status(), false);
     zbus::block_on(async {
         let (helper, changer) = (h.client().await, h.client().await);
         let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
@@ -2398,13 +2360,7 @@ fn each_window_setter_validates_stores_tells_the_watchers_and_survives_a_restart
 // ClearOverride or the session's end.
 #[test]
 fn the_sound_override_needs_the_session_and_ends_with_it() {
-    let h = Harness::drawing(
-        "override-audio",
-        music(13),
-        music_status(),
-        true,
-        every_mode,
-    );
+    let h = Harness::start("override-audio", music(13), music_status(), true);
     zbus::block_on(async {
         let (holder, other) = (h.client().await, h.client().await);
         let (read_end, write_end) =
@@ -2484,13 +2440,7 @@ fn frames_written(s: &Service) -> Vec<Frame> {
 // (music.md point 5), a peak dot above it.
 #[test]
 fn a_tone_through_the_pipe_draws_its_bar_and_a_closed_pipe_lets_it_fall() {
-    let s = Service::drawing(
-        "music-pipe",
-        vec![Presence::Present],
-        false,
-        &music(13),
-        every_mode,
-    );
+    let s = Service::start_on("music-pipe", vec![Presence::Present], false, &music(13));
     zbus::block_on(async {
         let helper = Client::on(&s.bus).await;
         let mut pipe = writer(helper.main.attach_audio().await.expect("a pipe"));
@@ -2852,7 +2802,7 @@ where
 // mode is left (which closes the sound).
 #[test]
 fn levels_go_to_each_frame_watcher_alone_while_sound_is_attached_and_never_when_not_finite() {
-    let h = Harness::drawing("levels", music(13), music_status(), false, every_mode);
+    let h = Harness::start("levels", music(13), music_status(), false);
     zbus::block_on(async {
         let (watcher, bystander, plain, helper, changer) = (
             h.client().await,
@@ -2930,13 +2880,7 @@ fn levels_go_to_each_frame_watcher_alone_while_sound_is_attached_and_never_when_
 // allowing gets none until it passes again.
 #[test]
 fn a_refused_levels_watcher_waits_for_its_check() {
-    let h = Harness::drawing(
-        "levels-polkit",
-        music(13),
-        music_status(),
-        false,
-        every_mode,
-    );
+    let h = Harness::start("levels-polkit", music(13), music_status(), false);
     zbus::block_on(async {
         let (refused, watcher, helper) = (h.client().await, h.client().await, h.client().await);
         h.polkit.refuse(&refused.name());

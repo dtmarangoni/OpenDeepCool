@@ -162,7 +162,6 @@ where
         checks: Checks::Polkit,
         journal: parts.journal,
         dev,
-        drawn: odc_render::draws,
     })
 }
 

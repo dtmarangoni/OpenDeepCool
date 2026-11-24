@@ -2,8 +2,7 @@
 //! spectrum, and the frame they make together. Mode 13 draws the spectrum alone in rows 3–14; 14–16
 //! an emoji in rows 1–7 ([`crate::EmojiLoop`]) and 18–22 a value in rows 2–6, over the spectrum in
 //! rows 9–14; 23 the Dancer's pose ([`crate::Pose`]) on the whole grid, and 24–26 an emoji on the
-//! whole grid with no spectrum. Each mode joined `DRAWN` in its own commit, with all its tests
-//! (Phase 9 plan, Tasks 6–9; AGENTS.md rule 4).
+//! whole grid with no spectrum.
 
 use odc_protocol::Frame;
 use odc_sensors::Exact;
@@ -15,24 +14,8 @@ use crate::spectrum::Columns;
 use crate::value::{Shown, fahrenheit, number};
 use crate::{Unit, Values};
 
-/// The Music modes this build draws.
-const DRAWN: [u16; 13] = [13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26];
-
 /// The value's top row in modes 18–22.
 const VALUE_TOP: usize = 2;
-
-pub(crate) fn draws(mode: Mode) -> bool {
-    DRAWN.contains(&mode.number())
-}
-
-/// The picture of a Music mode this build draws and that shows a value.
-pub(crate) fn picture(mode: Mode, values: &Values, unit: Unit) -> Option<Picture> {
-    if draws(mode) {
-        value_picture(mode, values, unit)
-    } else {
-        None
-    }
-}
 
 /// *H*, the spectrum area's height: 12 rows in mode 13, 6 in modes 14–16 and 18–22, and `None` in
 /// a mode without a spectrum (point "OpenDeepCool's spectrum, precisely").

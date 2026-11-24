@@ -142,21 +142,15 @@ fn flags_are_read_and_anything_unknown_is_refused() {
     }
 }
 
-// Phase 8 plan, Task 3: `--modes` takes numbers and ranges of modes this build draws.
+// Phase 8 plan, Task 3: `--modes` takes numbers and ranges of modes.
 #[test]
-fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
+fn modes_are_numbers_and_ranges_of_modes() {
     let modes = |list: &str| parse_args(&args(&["--modes", list])).map(|o| o.and_then(|o| o.modes));
     assert_eq!(modes("1"), Ok(Some(vec![1])));
     assert_eq!(modes("4-6,1,5"), Ok(Some(vec![1, 4, 5, 6])));
     // A range steps over the retired 17 (DeepCreative's Emoji 4); 17 alone is refused below.
     assert_eq!(modes("14-18"), Ok(Some(vec![14, 15, 16, 18])));
-    let drawn = |n: u16| odc_render::Mode::new(n).is_some_and(odc_render::draws);
-    // Modes 7–12 come one by one in Phase 8; each is accepted once drawn.
-    assert_eq!(modes("7").is_ok(), drawn(7));
-    assert_eq!(
-        modes("7-9,12").is_ok(),
-        [7, 8, 9, 12].into_iter().all(drawn)
-    );
+    assert_eq!(modes("7-9,12"), Ok(Some(vec![7, 8, 9, 12])));
     for (bad, reason) in [
         ("0", "isn't in the mode table"),
         ("17", "isn't in the mode table"),
@@ -169,14 +163,9 @@ fn modes_are_numbers_and_ranges_of_modes_this_build_draws() {
         let error = modes(bad).expect_err(bad);
         assert!(error.contains(reason), "{bad:?}: {error}");
     }
-    // The first mode a later commit draws, while there is one (Phase 9: Music, mode by mode).
-    if let Some(later) = odc_render::Mode::all().find(|&m| !odc_render::draws(m)) {
-        let error = modes(&later.number().to_string()).expect_err("not drawn yet");
-        assert!(error.contains("isn't drawn by this build yet"), "{error}");
-    }
-    // Without the flag, every mode this build draws.
-    assert_eq!(Options::default().modes(), odc_e2e::drawn_modes());
-    assert!(odc_e2e::drawn_modes().starts_with(&[1, 2, 3, 4, 5, 6]));
+    // Without the flag, every mode.
+    assert_eq!(Options::default().modes(), odc_e2e::all_modes());
+    assert!(odc_e2e::all_modes().starts_with(&[1, 2, 3, 4, 5, 6]));
 }
 
 #[test]
@@ -230,7 +219,7 @@ fn with_no_cooler_every_check_but_the_app_s_runs_against_fakes_and_passes() {
         assert!(table.contains(&format!("{check:<16} passed")), "{table}");
     }
     // Each mode drawn so far, through the fake cooler (Phase 7 plan, Task 3; Phase 8 plan, Task 3).
-    for mode in odc_e2e::drawn_modes() {
+    for mode in odc_e2e::all_modes() {
         let check = format!("display_mode_{mode}");
         assert!(
             table.contains(&format!("{check:<16} passed  03 08, then")),
@@ -360,14 +349,8 @@ fn the_start_up_step_leaves_a_cooler_that_is_on_alone() {
     );
 }
 
-/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included.
-fn every_mode(_: odc_render::Mode) -> bool {
-    true
-}
-
 // Phase 9 plan, Task 5: each Music mode without values draws its examples, in silence, as the
-// files expect, before its own commit makes it drawn; the value ones draw through `picture`, so
-// they come with Task 8.
+// files expect; the value ones draw through `picture`.
 #[test]
 fn music_examples_draw_their_expected_frames_in_silence() {
     for n in [13, 14, 15, 16, 23, 24, 25, 26] {
@@ -382,10 +365,9 @@ fn music_examples_draw_their_expected_frames_in_silence() {
 // the first variant of each scenario type, with their sound and Music settings.
 #[test]
 fn music_plans_play_out_through_the_engine() {
-    use odc_e2e::plays::{Plan, play_engine_drawing};
+    use odc_e2e::plays::{Plan, play_engine};
     use odc_testkit::expected::{load_mode, mode_scenarios};
-    let play =
-        |plan: &Plan| play_engine_drawing(plan, every_mode).unwrap_or_else(|e| panic!("{e}"));
+    let play = |plan: &Plan| play_engine(plan).unwrap_or_else(|e| panic!("{e}"));
     play(&Plan::of_signal("column 7 centre, -20 dBFS").expect("a plan"));
     for n in (13..=26).filter(|&n| n != 17) {
         let file = load_mode(n);

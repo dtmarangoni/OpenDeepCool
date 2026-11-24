@@ -15,9 +15,9 @@ use std::time::{Duration, Instant};
 
 use odc_device::monotonic_ns;
 use odc_protocol::{Frame, Message};
-use odc_render::{Mode as RenderMode, WINDOW, draws};
+use odc_render::WINDOW;
 use odc_service::audio::{AudioSource, FakeAudio};
-use odc_service::engine::{Drawn, Engine};
+use odc_service::engine::Engine;
 use odc_service::settings::Settings;
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 use odc_testkit::spectrum::{Rows, expected, signal};
@@ -314,15 +314,8 @@ impl Drop for Harness<'_> {
     }
 }
 
-/// Runs the Music checks. They need mode 13, which Task 6 makes drawable.
+/// Runs the Music checks, which need mode 13.
 pub fn run(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
-    let thirteen = RenderMode::new(13).expect("mode 13");
-    if !draws(thirteen) {
-        for name in ["music_capture", "music_delay"] {
-            summary.skipped(name, "mode 13 isn't drawn by this build yet");
-        }
-        return;
-    }
     match (
         probe(Capability::DevService, roots),
         probe(Capability::PipeWire, roots),
@@ -347,7 +340,7 @@ pub fn run(roots: &Roots, out_dir: &Path, summary: &mut Summary) {
                 };
                 summary.mode(capability, found);
             }
-            summary.check("music_capture", fake_capture(draws));
+            summary.check("music_capture", fake_capture());
             summary.skipped(
                 "music_delay",
                 "it needs the dev service and PipeWire on this PC",
@@ -728,9 +721,9 @@ pub fn delays(frames: &[(u64, Frame)], stamps: &[u64]) -> Result<Vec<f64>, Strin
         .collect()
 }
 
-/// Without PipeWire or the dev service: the test tone's signal through the engine in process, with
-/// `drawn` saying which modes it draws, its frames against `expected.txt` tick for tick.
-pub fn fake_capture(drawn: Drawn) -> Result<String, String> {
+/// Without PipeWire or the dev service: the test tone's signal through the engine in process, its
+/// frames against `expected.txt` tick for tick.
+pub fn fake_capture() -> Result<String, String> {
     let tone = signal(TONE);
     let heading = format!("{TONE} · H 12 · peaks on · bars moderate · peaks slow");
     let section = expected()
@@ -748,7 +741,6 @@ pub fn fake_capture(drawn: Drawn) -> Result<String, String> {
             odc_sensors::Reading::Unavailable(odc_sensors::Unavailable::NotYet)
         }),
         std::sync::Arc::clone(&audio) as std::sync::Arc<dyn AudioSource>,
-        drawn,
     );
     let windows: Vec<[f32; WINDOW]> = tone.windows();
     for (n, (window, rows)) in windows.iter().zip(&section.ticks).enumerate() {

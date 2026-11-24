@@ -346,13 +346,9 @@ fn each_delay_is_the_first_frame_that_shows_its_burst() {
     assert!(missing.is_err(), "the third burst shows in no frame");
 }
 
-// Without PipeWire or the dev service, the tone runs through the engine in process; mode 13 is
-// drawable only from Task 6, so the test-only switch draws it here.
+// Without PipeWire or the dev service, the tone runs through the engine in process.
 fn in_process_the_tone_draws_its_expected_rows() {
-    fn every_mode(_: Mode) -> bool {
-        true
-    }
-    let note = fake_capture(every_mode).expect("as expected");
+    let note = fake_capture().expect("as expected");
     assert!(note.contains("6 ticks as expected"), "{note}");
 }
 

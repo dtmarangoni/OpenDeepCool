@@ -22,7 +22,6 @@ pub mod session;
 use std::path::Path;
 use std::time::Duration;
 
-use odc_render::draws;
 use odc_testkit::hardware::{Capability, Mode, Probe, Roots, Summary, probe};
 
 pub const USAGE: &str =
@@ -40,7 +39,7 @@ pub const USAGE: &str =
                     package installed and uninstalled both ways in a rootless
                     throwaway root, about 10 minutes
   --modes <list>    the modes display, service and the tour take, as numbers and
-                    ranges: 7, or 7-9,12; without it, every mode this build draws
+                    ranges: 7, or 7-9,12; without it, every mode
   --dev-interface   with the Arch package installed: one pkexec step, which you
                     approve with your password, adds the dev interface and the
                     frame recording to the packaged service for this run (a
@@ -85,7 +84,7 @@ pub struct Options {
     pub only: Option<Area>,
     /// The attended tour instead of the unattended checks (owner, 2026-10-24).
     pub attended: bool,
-    /// The modes `--modes` lists, in order; `None` for every mode this build draws.
+    /// The modes `--modes` lists, in order; `None` for every mode.
     pub modes: Option<Vec<u16>>,
     /// The packaged service gets the dev interface for this run, through one approved root step
     /// that stays until the run ends (Phase 11 plan, Task 9).
@@ -95,20 +94,19 @@ pub struct Options {
 impl Options {
     /// The modes the display, service and tour checks take.
     pub fn modes(&self) -> Vec<u16> {
-        self.modes.clone().unwrap_or_else(drawn_modes)
+        self.modes.clone().unwrap_or_else(all_modes)
     }
 }
 
-/// Every mode this build draws, in order.
-pub fn drawn_modes() -> Vec<u16> {
+/// Every mode, in order.
+pub fn all_modes() -> Vec<u16> {
     odc_render::Mode::all()
-        .filter(|&mode| draws(mode))
         .map(odc_render::Mode::number)
         .collect()
 }
 
 /// A `--modes` list: numbers and ranges, comma-separated (Phase 8 plan, Task 3). A mode outside
-/// the mode table, or one this build doesn't draw yet, is an error.
+/// the mode table is an error.
 fn parse_modes(list: &str) -> Result<Vec<u16>, String> {
     let mut modes = Vec::new();
     for part in list.split(',') {
@@ -127,11 +125,7 @@ fn parse_modes(list: &str) -> Result<Vec<u16>, String> {
             if first != last && n == odc_render::Mode::RETIRED {
                 continue;
             }
-            let mode = odc_render::Mode::new(n)
-                .ok_or_else(|| format!("mode {n} isn't in the mode table"))?;
-            if !draws(mode) {
-                return Err(format!("mode {n} isn't drawn by this build yet"));
-            }
+            odc_render::Mode::new(n).ok_or_else(|| format!("mode {n} isn't in the mode table"))?;
             if !modes.contains(&n) {
                 modes.push(n);
             }

@@ -1,7 +1,7 @@
 //! The mode table and what this build draws (Phase 7 plan, Task 2; `docs/spec/display.md` and
 //! `docs/spec/music.md`, Modes).
 
-use odc_render::{Kind, Mode, Unit, Values, draws, mode_info, picture};
+use odc_render::{Kind, Mode, Unit, Values, mode_info, picture};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 
 #[test]
@@ -81,25 +81,20 @@ fn distinct() -> Values {
         })
 }
 
-// owner, 2026-10-27 (solution review P8-03): for a mode that shows values, `draws` is true exactly
-// where `picture` draws; a Music mode without values has no picture, and the engine draws it
-// from its spectrum, loop or Dancer. Every mode from 1 to 12 is drawn (Phase 8), and of Music
-// the modes Phase 9 has drawn so far, each in its own commit.
+// A mode has a picture exactly when it shows values; a Music mode without values has none, and
+// the engine draws it from its spectrum, loop or Dancer.
 #[test]
-fn draws_says_exactly_which_modes_picture_draws() {
+fn picture_draws_exactly_the_modes_that_show_values() {
     let values = distinct();
-    let music_drawn: [u16; 13] = [13, 14, 15, 16, 18, 19, 20, 21, 22, 23, 24, 25, 26];
     for mode in Mode::all() {
         for unit in [Unit::Celsius, Unit::Fahrenheit] {
-            let drawn_picture = picture(mode, &values, unit).is_ok();
-            if mode_info(mode).metrics.is_empty() {
-                assert!(!drawn_picture, "mode {} has no value", mode.number());
-            } else {
-                assert_eq!(draws(mode), drawn_picture, "mode {}", mode.number());
-            }
+            assert_eq!(
+                picture(mode, &values, unit).is_some(),
+                !mode_info(mode).metrics.is_empty(),
+                "mode {}",
+                mode.number()
+            );
         }
-        let n = mode.number();
-        assert_eq!(draws(mode), n <= 12 || music_drawn.contains(&n), "mode {n}");
     }
 }
 

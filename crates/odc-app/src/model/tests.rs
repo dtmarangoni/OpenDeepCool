@@ -1080,10 +1080,6 @@ fn reasons_name_metrics_as_the_display_does() {
             format!("{}: no device found", metric_name(metric))
         );
     }
-    assert_eq!(
-        reason_text("comes in a later version"),
-        "comes in a later version"
-    );
     assert_eq!(reason_text("Something: else"), "Something: else");
 }
 

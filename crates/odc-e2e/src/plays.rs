@@ -14,7 +14,7 @@ use std::time::{Duration, Instant};
 
 use odc_ipc::Error;
 use odc_protocol::{Frame, Message, Rotation, decode};
-use odc_render::{Column, Kind as ModeKind, Mode, WINDOW, draws, mode_info, with_spectrum};
+use odc_render::{Column, Kind as ModeKind, Mode, WINDOW, mode_info, with_spectrum};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, FakeAudio};
 use odc_service::engine::{Apply, Engine, Published};
@@ -373,10 +373,9 @@ pub fn play_real(
 ) -> Result<String, String> {
     let refused = plan.refused_unavailable();
     let other = Mode::all()
-        .filter(|&m| draws(m))
         .map(Mode::number)
         .find(|m| *m != plan.mode && !refused.contains(m))
-        .ok_or("no other drawn mode")?;
+        .ok_or("no other mode")?;
     let mut readings = plan.start.clone();
     let (values, unavailable) = override_args(&readings, plan.mode, &refused);
     let dev = session.dev();
@@ -487,7 +486,6 @@ pub fn play_real(
                 Change::Refused { mode, reason } => {
                     let refused = zbus::block_on(main.set_mode(u32::from(*mode)));
                     let right = match &refused {
-                        Err(Error::NotYetAvailable(_)) => reason.contains("not yet"),
                         Err(Error::ModeUnavailable(_)) => reason.contains("unavailable"),
                         Err(Error::InvalidArgument(_)) => reason.contains("not in the mode table"),
                         _ => false,
@@ -707,15 +705,6 @@ fn compare(
 
 /// Plays `plan` through the engine in process, tick by tick, as layer 3 does.
 pub fn play_engine(plan: &Plan) -> Result<String, String> {
-    play_engine_drawing(plan, draws)
-}
-
-/// [`play_engine`], the engine drawing the modes `drawn` lets it: the test-only switch, for the
-/// tests of a Music mode before its own commit (Phase 9 plan, Task 3).
-pub fn play_engine_drawing(
-    plan: &Plan,
-    drawn: odc_service::engine::Drawn,
-) -> Result<String, String> {
     let mut readings = plan.start.clone();
     let start = Settings {
         mode: plan.mode,
@@ -728,7 +717,6 @@ pub fn play_engine_drawing(
         start,
         snapshot(&readings),
         Arc::clone(&audio) as Arc<dyn AudioSource>,
-        drawn,
     );
     let mut sound = Sound::default();
     let mut gpus = 0;

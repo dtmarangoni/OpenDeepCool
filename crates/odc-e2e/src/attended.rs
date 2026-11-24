@@ -17,7 +17,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use odc_protocol::Message;
-use odc_render::{EmojiLoop, Mode, draws, mode_info, spectrum_height};
+use odc_render::{EmojiLoop, Mode, mode_info, spectrum_height};
 use odc_service::engine::shows_temperature;
 use odc_testkit::expected::{
     Case, Kind, Picture, Unit, load_mode, load_unavailable, mode_scenarios,
@@ -208,8 +208,7 @@ pub fn run(roots: &Roots, out_dir: &Path, modes: &[u16]) -> Result<bool, String>
     let session = Session::begin()?;
     let found = state(&session)?;
     let offered = found.available_modes.clone().unwrap_or_default();
-    let accepted =
-        |mode: u16| Mode::new(mode).is_some_and(draws) && offered.contains(&u32::from(mode));
+    let accepted = |mode: u16| Mode::new(mode).is_some() && offered.contains(&u32::from(mode));
     let current = Current {
         chosen_gpu: found.chosen_gpu.clone().filter(|pci| !pci.is_empty()),
         gpus: gpu_addresses(&found),

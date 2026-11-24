@@ -14,7 +14,7 @@ mod common;
 
 use std::collections::BTreeMap;
 
-use common::{drawn_modes, step_readings, values};
+use common::{modes_of, step_readings, values};
 use odc_protocol::Frame;
 use odc_render::{Kind, Marquee, Mode, Shown, Unit, fahrenheit, mode_info, number, picture};
 use odc_sensors::Exact;
@@ -93,7 +93,7 @@ fn every_captured_step_where_both_rules_agree_matches_pixel_for_pixel() {
     let steps = sweep::steps().unwrap_or_else(|e| panic!("{e}; this test needs the local sweeps"));
     let sent = sweep::sent().unwrap_or_else(|e| panic!("{e}; this test needs the local captures"));
     let mut failures: Vec<String> = Vec::new();
-    for mode in drawn_modes(Kind::Temperature) {
+    for mode in modes_of(Kind::Temperature) {
         let metrics = mode_info(mode).metrics;
         let (mut celsius, mut fahrenheit_steps, mut frames) = (0, 0, 0);
         let mut skipped: BTreeMap<&str, Vec<String>> = BTreeMap::new();

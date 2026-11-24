@@ -35,7 +35,7 @@ use zbus::wire::{OwnedFd, OwnedVariant};
 use zbus::{Connection, DBusError, MatchRule, MessageStream, connection};
 
 use crate::audio::{Ended, PipeAudio};
-use crate::engine::{Apply, Choices, Drawn, Override, shown_mode, takes_sound};
+use crate::engine::{Apply, Choices, Override, shown_mode, takes_sound};
 use crate::log::{Journal, Priority};
 use crate::polkit::{Action, Authorizer, BusCredentials, Credentials, Identity, PolkitAuthorizer};
 use crate::pulse::Pulse;
@@ -123,8 +123,6 @@ struct Shared {
     overrides: AtomicU64,
     /// The session's sound, and on the dev copy a test's (Phase 9).
     audio: Arc<PipeAudio>,
-    /// The modes the service draws: `odc_render::draws`, or a test's switch.
-    drawn: Drawn,
 }
 
 /// The caller's unique name. The bus sets it on every message; a message without one is refused.
@@ -270,7 +268,7 @@ impl Shared {
         *saved = new.clone();
         // Sound only in the Music modes (owner, 2026-10-26): leaving them closes the pipe at once,
         // under the settings' lock, so no attach slips in between.
-        if !takes_sound(shown_mode(&new, self.drawn)) {
+        if !takes_sound(shown_mode(&new)) {
             self.close_audio("the display left the Music modes");
         }
         drop(saved);
@@ -291,11 +289,6 @@ impl Shared {
             .ok()
             .and_then(Mode::new)
             .ok_or_else(|| invalid(format!("mode {mode} isn't in the mode table")))?;
-        if !(self.drawn)(shown) {
-            return Err(Error::NotYetAvailable(format!(
-                "mode {mode} comes in a later version"
-            )));
-        }
         if let Some(reason) = read(&self.status).availability.reasons.get(&mode) {
             return Err(Error::ModeUnavailable(reason.clone()));
         }
@@ -323,7 +316,7 @@ impl Shared {
     fn state(&self) -> State {
         let settings = lock(&self.settings).clone();
         let connected = self.audio.holder().is_some();
-        state_of(&settings, &read(&self.status), self.drawn, connected)
+        state_of(&settings, &read(&self.status), connected)
     }
 
     /// A fall stop by its name, as the setters take it.
@@ -353,7 +346,7 @@ impl Shared {
     /// Whether the display takes sound under `settings`: only in a Music mode, 13–16 and 18–26
     /// (owner, 2026-10-26).
     fn wants_sound(&self, settings: &Settings) -> Result<(), Error> {
-        let mode = shown_mode(settings, self.drawn);
+        let mode = shown_mode(settings);
         if takes_sound(mode) {
             Ok(())
         } else {
@@ -603,11 +596,11 @@ impl Shared {
 
 /// The state the service tells its clients (`docs/spec/dbus.md`, State); `audio_connected` while a
 /// helper's pipe is attached.
-fn state_of(settings: &Settings, status: &Status, drawn: Drawn, audio_connected: bool) -> State {
+fn state_of(settings: &Settings, status: &Status, audio_connected: bool) -> State {
     let (connected, cooler) = cooler_state(status);
     let fall =
         |fall: Fall| FallStop::parse(fall.name()).expect("the five stops have the same names");
-    let mode = shown_mode(settings, drawn);
+    let mode = shown_mode(settings);
     State {
         mode: Some(u32::from(mode.number())),
         rotation: Some(settings.rotation),
@@ -1201,8 +1194,6 @@ pub struct Parts {
     pub dev: Option<(u32, RecordingHandle, Arc<Durations>)>,
     /// The sound the engine hears, which `AttachAudio()` and `OverrideAudio()` feed.
     pub audio: Arc<PipeAudio>,
-    /// The modes the service draws: `odc_render::draws`, or a test's switch.
-    pub drawn: Drawn,
 }
 
 /// The running D-Bus side: its thread, inside one `zbus::block_on` call, and its timer.
@@ -1337,7 +1328,6 @@ async fn set_up(parts: Parts) -> zbus::Result<(Connection, Arc<Shared>, NameWatc
             .map(|(group, recording, durations)| DevSide::new(group, recording, durations)),
         overrides: AtomicU64::new(0),
         audio: parts.audio,
-        drawn: parts.drawn,
     });
     let server = conn.object_server();
     server

@@ -9,7 +9,7 @@ mod common;
 
 use std::collections::HashMap;
 
-use common::{drawn_modes, unit, values};
+use common::{modes_of, unit, values};
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
     COLUMNS, Column, EmojiLoop, Kind, Marquee, Mode, MusicSettings, Pose, Spectrum, Stop, analyse,
@@ -102,7 +102,7 @@ fn check(mode: Mode, case: &Case, file: &str) {
 
 #[test]
 fn every_case_of_each_drawn_music_mode_matches_its_expected_frames_in_silence() {
-    let modes = drawn_modes(Kind::Music);
+    let modes = modes_of(Kind::Music);
     assert!(!modes.is_empty(), "no Music mode drawn yet");
     for mode in modes {
         let name = format!("mode-{:03}.txt", mode.number());
@@ -161,7 +161,7 @@ fn wanted(rows: &Rows) -> Vec<Vec<u8>> {
 #[test]
 fn every_signal_draws_its_rows_in_mode_13_with_rows_1_and_2_off() {
     let thirteen = Mode::new(13).expect("mode 13");
-    if !drawn_modes(Kind::Music).contains(&thirteen) {
+    if !modes_of(Kind::Music).contains(&thirteen) {
         return;
     }
     let levels = levels();
@@ -200,7 +200,7 @@ fn every_signal_draws_its_rows_in_mode_13_with_rows_1_and_2_off() {
 // and only the value moves in the value area.
 #[test]
 fn every_signal_draws_its_rows_under_each_drawn_top() {
-    let modes: Vec<Mode> = drawn_modes(Kind::Music)
+    let modes: Vec<Mode> = modes_of(Kind::Music)
         .into_iter()
         .filter(|&mode| spectrum_height(mode) == Some(6))
         .collect();

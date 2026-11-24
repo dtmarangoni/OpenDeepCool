@@ -1,5 +1,5 @@
 //! Layer 3, the engine's tick logic (Phase 7 plan, Task 6): every scenario of
-//! `docs/spec/frames/scenarios/` whose modes this build draws, through `Engine`, which turns each
+//! `docs/spec/frames/scenarios/`, through `Engine`, which turns each
 //! frame itself, in all four rotations; the newest settings; Refresh and another GPU waiting for
 //! their snapshot; availability with late sources; dashes. From Phase 9 the replay plays each
 //! scenario's sound and Music settings (Task 3). The threads and the clock are tested in
@@ -9,12 +9,10 @@ use std::collections::HashMap;
 use std::sync::{Arc, OnceLock};
 
 use odc_protocol::Rotation;
-use odc_render::{COLUMNS, Mode, WINDOW, analyse, draws};
+use odc_render::{COLUMNS, Mode, WINDOW, analyse};
 use odc_sensors::{Exact, Metric, Reading, Snapshot, Unavailable};
 use odc_service::audio::{AudioSource, FakeAudio};
-use odc_service::engine::{
-    Apply, Drawn, Engine, LATE_SOURCE_TICKS, Override, Published, availability,
-};
+use odc_service::engine::{Apply, Engine, LATE_SOURCE_TICKS, Override, Published, availability};
 use odc_service::settings::{Fall, Settings, TemperatureUnit};
 use odc_testkit::diff;
 use odc_testkit::expected::{Change, Reset, Scenario, Unit, every_metric, mode_scenarios};
@@ -67,30 +65,9 @@ fn fall(name: &str) -> Fall {
     Fall::from_name(name).unwrap_or_else(|| panic!("{name:?} isn't a stop"))
 }
 
-/// Whether this build draws every mode `scenario` shows: the one it starts in and each it switches
-/// into. A scenario that shows another waits for that mode's commit (Phase 8 plan, Task 1).
-fn drawn(scenario: &Scenario) -> bool {
-    let switches = scenario
-        .ticks
-        .iter()
-        .flat_map(|t| &t.changes)
-        .filter_map(|c| match c {
-            Change::Reset(Reset::Mode(m)) => Some(*m),
-            _ => None,
-        });
-    std::iter::once(scenario.mode)
-        .chain(switches)
-        .all(|m| Mode::new(m).is_some_and(draws))
-}
-
-/// Replays `scenario` through the engine from rotation `base`, comparing every frame.
+/// Replays `scenario` through the engine from rotation `base`, comparing every frame: the sound
+/// plays from the tick that names it, one window a tick, then silence.
 fn replay(scenario: &Scenario, base: u8) {
-    replay_drawing(scenario, base, draws);
-}
-
-/// [`replay`], with the engine drawing the modes `drawn` lets it: the sound plays from the tick
-/// that names it, one window a tick, then silence.
-fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
     let mut readings: Vec<(String, Option<Exact>)> = Vec::new();
     for change in &scenario.ticks[0].changes {
         if let Change::Reading { metric, value } = change {
@@ -108,7 +85,6 @@ fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
         start,
         snapshot(&readings),
         Arc::clone(&audio) as Arc<dyn AudioSource>,
-        drawn,
     );
     let mut gpus = 0;
     // The signal playing and the tick it started at.
@@ -236,31 +212,25 @@ fn replay_drawing(scenario: &Scenario, base: u8, drawn: Drawn) {
 
 // The scenarios S1–S26 of each mode with values, the change in the top value, the bottom one
 // and both, every k, in each unit where a temperature is shown: S14–S18 and S21–S26 above all,
-// which only the engine can play out. From Phase 9 also those of each Music mode drawn so far,
+// which only the engine can play out. Also those of each Music mode,
 // with their sound and Music settings, and the switches into it from modes 1–12. The engine
 // analyses each tick's sound itself, as the service does, so each mode's file plays on a thread
 // of its own.
 #[test]
-fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_rotations() {
-    let counts: Vec<(usize, usize)> = std::thread::scope(|scope| {
+fn every_scenario_of_every_mode_plays_out_through_the_engine_in_all_four_rotations() {
+    let counts: Vec<usize> = std::thread::scope(|scope| {
         let threads: Vec<_> = Mode::all()
             .map(Mode::number)
             .map(|mode| {
                 scope.spawn(move || {
                     let scenarios = mode_scenarios(mode);
                     assert!(!scenarios.is_empty(), "mode {mode}: no scenario");
-                    let (mut replayed, mut skipped) = (0, 0);
                     for scenario in &scenarios {
-                        if !drawn(scenario) {
-                            skipped += 1;
-                            continue;
-                        }
                         for base in 0..4 {
                             replay(scenario, base);
                         }
-                        replayed += 1;
                     }
-                    (replayed, skipped)
+                    scenarios.len()
                 })
             })
             .collect();
@@ -269,18 +239,13 @@ fn every_scenario_of_the_drawn_modes_plays_out_through_the_engine_in_all_four_ro
             .map(|t| t.join().expect("a mode's scenarios replayed"))
             .collect()
     });
-    let replayed: usize = counts.iter().map(|&(r, _)| r).sum();
-    let skipped: usize = counts.iter().map(|&(_, s)| s).sum();
-    println!("{replayed} scenarios replayed, {skipped} showing a mode not drawn yet skipped");
+    let replayed: usize = counts.iter().sum();
+    println!("{replayed} scenarios replayed");
     assert_eq!(
-        replayed + skipped,
+        replayed,
         10_403 + 18_194,
         "the scenarios of modes 1–12 and of the Music modes 13–16 and 18–26"
     );
-    assert!(replayed >= 10_403, "Phase 8's modes 1–12 at least");
-    if Mode::all().all(draws) {
-        assert_eq!(skipped, 0);
-    }
 }
 
 fn readings(pairs: &[(&str, Option<i64>)]) -> Vec<(String, Option<Exact>)> {
@@ -531,16 +496,6 @@ fn value(n: i64) -> Reading {
     Reading::Value(Exact::whole(n))
 }
 
-/// The modes among `allowed`, which the readings let the service show, that this build draws:
-/// Phase 8 draws modes 7–12 one commit at a time.
-fn drawn_among(allowed: &[u32]) -> Vec<u32> {
-    allowed
-        .iter()
-        .copied()
-        .filter(|&m| u16::try_from(m).ok().and_then(Mode::new).is_some_and(draws))
-        .collect()
-}
-
 // P6-04: a metric with no device stays available for the first two minutes after start-up, while
 // the registry still looks for late drivers; after that its modes leave AvailableModes, and come
 // back once it's found.
@@ -631,7 +586,7 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     let modes = engine.availability().modes;
     assert_eq!(
         modes,
-        drawn_among(&[1, 3, 5, 7, 10, 13, 14, 15, 16, 18, 20, 22, 23, 24, 25, 26])
+        vec![1, 3, 5, 7, 10, 13, 14, 15, 16, 18, 20, 22, 23, 24, 25, 26]
     );
     // A reading the PC may not give at all counts at once, settled or not.
     let denied = with(
@@ -643,27 +598,21 @@ fn a_reading_lost_mid_run_draws_dashes_and_the_mode_stays() {
     let early = availability(&denied, false);
     assert_eq!(
         early.modes,
-        drawn_among(&[
+        vec![
             2, 3, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 19, 21, 22, 23, 24, 25, 26
-        ])
+        ]
     );
 }
 
-// P8-03: only modes this build draws are ever available, whatever the readings.
+// P8-03: every mode is available while the readings let it be.
 #[test]
-fn only_modes_this_build_draws_are_available() {
+fn every_mode_is_available_while_the_readings_allow_it() {
     let all = with(value(42), value(67));
     for settled in [false, true] {
         let a = availability(&all, settled);
         let every: Vec<u32> = Mode::all().map(|m| u32::from(m.number())).collect();
-        assert_eq!(a.modes, drawn_among(&every));
-        assert!(a.modes.starts_with(&[1, 2, 3, 4, 5, 6, 7]));
-        // The first mode a later commit draws, while there is one.
-        if let Some(later) = Mode::all().find(|&m| !draws(m)) {
-            let later = u32::from(later.number());
-            assert!(!a.modes.contains(&later));
-            assert_eq!(a.reasons[&later], "comes in a later version");
-        }
+        assert_eq!(a.modes, every);
+        assert!(a.reasons.is_empty(), "{:?}", a.reasons);
     }
 }
 
@@ -870,11 +819,7 @@ fn not_yet_draws_dashes_then_digits() {
     let dashes = engine.tick(None, None, false).frame;
     assert_eq!(dashes, Some(home(1, &readings(&[("CPU Usage", None)]))));
     let every: Vec<u32> = Mode::all().map(|m| u32::from(m.number())).collect();
-    assert_eq!(
-        engine.availability().modes,
-        drawn_among(&every),
-        "NotYet passes"
-    );
+    assert_eq!(engine.availability().modes, every, "NotYet passes");
     let digits = engine
         .tick(
             None,
@@ -888,21 +833,14 @@ fn not_yet_draws_dashes_then_digits() {
     assert_eq!(digits, Some(home(1, &usage(42))));
 }
 
-/// The test-only switch (Phase 9 plan, Task 3): every mode drawn, the Music modes included, before
-/// each one's own commit makes it drawable (Tasks 6–9).
-fn every_mode(_: Mode) -> bool {
-    true
-}
-
-/// Every scenario of a Music mode's file through the engine with the test-only switch, in all four
-/// rotations: the spectrum from each scenario's sound, the Music settings, the emoji loops and the
+/// Every scenario of a Music mode's file through the engine, in all four rotations: the spectrum from each scenario's sound, the Music settings, the emoji loops and the
 /// Dancer, and the resets, against the oracle's frames.
 fn music_scenarios_play_out(mode: u16) {
     let scenarios = mode_scenarios(mode);
     assert!(!scenarios.is_empty(), "mode {mode}: no scenario");
     for scenario in &scenarios {
         for base in 0..4 {
-            replay_drawing(scenario, base, every_mode);
+            replay(scenario, base);
         }
     }
 }
@@ -990,7 +928,6 @@ fn every_signal_through_the_engine_draws_its_expected_rows() {
                 settings,
                 snapshot(&usage(42)),
                 Arc::clone(&audio) as Arc<dyn AudioSource>,
-                every_mode,
             );
             for (n, (window, rows)) in signal.windows().iter().zip(&want.ticks).enumerate() {
                 audio.set(*window);
@@ -1025,7 +962,6 @@ fn every_dancer_sequence_through_the_engine_draws_its_poses() {
             settings.clone(),
             snapshot(&usage(42)),
             Arc::clone(&audio) as Arc<dyn AudioSource>,
-            every_mode,
         );
         for (n, (window, pose)) in windows()[&dance.signal]
             .iter()
@@ -1070,7 +1006,6 @@ fn a_missed_tick_in_music_moves_nothing() {
                 settings.clone(),
                 snapshot(&usage(42)),
                 Arc::clone(audio) as Arc<dyn AudioSource>,
-                every_mode,
             )
         };
         let (on_time, late) = (Arc::new(FakeAudio::new()), Arc::new(FakeAudio::new()));
@@ -1115,7 +1050,6 @@ fn a_music_tick_carries_the_levels_its_frame_was_drawn_from_and_no_other_does() 
                 },
                 snapshot(&usage(42)),
                 Arc::clone(&audio) as Arc<dyn AudioSource>,
-                every_mode,
             );
             for (n, window) in signal.windows().iter().enumerate() {
                 audio.set(*window);

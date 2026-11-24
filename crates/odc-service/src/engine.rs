@@ -11,18 +11,13 @@ use std::sync::Arc;
 
 use odc_protocol::{Frame, Rotation};
 use odc_render::{
-    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Unit, Values, analyse,
-    draws, is_sound, mode_info, picture, spectrum_height, value_picture, with_spectrum,
+    COLUMNS, Dancer, EmojiLoop, Kind, Marquee, Mode, Picture, Spectrum, Values, analyse, is_sound,
+    mode_info, picture, spectrum_height, with_spectrum,
 };
 use odc_sensors::{Snapshot, Unavailable};
 
 use crate::audio::{AudioSource, Silence};
 use crate::settings::Settings;
-
-/// Which modes the service draws: `odc_render::draws` in the service. A test that needs a Music
-/// mode before its own commit makes it drawable passes more (Phase 9 plan, Task 3: a test-only
-/// switch); `opendeepcoold` always passes `draws`.
-pub type Drawn = fn(Mode) -> bool;
 
 /// Ticks in the two minutes after start-up or a wake-up during which a metric without a device
 /// may still find one, so `NoDevice` doesn't count as lasting yet (owner, 2026-10-27; solution
@@ -163,7 +158,6 @@ pub struct Engine {
     /// other mode starts them at level 0 (`music.md` point 8).
     spectrum: Option<Spectrum>,
     audio: Arc<dyn AudioSource>,
-    drawn: Drawn,
     /// The next tick's number.
     tick: u64,
     /// The tick of start-up or of the last wake-up.
@@ -175,11 +169,10 @@ pub struct Engine {
     answered: u64,
 }
 
-/// The mode the engine draws for the saved one: the saved mode when this build draws it, mode 1
-/// otherwise, which only a downgrade can bring about.
-pub(crate) fn shown_mode(settings: &Settings, drawn: Drawn) -> Mode {
+/// The mode the engine draws for the saved one: the saved mode, or mode 1 when this build has no
+/// such mode, which only a downgrade can bring about.
+pub(crate) fn shown_mode(settings: &Settings) -> Mode {
     Mode::new(settings.mode)
-        .filter(|&mode| drawn(mode))
         .or_else(|| Mode::new(1))
         .expect("mode 1 exists")
 }
@@ -193,12 +186,11 @@ pub fn takes_sound(mode: Mode) -> bool {
 /// The picture of the value `mode` shows, `None` when it shows none: the whole grid in modes 1–12,
 /// the value area in rows 2–6 in modes 18–22.
 fn picture_of(mode: Mode, settings: &Settings, snapshot: &Snapshot) -> Option<Picture> {
-    let unit: Unit = settings.temperature_unit.into();
-    let values = Values::of(snapshot);
-    match mode_info(mode).kind {
-        Kind::Music => value_picture(mode, &values, unit),
-        _ => Some(picture(mode, &values, unit).expect("a drawn mode")),
-    }
+    picture(
+        mode,
+        &Values::of(snapshot),
+        settings.temperature_unit.into(),
+    )
 }
 
 fn rotation(settings: &Settings) -> Rotation {
@@ -207,25 +199,22 @@ fn rotation(settings: &Settings) -> Rotation {
 
 impl Engine {
     /// The engine at start-up, on the saved settings and the first snapshot: its first frame is
-    /// the saved mode's picture at home (`docs/spec/settings.md`, Start-up). It draws the modes
-    /// this build draws, and hears silence.
+    /// the saved mode's picture at home (`docs/spec/settings.md`, Start-up). It hears silence.
     pub fn new(settings: Settings, snapshot: Snapshot) -> Engine {
-        Engine::with_audio(settings, snapshot, Arc::new(Silence), draws)
+        Engine::with_audio(settings, snapshot, Arc::new(Silence))
     }
 
-    /// The engine at start-up with the service's sound, drawing the modes `drawn` lets it.
+    /// The engine at start-up with the service's sound.
     pub fn with_audio(
         settings: Settings,
         snapshot: Snapshot,
         audio: Arc<dyn AudioSource>,
-        drawn: Drawn,
     ) -> Engine {
-        let mode = shown_mode(&settings, drawn);
+        let mode = shown_mode(&settings);
         Engine {
             top: Top::of(mode, picture_of(mode, &settings, &snapshot)),
             spectrum: spectrum_height(mode).map(|_| Spectrum::enter()),
             audio,
-            drawn,
             settings,
             real: snapshot.clone(),
             snapshot,
@@ -248,7 +237,7 @@ impl Engine {
 
     /// The mode drawn.
     pub fn mode(&self) -> Mode {
-        shown_mode(&self.settings, self.drawn)
+        shown_mode(&self.settings)
     }
 
     /// The last readings override the engine took: its number and the tick it took effect.
@@ -283,7 +272,7 @@ impl Engine {
             if let Some(new) = apply.settings {
                 let old = std::mem::replace(&mut self.settings, new);
                 let new = &self.settings;
-                let (before, after) = (shown_mode(&old, self.drawn), shown_mode(new, self.drawn));
+                let (before, after) = (shown_mode(&old), shown_mode(new));
                 // A Music setting is never a reset (`music.md` point 7).
                 reset |= before != after
                     || old.rotation != new.rotation
@@ -376,7 +365,7 @@ impl Engine {
     /// Which modes can be shown now (Phase 7 plan, Task 6; `docs/spec/settings.md`, Availability).
     pub fn availability(&self) -> Availability {
         let settled = self.tick.saturating_sub(self.since) >= LATE_SOURCE_TICKS;
-        availability_of(&self.snapshot, settled, self.drawn)
+        availability(&self.snapshot, settled)
     }
 }
 
@@ -396,23 +385,12 @@ fn lasting(reason: &Unavailable, settled: bool) -> bool {
     }
 }
 
-/// The modes a snapshot lets the service show: those this build draws whose every metric can be
-/// read; the rest with their first reason (owner, 2026-10-27; solution review P8-03).
+/// The modes a snapshot lets the service show: those whose every metric can be read; the rest
+/// with their first reason (owner, 2026-10-27; solution review P8-03).
 pub fn availability(snapshot: &Snapshot, settled: bool) -> Availability {
-    availability_of(snapshot, settled, draws)
-}
-
-/// [`availability`] for the modes `drawn` lets the service draw.
-pub fn availability_of(snapshot: &Snapshot, settled: bool, drawn: Drawn) -> Availability {
     let mut result = Availability::default();
     for mode in Mode::all() {
         let number = u32::from(mode.number());
-        if !drawn(mode) {
-            result
-                .reasons
-                .insert(number, "comes in a later version".to_owned());
-            continue;
-        }
         let first = mode_info(mode)
             .metrics
             .iter()
