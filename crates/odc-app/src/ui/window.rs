@@ -25,6 +25,7 @@ use super::config_page::ConfigPage;
 use super::display_page::DisplayPage;
 use super::names::{Names, group};
 use super::page::{icon_button, keep_natural_height, scrolled};
+use super::pointer;
 use super::preview::Preview;
 use super::size;
 use super::startup::StartupCard;
@@ -441,6 +442,8 @@ impl Window {
         }
         pages_area.add_overlay(&feedback);
         window.set_child(Some(&window_scroller));
+        // A click operates a control and selects or focuses nothing else (Task 56).
+        pointer::calm(&window);
 
         // The one style provider, at APPLICATION priority (Theme, How it's applied).
         let provider = gtk::CssProvider::new();

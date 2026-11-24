@@ -218,7 +218,7 @@ fn row(
         .halign(gtk::Align::Start)
         .valign(gtk::Align::Start)
         .build();
-    block.append(&small(title, &[]));
+    block.append(&small(title, &["row-title"]));
     if let Some(hint) = hint {
         let hint = small(hint, &["muted", "small"]);
         hint.set_wrap_mode(gtk::pango::WrapMode::Word);

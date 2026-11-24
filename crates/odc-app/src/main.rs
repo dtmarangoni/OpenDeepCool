@@ -85,6 +85,9 @@ fn main() -> ExitCode {
                     .unwrap_or_else(|| PathBuf::from(PKEXEC)),
             },
         );
+        // No focus ring until a key asks for one: a window opened by the keyboard would show it
+        // on its first control, a stray frame around it (Task 56).
+        window.widget().set_focus_visible(false);
         window.widget().present();
     });
     // GTK reads no arguments: the flags are the app's own.

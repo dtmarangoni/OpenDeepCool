@@ -31,7 +31,8 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 - **Planned**:
   - a system service that starts at boot, the same for every user;
   - a GTK4 settings app that follows the current Omarchy theme live when there is one, with its own default theme everywhere else;
-  - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer.
+  - DeepCreative 1.2.14's LP360 display modes under OpenDeepCool's names, Load, Temperature, Power and Music (DeepCreative's Load Mode, Temperature Guardian, Power Guardian and Music Mode), with screen rotation, plus OpenDeepCool's own Dancer and its own three emoji animations (Lub-dub, Coffee break and Cat tail, each over the spectrum and alone) in place of DeepCreative's four.
+- **Themes**: the settings app's **Use system theme** switch follows **only Omarchy's themes** today (their colours, and Omarchy's Window Opacity). On any other system it follows the desktop's dark or light preference where the desktop reports one, and otherwise the app uses its own Dark or Light theme; no other desktop's colour theme is followed yet.
 - **Only the cooler**: OpenDeepCool reads the CPU, GPU and RAM only for what the display shows, and never controls any hardware. To monitor or control the rest of the PC, use dedicated tools, as OpenRGB for lighting.
 - **Not in v1**: display settings DeepCreative's LP page doesn't offer (such as brightness), ARGB lighting (use OpenRGB), other devices.
 - **Never**: DeepCreative's Creative Mode, its 14×14 image editor.

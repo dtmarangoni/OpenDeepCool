@@ -9,6 +9,7 @@ pub mod dots;
 pub mod dropdowns;
 pub mod names;
 pub mod page;
+pub mod pointer;
 pub mod preview;
 pub mod size;
 pub mod startup;

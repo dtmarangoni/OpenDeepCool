@@ -12,6 +12,7 @@ use gtk::prelude::*;
 
 use super::Request;
 use super::names::{Names, group};
+use super::pointer;
 use crate::boot::{self, Place, Style, Switch};
 
 /// The most characters the card's lines ask room for.
@@ -88,7 +89,7 @@ impl StartupCard {
             .halign(gtk::Align::Start)
             .valign(gtk::Align::Start)
             .build();
-        left.append(&small(boot::TITLE, &[]));
+        left.append(&small(boot::TITLE, &["row-title"]));
         line.append(&left);
         line.append(&switch);
         card.append(&line);
@@ -96,12 +97,15 @@ impl StartupCard {
         let note_box = group().spacing(6).visible(false).build();
         names.name(&note_box, "Start at boot status");
         let note_icon = gtk::Image::builder().valign(gtk::Align::Start).build();
-        let note = small("", &[]);
+        let note = small("", &["small"]);
         note.set_hexpand(true);
         note.set_max_width_chars(NOTE_CHARS);
         note_box.append(&note_icon);
         note_box.append(&note);
         card.append(&note_box);
+        // The card moves between the page and the off screen, so it is calmed on its own (the
+        // window's pass at its build may not reach it): a click on its switch focuses nothing.
+        pointer::calm(&card);
         StartupCard {
             card,
             heading,
@@ -158,7 +162,7 @@ impl StartupCard {
                 };
                 self.note_icon.set_icon_name(Some(icon));
                 self.note_icon.set_visible(true);
-                self.note.set_css_classes(&[class]);
+                self.note.set_css_classes(&["small", class]);
                 self.note_icon.set_css_classes(&[class]);
                 self.note_box.set_visible(true);
             }
