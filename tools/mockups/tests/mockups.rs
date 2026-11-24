@@ -76,29 +76,29 @@ struct Palette {
 const PALETTES: [Palette; 3] = [
     Palette {
         name: "default dark",
-        background: "#0a1f33",
-        surface: "#11344f",
-        foreground: "#e6f3fa",
-        muted: "#8db2c9",
-        accent: "#6bd3e8",
-        red: "#ff665c",
-        yellow: "#f6c553",
-        green: "#52d68a",
+        background: "#2d3039",
+        surface: "#313f51",
+        foreground: "#e5ebf2",
+        muted: "#b3b6c2",
+        accent: "#94b7d6",
+        red: "#e5776c",
+        yellow: "#e0b65c",
+        green: "#79c89a",
         selected: 0.16,
-        border: 0.44,
+        border: 0.52,
     },
     Palette {
         name: "default light",
-        background: "#cfe3f0",
-        surface: "#f5fafd",
-        foreground: "#0b2742",
-        muted: "#3a5971",
-        accent: "#085f7d",
-        red: "#bd3326",
-        yellow: "#7f5300",
-        green: "#1a7c4e",
+        background: "#d3dce3",
+        surface: "#f5f7f9",
+        foreground: "#2d3039",
+        muted: "#555862",
+        accent: "#365675",
+        red: "#b33b32",
+        yellow: "#785200",
+        green: "#2f7756",
         selected: 0.14,
-        border: 0.56,
+        border: 0.62,
     },
     Palette {
         name: "sample Omarchy",
@@ -184,13 +184,13 @@ fn the_default_theme_has_the_contrast_the_design_states() {
         (
             "default dark",
             [
-                14.8, 11.4, 7.4, 5.7, 9.6, 7.4, 10.4, 8.0, 5.8, 9.0, 7.2, 3.9, 10.6, 6.1, 8.2,
+                11.0, 8.9, 6.5, 5.3, 6.3, 5.1, 6.9, 5.6, 4.5, 6.6, 5.8, 4.2, 7.8, 4.0, 6.6,
             ],
         ),
         (
             "default light",
             [
-                11.5, 14.4, 5.6, 7.0, 5.4, 6.8, 5.1, 6.4, 4.3, 3.9, 11.0, 3.4, 9.2, 4.2, 8.0,
+                9.5, 12.3, 5.1, 6.6, 5.5, 7.1, 5.0, 6.5, 4.2, 3.9, 9.5, 3.5, 7.7, 4.3, 6.7,
             ],
         ),
     ];
@@ -220,10 +220,10 @@ fn the_default_theme_has_the_contrast_the_design_states() {
     let dark = &PALETTES[0];
     let selected = blend(rgb(dark.foreground), rgb(dark.surface), dark.selected);
     assert!(ratio(rgb(dark.muted), selected) < 4.5);
-    assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.6).abs() < 1e-9);
+    assert!((tenths(ratio(rgb(dark.muted), selected)) - 3.4).abs() < 1e-9);
     let light = &PALETTES[1];
     let selected = blend(rgb(light.foreground), rgb(light.surface), light.selected);
-    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.3).abs() < 1e-9);
+    assert!((tenths(ratio(rgb(light.muted), selected)) - 5.1).abs() < 1e-9);
     let sample = &PALETTES[2];
     let bg = rgb(sample.background);
     for (colour, want) in [

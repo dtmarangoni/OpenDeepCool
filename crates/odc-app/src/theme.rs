@@ -101,34 +101,34 @@ struct Palette {
     alphas: [f64; 6],
 }
 
-/// OpenDeepCool's own theme, dark, "Meltwater": the deep. Abyss, Current, Spray, Haze and Glacier,
-/// a navy sea with one glacier-cyan highlight, for a water cooler (`docs/design/settings-app.md`,
-/// OpenDeepCool's own theme, and `docs/design/palette-ocean.md`; Phase 11a Task 54, redesigned
-/// from Task 44's Coolant, whose rose accent the owner rejected).
+/// OpenDeepCool's own theme, dark, "Dusk": a winter forest at dusk, from the owner's colour scheme
+/// (Folk & Fey's Cool Blue Forest, Winter Forest Collection): Charcoal, Slate shade, Snowlight,
+/// Icy grey and Steel (`docs/design/settings-app.md`, OpenDeepCool's own theme, and
+/// `docs/design/palette-winter.md`; Phase 11a Task 59, after Task 54's Meltwater and Task 44's
+/// Coolant, both rejected).
 const DARK: Palette = Palette {
-    bg: Rgb([0x0a, 0x1f, 0x33]),
-    surface: Rgb([0x11, 0x34, 0x4f]),
-    fg: Rgb([0xe6, 0xf3, 0xfa]),
-    muted: Rgb([0x8d, 0xb2, 0xc9]),
-    accent: Rgb([0x6b, 0xd3, 0xe8]),
-    red: Rgb([0xff, 0x66, 0x5c]),
-    yellow: Rgb([0xf6, 0xc5, 0x53]),
-    green: Rgb([0x52, 0xd6, 0x8a]),
-    alphas: [0.05, 0.44, 0.09, 0.60, 0.16, 0.24],
+    bg: Rgb([0x2d, 0x30, 0x39]),
+    surface: Rgb([0x31, 0x3f, 0x51]),
+    fg: Rgb([0xe5, 0xeb, 0xf2]),
+    muted: Rgb([0xb3, 0xb6, 0xc2]),
+    accent: Rgb([0x94, 0xb7, 0xd6]),
+    red: Rgb([0xe5, 0x77, 0x6c]),
+    yellow: Rgb([0xe0, 0xb6, 0x5c]),
+    green: Rgb([0x79, 0xc8, 0x9a]),
+    alphas: [0.05, 0.52, 0.09, 0.68, 0.16, 0.24],
 };
 
-/// The same family as ice: Rime, Floe, Fathom, Brine and Marine, a pale frost under a deep-ocean
-/// ink.
+/// The same forest in daylight, "Snowday": Hoarfrost, Fresh snow, Charcoal, Ash and Deep slate.
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xcf, 0xe3, 0xf0]),
-    surface: Rgb([0xf5, 0xfa, 0xfd]),
-    fg: Rgb([0x0b, 0x27, 0x42]),
-    muted: Rgb([0x3a, 0x59, 0x71]),
-    accent: Rgb([0x08, 0x5f, 0x7d]),
-    red: Rgb([0xbd, 0x33, 0x26]),
-    yellow: Rgb([0x7f, 0x53, 0x00]),
-    green: Rgb([0x1a, 0x7c, 0x4e]),
-    alphas: [0.04, 0.56, 0.07, 0.74, 0.14, 0.20],
+    bg: Rgb([0xd3, 0xdc, 0xe3]),
+    surface: Rgb([0xf5, 0xf7, 0xf9]),
+    fg: Rgb([0x2d, 0x30, 0x39]),
+    muted: Rgb([0x55, 0x58, 0x62]),
+    accent: Rgb([0x36, 0x56, 0x75]),
+    red: Rgb([0xb3, 0x3b, 0x32]),
+    yellow: Rgb([0x78, 0x52, 0x00]),
+    green: Rgb([0x2f, 0x77, 0x56]),
+    alphas: [0.04, 0.62, 0.07, 0.78, 0.14, 0.20],
 };
 
 /// The selection's accent over the background, as Omarchy's own `selection-fill-alpha` default
@@ -1376,13 +1376,13 @@ scale = 1.0
             (
                 true,
                 [
-                    14.8, 11.4, 7.4, 5.7, 9.6, 7.4, 10.4, 8.0, 5.8, 9.0, 7.2, 3.9, 10.6, 6.1, 8.2,
+                    11.0, 8.9, 6.5, 5.3, 6.3, 5.1, 6.9, 5.6, 4.5, 6.6, 5.8, 4.2, 7.8, 4.0, 6.6,
                 ],
             ),
             (
                 false,
                 [
-                    11.5, 14.4, 5.6, 7.0, 5.4, 6.8, 5.1, 6.4, 4.3, 3.9, 11.0, 3.4, 9.2, 4.2, 8.0,
+                    9.5, 12.3, 5.1, 6.6, 5.5, 7.1, 5.0, 6.5, 4.2, 3.9, 9.5, 3.5, 7.7, 4.3, 6.7,
                 ],
             ),
         ];
