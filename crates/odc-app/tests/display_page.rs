@@ -3,7 +3,7 @@
 //! the time changes nothing), in each unit and peak setting;
 //! a unit change redraws only the temperature tiles and a peak change only the spectrum tiles;
 //! focus never asks for a mode, and each tile's activation asks for its own; the saved mode's
-//! tile alone is marked; unavailable tiles and the lost reading; and the unit toggles. Against a
+//! tile alone is marked; unavailable tiles and the lost reading; and the tiles following the unit the service confirms. Against a
 //! fake client, through `common::run`. Behind the `weston-tests` feature.
 
 mod common;

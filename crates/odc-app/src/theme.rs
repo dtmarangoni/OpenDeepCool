@@ -1392,8 +1392,6 @@ scale = 1.0
         assert!(STYLESHEET.contains("window.glassy {\n  backdrop-filter: blur(20px);\n}"));
     }
 
-    // The app's default palettes have the contrast of the design's table (Default theme), to
-    // one decimal, and keep text at 4.5:1 and borders at 3:1.
     // The disabled colour (design, D55, Task 63): the foreground over the card, opaque, by 0.40
     // in a dark theme and 0.55 in a light one; the same derivation gives an Omarchy theme its
     // own, from its foreground and card. It is weaker than the theme's muted and still text.
@@ -1418,6 +1416,8 @@ scale = 1.0
         }
     }
 
+    // The app's default palettes have the contrast of the design's table (Default theme), to
+    // one decimal, and keep text at 4.5:1 and borders at 3:1.
     #[test]
     fn the_default_theme_has_the_contrast_the_design_states() {
         let table: [(bool, [f64; 15]); 2] = [

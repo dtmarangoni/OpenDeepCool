@@ -289,7 +289,7 @@ impl State {
                 return Ok(None);
             };
             // Checked first: zbus 6 panics converting a structure with fewer fields than asked,
-            // such as another version's `FanInputs`.
+            // such as a structure key from another version of the service.
             let signature = STATE_KEYS
                 .iter()
                 .find(|(k, _)| *k == key)

@@ -171,14 +171,6 @@ window.own-light .card button:checked:disabled {
   outline-offset: 2px;
 }
 
-button.link,
-button.link label {
-  background-color: var(--none);
-  border-color: var(--none);
-  color: var(--accent);
-  text-decoration-line: underline;
-}
-
 /* Icon buttons (the gear, the close icon, Back and Refresh): 32 x 32, no frame in any state
    (Window, Icon buttons). The resting fill is --none, since the window's ground may be
    see-through and a fill of --bg would show as a box; these rules read more specifically than the
@@ -314,9 +306,6 @@ popover > contents {
 
 .card {
   background-color: var(--plate);
-}
-
-.card {
   padding: 14px 16px;
 }
 

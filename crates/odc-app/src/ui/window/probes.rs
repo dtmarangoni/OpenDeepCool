@@ -100,11 +100,6 @@ impl Window {
         (&self.0.window_scroller, &self.0.column_scroller)
     }
 
-    /// The header bar's height, for the tests.
-    pub fn header_height(&self) -> i32 {
-        self.0.header.bar.height()
-    }
-
     /// The gear, the back icon and Refresh, for the tests that press or focus them.
     pub fn gear(&self) -> &gtk::ToggleButton {
         &self.0.header.gear

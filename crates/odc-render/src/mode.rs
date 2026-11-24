@@ -1,6 +1,6 @@
 //! The modes of `docs/spec/display.md` (Modes, 1–12) and `docs/spec/music.md` (Modes, 13–16 and
-//! 18–26): the metrics each shows, top first, and its kind. Availability and the later phases'
-//! renderers read this table.
+//! 18–26): the metrics each shows, top first, and its kind. Availability and the renderers read this
+//! table.
 
 use odc_sensors::Metric;
 

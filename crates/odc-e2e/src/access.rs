@@ -1,7 +1,7 @@
 //! The access check on the installed package (Phase 11 plan, Task 9): the polkit policy the PC
 //! has holds `use`, `change-settings` and `feed-audio` for the active local session only, and
-//! `start-at-boot` for the active local session with the administrator's password at every
-//! change. `GetState` answering from this session, which polkit's `use` lets through, is the
+//! `start-at-boot-on` and `start-at-boot-off` for the active local session with the
+//! administrator's password at every change. `GetState` answering from this session, which polkit's `use` lets through, is the
 //! service check's own first call. Where there's no service, the same check runs on the policy
 //! the repository holds, which is the one the package installs.
 

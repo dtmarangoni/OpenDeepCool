@@ -231,7 +231,7 @@ pub struct Group {
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Tile {
     pub mode: u16,
-    /// The caption under the picture: `CPU + GPU`, `Emoji 1`.
+    /// The caption under the picture: `CPU + GPU`, `Lub-dub + Spectrum`.
     pub caption: String,
     /// The accessible name: `Load: CPU`.
     pub label: String,
