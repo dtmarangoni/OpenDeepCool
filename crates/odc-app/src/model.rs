@@ -446,11 +446,10 @@ pub fn view(
         status,
     };
     let unit = state.temperature_unit.unwrap_or(TemperatureUnit::Celsius);
-    let music = music_settings(
-        state.music_peaks.unwrap_or(true),
-        state.music_bar_fall.unwrap_or(FallStop::Moderate),
-        state.music_peak_fall.unwrap_or(FallStop::Slow),
-    );
+    let peaks = state.music_peaks.unwrap_or(true);
+    let bar_fall = state.music_bar_fall.unwrap_or(FallStop::Moderate);
+    let peak_fall = state.music_peak_fall.unwrap_or(FallStop::Slow);
+    let music = music_settings(peaks, bar_fall, peak_fall);
     let display = DisplayPage {
         unit,
         groups: groups(mode, &reasons),
@@ -465,25 +464,18 @@ pub fn view(
             ),
         },
     };
-    let theme = ThemeCard::of(
-        &choice::Inputs::new(
-            ui.system,
-            state.use_system_theme.unwrap_or(true),
-            state.dark_theme.unwrap_or(true),
-        )
-        .with_window(
-            state.window_opacity.unwrap_or(WindowOpacity::Opaque),
-            state.window_corners.unwrap_or(WindowCorners::Rounded),
-        ),
-    );
+    let theme = ThemeCard::of(&choice::Inputs::of(
+        ui.system,
+        choice::ThemeSettings::of(state),
+    ));
     let config = ConfigPage {
         theme,
         rotation: state.rotation.unwrap_or(0),
         unit,
         gpu: gpu_row(state, products),
-        peaks: state.music_peaks.unwrap_or(true),
-        bar_fall: state.music_bar_fall.unwrap_or(FallStop::Moderate),
-        peak_fall: state.music_peak_fall.unwrap_or(FallStop::Slow),
+        peaks,
+        bar_fall,
+        peak_fall,
     };
     View::Normal(Box::new(Normal {
         page: ui.page,

@@ -160,9 +160,10 @@ impl Window {
 
     /// What the theme is made from now: the system's facts and the service's two settings.
     pub(super) fn theme_inputs(&self) -> choice::Inputs {
-        let (use_system, dark, opacity, corners) = self.0.theme_settings.get();
-        choice::Inputs::new(self.0.inputs.borrow().ui.system, use_system, dark)
-            .with_window(opacity, corners)
+        choice::Inputs::of(
+            self.0.inputs.borrow().ui.system,
+            self.0.theme_settings.get(),
+        )
     }
 
     /// Resolves the theme again when what it is made from changed, and shows it.

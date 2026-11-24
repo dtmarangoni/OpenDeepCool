@@ -16,7 +16,7 @@ use std::time::{Duration, Instant};
 
 use gtk::prelude::*;
 use gtk::{gio, glib};
-use odc_ipc::{CoolerState, State, WindowCorners, WindowOpacity};
+use odc_ipc::{CoolerState, State};
 use odc_protocol::Frame;
 use odc_render::COLUMNS;
 
@@ -123,7 +123,7 @@ struct Inner {
     shown_tokens: Cell<Option<Tokens>>,
     /// The service's two theme settings, as it last said (on, dark before it first says), and
     /// the inputs the theme was last resolved from.
-    theme_settings: Cell<(bool, bool, WindowOpacity, WindowCorners)>,
+    theme_settings: Cell<choice::ThemeSettings>,
     resolved_from: Cell<Option<choice::Inputs>>,
     /// The window is setting the gear itself: its `toggled` is no request.
     applying: Cell<bool>,
@@ -472,7 +472,7 @@ impl Window {
             column_scroller,
             omarchy: Cell::new(None),
             shown_tokens: Cell::new(None),
-            theme_settings: Cell::new((true, true, WindowOpacity::Opaque, WindowCorners::Rounded)),
+            theme_settings: Cell::new(choice::ThemeSettings::default()),
             resolved_from: Cell::new(None),
             applying: Cell::new(false),
             feedback,
@@ -643,12 +643,7 @@ impl Window {
             inputs.products = pci_ids::names(&text, &ids);
             inputs.gpu_ids = ids;
         }
-        self.0.theme_settings.set((
-            state.use_system_theme.unwrap_or(true),
-            state.dark_theme.unwrap_or(true),
-            state.window_opacity.unwrap_or(WindowOpacity::Opaque),
-            state.window_corners.unwrap_or(WindowCorners::Rounded),
-        ));
+        self.0.theme_settings.set(choice::ThemeSettings::of(&state));
         inputs.service = Service::Up(Box::new(state));
         let wait = inputs.sending.follow(cooler, Instant::now());
         drop(inputs);

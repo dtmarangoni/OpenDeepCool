@@ -3,7 +3,7 @@
 //! app knows (an Omarchy theme found or not, the system's dark or light preference) and what the
 //! service keeps for the whole PC (follow the system's theme; OpenDeepCool's own is dark).
 
-use odc_ipc::{WindowCorners, WindowOpacity};
+use odc_ipc::{State, WindowCorners, WindowOpacity};
 
 /// The system's dark or light preference, as GTK reports it in
 /// `GtkSettings:gtk-interface-color-scheme`.
@@ -52,26 +52,52 @@ pub enum Source {
     Own { dark: bool },
 }
 
-impl Inputs {
-    /// The facts and the service's two settings together.
-    pub fn new(facts: Facts, use_system: bool, dark: bool) -> Inputs {
-        Inputs {
-            omarchy: facts.omarchy,
-            preference: facts.preference,
-            use_system,
-            dark,
+/// What the service keeps of the theme for the whole PC, with the defaults of a state that holds
+/// no key yet (the app starts with them, and keeps showing the last ones while the service is
+/// away): follow the system's theme, OpenDeepCool's own dark, opaque, rounded corners. The one
+/// place that says what a missing key means.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ThemeSettings {
+    pub use_system: bool,
+    pub dark: bool,
+    pub opacity: WindowOpacity,
+    pub corners: WindowCorners,
+}
+
+impl Default for ThemeSettings {
+    fn default() -> ThemeSettings {
+        ThemeSettings {
+            use_system: true,
+            dark: true,
             opacity: WindowOpacity::Opaque,
             corners: WindowCorners::Rounded,
         }
     }
+}
 
-    /// The same with the service's window opacity and corners: the defaults, opaque and
-    /// rounded, until the service has answered.
-    pub fn with_window(self, opacity: WindowOpacity, corners: WindowCorners) -> Inputs {
+impl ThemeSettings {
+    /// The settings `state` holds, the defaults for a key it doesn't.
+    pub fn of(state: &State) -> ThemeSettings {
+        let default = ThemeSettings::default();
+        ThemeSettings {
+            use_system: state.use_system_theme.unwrap_or(default.use_system),
+            dark: state.dark_theme.unwrap_or(default.dark),
+            opacity: state.window_opacity.unwrap_or(default.opacity),
+            corners: state.window_corners.unwrap_or(default.corners),
+        }
+    }
+}
+
+impl Inputs {
+    /// The facts and the service's settings together.
+    pub fn of(facts: Facts, settings: ThemeSettings) -> Inputs {
         Inputs {
-            opacity,
-            corners,
-            ..self
+            omarchy: facts.omarchy,
+            preference: facts.preference,
+            use_system: settings.use_system,
+            dark: settings.dark,
+            opacity: settings.opacity,
+            corners: settings.corners,
         }
     }
 
