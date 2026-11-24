@@ -47,6 +47,8 @@ pub struct Controls {
     pub focus_fill: Rgba,
     pub focus_border: Rgba,
     pub selected_fill: Rgba,
+    /// Read and kept like every other control colour, but no rule uses it: the stylesheet draws
+    /// a selected tile and toggle with `--accent` (design, Theme, Controls).
     pub selected_border: Rgba,
     pub pressed_fill: Rgba,
 }
@@ -630,7 +632,7 @@ impl Tokens {
         let alpha = window_style::alpha(self.opacity);
         let at = |rgb, alpha| Rgba { rgb, alpha }.css();
         let sharp = self.corners == Some(WindowCorners::Sharp);
-        let tokens: [(&str, String); 33] = [
+        let tokens: [(&str, String); 31] = [
             ("bg", self.bg.css()),
             ("surface", self.surface.css()),
             ("ground", at(self.bg, alpha)),
@@ -651,7 +653,6 @@ impl Tokens {
             ("ctl-focus-fill", c.focus_fill.css()),
             ("ctl-focus-border", c.focus_border.css()),
             ("ctl-selected-fill", c.selected_fill.css()),
-            ("ctl-selected-border", c.selected_border.css()),
             ("ctl-pressed-fill", c.pressed_fill.css()),
             ("radius", format!("{}px", self.radius)),
             ("radius-box", format!("{}px", self.radius_box)),
@@ -663,7 +664,6 @@ impl Tokens {
             // Fixed alphas of the design's mockups (`app.css`), computed here so the
             // stylesheet needs no colour functions.
             ("line", fg_at(0.12)),
-            ("unlit", fg_at(UNLIT_ALPHA)),
             ("banner-error", at(blend(self.red, self.bg, 0.16), alpha)),
             ("banner-warn", at(blend(self.yellow, self.bg, 0.14), alpha)),
             // The one literal the stylesheet needs, written once: the frameless icon buttons'
@@ -772,7 +772,6 @@ scale = 1.0
   --ctl-focus-fill: rgba(228, 220, 203, 0.08);
   --ctl-focus-border: rgba(217, 163, 91, 0.467);
   --ctl-selected-fill: rgba(228, 220, 203, 0.18);
-  --ctl-selected-border: rgba(228, 220, 203, 1);
   --ctl-pressed-fill: rgba(228, 220, 203, 0.22);
   --radius: 0px;
   --radius-box: 0px;
@@ -781,7 +780,6 @@ scale = 1.0
   --radius-bar: 3px;
   --radius-knob: 50%;
   --line: rgba(228, 220, 203, 0.12);
-  --unlit: rgba(228, 220, 203, 0.12);
   --banner-error: rgba(62, 47, 44, 1);
   --banner-warn: rgba(57, 54, 40, 1);
   --none: transparent;
