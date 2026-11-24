@@ -16,7 +16,7 @@ use std::time::Duration;
 
 use gtk::prelude::*;
 use odc_app::theme::{Rgb, Tokens};
-use odc_app::ui::theme::{LiveTheme, theme_dir};
+use odc_app::ui::omarchy::{LiveTheme, theme_dir};
 use odc_app::ui::window::Window;
 use odc_app::ui::{Request, preview};
 use odc_protocol::Frame;

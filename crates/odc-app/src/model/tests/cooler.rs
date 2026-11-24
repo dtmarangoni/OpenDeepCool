@@ -67,7 +67,7 @@ fn cooler_sending_fails_under_2_s() {
 // and the line show, from the service's two settings and what the app knows of the system.
 #[test]
 fn the_theme_card_in_each_state_of_the_design() {
-    use crate::choice::{Facts, Preference as P};
+    use crate::theme_choice::{Facts, Preference as P};
     let card = |omarchy: Option<bool>, preference: P, use_system: bool, dark: bool| {
         let mut state = base();
         state.use_system_theme = Some(use_system);

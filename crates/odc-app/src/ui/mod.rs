@@ -8,12 +8,12 @@ pub mod display_page;
 pub mod dots;
 pub mod dropdowns;
 pub mod names;
+pub mod omarchy;
 pub mod page;
 pub mod pointer;
 pub mod preview;
 pub mod size;
 pub mod startup;
-pub mod theme;
 pub mod tiles;
 pub mod window;
 

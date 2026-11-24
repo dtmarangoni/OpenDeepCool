@@ -11,8 +11,8 @@ use std::process::{Command, ExitCode};
 use std::time::Duration;
 
 use gtk::prelude::*;
-use odc_app::choice::Preference;
 use odc_app::theme::Tokens;
+use odc_app::theme_choice::Preference;
 use odc_app::ui::Request;
 use odc_app::ui::window::Window;
 use odc_ipc::State;

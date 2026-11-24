@@ -9,8 +9,8 @@ use gtk::prelude::*;
 use gtk::{gdk, glib};
 
 use super::{Inner, Window};
-use crate::choice::{self, Preference, Source};
 use crate::theme::Tokens;
+use crate::theme_choice::{self, Preference, Source};
 use odc_ipc::WindowOpacity;
 
 /// GTK's `gtk-interface-color-scheme` as the app's [`Preference`].
@@ -159,8 +159,8 @@ impl Window {
     }
 
     /// What the theme is made from now: the system's facts and the service's two settings.
-    pub(super) fn theme_inputs(&self) -> choice::Inputs {
-        choice::Inputs::of(
+    pub(super) fn theme_inputs(&self) -> theme_choice::Inputs {
+        theme_choice::Inputs::of(
             self.0.inputs.borrow().ui.system,
             self.0.theme_settings.get(),
         )

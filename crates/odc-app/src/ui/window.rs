@@ -31,13 +31,13 @@ use super::size;
 use super::startup::StartupCard;
 use super::{REFRESHED_FOR, REFUSED_FOR, Reason, Refused, Request, refusal_text};
 use crate::boot::{self, Boot, Place};
-use crate::choice;
 use crate::model::{
     Column, Dot, NOT_AVAILABLE_HEADING, NOT_AVAILABLE_TEXT, Page, SendingFails, Service, Ui, View,
     view,
 };
 use crate::pci_ids;
 use crate::theme::Tokens;
+use crate::theme_choice;
 
 mod follow;
 mod probes;
@@ -123,8 +123,8 @@ struct Inner {
     shown_tokens: Cell<Option<Tokens>>,
     /// The service's two theme settings, as it last said (on, dark before it first says), and
     /// the inputs the theme was last resolved from.
-    theme_settings: Cell<choice::ThemeSettings>,
-    resolved_from: Cell<Option<choice::Inputs>>,
+    theme_settings: Cell<theme_choice::ThemeSettings>,
+    resolved_from: Cell<Option<theme_choice::Inputs>>,
     /// The window is setting the gear itself: its `toggled` is no request.
     applying: Cell<bool>,
     feedback: gtk::Box,
@@ -472,7 +472,7 @@ impl Window {
             column_scroller,
             omarchy: Cell::new(None),
             shown_tokens: Cell::new(None),
-            theme_settings: Cell::new(choice::ThemeSettings::default()),
+            theme_settings: Cell::new(theme_choice::ThemeSettings::default()),
             resolved_from: Cell::new(None),
             applying: Cell::new(false),
             feedback,
@@ -643,7 +643,9 @@ impl Window {
             inputs.products = pci_ids::names(&text, &ids);
             inputs.gpu_ids = ids;
         }
-        self.0.theme_settings.set(choice::ThemeSettings::of(&state));
+        self.0
+            .theme_settings
+            .set(theme_choice::ThemeSettings::of(&state));
         inputs.service = Service::Up(Box::new(state));
         let wait = inputs.sending.follow(cooler, Instant::now());
         drop(inputs);

@@ -13,8 +13,8 @@ use odc_render::{Kind, Mode, MusicSettings, Values, mode_info};
 use odc_sensors::Metric;
 
 use crate::boot::{self, Boot};
-use crate::choice::{self, Preference, Source};
 use crate::live::{music_settings, values_from};
+use crate::theme_choice::{self, Preference, Source};
 
 /// What the app knows of the service.
 #[derive(Clone, Debug, PartialEq)]
@@ -40,7 +40,7 @@ pub enum Page {
 pub struct Ui {
     pub page: Page,
     /// What the app knows of the system's theme (the Theme card).
-    pub system: choice::Facts,
+    pub system: theme_choice::Facts,
     /// Whether `CoolerState` has been `write-failed` for [`SENDING_FAILS_AFTER`] (Banners).
     pub sending_failed_long: bool,
 }
@@ -339,7 +339,7 @@ impl ThemeLine {
 
 impl ThemeCard {
     /// The card for `inputs`.
-    pub fn of(inputs: &choice::Inputs) -> ThemeCard {
+    pub fn of(inputs: &theme_choice::Inputs) -> ThemeCard {
         let follows = inputs.follows_system();
         let line = match (follows, inputs.source()) {
             (true, Source::Omarchy) => ThemeLine::Omarchy,
@@ -464,9 +464,9 @@ pub fn view(
             ),
         },
     };
-    let theme = ThemeCard::of(&choice::Inputs::of(
+    let theme = ThemeCard::of(&theme_choice::Inputs::of(
         ui.system,
-        choice::ThemeSettings::of(state),
+        theme_choice::ThemeSettings::of(state),
     ));
     let config = ConfigPage {
         theme,

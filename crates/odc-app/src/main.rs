@@ -11,7 +11,7 @@ use odc_app::flags::{self, Flags};
 use odc_app::pci_ids;
 use odc_app::startup::PKEXEC;
 use odc_app::theme::Tokens;
-use odc_app::ui::theme::LiveTheme;
+use odc_app::ui::omarchy::LiveTheme;
 use odc_app::ui::window::Window;
 
 const APP_ID: &str = "io.github.dtmarangoni.OpenDeepCool";
