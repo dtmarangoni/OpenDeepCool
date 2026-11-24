@@ -43,9 +43,10 @@ The [PRD phase table](docs/prp/prds/opendeepcool-lp360.prd.md#implementation-pha
 |---|---|
 | [PRD](docs/prp/prds/opendeepcool-lp360.prd.md) | Problem, scope, decisions, phases, planned system footprint |
 | [Spec](docs/spec/) | The contract: USB messages, display modes, sensors, settings, expected frames and the parity checklist |
-| [Settings app design](docs/design/settings-app.md) | The settings app's screens, states, theme, keyboard and accessible names, with [mockups](docs/design/mockups/) |
+| [Settings app design](docs/design/README.md) | The settings app's [design](docs/design/settings-app.md): screens, states, theme, keyboard and accessible names, with [mockups](docs/design/mockups/) |
 | [Solution reviews](docs/prp/solution-reviews/README.md) | Architecture, best-practice and security reviews of the whole solution and of each phase's plan, done after planning and before implementation |
 | [Phase 1 report](docs/research/phase1-wine-spike.md) | History: the Wine spike that first recorded DeepCreative; the spec supersedes it |
+| [Music tags](docs/research/phase9-music-tags.md) | Research: could the Music spectrum follow only the sound that players tag as music? (Few tag it, so it follows everything the PC plays) |
 | [LP360 notes](docs/hardware/deepcool-lp360.md) | Wiring, identity, what the manual does and doesn't say |
 | [Reference documents](docs/reference/README.md) | Vendor manuals kept locally (not in git) and where to get them |
 | [AGENTS.md](AGENTS.md) / [CLAUDE.md](CLAUDE.md) | Rules and workflow for coding agents working on this repository |
