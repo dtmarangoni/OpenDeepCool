@@ -142,6 +142,10 @@ The owner first asked for no tests while refining, then (same day) to run them, 
 
 Task 58 (`868e6cc`) and Task 59 (`4687009`) went through the commit guard (fmt, clippy, the workspace tests, the udev rules check). The package was then built from `4687009` with `odc-pkg-test --export` (every check passed, the two AUR-way builds alike byte for byte; release 1 sha256 `c58a9a7f…c341`, release 2 `8d3ac459…faa0`) and release 1 installed over the old one with `pkexec pacman -U` (the owner's password): `pacman -Qkk` 41 files, 0 altered; the display service restarted once by the package's hook (PID 1094 to 90263, 0 restarts), the cooler connected and the sound helper attached again. Tasks 33 to 59 are now all in the installed app.
 
+## After the seventh list (2026-11-24, Tasks 60 and 61)
+
+Tasks 60 (`57ce600`) and 61 (`ce3e25b`) went through the commit guard (the first try of Task 61 was stopped by the flaky service test named in its row; the retry passed). The package was built from `8485169` with `odc-pkg-test --export` (27 of 27 checks, the AUR-way builds alike byte for byte) and release 1 installed over the old one with `pkexec pacman -U` (the owner's password): `pacman -Qkk` 41 files, 0 altered; the display service restarted once by the package's hook (PID 207376, 0 restarts), the cooler connected and the sound helper attached again. An app window that was open keeps the old build until it is closed and opened again.
+
 ## Still to do
 
 1. The owner reviews the installed build and says what is left; anything listed goes into the plan first.
