@@ -17,12 +17,12 @@ A command that prints a plain-text bug report for the user to read, change and p
 | 2 | Version | The program's version, and the line of `pacman -Q opendeepcool` | the build; pacman |
 | 3 | System | The distribution's `NAME`, `ID` and `ID_LIKE`, the kernel release, and whether systemd is running | `/etc/os-release`; `/proc/sys/kernel/osrelease`; `/run/systemd/system` |
 | 4 | Units | For the two system units (`opendeepcool.service`, `opendeepcool-gpu-rank.service`) and the user's `opendeepcool-audio.service`: `LoadState`, `UnitFileState`, `ActiveState`, `SubState`, `Result`, `NRestarts`, `ExecMainStatus` | `systemctl show`, and `systemctl --user show` |
-| 5 | The service's journal | The last 100 lines since the boot of the four system units | `journalctl -b -n 100 -o short-iso --no-hostname --no-pager` |
+| 5 | The service's journal | The last 100 lines since the boot of the two system units | `journalctl -b -n 100 -o short-iso --no-hostname --no-pager` |
 | 6 | The sound helper's journal | The last 40 lines since the boot | the same with `--user` |
-| 7 | Warnings and errors since the boot | The last 50 lines of priority warning or worse of the four system units, and the last 20 of the sound helper: in a long session the lines that matter have left the last 100 | `journalctl -b -p warning -n 50` and `--user … -n 20` |
+| 7 | Warnings and errors since the boot | The last 50 lines of priority warning or worse of the two system units, and the last 20 of the sound helper: in a long session the lines that matter have left the last 100 | `journalctl -b -p warning -n 50` and `--user … -n 20` |
 | 8 | Crashes | The `coredumpctl list` lines of OpenDeepCool's programs (`opendeepcoold`, `opendeepcool`, `opendeepcool-audio`, `odc-gpu-rank`, `opendeepcool-boot`) and nothing of any other program, with the reminder not to attach a core dump | `coredumpctl list` |
 
-The service's journal already says which source each reading uses, whether the cooler is connected and what the detection did, so the report adds no D-Bus call.
+The service's journal already says which source each reading uses and whether the cooler is connected, so the report adds no D-Bus call.
 
 ## The journal needs a group
 

@@ -1,6 +1,6 @@
 # D-Bus interface
 
-The contract between OpenDeepCool's display service and its clients: the settings app (Phase 10), the tests, and `busctl` until the app exists. It's OpenDeepCool's own; DeepCreative's window talks to its own main process instead. The crate `odc-ipc` holds the same names, state keys and members, and its tests check this document against them; the service's tests check its introspection against the XML below (Phase 7 plan, Tasks 4 and 7; owner, 2026-10-27, solution review P4-04).
+The contract between OpenDeepCool's display service and its clients: the settings app (Phase 10), the tests, and `busctl` for anyone who wants to look. It's OpenDeepCool's own; DeepCreative's window talks to its own main process instead. The crate `odc-ipc` holds the same names, state keys and members, and its tests check this document against them; the service's tests check its introspection against the XML below (Phase 7 plan, Tasks 4 and 7; owner, 2026-10-27, solution review P4-04).
 
 Later phases change this document in the same commit as their code, and `settings.md`'s "What the settings app must offer" with it, so the settings app's design follows. From `v1.0.0` it's frozen: an incompatible change gets a new interface, `…OpenDeepCool2`, next to this one (owner, 2026-10-24).
 

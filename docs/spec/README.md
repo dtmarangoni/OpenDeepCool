@@ -1,6 +1,6 @@
 # OpenDeepCool spec
 
-What DeepCool's DeepCreative app does with the LP360's 14×14 display, written so that OpenDeepCool can reproduce it without running DeepCreative. Phase 3 of the [PRD](../prp/prds/opendeepcool-lp360.prd.md) writes it; Phases 4–11 build from it.
+What DeepCool's DeepCreative app does with the LP360's 14×14 display, written so that OpenDeepCool can reproduce it without running DeepCreative. Phase 3 of the [PRD](../prp/prds/opendeepcool-lp360.prd.md) writes it; Phases 4–11a build from it.
 
 ## Documents
 

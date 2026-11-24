@@ -162,7 +162,7 @@ A stick figure dances to the music on the whole 14 × 14 grid, in place of the b
 **Rules,** at every tick, from the 14 column levels of [OpenDeepCool's spectrum](#opendeepcools-spectrum-precisely) (point 3, before any bar fall):
 
 - **Inputs:** *bass* is the highest level of columns 1–4 (40 Hz to about 222 Hz); *loudest* is the highest level of all 14.
-- **State:** the pose; the previous tick's *bass*; the ticks since the last beat; the quiet ticks; the step in the big-move routine; the sway side. At a reset (start-up, a switch into mode 23, a rotation change, another GPU, Refresh), the state starts again: pose 0, previous *bass* 0, 99 ticks since a beat, 0 quiet ticks, step 0, and the next sway goes right, as the emoji loops restart ([Emoji animations](#emoji-animations-modes-1417)). The reset tick then runs the rules below like any other tick, so its frame shows pose 0 unless that tick is a beat (owner, 2026-11-05).
+- **State:** the pose; the previous tick's *bass*; the ticks since the last beat; the quiet ticks; the step in the big-move routine; the sway side. At a reset (start-up, a switch into mode 23, a rotation change, another GPU, Refresh), the state starts again: pose 0, previous *bass* 0, 99 ticks since a beat, 0 quiet ticks, step 0, and the next sway goes right, as the emoji loops restart ([Emoji animations](#emoji-animations-modes-1416-and-2426)). The reset tick then runs the rules below like any other tick, so its frame shows pose 0 unless that tick is a beat (owner, 2026-11-05).
 - **Each tick, in order:**
   1. Add one to the ticks since the last beat.
   2. If *loudest* is below 0.1, add one to the quiet ticks; otherwise set them to 0.
