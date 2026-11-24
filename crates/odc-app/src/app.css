@@ -40,7 +40,11 @@ headerbar {
   border-bottom: 1px solid var(--line);
 }
 
+/* The app's title: the fifth level of the type scale, one step (1.2) above a page's title
+   (1.44em x 1.2 = 1.73em), so it reads as the name of the app over the names of its pages
+   (Task 60; owner, 2026-11-24). The 32 px icon buttons set the bar's height, which it fits. */
 .app-name {
+  font-size: 1.73em;
   font-weight: 600;
 }
 
@@ -160,10 +164,11 @@ button.icon-button:disabled {
 
 /* The type scale (Theme, Type): the system font, every size a multiple of the user's own, in
    em, so a class goes on the label itself and never on a box that holds another sized label.
-   One size for each level of the text, whichever card or page it is on (owner, 2026-11-23): a
-   page's title, then 1.2em for a category (a card's heading, a tile group's), 1em for what is
-   directly in it (a row's title, the Default Theme heading), and 0.83em for what is in that (a
-   row of the Default Theme, a hint). At 12 px that is 17, 14, 12 and 10. */
+   One size for each level of the text, whichever card or page it is on (owner, 2026-11-23): the
+   app's title in the header bar (1.73em, `.app-name` above), a page's title, then 1.2em for a
+   category (a card's heading, a tile group's), 1em for what is directly in it (a row's title,
+   the Default Theme heading), and 0.83em for what is in that (a row of the Default Theme, a
+   hint). At 12 px that is 21, 17, 14, 12 and 10. */
 .heading,
 .page-title {
   font-size: 1.44em;

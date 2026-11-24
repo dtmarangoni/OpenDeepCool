@@ -1,6 +1,7 @@
 //! One size for each level of the text (Phase 11a Task 55; owner, 2026-11-23): a category (a
 //! card's heading, a tile group's) is 1.2em wherever it is, what is directly in a category is
-//! 1em, and what is in that 0.83em, so a child is never larger than the heading that holds it.
+//! 1em, and what is in that 0.83em, so a child is never larger than the heading that holds it;
+//! above them the app's title is 1.73em (Task 60).
 //! Read from the stylesheet the app loads and from the mockups' own, so the two agree.
 
 use std::fs;
@@ -58,6 +59,10 @@ fn size(css: &str, selector: &str) -> Option<String> {
 #[test]
 fn the_type_scale_has_one_size_for_each_level() {
     let css = app_css();
+    // The top level, the app's title in the header bar: one step (1.2) above a page's title
+    // (Task 60), so the name of the app is larger than the name of any page.
+    assert_eq!(size(&css, ".app-name").as_deref(), Some("1.73em"));
+    assert_eq!(value(rule(&css, ".app-name"), "font-weight"), Some("600"));
     // Level 0, the page's title and the off screen's heading.
     assert_eq!(size(&css, ".page-title").as_deref(), Some("1.44em"));
     assert_eq!(size(&css, ".heading").as_deref(), Some("1.44em"));
@@ -92,6 +97,11 @@ fn the_mockups_draw_the_same_levels() {
     assert_eq!(
         value(root, "--fs-page-title"),
         Some("calc(var(--fs) * 1.44)")
+    );
+    assert_eq!(value(root, "--fs-title"), Some("calc(var(--fs) * 1.73)"));
+    assert_eq!(
+        value(rule(&css, ".app-name"), "font-size"),
+        Some("var(--fs-title)")
     );
     assert_eq!(value(root, "--fs-level1"), Some("calc(var(--fs) * 1.2)"));
     assert_eq!(value(root, "--fs-small"), Some("calc(var(--fs) * .83)"));
