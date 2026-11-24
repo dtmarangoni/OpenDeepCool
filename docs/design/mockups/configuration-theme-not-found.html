@@ -17,17 +17,17 @@
   --radius: 0px; --unlit-alpha: 0.12;
 }
 :root[data-theme="dark"] {
-  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme, Coolant): Lagoon, Tide, Foam, Fog and Flare, a petrol-blue family with one rose accent */
-  --bg: #0f2630; --surface: #183846; --fg: #f1ece2; --muted: #8fb0b8; --accent: #fb7fb0;
-  --red: #ff6b57; --yellow: #f0c94e; --green: #5fd68a;
+  /* OpenDeepCool's own theme, dark (design, OpenDeepCool's own theme, Meltwater): the deep. Abyss, Current, Spray, Haze and Glacier, one ocean-blue family with a glacier-cyan accent. Status: Buoy, Lantern, Sea glass */
+  --bg: #0a1f33; --surface: #11344f; --fg: #e6f3fa; --muted: #8db2c9; --accent: #6bd3e8;
+  --red: #ff665c; --yellow: #f6c553; --green: #52d68a;
   --ctl: var(--fg); --a-normal-fill: 5%; --a-normal-border: 44%; --w-normal-border: 1px;
   --a-hover-fill: 9%; --a-hover-border: 60%; --a-selected-fill: 16%; --a-pressed-fill: 24%;
   --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
 }
 :root[data-theme="light"] {
-  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme, Coolant): Frost, Glacier, Deep, Slate and Flare, the same family in daylight */
-  --bg: #d2e0e6; --surface: #f6fafb; --fg: #0e2a35; --muted: #42606a; --accent: #b0145f;
-  --red: #b93a22; --yellow: #7a5200; --green: #1d7a3f;
+  /* OpenDeepCool's own theme, light (design, OpenDeepCool's own theme, Meltwater): the ice. Rime, Floe, Fathom, Brine and Marine, the same family as frost under a deep-ocean ink. Status: Lifebuoy, Ochre, Kelp */
+  --bg: #cfe3f0; --surface: #f5fafd; --fg: #0b2742; --muted: #3a5971; --accent: #085f7d;
+  --red: #bd3326; --yellow: #7f5300; --green: #1a7c4e;
   --ctl: var(--fg); --a-normal-fill: 4%; --a-normal-border: 56%; --w-normal-border: 1px;
   --a-hover-fill: 7%; --a-hover-border: 74%; --a-selected-fill: 14%; --a-pressed-fill: 20%;
   --radius: 4px; --radius-box: 10px; --radius-win: 12px; --unlit-alpha: 0.12;
@@ -42,7 +42,8 @@
 :root {
   --fs: 14px;
   --fs-small: calc(var(--fs) * .83);
-  --fs-page-title: calc(var(--fs) * 1.2);
+  --fs-page-title: calc(var(--fs) * 1.44);
+  --fs-level1: calc(var(--fs) * 1.2); /* a category: a card's heading, a tile group's (one size for each level, owner, 2026-11-23) */
   --fs-heading: calc(var(--fs) * 1.44);
   --radius-box: 0px; --radius-win: 0px; --radius-pill: 9px; --radius-knob: 50%;
   --win-pct: 100%;
@@ -171,7 +172,7 @@ button { font: inherit; color: inherit; }
 .page-bar > :last-child { justify-self: end; }
 /* A page's margins are 18 px (design, Window, Page bar; Spacing), 6 px under the page bar. */
 .page-scroll { flex: 1; overflow: auto; padding: 6px 18px 18px; }
-.group h3, .card h3 { font-size: var(--fs); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
+.group h3, .card h3 { font-size: var(--fs-level1); text-transform: none; margin: 14px 0 6px; font-weight: 600; }
 .group-reason { display: flex; gap: 6px; font-size: var(--fs-small); margin: -2px 0 6px; align-items: center; }
 /* Temperature and Power share a row, 24 px apart, as in the app (design, Display page). The app sizes a tile by the widest
    caption of its group, so these two groups' tiles are narrower than the Music group's; the mockups draw every tile at
@@ -273,7 +274,9 @@ button { font: inherit; color: inherit; }
    three rows 14 px apart. While the system theme is followed the heading and the three titles are --muted (the app gives them the
    muted class) and every button is disabled, which the .seg rules above draw without opacity. */
 .subcat { display: flex; flex-direction: column; gap: 14px; margin-top: 10px; }
-.sub-heading { margin: 0; font-size: var(--fs-small); font-weight: 600; }
+.sub-heading { margin: 0; font-size: var(--fs); font-weight: 600; }
+/* The rows of the Default Theme are a level below the heading that holds them: the small size (Task 55) */
+.subcat .row-l span { font-size: var(--fs-small); }
 .subcat.dim .sub-heading, .subcat.dim .row-l span { color: var(--muted); }
 
 </style>
@@ -386,7 +389,7 @@ const CONFIG = {"omarchyTheme": false, "colorScheme": "unsupported", "useSystemT
 // - A picture wider than the screen (a value of 100 or more, a °F temperature of 100 or more) is drawn at its home
 //   position, the whole number first and the symbol cut: the first step of the app's scroll. An emoji tile shows its
 //   loop's first picture, and the Dancer its standing pose: a moment of a movement the app plays.
-// - The Music tiles (13 to 22, the emoji tiles' spectrum rows included, and the Dancer) are live only while sound is
+// - The Music tiles (13 to 16, 18 to 22, the emoji tiles' spectrum rows included, and the Dancer; not the three emoji alone) are live only while sound is
 //   attached (audio true) and a Music mode is the one shown: then they draw LIVE_SPECTRUM, the preview's own levels.
 //   Otherwise, a mode outside Music or audio false, they draw the still sample, SAMPLE_SPECTRUM, as the app does.
 //   audio false in a Music mode also leaves the preview silent: one bar row, the cooler's floor.
@@ -431,17 +434,22 @@ const MODES = [
   M(11, "Power", "GPU", ["gpu_power"], "value"),
   M(12, "Power", "CPU + GPU", ["cpu_power", "gpu_power"], "value"),
   M(13, "Music", "Spectrum", [], "full"),
-  M(14, "Music", "Emoji 1", [], "emoji"),
-  M(15, "Music", "Emoji 2", [], "emoji"),
-  M(16, "Music", "Emoji 3", [], "emoji"),
-  M(17, "Music", "Emoji 4", [], "emoji"),
+  M(14, "Music", "Lub-dub + Spectrum", [], "emoji"),
+  M(15, "Music", "Coffee break + Spectrum", [], "emoji"),
+  M(16, "Music", "Cat tail + Spectrum", [], "emoji"),
   M(18, "Music", "CPU temperature", ["cpu_temp"], "musicvalue"),
   M(19, "Music", "GPU temperature", ["gpu_temp"], "musicvalue"),
   M(20, "Music", "CPU usage", ["cpu_usage"], "musicvalue"),
   M(21, "Music", "GPU usage", ["gpu_usage"], "musicvalue"),
   M(22, "Music", "RAM usage", ["ram"], "musicvalue"),
-  M(23, "Music", "Dancer", [], "dancer")
+  M(23, "Music", "Dancer", [], "dancer"),
+  M(24, "Music", "Lub-dub", [], "emojialone"),
+  M(25, "Music", "Coffee break", [], "emojialone"),
+  M(26, "Music", "Cat tail", [], "emojialone")
 ];
+// Mode 17 is no mode: DeepCreative's Emoji 4, dropped on 2026-11-23 (the design, Display page). The three emoji alone take no
+// sound, so a Music mode of that kind shows no sound status and its tile is not one of the sound-live ones.
+const takesSound = m => m.group === "Music" && m.kind !== "emojialone";
 const byId = id => MODES.find(m => m.id === id);
 
 // The made-up readings of the moment, in CONFIG.live, are what the preview and every tile draw (design, Live tiles). The app's
@@ -467,11 +475,14 @@ const SYM = {
   "F": ["#.###", "..#..", "..###", "..#..", "..#.."],
   "W": [".....", "#.#.#", "#.#.#", "#.#.#", ".#.#."]
 };
+// The first picture of each emoji's loop: rows 1-7 over the spectrum (14-16), all 14 rows alone (24-26).
 const EMOJI = {
-  14: ["..............", "..............", "...###..###...", "..............", "..............", "..............", ".....####....."],
-  15: ["...#......#...", "..#.#....#.#..", ".#...#..#...#.", "..............", "..............", "..............", ".....####....."],
-  16: ["..............", "..###....###..", "..###....###..", "..###....###..", "..............", "....#....#....", ".....####....."],
-  17: ["..............", ".#####..#####.", "...##.....##..", "..............", "..............", ".....####.....", ".............."]
+  14: ["..............", "....##..##....", "...########...", "...########...", "....######....", ".....####.....", "......##......"],
+  15: [".........#....", "........#.....", ".....#........", "....######.##.", "....######..#.", ".....####.....", "...########..."],
+  16: ["....#....#....", "....######....", "....######....", ".....####.....", "...########...", "...#########.#", "...########.##"],
+  24: ["..............", "..............", "..............", "....##..##....", "...########...", "...########...", "....######....", ".....####.....", "......##......", "..............", "..............", "..............", "##############", ".............."],
+  25: ["......#.......", ".....#........", ".........#....", "........#.....", "......#.......", ".....#........", ".........#....", "........#.....", "......#.......", ".....#........", "....######.##.", "....######..#.", ".....####.....", "...########..."],
+  26: ["..............", "...#......#...", "...##....##...", "...########...", "...##.##.##...", "...########...", "....######....", "...########...", "..##########..", "..##########..", "..##########..", "..##########..", "..###....###.#", "...........###"]
 };
 const DANCER_STILL = [".....###......", ".....#.#......", ".....###......", "......#.......", "......#.......",
   ".....###......", "....#.#.#.....", "....#.#.#.....", "....#.#.#.....", "......#.......",
@@ -546,6 +557,8 @@ function picture(mode, readings, unit, spec, peaksOn) {
   } else if (m.kind === "emoji") {
     EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
     drawSpectrum(g, 6, spec, peaksOn);
+  } else if (m.kind === "emojialone") {
+    EMOJI[mode].forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
   } else if (m.kind === "dancer") {
     DANCER_STILL.forEach((row, r) => [...row].forEach((ch, c) => { if (ch === "#") g[r][c] = true; }));
   }
@@ -826,7 +839,7 @@ function side() {
     const [cls, text] = COOLER[coolerState()];
     status += dot(cls, text, "Cooler status");
     status += dot("good", "Service running", "Service status");
-    if (m.group === "Music") status += S.audio ? dot("good", "Sound connected", "Music sound status")
+    if (takesSound(m)) status += S.audio ? dot("good", "Sound connected", "Music sound status")
                                                : dot("warn", "No sound: spectrum is silent", "Music sound status");
   }
   const caption = S.service ? `${m.group} · ${m.caption}` : "No picture";
@@ -971,7 +984,7 @@ function paintAll() {
     paint(pv, rotate(g, S.rotation), 15);
   } else paint(pv, null, 15);
   // The Music tiles are live only while sound is attached and a Music mode is the one shown; otherwise the still sample.
-  const soundLive = S.service && S.audio && byId(S.mode).group === "Music";
+  const soundLive = S.service && S.audio && takesSound(byId(S.mode));
   document.querySelectorAll("canvas[data-mode]").forEach(c => {
     const id = +c.dataset.mode;
     const unavailable = c.closest("button").disabled;

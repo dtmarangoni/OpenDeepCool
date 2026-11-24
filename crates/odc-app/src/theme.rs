@@ -101,31 +101,33 @@ struct Palette {
     alphas: [f64; 6],
 }
 
-/// OpenDeepCool's own theme, dark, "Coolant": Lagoon, Tide, Foam, Fog and Flare, a petrol-blue
-/// family with one rose accent (`docs/design/settings-app.md`, OpenDeepCool's own theme; Phase 11a
-/// Task 44, redesigned from Task 11's graphite).
+/// OpenDeepCool's own theme, dark, "Meltwater": the deep. Abyss, Current, Spray, Haze and Glacier,
+/// a navy sea with one glacier-cyan highlight, for a water cooler (`docs/design/settings-app.md`,
+/// OpenDeepCool's own theme, and `docs/design/palette-ocean.md`; Phase 11a Task 54, redesigned
+/// from Task 44's Coolant, whose rose accent the owner rejected).
 const DARK: Palette = Palette {
-    bg: Rgb([0x0f, 0x26, 0x30]),
-    surface: Rgb([0x18, 0x38, 0x46]),
-    fg: Rgb([0xf1, 0xec, 0xe2]),
-    muted: Rgb([0x8f, 0xb0, 0xb8]),
-    accent: Rgb([0xfb, 0x7f, 0xb0]),
-    red: Rgb([0xff, 0x6b, 0x57]),
-    yellow: Rgb([0xf0, 0xc9, 0x4e]),
-    green: Rgb([0x5f, 0xd6, 0x8a]),
+    bg: Rgb([0x0a, 0x1f, 0x33]),
+    surface: Rgb([0x11, 0x34, 0x4f]),
+    fg: Rgb([0xe6, 0xf3, 0xfa]),
+    muted: Rgb([0x8d, 0xb2, 0xc9]),
+    accent: Rgb([0x6b, 0xd3, 0xe8]),
+    red: Rgb([0xff, 0x66, 0x5c]),
+    yellow: Rgb([0xf6, 0xc5, 0x53]),
+    green: Rgb([0x52, 0xd6, 0x8a]),
     alphas: [0.05, 0.44, 0.09, 0.60, 0.16, 0.24],
 };
 
-/// The same family in daylight: Frost, Glacier, Deep, Slate and Flare.
+/// The same family as ice: Rime, Floe, Fathom, Brine and Marine, a pale frost under a deep-ocean
+/// ink.
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xd2, 0xe0, 0xe6]),
-    surface: Rgb([0xf6, 0xfa, 0xfb]),
-    fg: Rgb([0x0e, 0x2a, 0x35]),
-    muted: Rgb([0x42, 0x60, 0x6a]),
-    accent: Rgb([0xb0, 0x14, 0x5f]),
-    red: Rgb([0xb9, 0x3a, 0x22]),
-    yellow: Rgb([0x7a, 0x52, 0x00]),
-    green: Rgb([0x1d, 0x7a, 0x3f]),
+    bg: Rgb([0xcf, 0xe3, 0xf0]),
+    surface: Rgb([0xf5, 0xfa, 0xfd]),
+    fg: Rgb([0x0b, 0x27, 0x42]),
+    muted: Rgb([0x3a, 0x59, 0x71]),
+    accent: Rgb([0x08, 0x5f, 0x7d]),
+    red: Rgb([0xbd, 0x33, 0x26]),
+    yellow: Rgb([0x7f, 0x53, 0x00]),
+    green: Rgb([0x1a, 0x7c, 0x4e]),
     alphas: [0.04, 0.56, 0.07, 0.74, 0.14, 0.20],
 };
 
@@ -1374,13 +1376,13 @@ scale = 1.0
             (
                 true,
                 [
-                    13.3, 10.5, 6.8, 5.4, 6.5, 5.2, 9.8, 7.8, 5.6, 8.6, 6.7, 3.7, 9.5, 4.1, 8.7,
+                    14.8, 11.4, 7.4, 5.7, 9.6, 7.4, 10.4, 8.0, 5.8, 9.0, 7.2, 3.9, 10.6, 6.1, 8.2,
                 ],
             ),
             (
                 false,
                 [
-                    11.1, 14.3, 5.0, 6.4, 5.0, 6.4, 5.1, 6.6, 4.2, 4.0, 10.9, 3.3, 8.9, 3.9, 7.3,
+                    11.5, 14.4, 5.6, 7.0, 5.4, 6.8, 5.1, 6.4, 4.3, 3.9, 11.0, 3.4, 9.2, 4.2, 8.0,
                 ],
             ),
         ];
