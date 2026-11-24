@@ -271,7 +271,7 @@ impl Settings {
 }
 
 /// A PCI address in canonical form, `dddd:bb:dd.f` in lower-case hex.
-pub fn check_pci(text: &str) -> Result<PciAddr, String> {
+fn check_pci(text: &str) -> Result<PciAddr, String> {
     let address = PciAddr::from_str(text)?;
     if address.to_string() == text {
         Ok(address)

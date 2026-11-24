@@ -29,14 +29,14 @@ use crate::session::Session;
 /// The virtual output's name: a null sink of the user's PipeWire. It's a single node with that
 /// name, whose monitor `pw-record --target odc-e2e` captures with `stream.capture.sink` (read on
 /// the development PC, 2026-11-05).
-pub const SINK: &str = "odc-e2e";
+const SINK: &str = "odc-e2e";
 
 /// The session's helper, its unit and its dev build (Phase 9 plan, Task 4).
 pub const HELPER_UNIT: &str = "opendeepcool-audio.service";
-pub const HELPER_NODE: &str = "opendeepcool-audio";
-pub const DEV_HELPER: &str = "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio";
+const HELPER_NODE: &str = "opendeepcool-audio";
+const DEV_HELPER: &str = "/usr/local/libexec/opendeepcool-dev/opendeepcool-audio";
 /// The package's helper, where the dev copy isn't installed (Phase 11 plan, Task 9).
-pub const PACKAGED_HELPER: &str = "/usr/lib/opendeepcool/opendeepcool-audio";
+const PACKAGED_HELPER: &str = "/usr/lib/opendeepcool/opendeepcool-audio";
 
 /// The helper the checks run in place of the owner's: the first of `candidates` that is a file
 /// (the dev copy's, then the package's).
@@ -44,7 +44,7 @@ pub const PACKAGED_HELPER: &str = "/usr/lib/opendeepcool/opendeepcool-audio";
 /// # Errors
 ///
 /// When none is installed, naming both.
-pub fn helper_program(candidates: &[&Path]) -> Result<PathBuf, String> {
+fn helper_program(candidates: &[&Path]) -> Result<PathBuf, String> {
     candidates
         .iter()
         .find(|path| path.is_file())

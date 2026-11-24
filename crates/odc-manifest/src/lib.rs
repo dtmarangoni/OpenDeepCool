@@ -20,7 +20,7 @@ pub const GROUP: &str = "opendeepcool";
 
 /// The shared folders a recorded file may be in; its name must contain `opendeepcool` too,
 /// whatever the letter case.
-pub const DEV_DIRS: &[&str] = &[
+const DEV_DIRS: &[&str] = &[
     "/etc/sysusers.d",
     "/etc/udev/rules.d",
     "/etc/systemd/system",
@@ -34,7 +34,7 @@ pub const DEV_DIRS: &[&str] = &[
 
 /// The dev copy's own folders (Phase 7 plan, Task 8; Phase 9 plan, Task 4): any file in them is
 /// OpenDeepCool's.
-pub const OWN_DIRS: &[&str] = &[
+const OWN_DIRS: &[&str] = &[
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/systemd/system/opendeepcool.service.d",
     "/etc/systemd/system/opendeepcool-gpu-rank.service.d",
@@ -45,7 +45,7 @@ pub const OWN_DIRS: &[&str] = &[
 /// shared ones Arch doesn't create (checked on the development PC, 2026-10-29; the
 /// `/usr/local/share` ones for the settings app, 2026-11-07: Arch's `filesystem` package makes
 /// `/usr/local/share` alone). A folder is removed only when empty.
-pub const CREATED_DIRS: &[&str] = &[
+const CREATED_DIRS: &[&str] = &[
     "/usr/local/libexec",
     "/usr/local/libexec/opendeepcool-dev",
     "/etc/dbus-1",

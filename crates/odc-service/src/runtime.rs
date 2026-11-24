@@ -26,11 +26,11 @@ use crate::pulse::Pulse;
 pub const TICK: Duration = Duration::from_millis(100);
 
 /// The sensors are read once a second (`docs/spec/sensors.md`).
-pub const SNAPSHOT_EVERY: Duration = Duration::from_secs(1);
+const SNAPSHOT_EVERY: Duration = Duration::from_secs(1);
 
 /// The watchdog is fed only while the device and sensor threads both progressed this recently
 /// (Recommendation, Supervision); the unit's `WatchdogSec=15` then restarts a stuck service.
-pub const PROGRESS_WINDOW: Duration = Duration::from_secs(10);
+const PROGRESS_WINDOW: Duration = Duration::from_secs(10);
 
 fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex

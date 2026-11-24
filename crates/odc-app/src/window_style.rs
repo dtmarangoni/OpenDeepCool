@@ -27,12 +27,12 @@ pub fn alpha(opacity: WindowOpacity) -> f64 {
 }
 
 /// Omarchy's toggle files for Hyprland, in its state folder.
-pub fn toggles_dir(state: &Path) -> PathBuf {
+pub(crate) fn toggles_dir(state: &Path) -> PathBuf {
     state.join("toggles").join("hypr")
 }
 
 /// The window opacity Omarchy has chosen in `state`.
-pub fn omarchy_opacity(state: &Path) -> WindowOpacity {
+pub(crate) fn omarchy_opacity(state: &Path) -> WindowOpacity {
     let dir = toggles_dir(state);
     if dir.join("window-opaque.lua").is_file() {
         WindowOpacity::Opaque

@@ -211,19 +211,19 @@ pub const TITLE: &str = "Start at boot";
 /// The information notes.
 pub const READ_FAILED: &str =
     "Can't tell whether OpenDeepCool is on: reading it from systemd failed.";
-pub const STARTING: &str = "The display service is starting.";
+const STARTING: &str = "The display service is starting.";
 
 /// The note's phrases (The note): at most one for the display service and one for the sound.
 pub const RUNS_NOT_AT_BOOT: &str = "the display service runs now, but doesn't start at boot";
-pub const STOPPED: &str = "the display service is stopped";
+const STOPPED: &str = "the display service is stopped";
 pub const FAILED: &str = "the display service failed";
-pub const SOUND_OFF: &str = "the sound for Music is off";
-pub const SOUND_NOT_AT_LOGIN: &str = "the sound for Music runs here, but doesn't start at login";
-pub const SOUND_NOT_HERE: &str = "the sound for Music isn't running in this session";
+const SOUND_OFF: &str = "the sound for Music is off";
+const SOUND_NOT_AT_LOGIN: &str = "the sound for Music runs here, but doesn't start at login";
+const SOUND_NOT_HERE: &str = "the sound for Music isn't running in this session";
 
 /// What screen readers get at a flip's end.
-pub const NOW_ON: &str = "Start at boot is on.";
-pub const NOW_OFF: &str = "Start at boot is off.";
+pub(crate) const NOW_ON: &str = "Start at boot is on.";
+pub(crate) const NOW_OFF: &str = "Start at boot is off.";
 
 /// What the switch shows of systemd's state and the flips, and what a flip does.
 #[derive(Clone, Debug, PartialEq, Eq)]

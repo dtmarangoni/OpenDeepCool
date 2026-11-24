@@ -20,7 +20,7 @@ use super::page::{icon_button, page, page_bar, scroller_of};
 use crate::model;
 
 /// The request a unit toggle sends.
-pub fn unit_request(unit: TemperatureUnit) -> Request {
+fn unit_request(unit: TemperatureUnit) -> Request {
     Request::SetTemperatureUnit(unit)
 }
 
@@ -34,7 +34,7 @@ pub const STOPS: [FallStop; 5] = [
 ];
 
 /// A stop's name on the scale's marks and in its value text.
-pub fn stop_name(stop: FallStop) -> &'static str {
+fn stop_name(stop: FallStop) -> &'static str {
     match stop {
         FallStop::Slower => "Slower",
         FallStop::Slow => "Slow",
@@ -45,13 +45,13 @@ pub fn stop_name(stop: FallStop) -> &'static str {
 }
 
 /// The stop a scale's value stands on: the nearest whole stop.
-pub fn stop_of(value: f64) -> FallStop {
+fn stop_of(value: f64) -> FallStop {
     let index = value.round().clamp(0.0, 4.0) as usize;
     STOPS[index]
 }
 
 /// A stop's value on the scale.
-pub fn value_of(stop: FallStop) -> f64 {
+fn value_of(stop: FallStop) -> f64 {
     STOPS.iter().position(|s| *s == stop).unwrap_or(0) as f64
 }
 

@@ -47,7 +47,7 @@ pub struct Ui {
 
 /// How long `write-failed` shows as connected (Banners: one bad write, or the cooler being
 /// unplugged, lasts about a tick).
-pub const SENDING_FAILS_AFTER: Duration = Duration::from_secs(2);
+const SENDING_FAILS_AFTER: Duration = Duration::from_secs(2);
 
 /// The `write-failed` wait: when the state became `write-failed`.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -365,8 +365,7 @@ impl ThemeCard {
     }
 }
 
-pub const NO_GPU_RULE_HINT: &str =
-    "No reading for this GPU's driver: the GPU options are unavailable.";
+const NO_GPU_RULE_HINT: &str = "No reading for this GPU's driver: the GPU options are unavailable.";
 
 /// The GPU dropdown.
 #[derive(Clone, Debug, PartialEq, Eq)]

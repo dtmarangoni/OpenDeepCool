@@ -493,7 +493,7 @@ fn four_sides(value: &toml::Value) -> Option<Widths> {
 }
 
 /// A colour in one of the accepted shapes (P10-05), or `None`.
-pub fn parse_colour(text: &str) -> Option<Rgba> {
+fn parse_colour(text: &str) -> Option<Rgba> {
     let mut parts: Vec<&str> = text.split_whitespace().collect();
     // A gradient's trailing angle, such as `45deg`.
     if parts.len() > 1
@@ -605,9 +605,9 @@ pub const UNLIT_ALPHA: f64 = 0.12;
 /// 0.55 in a light one, which puts it at about the middle of the theme's own lightness range, so
 /// it is weaker than any `muted` and still text (`docs/design/settings-app.md`, Answers decided
 /// on 2026-11-24, Task 63, D55).
-pub const DISABLED_ALPHA_DARK: f64 = 0.40;
+const DISABLED_ALPHA_DARK: f64 = 0.40;
 /// See [`DISABLED_ALPHA_DARK`].
-pub const DISABLED_ALPHA_LIGHT: f64 = 0.55;
+const DISABLED_ALPHA_LIGHT: f64 = 0.55;
 
 impl Tokens {
     /// The `:root` block.

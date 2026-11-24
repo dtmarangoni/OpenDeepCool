@@ -4,10 +4,10 @@
 //! skipped until it passes again, and then gets the whole state.
 
 /// At most this many watchers per Unix user.
-pub const PER_USER: usize = 8;
+const PER_USER: usize = 8;
 
 /// At most this many watchers in all.
-pub const IN_ALL: usize = 32;
+const IN_ALL: usize = 32;
 
 /// What a watcher's check changed.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

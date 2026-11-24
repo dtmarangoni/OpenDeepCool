@@ -28,7 +28,7 @@ use crate::model::{self, LiveInput, group_modes, group_name};
 use crate::theme::Tokens;
 
 /// The request a tile's activation sends.
-pub fn tile_request(mode: u16) -> Request {
+fn tile_request(mode: u16) -> Request {
     Request::SetMode(u32::from(mode))
 }
 
