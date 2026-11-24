@@ -112,6 +112,47 @@ flowboxchild.tile:disabled {
   color: var(--fg);
 }
 
+/* OpenDeepCool's own light theme draws its tiles as cards and frames what is chosen (design,
+   Answers decided on 2026-11-24, Task 61): the window class `own-light` is set only for it, so
+   an Omarchy theme and the own dark theme keep the rules above. A tile at rest is a card, filled
+   --plate, with no outline; hover and focus draw the control's hover border; a chosen tile, and a
+   chosen toggle in a card, are framed 2 px in --accent (the 1 px border and a 1 px inset ring, so
+   nothing moves); an unavailable tile stays the recessed well it was, with no outline. */
+window.own-light flowboxchild.tile {
+  background-color: var(--plate);
+  border-color: var(--none);
+}
+
+window.own-light flowboxchild.tile:hover,
+window.own-light flowboxchild.tile:focus-visible {
+  background-color: var(--plate);
+  border-color: var(--ctl-hover-border);
+}
+
+window.own-light flowboxchild.tile:active {
+  background-color: var(--plate);
+}
+
+window.own-light flowboxchild.tile.selected {
+  background-color: var(--plate);
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+window.own-light flowboxchild.tile:disabled {
+  background-color: var(--ctl-normal-fill);
+  border-color: var(--none);
+  box-shadow: none;
+}
+
+window.own-light .card button:checked {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+window.own-light .card button:checked:disabled {
+  box-shadow: none;
+}
+
 /* Keyboard focus is always visible, whatever the theme's focus alphas (WCAG 2.4.7). */
 :focus-visible {
   outline: 2px solid var(--accent);

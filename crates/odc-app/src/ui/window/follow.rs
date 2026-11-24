@@ -196,10 +196,12 @@ impl Window {
         self.0.shown_tokens.set(Some(*tokens));
         self.0.provider.load_from_string(&tokens.css());
         // The window's classes: `glassy` asks for the compositor's blur, `own-corners` gives the
-        // window OpenDeepCool's own theme's corners (Window opacity and corners).
+        // window OpenDeepCool's own theme's corners (Window opacity and corners), and `own-light`
+        // is set only for the own theme's light colours, whose tiles are cards (Task 61).
         for (class, on) in [
             ("glassy", tokens.opacity == WindowOpacity::Glassy),
             ("own-corners", tokens.corners.is_some()),
+            ("own-light", tokens.corners.is_some() && !tokens.dark),
         ] {
             if on {
                 self.0.window.add_css_class(class);

@@ -1,8 +1,9 @@
 //! The window's opacity and corners in a headless weston (Phase 11a Tasks 45 and 51; layer 3;
 //! `docs/design/settings-app.md`, Window opacity and corners): the stylesheet of every style loads
 //! with no CSS problem (`backdrop-filter` included), the window's ground has the alpha of its mode
-//! and a card a denser one while the preview's frame stays solid, and the window's corners follow
-//! the own theme's choice. Behind the `weston-tests` feature.
+//! and a card a denser one while the preview's frame stays solid, the window's corners follow
+//! the own theme's choice, and the own light theme draws its tiles as cards and frames the chosen
+//! one (Task 61). Behind the `weston-tests` feature.
 
 mod common;
 
@@ -13,13 +14,16 @@ use gtk::prelude::*;
 use odc_app::theme::Tokens;
 use odc_ipc::{State, WindowCorners, WindowOpacity};
 
-use common::{Check, Picture, Renderer, base, close, run_for, shown};
+use common::{
+    Check, Picture, Renderer, base, close, near as colour_near, run_for, save_png, shown,
+};
+use odc_app::theme::Rgb;
 
 fn main() -> ExitCode {
     common::run(&CHECKS)
 }
 
-const CHECKS: [(&str, Check); 4] = [
+const CHECKS: [(&str, Check); 5] = [
     (
         "no_style_gives_a_css_problem_and_the_glass_rule_is_accepted",
         css_clean,
@@ -29,6 +33,10 @@ const CHECKS: [(&str, Check); 4] = [
     (
         "an_omarchy_theme_s_mode_changes_the_window_and_leaves_its_corners",
         omarchy,
+    ),
+    (
+        "the_own_light_theme_draws_its_tiles_as_cards_and_frames_the_chosen_one",
+        own_light_tiles,
     ),
 ];
 
@@ -229,5 +237,97 @@ fn omarchy(app: &gtk::Application) {
     });
     run_for(Duration::from_millis(300));
     assert!(w.has_css_class("glassy") && w.has_css_class("own-corners"));
+    close(window);
+}
+
+/// Snowday's card (`surface`) and accent, from the design's palette table.
+const SNOWDAY_CARD: Rgb = Rgb([0xf9, 0xfa, 0xfb]);
+const SNOWDAY_ACCENT: Rgb = Rgb([0x36, 0x56, 0x75]);
+
+// The own light theme's tiles are cards with no outline at rest, and the chosen tile has a 2 px
+// accent frame (its 1 px border and a 1 px inset ring); the window class `own-light` is set only
+// for that theme, so the own dark theme and an Omarchy theme keep their outlined wells. The
+// pictures of both pages in the light theme are saved for a person to look at
+// (`target/tmp/window_style/`).
+fn own_light_tiles(app: &gtk::Application) {
+    let (window, _) = shown(app);
+    let w = window.widget();
+    let tile = |mode: u16| {
+        window
+            .display_page()
+            .tiles()
+            .iter()
+            .find(|t| t.mode.number() == mode)
+            .expect("a tile")
+            .child
+            .clone()
+    };
+    let place = |widget: &gtk::FlowBoxChild| widget.compute_bounds(w).expect("a place");
+    window.state(State {
+        dark_theme: Some(false),
+        ..own(WindowOpacity::Opaque, WindowCorners::Rounded)
+    });
+    run_for(Duration::from_millis(300));
+    assert!(w.has_css_class("own-light"), "the own light theme");
+    let renderer = Renderer::new();
+    let picture = Picture::of(&renderer.0, w);
+    // A tile at rest (mode 2): the card's colour at its edge, outside any outline, and inside.
+    let rest = place(&tile(2));
+    let (left, middle) = (rest.x() as i32, (rest.y() + rest.height() / 2.0) as i32);
+    assert!(
+        colour_near(picture.at(left, middle), SNOWDAY_CARD),
+        "a tile's edge is the card's colour, with no outline: {:?}",
+        picture.at(left, middle)
+    );
+    assert!(colour_near(picture.at(left + 6, middle), SNOWDAY_CARD));
+    // The chosen tile (mode 1): two accent pixels, then the card's colour inside.
+    let chosen = place(&tile(1));
+    let (left, middle) = (
+        chosen.x() as i32,
+        (chosen.y() + chosen.height() / 2.0) as i32,
+    );
+    for dx in [0, 1] {
+        assert!(
+            colour_near(picture.at(left + dx, middle), SNOWDAY_ACCENT),
+            "the frame's pixel {dx} is the accent: {:?}",
+            picture.at(left + dx, middle)
+        );
+    }
+    assert!(
+        colour_near(picture.at(left + 3, middle), SNOWDAY_CARD),
+        "inside the frame is the card: {:?}",
+        picture.at(left + 3, middle)
+    );
+    let display = save_png(&renderer.0, w, "light-display");
+    WidgetExt::activate_action(w, "win.configuration", None).expect("the page");
+    run_for(Duration::from_millis(300));
+    let configuration = save_png(&renderer.0, w, "light-configuration");
+    println!(
+        "pictures: {} {}",
+        display.display(),
+        configuration.display()
+    );
+    drop(renderer);
+    // The own dark theme keeps its outlined wells: no class, and a tile's edge is its outline.
+    WidgetExt::activate_action(w, "win.display", None).ok();
+    window.state(State {
+        dark_theme: Some(true),
+        ..own(WindowOpacity::Opaque, WindowCorners::Rounded)
+    });
+    run_for(Duration::from_millis(300));
+    assert!(!w.has_css_class("own-light"), "the own dark theme");
+    // An Omarchy theme, light as well, has no class either: its corners are the compositor's.
+    window.omarchy_theme(Some(Tokens {
+        corners: None,
+        radius: 0,
+        radius_box: 0,
+        ..Tokens::default_theme(false)
+    }));
+    window.state(State {
+        use_system_theme: Some(true),
+        ..base()
+    });
+    run_for(Duration::from_millis(300));
+    assert!(!w.has_css_class("own-light"), "a light Omarchy theme");
     close(window);
 }

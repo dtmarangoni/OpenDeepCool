@@ -120,8 +120,8 @@ const DARK: Palette = Palette {
 
 /// The same forest in daylight, "Snowday": Hoarfrost, Fresh snow, Charcoal, Ash and Deep slate.
 const LIGHT: Palette = Palette {
-    bg: Rgb([0xd3, 0xdc, 0xe3]),
-    surface: Rgb([0xf5, 0xf7, 0xf9]),
+    bg: Rgb([0xd9, 0xe3, 0xec]),
+    surface: Rgb([0xf9, 0xfa, 0xfb]),
     fg: Rgb([0x2d, 0x30, 0x39]),
     muted: Rgb([0x55, 0x58, 0x62]),
     accent: Rgb([0x36, 0x56, 0x75]),
@@ -1382,7 +1382,7 @@ scale = 1.0
             (
                 false,
                 [
-                    9.5, 12.3, 5.1, 6.6, 5.5, 7.1, 5.0, 6.5, 4.2, 3.9, 9.5, 3.5, 7.7, 4.3, 6.7,
+                    10.1, 12.6, 5.5, 6.8, 5.9, 7.3, 5.4, 6.7, 4.5, 4.1, 9.8, 3.6, 8.2, 4.6, 7.1,
                 ],
             ),
         ];
