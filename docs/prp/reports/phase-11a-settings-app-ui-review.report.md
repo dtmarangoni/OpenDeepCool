@@ -152,6 +152,10 @@ Tasks 60 (`57ce600`) and 61 (`ce3e25b`) went through the commit guard (the first
 
 Task 62 (`78feef0`) went through the commit guard. The package was built from `ac2170c` with `odc-pkg-test --export` (27 of 27 checks) and release 1 installed over the old one with `pkexec pacman -U` (the owner's password): `pacman -Qkk` 41 files, 0 altered; the display service restarted once by the package's hook (PID 307321, 0 restarts), the cooler connected and the sound helper attached again. An app window that was open keeps the old build until it is closed and opened again.
 
+## After the ninth list (2026-11-24, Task 63)
+
+Task 63 (`c127a6a`) went through the commit guard. The package was built from `5b1b800` with `odc-pkg-test --export` (27 of 27 checks) and release 1 installed over the old one with `pkexec pacman -U` (the owner's password): `pacman -Qkk` 41 files, 0 altered; the display service restarted once by the package's hook (PID 429115, 0 restarts), the cooler connected and the sound helper active. An app window that was open keeps the old build until it is closed and opened again.
+
 ## Still to do
 
 1. The owner reviews the installed build and says what is left; anything listed goes into the plan first.
