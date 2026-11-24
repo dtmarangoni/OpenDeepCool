@@ -188,6 +188,62 @@ impl fmt::Display for StateError {
 
 impl std::error::Error for StateError {}
 
+/// Calls the macro `$each` with every field of [`State`], once, for the code that treats them all
+/// alike ([`State::merge`] and [`State::changed_since`]).
+macro_rules! every_field {
+    ($each:ident) => {
+        $each!(
+            mode,
+            rotation,
+            temperature_unit,
+            cooler_connected,
+            cooler_state,
+            available_modes,
+            unavailable_reasons,
+            gpus,
+            chosen_gpu,
+            gpu_in_use,
+            music_peaks,
+            music_bar_fall,
+            music_peak_fall,
+            readings,
+            use_system_theme,
+            dark_theme,
+            window_opacity,
+            window_corners,
+            audio_connected,
+            audio_wanted
+        )
+    };
+}
+
+/// A new field of [`State`] fails to compile here, so that every list that has to know it is
+/// revisited: `STATE_KEYS`, [`State::to_dict`], [`State::from_dict`] (its literal has no `..`) and
+/// `every_field!` above, and `docs/spec/dbus.md`, which the contract tests check against
+/// `STATE_KEYS`.
+const _: fn(State) = |State {
+                          mode: _,
+                          rotation: _,
+                          temperature_unit: _,
+                          cooler_connected: _,
+                          cooler_state: _,
+                          available_modes: _,
+                          unavailable_reasons: _,
+                          gpus: _,
+                          chosen_gpu: _,
+                          gpu_in_use: _,
+                          music_peaks: _,
+                          music_bar_fall: _,
+                          music_peak_fall: _,
+                          readings: _,
+                          use_system_theme: _,
+                          dark_theme: _,
+                          window_opacity: _,
+                          window_corners: _,
+                          audio_connected: _,
+                          audio_wanted: _,
+                      }| {};
+
 fn owned<'a>(value: impl Into<Variant<'a>>) -> OwnedVariant {
     OwnedVariant::try_from(value.into()).expect("the state holds no file descriptor")
 }
@@ -375,28 +431,7 @@ impl State {
                 })+
             };
         }
-        take!(
-            mode,
-            rotation,
-            temperature_unit,
-            cooler_connected,
-            cooler_state,
-            available_modes,
-            unavailable_reasons,
-            gpus,
-            chosen_gpu,
-            gpu_in_use,
-            music_peaks,
-            music_bar_fall,
-            music_peak_fall,
-            readings,
-            use_system_theme,
-            dark_theme,
-            window_opacity,
-            window_corners,
-            audio_connected,
-            audio_wanted
-        );
+        every_field!(take);
     }
 
     /// The keys whose value differs from `older`'s, as the service sends them in `StateChanged`;
@@ -410,28 +445,7 @@ impl State {
                 })+
             };
         }
-        keep!(
-            mode,
-            rotation,
-            temperature_unit,
-            cooler_connected,
-            cooler_state,
-            available_modes,
-            unavailable_reasons,
-            gpus,
-            chosen_gpu,
-            gpu_in_use,
-            music_peaks,
-            music_bar_fall,
-            music_peak_fall,
-            readings,
-            use_system_theme,
-            dark_theme,
-            window_opacity,
-            window_corners,
-            audio_connected,
-            audio_wanted
-        );
+        every_field!(keep);
         changes
     }
 
