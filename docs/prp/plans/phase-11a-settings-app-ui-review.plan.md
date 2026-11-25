@@ -8,7 +8,7 @@
 
 > **Numbering.** The PRD (Phase 12 scope; Decisions Log, "When the owner reviews the settings app") put the owner's review of the settings app after Phase 11 and before Phase 12. This phase is that review's work, written on 2026-11-18 after the owner's review. It is 11a so that Releases stays Phase 12: renumbering would change about sixty references in the completed phases' plans, reports and reviews, which stay as written.
 >
-> **Evidence read** on 2026-11-18 at `main` = `1a6a4e9` (Phase 11 complete). The owner's decisions D1–D4 below were given the same day, in answer to four questions about the owner's draft review, and D5–D8 later the same day, in answer to the four questions of [the solution review](../solution-reviews/phase-11a-settings-app-ui-review.review.md). The draft itself is not part of the repository.
+> **Evidence read** on 2026-11-18 at `main` = `1a6a4e9` (Phase 11 complete). The owner's decisions D1–D4 below were given the same day, in answer to four questions about the owner's review, and D5–D8 later the same day, in answer to the four questions of [the solution review](../solution-reviews/phase-11a-settings-app-ui-review.review.md).
 
 ## Outcome
 
@@ -51,7 +51,7 @@
 
 ### The owner's decisions of 2026-11-18
 
-D1–D4 answer four questions about the owner's draft review, D5–D8 the solution review's four. Each is in the PRD's Decisions Log or the Phase 11a details, and in a note in the spec where the spec is affected (a "decided, not yet built" note until each was built, none now).
+D1–D4 answer four questions about the owner's review, D5–D8 the solution review's four. Each is in the PRD's Decisions Log or the Phase 11a details, and in a note in the spec where the spec is affected (a "decided, not yet built" note until each was built, none now).
 
 | # | Decision | Choice |
 |---|---|---|
@@ -800,7 +800,7 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 - One commit per step, Conventional Commits (`docs:`, `chore:`, `refactor:`, `test:`), every commit through the guard (build, test, clippy, fmt, udev check). A step that moves what the expected frames, the D-Bus contract or a generated file pin says so and proves it with `odc-oracle` (no diff), the layer-2 differential tests, `odc-ipc`'s contract test or `cargo test -p odc-mockups`.
 - **No behaviour change:** no D-Bus method, wire byte, settings key or its text in `settings.toml`, frame, polkit action or visible pixel changes. A step that finds one would stop and ask the owner.
 - Layer 4 (`odc-e2e`) once, on the final build, in Task 65 (owner, 2026-11-22: one full run at the end of a batch); in-process and weston tests after every step that touches the app.
-- Documents the owner wrote (`docs/design/feeback.md`, the owner's quotes in the logs) are not edited; history documents (reports, solution reviews' dated outcomes, the decisions logs' dated rows, `docs/spec/fans-and-pump.md`) are only corrected where they state a present fact that is false.
+- The owner's quotes in the logs are not edited; history documents (reports, solution reviews' dated outcomes, the decisions logs' dated rows, `docs/spec/fans-and-pump.md`) are only corrected where they state a present fact that is false.
 
 **Steps, in this order**
 
@@ -917,5 +917,5 @@ Real runs that need the changed service use the dev copy (Tasks 4, 10 and 12 to 
 
 ## Agent Notes
 
-- The owner's draft review is deliberately not in the repository; its items are the tasks above, with R1–R4 the removals, C1–C10 the changes and A1 the addition. D1–D4 are the owner's four answers of 2026-11-18, recorded in the PRD's Decisions Log and in the spec notes, each marked "decided, not yet built" until its task lands.
+- The owner's review items are the tasks above, with R1–R4 the removals, C1–C10 the changes and A1 the addition. D1–D4 are the owner's four answers of 2026-11-18, recorded in the PRD's Decisions Log and in the spec notes, each marked "decided, not yet built" until its task lands.
 - Chat sessions that continue this plan should re-read Task N before starting it, and tell the owner which task they are on (AGENTS.md, Start of every session).
